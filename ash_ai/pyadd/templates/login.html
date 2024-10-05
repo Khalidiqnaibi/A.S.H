@@ -1,0 +1,210 @@
+<html lang="en">
+<head>
+    <title>Login</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    
+    <link rel="icon" type="image/png" href="images/icons/favicon.ico">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Raleway:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    <meta name="107932074863-nlil9n5j9lmahqfb15cmn52u59evpse9" content="107932074863-nlil9n5j9lmahqfb15cmn52u59evpse9.apps.googleusercontent.com">
+    <meta name="robots" content="noindex, follow">
+    <style>
+        body , html{
+            height: 100%;
+            width: 100%;
+            padding: 0px;
+            margin: 0px;
+        }
+        .limiter{
+            height: 100%;
+            width: 100%;
+            background-color: gray;
+            margin: 0px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .container-login{
+            margin: 50px;
+            margin-top: 0px;
+            height: 500px;
+            width: 500px;
+        }
+        form{
+            margin-top: -30px;
+            width: 350px;
+            height: 350px;
+            display: flex;
+            flex-direction: column;
+            align-content: space-around;
+            justify-content: space-evenly;
+            align-items: center;
+        }
+        .input100{
+            /*padding: 0 0 0 80px;*/
+        }
+        input{
+            outline: 0px;
+            height: 25px;
+            width: 230px;
+            font-family: "Raleway", sans-serif;
+            font-size: 16px;
+            line-height: 1.2;
+            color: #686868;
+            background: #e6e6e6;
+            padding: 0 0 0 15px;
+            border-radius: 2.5px;
+            display: flex;
+            z-index: 1;
+            justify-content: center;
+            border: .5px rgb(0, 0, 0) solid;
+        }
+        span{
+            font-family: "Raleway", sans-serif;
+        }
+        button{
+            height: 25px;
+            width: 130px;
+            border: .5px rgb(0, 0, 0) solid;
+            border-radius: 5px;
+        }
+        a{
+            color: black;
+            font-family: "Raleway", sans-serif;
+            outline: 0px;
+            text-decoration: none;
+        }
+        .login-title{
+            font-family: "Raleway", sans-serif;
+            font-size: 40px;
+            font-weight:600;
+        }
+        .btn-google{
+            font-family: "Raleway", sans-serif;
+            font-size: 20px;
+            font-weight: 600;
+            line-height: 1.2;
+            display: flex;
+            align-items: center;
+            height: 40px;
+            width: 130px;
+            background-color: #fff;
+            transition: all .4s;
+            border: .5px rgb(0, 0, 0) solid;
+            border-radius: 5px;
+            justify-content: space-evenly;
+        }
+        .text-center{
+            color: black;
+            margin-top: 50px;
+        }
+        span img{
+            width: 20px;
+            height: 20px;
+            margin-left: -20px;
+            pointer-events: none;
+        }
+        .wrap-login{
+            margin-top: 30px;
+            background-color: aquamarine;
+            height: 100%;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            border: 0.5px solid rgb(0, 0, 0);
+            border-radius: 5px;
+            flex-direction: column;
+            justify-content: space-around;
+            box-shadow: -5px 7px 7px 0px rgb(0, 0, 0);
+        }
+        .btn-google:hover,input:hover,button:hover{
+            border: 1px #e6e6e6 solid;
+            transition: all .5s;
+        }
+        .wrap-input100{   
+            margin-left: -30px;
+            width: 80%;
+            display: flex;
+            justify-content: center;
+        }
+        .symbol-input100{
+            display: flex;
+            align-items: center;
+            width: 15%;
+            height: 100%;
+            padding-left: 18px;
+            justify-content: center;
+            margin-left: -30px;
+        }
+    </style>
+</head>
+<body>
+ <div class="limiter">
+  <div class="container-login">
+   <div class="wrap-login p-l-50 p-r-50 p-t-77 p-b-30">
+    <form class="login100-form validate-form" method="POST" action="/login">
+        <span class="login-title p-b-55">
+            LOGIN
+        </span>
+        <div class="wrap-input100 validate-input m-b-16" data-validate="Valid email is required: ex@abc.xyz">
+            <span class="symbol-input100">
+                <span class="lnr lnr-envelope"><img src="{{ url_for('static', filename='env.png') }}" alt=" "></span>
+            </span>
+            <input class="input100" type="text" name="email" placeholder="Email">
+            <span class="focus-input100"></span>
+        </div>
+        <div class="wrap-input100 validate-input m-b-16" data-validate="Password is required">
+            <span class="symbol-input100">
+                <span class="lnr lnr-lock"><img src="{{ url_for('static', filename='lockk.png') }}" alt=" "></span>
+            </span>
+            <input class="input1" type="password" name="pass" placeholder="Password">
+            <span class="focus-input100"></span>
+        </div>
+        <div class="container-login100-form-btn p-t-25">
+            <button class="login100-form-btn" type="submit">
+                Login
+            </button>
+        </div>
+        <div class="text-center w-full p-t-42 p-b-22">
+            <span class="txt1">
+                Or login with
+            </span>
+        </div>
+        <div class="g-signin2" data-onsuccess="onSignIn"></div>
+        <div class="btn-google m-b-10" id="google-signin-btn">
+            <img src="{{ url_for('static', filename='icon-google.png') }}" alt="GOOGLE">
+            Google
+        </div>
+    </form>
+   </div>
+  </div>
+ </div>
+</body>
+<script src="https://apis.google.com/js/platform.js" async defer></script>
+<script>
+    function onSignIn(googleUser) {
+        var profile = googleUser.getBasicProfile();
+        var id_token = googleUser.getAuthResponse().id_token;
+        console.log('ID: ' + profile.getId());
+        console.log('Name: ' + profile.getName());
+        console.log('Image URL: ' + profile.getImageUrl());
+        console.log('Email: ' + profile.getEmail());
+        fetch('/login_google', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({id_token: id_token})
+        }).then(response => response.json()).then(data => {
+            if (data.status === 'success') {
+                window.location.href = data.redirect_url;
+            } else {
+                alert(data.message);
+            }
+        });
+    }
+</script>
+</html>
