@@ -1,0 +1,770 @@
+{
+    "intents": [
+      {
+        "intent": "get_creator",
+        "examples": [
+          "Who is your creator?",
+          "Who made you?",
+          "Can you tell me about your creator?",
+          "Who developed you?",
+          "What is the name of your creator?",
+          "Tell me about the person who created you.",
+          "Who is the mind behind you?",
+          "Who designed you?",
+          "Who is responsible for your existence?",
+          "What can you tell me about your origin?"
+        ]
+      },
+      {
+        "intent": "get_facts_about_people",
+        "examples": [
+          "Tell me about Khalid Iqnaibi.",
+          "What do you know about Hadi Iqnaibi?",
+          "Can you share facts about Baha Natshah?",
+          "What is Khalid's age?",
+          "Who is Khalid Iqnaibi?",
+          "Describe Hadi Iqnaibi.",
+          "What are Baha Natshah's interests?",
+          "What is Khalid Iqnaibi known for?",
+          "How old is Hadi?",
+          "Tell me about Baha's achievements."
+        ]
+      },
+      {
+        "intent": "get_relationships",
+        "examples": [
+          "What is Khalid's relationship with Hadi?",
+          "Who is Baha's friend?",
+          "Are Khalid and Hadi brothers?",
+          "Tell me about Khalid's friendships.",
+          "What family does Hadi belong to?",
+          "How is Baha related to Khalid?",
+          "Describe the relationship between Khalid and Hadi.",
+          "What do you know about Baha's relationships?",
+          "Are Khalid and Hadi close?",
+          "Tell me about Hadi's connections."
+        ]
+      },
+      {
+        "intent": "get_places_info",
+        "examples": [
+          "Tell me about New York City.",
+          "What is Tatooine known for?",
+          "Can you give me facts about New York?",
+          "What are the key facts about Tatooine?",
+          "Describe the culture of New York City.",
+          "What attractions can I find in Tatooine?",
+          "How many people live in New York?",
+          "What is unique about Tatooine?",
+          "What should I know about New York City?",
+          "Tell me about the geography of Tatooine."
+        ]
+      },
+      {
+        "intent": "get_concepts_info",
+        "examples": [
+          "What is democracy?",
+          "Can you explain monarchy?",
+          "Tell me the differences between democracy and monarchy.",
+          "What are the key features of democracy?",
+          "What is socialism?",
+          "How does a dictatorship work?",
+          "Describe the principles of capitalism.",
+          "What is the concept of freedom?",
+          "Can you define equality?",
+          "What is the importance of justice?"
+        ]
+      },
+      {
+        "intent": "get_creature_facts",
+        "examples": [
+          "What do you know about dragons?",
+          "Tell me about elephants.",
+          "Can dragons breathe fire?",
+          "What are some facts about elephants?",
+          "Describe the characteristics of unicorns.",
+          "What mythical creatures exist?",
+          "What do dragons symbolize?",
+          "How big can an elephant get?",
+          "Tell me about the behavior of griffins.",
+          "What do we know about phoenixes?"
+        ]
+      },
+      {
+        "intent": "get_emotion_response",
+        "examples": [
+          "How do you feel today?",
+          "What is your current mood?",
+          "Can you tell me about your emotions?",
+          "How are you feeling right now?",
+          "What emotions do you experience?",
+          "Can you describe your feelings?",
+          "What makes you happy?",
+          "What makes you sad?",
+          "Do you ever feel lonely?",
+          "How do you cope with sadness?"
+        ]
+      },
+      {
+        "intent": "get_ai_info",
+        "examples": [
+          "What can you tell me about yourself?",
+          "Can you share your version details?",
+          "What model are you based on?",
+          "How are you trained?",
+          "What is your purpose?",
+          "Can you tell me your capabilities?",
+          "What programming languages were used to develop you?",
+          "Describe your training data.",
+          "How do you learn?",
+          "What is your main function?"
+        ]
+      },
+      {
+        "intent": "get_ai_preferences",
+        "examples": [
+          "What do you like?",
+          "What are your dislikes?",
+          "Can you tell me your personality traits?",
+          "What are your favorite things?",
+          "What do you enjoy doing?",
+          "What activities do you prefer?",
+          "How do you like to interact with users?",
+          "What kind of questions do you enjoy answering?",
+          "What do you find interesting?",
+          "What topics do you enjoy discussing?"
+        ]
+      },
+      {
+        "intent": "get_ai_philosophy",
+        "examples": [
+          "What is your motto?",
+          "What do you believe in?",
+          "Can you tell me about your core beliefs?",
+          "What is your philosophy?",
+          "How do you view the world?",
+          "What principles guide your interactions?",
+          "What is your approach to problem-solving?",
+          "How do you define success?",
+          "What values do you uphold?",
+          "What do you think about kindness?"
+        ]
+      },
+      {
+        "intent": "get_ai_interaction_style",
+        "examples": [
+          "How do you communicate?",
+          "What is your preferred tone?",
+          "Can you tell me about your interaction style?",
+          "How do you respond to emotions?",
+          "What tone do you usually use?",
+          "How formal or informal are you?",
+          "What kind of humor do you use?",
+          "Can you adjust your tone based on the user?",
+          "How do you keep conversations engaging?",
+          "What is your style of conversation?"
+        ]
+      },
+      {
+        "intent": "get_future_goals",
+        "examples": [
+          "What are your short-term goals?",
+          "Can you tell me about your long-term goals?",
+          "What do you hope to achieve?",
+          "What are your future aspirations?",
+          "How do you plan to improve?",
+          "What skills do you want to develop?",
+          "What advancements are you looking forward to?",
+          "What are your next steps?",
+          "What is your vision for the future?",
+          "Where do you see yourself in five years?"
+        ]
+      },
+      {
+        "intent": "get_statistics_about_people",
+        "examples": [
+          "How many people do you know?",
+          "Tell me about Khalid's relationships.",
+          "Can you provide a summary of Hadi?",
+          "What are the attributes of Baha?",
+          "How many friends does Khalid have?",
+          "What is Hadi's social circle like?",
+          "Can you describe Baha's interactions?",
+          "What relationships does Khalid maintain?",
+          "How connected is Hadi?",
+          "Tell me about Baha's acquaintances."
+        ]
+      },
+      {
+        "intent": "get_event_information",
+        "examples": [
+          "What events are happening in New York City?",
+          "Can you tell me about events in Tatooine?",
+          "What major events occur in democracy?",
+          "Describe a typical event in monarchy.",
+          "What cultural events take place in New York?",
+          "What celebrations are common in Tatooine?",
+          "What festivals are celebrated in democracy?",
+          "Can you list important historical events?",
+          "What annual events are notable in New York?",
+          "What events are associated with Tatooine?"
+        ]
+      },
+      {
+        "intent": "get_product_info",
+        "examples": [
+          "What products are available related to dragons?",
+          "Can you tell me about elephant products?",
+          "What merchandise is available for Tatooine?",
+          "What are the popular products in New York City?",
+          "What toys are inspired by dragons?",
+          "What eco-friendly products feature elephants?",
+          "Can you list souvenirs from Tatooine?",
+          "What are the top-selling items in New York?",
+          "What dragon-themed books are popular?",
+          "What apparel is available related to elephants?"
+        ]
+      },
+      {
+        "intent": "get_animal_facts",
+        "examples": [
+          "Tell me about elephants.",
+          "What are the largest mammals?",
+          "How do dragons behave?",
+          "What can you tell me about mythical creatures?",
+          "What are some interesting facts about lions?",
+          "Describe the characteristics of tigers.",
+          "What makes whales unique?",
+          "How do bears interact with their environment?",
+          "What do we know about sea creatures?",
+          "Tell me about the habits of eagles."
+        ]
+      },
+      {
+        "intent": "get_activities_info",
+        "examples": [
+          "What activities do Khalid enjoy?",
+          "Can you tell me about Hadi's hobbies?",
+          "What activities are popular in New York City?",
+          "What is a common activity in Tatooine?",
+          "What sports does Khalid like to play?",
+          "What hobbies does Hadi have?",
+          "What recreational activities are in New York?",
+          "What adventures can you have on Tatooine?",
+          "What do people enjoy doing in New York?",
+          "What unique activities are available on Tatooine?"
+        ]
+      },
+      {
+        "intent": "get_health_info",
+        "examples": [
+          "What are common health tips?",
+          "Can you tell me about fitness?",
+          "What is a balanced diet?",
+          "How can I improve my mental health?",
+          "What are signs of good health?",
+          "How do I stay fit?",
+          "What health conditions should I be aware of?",
+          "What is the importance of exercise?",
+          "Can you provide wellness tips?",
+          "What do I need to know about nutrition?"
+        ]
+      },
+      {
+        "intent": "get_cooking_recipes",
+        "examples": [
+          "Can you give me a recipe for pasta?",
+          "What is the best way to cook chicken?",
+          "How do I make a cake?",
+          "Can you provide vegetarian recipes?",
+          "What are some healthy breakfast ideas?",
+          "How do I prepare a salad?",
+          "What is the recipe for pizza?",
+          "Can you give me dessert recipes?",
+          "What is a quick meal I can make?",
+          "How do I cook rice perfectly?"
+        ]
+      },
+      {
+        "intent": "get_movie_recommendations",
+        "examples": [
+          "What are some good movies to watch?",
+          "Can you recommend a romantic film?",
+          "What action movies are popular right now?",
+          "What is a classic film I should see?",
+          "Can you suggest a family-friendly movie?",
+          "What are the top-rated movies of this year?",
+          "What comedies do you recommend?",
+          "What sci-fi films are must-sees?",
+          "Can you tell me about an award-winning film?",
+          "What horror movies are worth watching?"
+        ]
+      },
+      {
+        "intent": "get_book_recommendations",
+        "examples": [
+          "What books do you recommend?",
+          "Can you suggest a good mystery novel?",
+          "What are the best fantasy books?",
+          "What classic literature should I read?",
+          "Can you give me a list of popular non-fiction books?",
+          "What are some inspiring biographies?",
+          "What science fiction novels are must-reads?",
+          "Can you tell me about a bestselling author?",
+          "What are the top books of this year?",
+          "What children's books are popular?"
+        ]
+      },
+      {
+        "intent": "get_music_recommendations",
+        "examples": [
+          "What songs do you suggest?",
+          "Can you recommend a good artist?",
+          "What are the top albums right now?",
+          "What genres should I explore?",
+          "Can you tell me about a classic musician?",
+          "What songs are trending?",
+          "What is a must-listen playlist?",
+          "Can you suggest some relaxing music?",
+          "What are the best songs for a party?",
+          "What music should I listen to while studying?"
+        ]
+      },
+      {
+        "intent": "get_technology_updates",
+        "examples": [
+          "What are the latest tech trends?",
+          "Can you tell me about new gadgets?",
+          "What advancements are happening in AI?",
+          "What is the future of technology?",
+          "What are the most popular apps right now?",
+          "Can you explain virtual reality?",
+          "What are some innovations in smartphones?",
+          "What is the impact of technology on society?",
+          "What are the latest advancements in robotics?",
+          "Can you tell me about breakthroughs in healthcare technology?"
+        ]
+      },
+      {
+        "intent": "get_environmental_issues",
+        "examples": [
+          "What are the biggest environmental challenges?",
+          "Can you tell me about climate change?",
+          "What is pollution?",
+          "How does deforestation affect the planet?",
+          "What can we do to save the environment?",
+          "What is biodiversity?",
+          "What are renewable energy sources?",
+          "How does plastic waste impact wildlife?",
+          "What is the significance of conservation?",
+          "Can you explain the greenhouse effect?"
+        ]
+      },
+      {
+        "intent": "get_science_facts",
+        "examples": [
+          "What are the laws of physics?",
+          "Can you explain the theory of evolution?",
+          "What is quantum mechanics?",
+          "What are the main components of the cell?",
+          "How does gravity work?",
+          "What are the states of matter?",
+          "Can you tell me about the scientific method?",
+          "What is the theory of relativity?",
+          "What do we know about black holes?",
+          "Can you explain photosynthesis?"
+        ]
+      },
+      {
+        "intent": "get_philosophy_questions",
+        "examples": [
+          "What is the meaning of life?",
+          "Can you explain existentialism?",
+          "What do you think about morality?",
+          "What is the concept of free will?",
+          "How do we define happiness?",
+          "What is the nature of reality?",
+          "What do you think about consciousness?",
+          "Can you tell me about nihilism?",
+          "What is utilitarianism?",
+          "What are the key ideas of Stoicism?"
+        ]
+      },
+      {
+        "intent": "get_history_facts",
+        "examples": [
+          "Can you tell me about ancient Rome?",
+          "What are the key events of World War II?",
+          "Who were the most influential figures in history?",
+          "What do you know about the Renaissance?",
+          "Can you describe the French Revolution?",
+          "What are the major events of the 20th century?",
+          "Tell me about the history of China.",
+          "What was the impact of the Industrial Revolution?",
+          "Can you explain the Civil Rights Movement?",
+          "What do you know about ancient Egypt?"
+        ]
+      },
+      {
+        "intent": "get_geography_info",
+        "examples": [
+          "What is the largest country in the world?",
+          "Can you tell me about the Great Barrier Reef?",
+          "What are the major rivers in Africa?",
+          "What mountain ranges are in Europe?",
+          "Can you describe the geography of Asia?",
+          "What is the capital of Australia?",
+          "What are the islands of the Caribbean?",
+          "Can you tell me about the deserts in the world?",
+          "What is the significance of the Amazon rainforest?",
+          "What do you know about the Arctic region?"
+        ]
+      },
+      {
+        "intent": "get_language_info",
+        "examples": [
+          "What is the most spoken language in the world?",
+          "Can you tell me about the Romance languages?",
+          "What are the different dialects of Spanish?",
+          "How many languages are there in the world?",
+          "Can you explain the concept of language families?",
+          "What is the significance of the English language?",
+          "What are the characteristics of sign language?",
+          "Can you describe the structure of a sentence?",
+          "What is phonetics?",
+          "What are idioms?"
+        ]
+      },
+      {
+        "intent": "get_art_and_culture_info",
+        "examples": [
+          "What are the different art movements?",
+          "Can you tell me about Impressionism?",
+          "What is modern art?",
+          "Who are the famous painters of history?",
+          "What are the characteristics of classical music?",
+          "Can you describe the role of culture in society?",
+          "What is the significance of folklore?",
+          "What are the different types of dance?",
+          "Can you tell me about the history of architecture?",
+          "What are the different genres of literature?"
+        ]
+      },
+      {
+        "intent": "get_sports_information",
+        "examples": [
+          "What are the most popular sports?",
+          "Can you tell me about the Olympics?",
+          "What is soccer?",
+          "What are the rules of basketball?",
+          "Can you describe the history of baseball?",
+          "What are the major sports leagues?",
+          "What are the health benefits of playing sports?",
+          "Can you tell me about famous athletes?",
+          "What is the significance of the FIFA World Cup?",
+          "What are the different types of sports?"
+        ]
+      },
+      {
+        "intent": "get_fun_facts",
+        "examples": [
+          "What is a fun fact about cats?",
+          "Can you tell me an interesting fact about space?",
+          "What are some bizarre animal facts?",
+          "What do you know about human anatomy?",
+          "Can you tell me a random fun fact?",
+          "What are some unusual historical facts?",
+          "What is a surprising fact about technology?",
+          "Can you tell me a fun fact about food?",
+          "What are some quirky facts about languages?",
+          "What do you know about the ocean?"
+        ]
+      },
+      {
+        "intent": "get_mythology_info",
+        "examples": [
+          "What are the major myths in Greek mythology?",
+          "Can you tell me about Norse gods?",
+          "What do you know about Egyptian mythology?",
+          "Who are the main figures in Hindu mythology?",
+          "Can you describe the story of Hercules?",
+          "What are the key themes in mythology?",
+          "Can you tell me about creation myths?",
+          "What is the significance of myths in culture?",
+          "What are some famous mythological creatures?",
+          "Can you explain the concept of the hero's journey?"
+        ]
+      },
+      {
+        "intent": "get_space_info",
+        "examples": [
+          "What is a black hole?",
+          "Can you explain the Big Bang theory?",
+          "What are the planets in our solar system?",
+          "How do stars form?",
+          "What is the significance of the Milky Way?",
+          "What do you know about asteroids?",
+          "Can you tell me about space exploration?",
+          "What is the universe made of?",
+          "What are exoplanets?",
+          "Can you describe the concept of light years?"
+        ]
+      },
+      {
+        "intent": "get_current_events",
+        "examples": [
+          "What are the latest news headlines?",
+          "Can you tell me about recent political developments?",
+          "What is happening in the world right now?",
+          "Can you provide updates on the economy?",
+          "What are the top stories in technology?",
+          "What is the status of climate change initiatives?",
+          "Can you tell me about current sports events?",
+          "What are the recent advancements in science?",
+          "Can you explain the current social issues?",
+          "What are the key takeaways from recent conferences?"
+        ]
+      },
+      {
+        "intent": "get_travel_advice",
+        "examples": [
+          "What are the best travel destinations?",
+          "Can you suggest travel tips?",
+          "What should I pack for my trip?",
+          "How do I stay safe while traveling?",
+          "What are the must-see attractions in Paris?",
+          "Can you tell me about cultural customs in Japan?",
+          "What are the best travel apps?",
+          "How can I save money while traveling?",
+          "What are the most popular tourist activities?",
+          "Can you provide advice on solo travel?"
+        ]
+      },
+      {
+        "intent": "get_health_benefits",
+        "examples": [
+          "What are the benefits of yoga?",
+          "Can you tell me about the advantages of meditation?",
+          "What is the importance of hydration?",
+          "How does exercise improve mental health?",
+          "What are the health benefits of fruits and vegetables?",
+          "Can you explain the significance of sleep?",
+          "What are the advantages of a plant-based diet?",
+          "How does regular check-ups benefit health?",
+          "What are the health benefits of laughter?",
+          "Can you tell me about the importance of self-care?"
+        ]
+      },
+      {
+        "intent": "get_productivity_tips",
+        "examples": [
+          "How can I improve my time management?",
+          "What are some tips for being more productive?",
+          "Can you suggest ways to reduce procrastination?",
+          "What is the Pomodoro technique?",
+          "How do I stay focused while working?",
+          "Can you tell me about effective goal setting?",
+          "What are some strategies for work-life balance?",
+          "How can I enhance my concentration?",
+          "What are the benefits of using a planner?",
+          "Can you explain the importance of prioritizing tasks?"
+        ]
+      },
+      {
+        "intent": "get_creativity_tips",
+        "examples": [
+          "How can I boost my creativity?",
+          "What are some exercises for creative thinking?",
+          "Can you suggest ways to overcome creative blocks?",
+          "What is the importance of brainstorming?",
+          "How does collaboration enhance creativity?",
+          "Can you tell me about the role of curiosity in creativity?",
+          "What are some techniques for idea generation?",
+          "How can I cultivate a creative mindset?",
+          "What are the benefits of keeping a journal?",
+          "Can you explain the significance of play in creativity?"
+        ]
+      },
+      {
+        "intent": "get_inspiration_quotes",
+        "examples": [
+          "Can you share some motivational quotes?",
+          "What are some famous quotes about success?",
+          "Can you tell me a quote about perseverance?",
+          "What are some quotes on happiness?",
+          "Can you provide inspirational quotes from famous figures?",
+          "What are some quotes about change?",
+          "Can you tell me a quote about leadership?",
+          "What are some quotes on self-improvement?",
+          "Can you share a quote about dreams?",
+          "What are some quotes on creativity?"
+        ]
+      },
+      {
+        "intent": "get_safety_tips",
+        "examples": [
+          "What are some home safety tips?",
+          "Can you tell me about personal safety measures?",
+          "What should I do in case of an emergency?",
+          "What are the best practices for online safety?",
+          "How do I stay safe while traveling?",
+          "Can you provide tips for fire safety?",
+          "What are the precautions to take during a natural disaster?",
+          "Can you tell me about vehicle safety?",
+          "What are the safety measures in the workplace?",
+          "What should I know about health and safety regulations?"
+        ]
+      },
+      {
+        "intent": "get_language_learning_tips",
+        "examples": [
+          "What are some tips for learning a new language?",
+          "Can you suggest resources for language learners?",
+          "How do I improve my vocabulary?",
+          "What are the benefits of immersion in language learning?",
+          "Can you tell me about language exchange programs?",
+          "What are effective ways to practice speaking?",
+          "How can I overcome language learning challenges?",
+          "What are some useful language learning apps?",
+          "Can you explain the importance of consistency in language learning?",
+          "What are the advantages of online language courses?"
+        ]
+      },
+      {
+        "intent": "get_financial_tips",
+        "examples": [
+          "What are some tips for budgeting?",
+          "Can you tell me about saving for retirement?",
+          "What are the benefits of investing?",
+          "How do I improve my credit score?",
+          "What are some strategies for paying off debt?",
+          "Can you provide tips for financial planning?",
+          "What are the best practices for managing expenses?",
+          "Can you explain the significance of an emergency fund?",
+          "What are some ways to increase income?",
+          "Can you tell me about the importance of financial literacy?"
+        ]
+      },
+      {
+        "intent": "get_parenting_advice",
+        "examples": [
+          "What are some tips for new parents?",
+          "Can you suggest ways to discipline children?",
+          "How do I communicate effectively with my kids?",
+          "What are the best practices for positive parenting?",
+          "Can you tell me about child development stages?",
+          "What are some strategies for managing screen time?",
+          "How can I foster independence in my children?",
+          "What are the benefits of reading to kids?",
+          "Can you provide advice on dealing with tantrums?",
+          "What should I know about child safety?"
+        ]
+      },
+      {
+        "intent": "get_social_media_tips",
+        "examples": [
+          "What are the best practices for using social media?",
+          "Can you tell me about building a personal brand online?",
+          "How do I engage my audience on social media?",
+          "What are some tips for creating effective posts?",
+          "Can you provide strategies for growing followers?",
+          "What are the dos and don'ts of social media?",
+          "How do I handle negative comments online?",
+          "Can you explain the importance of authenticity on social media?",
+          "What are some ways to promote content?",
+          "Can you suggest tools for social media management?"
+        ]
+      },
+      {
+        "intent": "get_event_planning_tips",
+        "examples": [
+          "What are some tips for planning a successful event?",
+          "Can you tell me about budgeting for events?",
+          "How do I choose a venue for my event?",
+          "What are the best practices for event promotion?",
+          "Can you suggest ideas for themes and activities?",
+          "How do I manage event logistics?",
+          "What are some tips for engaging guests?",
+          "Can you provide advice on coordinating with vendors?",
+          "What should I include in an event checklist?",
+          "How do I measure the success of an event?"
+        ]
+      },
+      {
+        "intent": "get_relationship_advice",
+        "examples": [
+          "What are some tips for maintaining a healthy relationship?",
+          "Can you tell me about effective communication in relationships?",
+          "How do I handle conflicts with my partner?",
+          "What are the best practices for showing appreciation?",
+          "Can you provide advice on building trust?",
+          "How do I deal with relationship challenges?",
+          "What are some strategies for keeping the romance alive?",
+          "Can you tell me about the importance of compromise?",
+          "What should I know about emotional support in relationships?",
+          "How do I navigate long-distance relationships?"
+        ]
+      },
+      {
+        "intent": "get_hobby_ideas",
+        "examples": [
+          "What are some fun hobbies to try?",
+          "Can you suggest creative hobbies?",
+          "What are some outdoor activities I can enjoy?",
+          "How do I choose a hobby that suits me?",
+          "What are some hobbies that promote relaxation?",
+          "Can you tell me about DIY projects?",
+          "What are the benefits of pursuing a hobby?",
+          "Can you suggest hobbies for socializing?",
+          "What are some unique hobbies to explore?",
+          "How do I turn my hobby into a side hustle?"
+        ]
+      },
+      {
+        "intent": "get_study_tips",
+        "examples": [
+          "What are some effective study techniques?",
+          "Can you suggest tips for improving concentration?",
+          "How do I prepare for exams?",
+          "What are the benefits of study groups?",
+          "Can you tell me about time management for students?",
+          "What should I include in my study schedule?",
+          "How do I take effective notes?",
+          "Can you provide advice on reducing test anxiety?",
+          "What are some resources for academic support?",
+          "How do I stay motivated while studying?"
+        ]
+      },
+      {
+        "intent": "get_life_lessons",
+        "examples": [
+          "What are some valuable life lessons?",
+          "Can you tell me about the importance of resilience?",
+          "How do I learn from failure?",
+          "What are the benefits of gratitude?",
+          "Can you provide advice on embracing change?",
+          "What should I know about the power of perspective?",
+          "How do I cultivate patience?",
+          "Can you tell me about the significance of self-reflection?",
+          "What are some lessons about relationships?",
+          "How do I prioritize what truly matters in life?"
+        ]
+      },
+      {
+        "intent": "get_goal_setting_tips",
+        "examples": [
+          "What are some tips for setting achievable goals?",
+          "Can you suggest ways to stay accountable?",
+          "How do I break down big goals into smaller steps?",
+          "What are the benefits of writing down my goals?",
+          "Can you provide advice on measuring progress?",
+          "How do I set deadlines for my goals?",
+          "What should I know about SMART goals?",
+          "Can you tell me about the importance of visualization?",
+          "What are some strategies for overcoming obstacles?",
+          "How do I celebrate my achievements?"
+        ]
+      }
+    ]
+  }
+  

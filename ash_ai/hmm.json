@@ -7,15 +7,17 @@
           "nicknames": [
             {
               "nickname": "Immortal",
-              "friendliness_percentage": 95
+              "friendliness_percentage": 10
             },
             {
               "nickname": "khalody",
-              "friendliness_percentage": 90
+              "friendliness_percentage": 95
             }
           ],
           "age": 20,
           "role": "creator",
+          "confidence": 100,
+          "friendliness_percentage": 100,
           "relationships": [
             {
               "type": "brother",
@@ -44,10 +46,12 @@
         {
           "id": 2,
           "name": "Hadi Iqnaibi",
+          "friendliness_percentage": 75,
+          "confidence": 50,
           "nicknames": [
             {
               "nickname": "Hadi",
-              "friendliness_percentage": 85
+              "friendliness_percentage": 0
             }
           ],
           "age": 13,
@@ -74,6 +78,8 @@
         {
           "id": 3,
           "name": "Baha Natshah",
+          "friendliness_percentage": 90,
+          "confidence": 70,
           "nicknames": [
             {
               "nickname": "Baha",
@@ -84,7 +90,7 @@
               "friendliness_percentage": 88
             }
           ],
-          "age": 22,
+          "age": 20,
           "role": "friend",
           "relationships": [
             {
@@ -292,21 +298,21 @@
         }
       ],
       "performance_metrics": {
-        "accuracy": null,
-        "loss": null,
-        "training_time": null
+        "accuracy": 98.988,
+        "loss": 0.12,
+        "training_time": 50
       },
       "status": {
         "is_training": false,
         "is_active": true,
         "last_trained": "2024-10-05",
-        "next_training_due": "2024-11-05"
+        "next_training_due": "2024-10-10"
       },
       "origin": {
         "creator": "Khalid Iqnaibi",
         "creation_date": "2024-10-05",
         "location": "Hebron, Palestine",
-        "purpose": "To assist with my day to day life and be a good friend for me and help a littel with my code and answering general questions."
+        "purpose": "To assist Immortal with his day to day life and be a good friend for him and help a littel with his code and answering general questions."
       },
       "preferences": {
         "likes": [
