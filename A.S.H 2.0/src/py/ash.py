@@ -30,6 +30,14 @@ from tools.lesstools import (
     stock_market_tool,
     date_time_tool
 )
+from tools.emo import(
+    init_emo,
+    get_emo,
+    set_emo,
+    update_emo,
+    reset_emo,
+    emo_to_string,
+)
 
 ##############
 #~ Immortal ~#
@@ -384,6 +392,13 @@ class ASH:
 
         self.toolkit.register(ret_tool)
 
+        self.toolkit.register(init_emo)
+        self.toolkit.register(get_emo)
+        self.toolkit.register(set_emo)
+        self.toolkit.register(update_emo)
+        self.toolkit.register(reset_emo)
+        self.toolkit.register(emo_to_string)
+
     def init_group(self):
         self.group = self.groups_system.create_lang_graph_group(status=ash_state)
 
@@ -484,6 +499,21 @@ class ASH:
                 "questions about your feelings should be answered honestly and openly",
             ],
         )
+
+    def set_emotions(self, happy=0,sad=0,angry=0,scared=0,discusted=0,tiredness=0,awkwardness=0,boredom=0,embressed=0,greatful=0):
+        feels(happy,sad,angry,scared,discusted,tiredness,awkwardness,boredom,embressed,greatful)
+        return {
+            "happy": ha,
+            "sad": sa,
+            "angry": an,
+            "scared": sc,
+            "discusted": dis,
+            "tiredness": tird,
+            "awkwardness": awk,
+            "boredom": brd,
+            "embressed": emb,
+            "greatful": grt
+        }
 
     def set_status(self, new_status):
         self.status = new_status
