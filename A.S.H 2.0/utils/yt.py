@@ -1,3 +1,14 @@
+import os,webbrowser
+import numpy as np
+from dotenv import load_dotenv
+from googleapiclient.discovery import build
+from nltk.tokenize import word_tokenize
+
+from kio import say,kinput,add_log
+
+load_dotenv()
+YOU_API_KEY = os.getenv("YOU_API_KEY")  
+
 
 def dontSearchyt(txt):
     # List of common "commanding" words to be removed
