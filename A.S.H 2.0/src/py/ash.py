@@ -25,20 +25,9 @@ from tools.emo import(
     emo_to_string,
 )
 from tools.classification import (
-    get_command,
-    get_emo,
-    get_response,
     get_type,
-    predict_class ,
-    cmndclasses,
-    cmndmodle,
-    cmnds,
-    commwords,
-    emoclasses,
-    emomodel,
-    emos,
-    emotion,
-    emowords,
+    txtcllassfie,
+    predict_class
 )
     
 
@@ -106,13 +95,22 @@ class ASH:
         )
 
         self.toolkit.register(ret_tool)
+        
+        self.init_emo_tools()
+        self.init_class_tools()
 
+    def init_emo_tools(self):
         self.toolkit.register(init_emo)
         self.toolkit.register(get_emo)
         self.toolkit.register(set_emo)
         self.toolkit.register(update_emo)
         self.toolkit.register(reset_emo)
         self.toolkit.register(emo_to_string)
+        
+    def init_class_tools(self):
+        self.tool_kit.register(get_type)
+        self.tool_kit.register(txtcllassfie)
+        self.tool_kit.register(predict_class)
 
     def init_group(self):
         self.group = self.groups_system.create_lang_graph_group(status=ash_state)
@@ -224,3 +222,15 @@ class ASH:
         res = self.group.run(f"the query is : {self.query} . ")
         return res
 
+
+if __name__ == "__main__":
+    ash = ASH()
+    while True:
+        query = input(f"{USER}: ")
+        if query.lower() in ["exit", "quit", "goodbye", "bye"]:
+            say("Goodbye! Have a great day!")
+            break
+        else:
+            kinput(query,by=USER)
+            response = ash.run(query)
+            say(response)  
