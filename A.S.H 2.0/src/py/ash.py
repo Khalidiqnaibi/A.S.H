@@ -1,5 +1,6 @@
 from datetime import timedelta,datetime
 from langchain.agents import AgentType
+from langchain.tools import tool
 
 from utils.google import OpnGoogle
 from utils.yt import OpnYoutubeVid
@@ -36,7 +37,7 @@ from tools.classification import (
 ##############
 
 #Ash attempt num 5 
-USER = "khalid afif sami iqnaibi"
+USER = "Immortal" #"khalid afif sami iqnaibi"
   
 kparser=Sen()
 
@@ -49,6 +50,17 @@ ash_state = StatE(
     res=""
 )
 
+endsession = False
+
+@tool 
+def exit_session(x: str) -> str:
+    """Exit the current session."""
+    say("Goodbye! Have a great day!")
+    say("Session ended by user.", by=USER)
+    global endsession
+    endsession = True
+    return "Session ended."
+
 class ASH:
     def __init__(self):
         self.name = "A.S.H"
@@ -60,7 +72,7 @@ class ASH:
         self.groups_system = GroupsFactory()
         self.tool_kit = ToolKit()
         self.lang = "the same language as the query"
-        self.llm = mistral.MistralLLM(mode="openrouter", temperature=0.7)
+        self.llm = mistral.MistralLLM(mode="ollama", temperature=0.7)
         self.init_prompt()
 
         self.agent = self.agents_system.create_lang_graph_agent(
@@ -93,7 +105,7 @@ class ASH:
             tool_name="domain_knowledge_tool",
             description="Retrieve structured domain knowledge from company database.",
         )
-
+        self.tool_kit.register(exit_session)
         self.toolkit.register(ret_tool)
         
         self.init_emo_tools()
@@ -226,11 +238,8 @@ class ASH:
 if __name__ == "__main__":
     ash = ASH()
     while True:
-        query = input(f"{USER}: ")
-        if query.lower() in ["exit", "quit", "goodbye", "bye"]:
-            say("Goodbye! Have a great day!")
-            break
-        else:
+        if not endsession:
+            query = input(f"{USER}: ")
             kinput(query,by=USER)
             response = ash.run(query)
             say(response)  

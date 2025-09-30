@@ -2,20 +2,11 @@ from langchain.tools import tool
 import ast, operator as op
 from AgentsSystem import Retriever, ChromaVDB, mistral
 from langchain.chains.query_constructor.schema import AttributeInfo
-import requests,os
+import requests
 from dotenv import load_dotenv
 from datetime import datetime
 
 load_dotenv()
-
-BILL_TYPE_MAP = {
-    1: "Sales",
-    2: "Purchases",
-    3: "Sales Returns",
-    4: "Purchase Returns",
-    31: "POS Sales",
-    33: "POS Returns"
-}
 
 METADATA_FIELDS = [
     AttributeInfo(
@@ -50,10 +41,9 @@ METADATA_FIELDS = [
     )
 ]
 
-
 class RetrieverFactory:
     def __init__(self, host: str = None, port: int = None):
-        self.chroma = ChromaVDB()
+        self.chroma = ChromaVDB(meta_api_url="http://localhost:2020")
 
         if host and port:
             self.chroma.init_cloud_db_client(host=host, port=port)
@@ -100,7 +90,6 @@ def _safe_eval(node):
 def safe_calc(expr: str):
     tree = ast.parse(expr, mode='eval')
     return _safe_eval(tree.body)
-
 
 @tool
 def calculator_tool(expression: str) -> str:
@@ -181,12 +170,10 @@ def make_retriever_tool(retriever, tool_name="knowledge_retrieval_tool", descrip
 
     return _retriever_tool
 
-
 factory = RetrieverFactory(
-   host="10.0.0.137",
-   port=2000
+   host="localhost",
+   port=4444
 )
-
 
 if __name__ == "__main__":
 

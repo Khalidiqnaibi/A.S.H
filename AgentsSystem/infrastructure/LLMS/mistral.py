@@ -19,7 +19,7 @@ DEFAULT_LOCAL_URL = os.environ.get("MISTRAL_LOCAL_URL", "http://localhost:5005/c
 
 # Ollama defaults
 DEFAULT_OLLAMA_MODEL = os.environ.get("MISTRAL_OLLAMA_MODEL", "mistral:instruct")
-DEFAULT_OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://10.0.0.137:4444/api/chat")
+DEFAULT_OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:4444/api/chat")
 
 # Tokens
 HF_TOKEN = os.environ.get("HUGGINGFACE_API_TOKEN")
