@@ -10,14 +10,14 @@ from langchain.tools import tool
 # from utils.stream import opnstream
 # from utils.kio import say,kinput,add_log
 from AgentsSystem import AgentsFactory, GroupsFactory, ToolKit, PromptTemplate, BaseStatus, mistral
-from tools.lesstools import (
+from ASH2.tools.lesstools import (
     calculator_tool,
     factory,
     make_retriever_tool,
     stock_market_tool,
     date_time_tool
 )
-from tools.emo import(
+from ASH2.tools.emo import(
     init_emo,
     get_emo,
     set_emo,
@@ -25,7 +25,7 @@ from tools.emo import(
     reset_emo,
     emo_to_string,
 )
-from tools.classification import (
+from ASH2.tools.classification import (
     get_type,
     txtcllassfie,
     predict_class
