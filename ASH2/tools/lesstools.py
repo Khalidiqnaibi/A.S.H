@@ -105,45 +105,6 @@ def date_time_tool(x: str) -> str:
     """Returns the current date and time now."""
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-@tool
-def stock_market_tool(symbol: str) -> str:
-    """
-    Retrieve the latest stock market information for a given ticker symbol.
-    Example: 'AAPL' for Apple, 'TSLA' for Tesla.
-    Returns: Current price, change, and other relevant data.
-    """
-
-    try:
-        # Example API (Finnhub). Replace with your provider if needed
-        API_KEY = FINHUB_API_KEY  
-        url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={API_KEY}"
-
-        response = requests.get(url)
-        if response.status_code != 200:
-            return f"Error fetching stock data: {response.text}"
-
-        data = response.json()
-        if "c" not in data:
-            return "Invalid response from stock API."
-
-        current_price = data.get("c", "N/A")
-        high = data.get("h", "N/A")
-        low = data.get("l", "N/A")
-        open_price = data.get("o", "N/A")
-        prev_close = data.get("pc", "N/A")
-
-        return (
-            f"Stock: {symbol}\n"
-            f"Current Price: {current_price}\n"
-            f"High: {high}\n"
-            f"Low: {low}\n"
-            f"Open: {open_price}\n"
-            f"Previous Close: {prev_close}\n"
-        )
-
-    except Exception as e:
-        return f"Error: {str(e)}"
-    
 def make_retriever_tool(retriever, tool_name="knowledge_retrieval_tool", description=None):
     """
     Dynamically wraps a retriever instance into a LangChain tool.
@@ -178,7 +139,7 @@ factory = RetrieverFactory(
 if __name__ == "__main__":
 
     retriever = factory.build_retriever(
-        llm=mistral.MistralLLM(mode="openrouter", temperature=0.7),
+        llm=mistral.MistralLLM(mode="ollama", temperature=0.7),
         description="the type of observer design pattern"
     )
 

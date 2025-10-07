@@ -2,14 +2,14 @@ from datetime import timedelta,datetime
 from langchain.agents import AgentType
 from langchain.tools import tool
 
-from utils.google import OpnGoogle
-from utils.yt import OpnYoutubeVid
-from utils.diary import add_dairy
-from utils.ktime import Ktime
-from utils.sen import Sen
-from utils.stream import opnstream
+# from utils.google import OpnGoogle
+# from utils.yt import OpnYoutubeVid
+# from utils.diary import add_dairy
+# from utils.ktime import Ktime
+# from utils.sen import Sen
+# from utils.stream import opnstream
+# from utils.kio import say,kinput,add_log
 from AgentsSystem import AgentsFactory, GroupsFactory, ToolKit, PromptTemplate, BaseStatus, mistral
-from utils.kio import say,kinput,add_log
 from tools.lesstools import (
     calculator_tool,
     factory,
@@ -30,7 +30,6 @@ from tools.classification import (
     txtcllassfie,
     predict_class
 )
-    
 
 ##############
 #~ Immortal ~#
@@ -39,7 +38,7 @@ from tools.classification import (
 #Ash attempt num 5 
 USER = "Immortal" #"khalid afif sami iqnaibi"
   
-kparser=Sen()
+# kparser=Sen()
 
 class StatE(BaseStatus):
     query: str
@@ -49,6 +48,14 @@ ash_state = StatE(
     query="",
     res=""
 )
+    
+def say(text, by="A.S.H"):
+    print(f"{by}: {text}")
+    # add_log(f"{by}: {text}")
+
+def kinput(prompt, by="User"):
+    print(f"{by}: {prompt}\n")
+    # add_log(f"{by}: {prompt}\n")
 
 endsession = False
 
@@ -234,9 +241,9 @@ class ASH:
         res = self.group.run(f"the query is : {self.query} . ")
         return res
 
+ash = ASH()
 
 if __name__ == "__main__":
-    ash = ASH()
     while True:
         if not endsession:
             query = input(f"{USER}: ")
