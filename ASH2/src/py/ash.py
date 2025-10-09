@@ -14,7 +14,6 @@ from ASH2.tools.lesstools import (
     calculator_tool,
     factory,
     make_retriever_tool,
-    stock_market_tool,
     date_time_tool
 )
 from ASH2.tools.emo import(
@@ -25,11 +24,11 @@ from ASH2.tools.emo import(
     reset_emo,
     emo_to_string,
 )
-from ASH2.tools.classification import (
-    get_type,
-    txtcllassfie,
-    predict_class
-)
+# from ASH2.tools.classification import (
+    # get_type,
+    # txtcllassfie,
+    # predict_class
+# )
 
 ##############
 #~ Immortal ~#
@@ -41,11 +40,11 @@ USER = "Immortal" #"khalid afif sami iqnaibi"
 # kparser=Sen()
 
 class StatE(BaseStatus):
-    query: str
+    input: str
     res: str
 
 ash_state = StatE(
-    query="",
+    input="",
     res=""
 )
     
@@ -77,17 +76,19 @@ class ASH:
         self.status = "online"
         self.agents_system = AgentsFactory()
         self.groups_system = GroupsFactory()
-        self.tool_kit = ToolKit()
+        self.toolkit = ToolKit()
         self.lang = "the same language as the query"
         self.llm = mistral.MistralLLM(mode="ollama", temperature=0.7)
         self.init_prompt()
 
+        self.init_toolkit()
+        
         self.agent = self.agents_system.create_lang_graph_agent(
             prompt=self.prompt,
             llm=self.llm,
             tools=self.toolkit,
             agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-            input_state="query",
+            input_state="input",
             next_state="res",
             verbose=True,
             handle_parsing_errors=True,
@@ -99,7 +100,6 @@ class ASH:
         self.toolkit = ToolKit()
 
         self.toolkit.register(calculator_tool)
-        self.toolkit.register(stock_market_tool)
         self.toolkit.register(date_time_tool)
 
         retriever = factory.build_retriever(
@@ -112,11 +112,11 @@ class ASH:
             tool_name="domain_knowledge_tool",
             description="Retrieve structured domain knowledge from company database.",
         )
-        self.tool_kit.register(exit_session)
+        self.toolkit.register(exit_session)
         self.toolkit.register(ret_tool)
         
         self.init_emo_tools()
-        self.init_class_tools()
+        # self.init_class_tools()
 
     def init_emo_tools(self):
         self.toolkit.register(init_emo)
@@ -126,10 +126,10 @@ class ASH:
         self.toolkit.register(reset_emo)
         self.toolkit.register(emo_to_string)
         
-    def init_class_tools(self):
-        self.tool_kit.register(get_type)
-        self.tool_kit.register(txtcllassfie)
-        self.tool_kit.register(predict_class)
+    # def init_class_tools(self):
+        # self.toolkit.register(get_type)
+        # self.toolkit.register(txtcllassfie)
+        # self.toolkit.register(predict_class)
 
     def init_group(self):
         self.group = self.groups_system.create_lang_graph_group(status=ash_state)

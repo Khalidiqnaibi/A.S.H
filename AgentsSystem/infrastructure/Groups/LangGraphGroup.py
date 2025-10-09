@@ -33,11 +33,16 @@ class LangGraphGroup(IGroup):
         return self._registry[name]
 
     def run(self, prompt: str) -> Any:
-        # Build initial context with separate substates
-        context = self._status
-        context.update({"query": prompt})
+        # Ensure the graph gets what it expects
+        if hasattr(self._status, "dict"):
+            context = self._status.dict()
+            context["input"] = prompt
+        else:
+            context = dict(self._status)
+            context["input"] = prompt
 
-        # Compile and invoke the graph
         compiled_graph = self._graph.compile()
         result = compiled_graph.invoke(context)
         return result
+
+
