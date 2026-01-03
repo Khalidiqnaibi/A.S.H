@@ -1,0 +1,24 @@
+{
+  "comments": [
+    {
+      "pattern": "Each offered ways to rethink and reshape how work gets done\\.",
+      "comment": "Consider briefly explaining how each method differs to give the reader a clearer picture of their unique contributions."
+    },
+    {
+      "pattern": "Use diagrams\\. Use models\\. Interview people\\.",
+      "comment": "You could rephrase this list into a smoother flow, like 'Use diagrams, models, and interviews to understand workflows clearly.'"
+    },
+    {
+      "pattern": "It’s not just about documenting for the sake of it\\.",
+      "comment": "Consider adding an example here to show how business architecture has helped real companies improve decision-making."
+    },
+    {
+      "pattern": "Matrix management may be needed\\.",
+      "comment": "You might want to add a sentence clarifying what matrix management looks like in practice for less familiar readers."
+    },
+    {
+      "pattern": "Think of it as the internal consultancy that keeps process efforts aligned, efficient, and evolving\\.",
+      "comment": "Consider expanding slightly on how this group interacts with different departments for clarity."
+    }
+  ]
+}

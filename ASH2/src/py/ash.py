@@ -6,9 +6,8 @@ from langchain.tools import tool
 # from utils.yt import OpnYoutubeVid
 # from utils.diary import add_dairy
 # from utils.ktime import Ktime
-# from utils.sen import Sen
+from utils.sen import Sen
 # from utils.stream import opnstream
-# from utils.kio import say,kinput,add_log
 from AgentsSystem import AgentsFactory, GroupsFactory, ToolKit, PromptTemplate, BaseStatus, mistral
 from ASH2.tools.lesstools import (
     calculator_tool,
@@ -250,3 +249,5 @@ if __name__ == "__main__":
             kinput(query,by=USER)
             response = ash.run(query)
             say(response)  
+        else:
+            break
