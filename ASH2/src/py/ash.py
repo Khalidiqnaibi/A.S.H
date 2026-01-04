@@ -1,14 +1,19 @@
 from datetime import timedelta,datetime
-from langchain.agents import AgentType
 from langchain.tools import tool
+
+import sys
+print(f"Python is running from: {sys.executable}")
+import AgentSystem 
+print(f"Package found at: {AgentSystem.__file__}")
+
 
 # from utils.google import OpnGoogle
 # from utils.yt import OpnYoutubeVid
 # from utils.diary import add_dairy
 # from utils.ktime import Ktime
-from utils.sen import Sen
+# from utils.sen import Sen
 # from utils.stream import opnstream
-from AgentsSystem import AgentsFactory, GroupsFactory, ToolKit, PromptTemplate, BaseStatus, mistral
+from AgentSystem import AgentsFactory, GroupsFactory, ToolKit, PromptTemplate, BaseStatus, mistral
 from ASH2.tools.lesstools import (
     calculator_tool,
     factory,
@@ -86,7 +91,6 @@ class ASH:
             prompt=self.prompt,
             llm=self.llm,
             tools=self.toolkit,
-            agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
             input_state="input",
             next_state="res",
             verbose=True,

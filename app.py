@@ -1,7 +1,8 @@
-from flask import Flask,redirect,render_template,send_file,session,request,url_for
+from flask import Flask,redirect,render_template,send_file,session,request,url_for,jsonify
 import sys
 import os
-from ASH2.src.py.ash import ASH
+from ASH2.src.py.ash import ASH , USER
+from ASH2.utils.kio import *
 
 app = Flask(__name__)
 ash = ASH()
@@ -10,6 +11,12 @@ ash = ASH()
 def test():
     ash.run("how are you ash")
 
+@app.route("/q/<q>")
+def q(q):
+    query = input(f"{USER}: ")
+    kinput(query,by=USER)
+    response = ash.run(query)
+    return(jsonify(response))
 
 @app.route("/")
 def index():
