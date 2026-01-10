@@ -2,7 +2,7 @@ from flask import Flask,redirect,render_template,send_file,session,request,url_f
 import sys
 import os
 from ASH2.src.py.ash import ASH , USER
-from ASH2.utils.kio import *
+# from ASH2.utils.kio import *
 
 app = Flask(__name__)
 ash = ASH()
@@ -13,8 +13,8 @@ def test():
 
 @app.route("/q/<q>")
 def q(q):
-    query = input(f"{USER}: ")
-    kinput(query,by=USER)
+    query = input(f"{USER}: {q}")
+    # kinput(query,by=USER)
     response = ash.run(query)
     return(jsonify(response))
 

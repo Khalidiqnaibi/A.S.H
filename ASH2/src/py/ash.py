@@ -1,11 +1,6 @@
 from datetime import timedelta,datetime
 from langchain.tools import tool
 
-import sys
-print(f"Python is running from: {sys.executable}")
-import AgentSystem 
-print(f"Package found at: {AgentSystem.__file__}")
-
 
 # from utils.google import OpnGoogle
 # from utils.yt import OpnYoutubeVid

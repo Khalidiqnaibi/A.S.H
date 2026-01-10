@@ -1,7 +1,7 @@
 import pyttsx3
 from datetime import datetime
 
-from db.db import chatlog,inputlog
+from ASH2.db.db import chatlog,inputlog
 
 # Initialize the TTS engine
 engine = pyttsx3.init()

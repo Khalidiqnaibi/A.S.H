@@ -1,7 +1,7 @@
 from langchain.tools import tool  
 import ast, operator as op
-from AgentsSystem import Retriever, ChromaVDB, mistral
-from langchain.chains.query_constructor.schema import AttributeInfo
+from AgentSystem import Retriever, ChromaVDB, mistral
+from langchain_classic.chains.query_constructor.schema import AttributeInfo
 import requests
 from dotenv import load_dotenv
 from datetime import datetime
@@ -133,7 +133,7 @@ def make_retriever_tool(retriever, tool_name="knowledge_retrieval_tool", descrip
 
 factory = RetrieverFactory(
    host="localhost",
-   port=4444
+   port=2000
 )
 
 if __name__ == "__main__":
