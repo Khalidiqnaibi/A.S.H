@@ -9,11 +9,12 @@ ash = ASH()
 
 @app.route("/test")
 def test():
-    ash.run("how are you ash")
+    response = ash.run("how are you ash")
+    return(jsonify(response))
 
 @app.route("/q/<q>")
 def q(q):
-    query = input(f"{USER}: {q}")
+    query = f"{USER}: {q}"
     # kinput(query,by=USER)
     response = ash.run(query)
     return(jsonify(response))

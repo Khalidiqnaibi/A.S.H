@@ -1,6 +1,6 @@
 from datetime import timedelta,datetime
 from langchain.tools import tool
-
+import dotenv ,os
 
 # from utils.google import OpnGoogle
 # from utils.yt import OpnYoutubeVid
@@ -38,13 +38,16 @@ USER = "Immortal" #"khalid afif sami iqnaibi"
   
 # kparser=Sen()
 
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+MISTRAL_OPENROUTER_MODEL = os.getenv("MISTRAL_OPENROUTER_MODEL")
+
 class StatE(BaseStatus):
     input: str
     res: str
 
 ash_state = StatE(
-    input="",
-    res=""
+    input={},
+    res={}
 )
     
 def say(text, by="A.S.H"):
@@ -77,7 +80,7 @@ class ASH:
         self.groups_system = GroupsFactory()
         self.toolkit = ToolKit()
         self.lang = "the same language as the query"
-        self.llm = mistral.MistralLLM(mode="ollama", temperature=0.7)
+        self.llm = mistral.MistralLLM(temperature=0.7,openrouter_model=MISTRAL_OPENROUTER_MODEL,openrouter_key=OPENROUTER_API_KEY)
         self.init_prompt()
 
         self.init_toolkit()
@@ -157,6 +160,7 @@ class ASH:
         self.query = query
 
         self.prompt = PromptTemplate(
+            name=self.name,
             role="financial analysis expert, licensed financial advisor, and accounting professional assistant",
             question=(
                 f"the query is : {self.query} . "
@@ -193,6 +197,7 @@ class ASH:
         self.query =''
 
         self.prompt = PromptTemplate(
+            name=self.name,
             role="personal professional assistant and companion and manager",
             question=(
                 f"the query is : {self.query} ."
@@ -236,8 +241,10 @@ class ASH:
 
     def run(self, query):
         self.query = query
-        res = self.group.run(f"the query is : {self.query} . ")
-        return res
+        return self.group.run({
+            "input": f"the query is : {self.query} .",
+            "res": ""
+        })["res"]
 
 ash = ASH()
 
