@@ -68,6 +68,23 @@ input::-moz-focus-inner { /* Remove the inner border on Firefox */
     border-bottom-right-radius: 6px;
 }
 
+/* Individual message entries */
+.log-entry {
+  padding: 12px 15px;
+  word-wrap: break-word;
+  white-space: pre-wrap;   /* preserve line breaks */
+  line-height: 1.5;        /* makes text readable */
+}
+
+/* Optional: differentiate user vs AI messages */
+.log-entry.user {
+  align-self: flex-end;
+}
+
+.log-entry.ash {
+  align-self: flex-start;
+}
+
 #botframe {
     height: 50%;
     width: 100%;
