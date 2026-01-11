@@ -154,3 +154,7 @@ input::-moz-focus-inner { /* Remove the inner border on Firefox */
 #send-button:hover{
     transform: scale(1.02);
 }
+
+p{
+    margin: 1px;
+}

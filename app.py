@@ -41,7 +41,6 @@ def handle_user_message(data):
 
     query = f"{user}: {msg}"
 
-    # Call your existing logic
     response = ash.run(query)
 
     # Send back to client

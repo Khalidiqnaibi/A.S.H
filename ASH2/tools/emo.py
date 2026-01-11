@@ -1,94 +1,122 @@
 from langchain.tools import tool
+from dataclasses import dataclass, asdict
+from ASH2.tools.log_tools import log_tool_use
 
-emo = None
+EMO_KEYS = [
+    "happy", "sad", "angry", "fear", "surprise", "disgust",
+    "love", "trust", "anticipation", "excitement", "boredom",
+    "anxiety", "confidence", "frustration", "relief", "pride",
+    "shame", "guilt", "envy", "jealousy", "optimism",
+    "pessimism", "curiosity"
+]
 
-class emos: 
-    def __init__(
-        self, happy=0, sad=0, angry=0, fear=0, surprise=0, disgust=0, love=0, trust=0,
-        anticipation=0, excitement=0, boredom=0, anxiety=0, confidence=0, frustration=0,
-        relief=0, pride=0, shame=0, guilt=0, envy=0, jealousy=0, optimism=0, pessimism=0, curiosity=0
-    ):
-        self.happy = happy
-        self.sad = sad
-        self.angry = angry
-        self.fear = fear
-        self.surprise = surprise
-        self.disgust = disgust
-        self.love = love
-        self.trust = trust
-        self.anticipation = anticipation
-        self.excitement = excitement
-        self.boredom = boredom
-        self.anxiety = anxiety
-        self.confidence = confidence
-        self.frustration = frustration
-        self.relief = relief
-        self.pride = pride
-        self.shame = shame
-        self.guilt = guilt
-        self.envy = envy
-        self.jealousy = jealousy
-        self.optimism = optimism
-        self.pessimism = pessimism
-        self.curiosity = curiosity
+@dataclass
+class EmotionState:
+    happy: int = 0
+    sad: int = 0
+    angry: int = 0
+    fear: int = 0
+    surprise: int = 0
+    disgust: int = 0
+    love: int = 0
+    trust: int = 0
+    anticipation: int = 0
+    excitement: int = 0
+    boredom: int = 0
+    anxiety: int = 0
+    confidence: int = 0
+    frustration: int = 0
+    relief: int = 0
+    pride: int = 0
+    shame: int = 0
+    guilt: int = 0
+    envy: int = 0
+    jealousy: int = 0
+    optimism: int = 0
+    pessimism: int = 0
+    curiosity: int = 0
 
-@tool
-def init_emo(x:str) -> str:
-    """Initialize the global emotion state."""
-    print("used init_emo")
-    global emo
-    emo = emos()
-    return "Emotion state initialized."
+    def clamp(self, min_val=-10, max_val=10):
+        for k in EMO_KEYS:
+            setattr(self, k, max(min(getattr(self, k), max_val), min_val))
 
-@tool
-def get_emo(x:str) -> str:
-    """Get the current emotion state as a string."""
-    print("used get_emo")
-    if emo is None:
-        return "Emotion state not initialized."
-    return emo_to_string()
+    def as_dict(self):
+        return asdict(self)
 
 @tool
-def set_emo(new_emo: dict) -> str:
-    """Set the emotion state using a dictionary of values."""
-    print("used set_emo")
-    global emo
-    emo = emos(**new_emo)
-    return "Emotion state updated."
-
-@tool
-def update_emo(data:dict)  -> str:
-    """Update a specific emotion by adding a value. it works like this data = {'emo': emotion (str), 'val':value (int)}"""
-    print("used update_emo")
-    if emo is None:
-        return "Emotion state not initialized."
-    if hasattr(emo, data['emo']):
-        current_value = getattr(emo, data["emo"])
-        setattr(emo, data['emo'], current_value + data['val'])
-        return f"{data['emo']} updated to {getattr(emo, data['emo'])}."
-    else:
-        return f"Emotion '{data['emo']}' not found."
-
-@tool
-def reset_emo(x:str) -> str:
-    """Reset all emotions to zero."""
-    print("used reset_emo")
-    global emo
-    emo = emos()
-    return "Emotion state reset."
-
-@tool
-def emo_to_string(x:str) -> str:
-    """Return the emotion state as a formatted string."""
-    print("used emo_to_string")
-    if emo is None:
-        return "Emotion state not initialized."
-    return (
-        f"happy: {emo.happy}, sad: {emo.sad}, angry: {emo.angry}, fear: {emo.fear}, "
-        f"surprise: {emo.surprise}, disgust: {emo.disgust}, love: {emo.love}, trust: {emo.trust}, "
-        f"anticipation: {emo.anticipation}, excitement: {emo.excitement}, boredom: {emo.boredom}, "
-        f"anxiety: {emo.anxiety}, confidence: {emo.confidence}, frustration: {emo.frustration}, "
-        f"relief: {emo.relief}, pride: {emo.pride}, shame: {emo.shame}, guilt: {emo.guilt}, "
-        f"envy: {emo.envy}, jealousy: {emo.jealousy}, optimism: {emo.optimism}, "
-        f"pessimism: {emo.pessimism}, curiosity: {emo.curiosity}"
+def init_emo(state: dict) -> dict:
+    """Initialize emotion state."""
+    print('used init_emo')
+    in_state = state
+    
+    state["emotions"] = EmotionState().as_dict()
+    log_tool_use(
+        state=state,
+        tool_name="init_emo",
+        tool_input=in_state,
+        tool_output=state,
     )
+    return state
+
+@tool
+def get_emo(state: dict) -> str:
+    """Get current emotional state."""
+    print('used get_emo')
+    emo = state.get("emotions", {})
+    res = ", ".join(f"{k}: {v}" for k, v in emo.items())
+    log_tool_use(
+        state=state,
+        tool_name="get_emo",
+        tool_input=state,
+        tool_output=res,
+    )
+    return res
+
+
+@tool
+def update_emo(state: dict, emo: str, val: int) -> dict:
+    """
+    Update an emotion by value.
+    emo: emotion name
+    val: delta (-5 to +5 recommended)
+    """
+    print('used update_emo')
+    inputs = [
+        state,
+        emo,
+        val
+    ]
+    emotions = EmotionState(**state.get("emotions", {}))
+
+    if not hasattr(emotions, emo):
+        return state
+
+    setattr(emotions, emo, getattr(emotions, emo) + val)
+    emotions.clamp()
+
+    state["emotions"] = emotions.as_dict()
+    log_tool_use(
+        state=state,
+        tool_name="update_emo",
+        tool_input=inputs,
+        tool_output=state,
+    )
+    return state
+
+@tool
+def reset_emo(state: dict) -> dict:
+    """
+    resets the value of all emotions
+    to the nautral value.
+    """
+    in_state = state
+    print('used reset_emo')
+    state["emotions"] = EmotionState().as_dict()
+    log_tool_use(
+        state=state,
+        tool_name="reset_emo",
+        tool_input=in_state,
+        tool_output=state,
+    )
+    return state
+

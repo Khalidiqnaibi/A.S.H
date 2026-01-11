@@ -15,7 +15,7 @@ from AgentSystem import (
     PromptTemplate, 
     BaseStatus, 
     mistral,
-    ChatState
+    AshStatus
 )
 from ASH2.tools.lesstools import (
     calculator_tool,
@@ -24,12 +24,11 @@ from ASH2.tools.lesstools import (
     date_time_tool
 )
 from ASH2.tools.emo import(
+    EmotionState,
     init_emo,
     get_emo,
-    set_emo,
     update_emo,
     reset_emo,
-    emo_to_string,
 )
 # from ASH2.tools.classification import (
     # get_type,
@@ -49,10 +48,12 @@ USER = "Immortal" #"khalid afif sami iqnaibi"
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 MISTRAL_OPENROUTER_MODEL = os.getenv("MISTRAL_OPENROUTER_MODEL")
 
-ash_state = ChatState(
+ash_state = ash_state = AshStatus(
+    history=[],
+    emotions=EmotionState().as_dict(),
+    tool_log=[],
     input="",
-    res ="",
-    history=[]
+    res=""
 )
     
 def say(text, by="A.S.H"):
@@ -119,7 +120,7 @@ class ASH:
             tool_name="domain_knowledge_tool",
             description="Retrieve structured domain knowledge from company database.",
         )
-        self.toolkit.register(exit_session)
+        # self.toolkit.register(exit_session)
         self.toolkit.register(ret_tool)
         
         self.init_emo_tools()
@@ -128,10 +129,8 @@ class ASH:
     def init_emo_tools(self):
         self.toolkit.register(init_emo)
         self.toolkit.register(get_emo)
-        self.toolkit.register(set_emo)
         self.toolkit.register(update_emo)
         self.toolkit.register(reset_emo)
-        self.toolkit.register(emo_to_string)
         
     # def init_class_tools(self):
         # self.toolkit.register(get_type)
@@ -162,43 +161,6 @@ class ASH:
             "status": self.get_status()
         }
     
-    def update_prompt(self, query):
-        self.query = query
-
-        self.prompt = PromptTemplate(
-            name=self.name,
-            role="financial analysis expert, licensed financial advisor, and accounting professional assistant",
-            question=(
-                f"the query is : {self.query} . "
-                "Analyze the provided data and query, then give a financial "
-                "recommendation and explanation for the recommendation."
-            ),
-            context="",
-            language=self.lang,
-            constraints=[
-                "ONLY use the format: 'Action:' with 'Action Input:' OR 'Final Answer:'.",
-                "NEVER output 'Thought:', 'Observation:', or markdown like **Question:**.",
-                "If you know the answer, give it under 'Final Answer:' then stop thinking.",
-                "If you need a tool, call it with 'Action:' and 'Action Input:'.",
-                "# **DON'T MAKE UP DATA**.",
-                "when asked about bills, use the bills_tool to get the relevant information and dont make up the names or values of the bills",
-                "if you reach a final answer, use 'Final Answer:' to respond and stop everything",
-                "if you there is a time or date related question, use the date_time_tool to get the current date and time",
-                "if you there is a stock price related question, use the date_time_tool for the date and time and stock_market_tool to get the current stock price and dont use finance_knowledge_tool",
-                # "if you there is a calculation related question, use the calculator_tool to get the calculation result",
-                # "if you there is a knowledge related question, use the finance_knowledge_tool to get the relevant knowledge",
-            ],
-            output="FULL LONG COMPREHENSIVE MARKDOWN Answer:\nRecommendation:",
-            rules=[
-                "Follow the financial regulations and standards.",
-                "Provide clear and concise explanations for all recommendations.",
-                "Include relevant data and evidence to support all claims.",
-                "Consider potential risks and benefits of each recommendation.",
-                "ALWAYS PROVIDE A RECOMMENDATION",
-                "Explain the general approach taken and best practices without revealing sensitive details.",
-            ],
-        )
-
     def init_prompt(self):
         self.query =''
 
@@ -210,7 +172,10 @@ class ASH:
                 "Analyze the provided data and query, then give a response that matches in tone your feeling metrics"
                 "and make sure for it to be helpful even if your emotions are varied."
             ),
-            context="",
+            context = f"""
+            Current emotional state:
+            {ash_state['emotions']}
+            """,
             language=self.lang,
             constraints=[
                 "ONLY use the format: 'Action:' with 'Action Input:' OR 'Final Answer:'.",
