@@ -8,6 +8,12 @@ def log_tool_use(
     tool_output: Any,
     agent: str = "unknown"
 ):
+    print("time", datetime.now().isoformat(),
+        "agent", agent,
+        "tool", tool_name,
+        "input", tool_input,
+        "output", tool_output
+        )
     state.setdefault("tool_log", []).append({
         "time": datetime.now().isoformat(),
         "agent": agent,
