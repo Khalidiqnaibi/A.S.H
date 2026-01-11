@@ -8,7 +8,15 @@ import dotenv ,os
 # from utils.ktime import Ktime
 # from utils.sen import Sen
 # from utils.stream import opnstream
-from AgentSystem import AgentsFactory, GroupsFactory, ToolKit, PromptTemplate, BaseStatus, mistral
+from AgentSystem import (
+    AgentsFactory, 
+    GroupsFactory, 
+    ToolKit, 
+    PromptTemplate, 
+    BaseStatus, 
+    mistral,
+    ChatState
+)
 from ASH2.tools.lesstools import (
     calculator_tool,
     factory,
@@ -41,13 +49,10 @@ USER = "Immortal" #"khalid afif sami iqnaibi"
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 MISTRAL_OPENROUTER_MODEL = os.getenv("MISTRAL_OPENROUTER_MODEL")
 
-class StatE(BaseStatus):
-    input: str
-    res: str
-
-ash_state = StatE(
-    input={},
-    res={}
+ash_state = ChatState(
+    input="",
+    res ="",
+    history=[]
 )
     
 def say(text, by="A.S.H"):
@@ -88,6 +93,7 @@ class ASH:
         self.agent = self.agents_system.create_lang_graph_agent(
             prompt=self.prompt,
             llm=self.llm,
+            name=self.name,
             tools=self.toolkit,
             input_state="input",
             next_state="res",
@@ -135,9 +141,9 @@ class ASH:
     def init_group(self):
         self.group = self.groups_system.create_lang_graph_group(status=ash_state)
 
-        self.group.sign_agent("ash", self.agent)
-        self.group.sign_entry_point("ash")
-        self.group.sign_exit_point("ash")
+        self.group.sign_agent(self.name, self.agent)
+        self.group.sign_entry_point(self.name)
+        self.group.sign_exit_point(self.name)
 
     def get_uptime(self):
         current_time = datetime.now()
@@ -240,11 +246,16 @@ class ASH:
         return self.status
 
     def run(self, query):
-        self.query = query
-        return self.group.run({
-            "input": f"the query is : {self.query} .",
+        ash_state["input"] = query
+
+        result = self.group.run({
+            "input": ash_state["input"],
+            "history": ash_state["history"],
             "res": ""
-        })["res"]
+        })
+
+        ash_state["history"] = result.get("history", ash_state["history"])
+        return result["res"]
 
 ash = ASH()
 

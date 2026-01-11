@@ -6,9 +6,10 @@ const sendButton = document.getElementById('send-button');
 
 const socket = io(); // auto-connects
 
-function logAdd(txt) {
+function logAdd(txt , is_user = false) {
   const logEntry = document.createElement('div'); // use div for long content
   logEntry.classList.add('log-entry');
+  if (is_user) logEntry.classList.add('user-entry');
 
   // Convert markdown to HTML
   logEntry.innerHTML = marked.parse(txt);
@@ -46,7 +47,7 @@ sendButton.addEventListener('click', () => {
 
   if (!message) return;
 
-  logAdd(`${user ? user : 'User'}: ${message}`);
+  logAdd(`${user ? user : 'User'}: ${message}`,true);
 
   socket.emit("user_message", {
     user: user,

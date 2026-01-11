@@ -11,7 +11,7 @@ ash = ASH()
 
 @app.route("/")
 def index():
-    return render_template("index.html",user=USER)  # your chat page
+    return render_template("index.html",user=USER)  
 
 
 @socketio.on("connect")
@@ -41,7 +41,7 @@ def handle_user_message(data):
 
     query = f"{user}: {msg}"
 
-    # 🔥 Call your existing logic
+    # Call your existing logic
     response = ash.run(query)
 
     # Send back to client

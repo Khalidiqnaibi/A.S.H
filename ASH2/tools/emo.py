@@ -35,6 +35,7 @@ class emos:
 @tool
 def init_emo(x:str) -> str:
     """Initialize the global emotion state."""
+    print("used init_emo")
     global emo
     emo = emos()
     return "Emotion state initialized."
@@ -42,6 +43,7 @@ def init_emo(x:str) -> str:
 @tool
 def get_emo(x:str) -> str:
     """Get the current emotion state as a string."""
+    print("used get_emo")
     if emo is None:
         return "Emotion state not initialized."
     return emo_to_string()
@@ -49,6 +51,7 @@ def get_emo(x:str) -> str:
 @tool
 def set_emo(new_emo: dict) -> str:
     """Set the emotion state using a dictionary of values."""
+    print("used set_emo")
     global emo
     emo = emos(**new_emo)
     return "Emotion state updated."
@@ -56,6 +59,7 @@ def set_emo(new_emo: dict) -> str:
 @tool
 def update_emo(data:dict)  -> str:
     """Update a specific emotion by adding a value. it works like this data = {'emo': emotion (str), 'val':value (int)}"""
+    print("used update_emo")
     if emo is None:
         return "Emotion state not initialized."
     if hasattr(emo, data['emo']):
@@ -68,6 +72,7 @@ def update_emo(data:dict)  -> str:
 @tool
 def reset_emo(x:str) -> str:
     """Reset all emotions to zero."""
+    print("used reset_emo")
     global emo
     emo = emos()
     return "Emotion state reset."
@@ -75,6 +80,7 @@ def reset_emo(x:str) -> str:
 @tool
 def emo_to_string(x:str) -> str:
     """Return the emotion state as a formatted string."""
+    print("used emo_to_string")
     if emo is None:
         return "Emotion state not initialized."
     return (
