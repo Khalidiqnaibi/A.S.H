@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, render_template,session
 from flask_socketio import SocketIO, emit
 from ASH2.src.py.ash import ASH, USER
 
@@ -23,6 +23,10 @@ def on_connect():
 @socketio.on("disconnect")
 def on_disconnect():
     print("Client disconnected")
+
+@socketio.on("client_time")
+def handle_client_time(data):
+    session["client_time"] = data["time"]
 
 
 @socketio.on("user_message")

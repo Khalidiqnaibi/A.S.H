@@ -75,6 +75,7 @@ input::-moz-focus-inner { /* Remove the inner border on Firefox */
   white-space: pre-wrap;   /* preserve line breaks */
   line-height: 1.5;        /* makes text readable */
     display: flex;
+    flex-direction: column;
     background-color: rgba(255, 255, 255, 0.1);
     margin: 15px;
     padding: 10px;
@@ -94,6 +95,13 @@ input::-moz-focus-inner { /* Remove the inner border on Firefox */
     color: #1e4159;
     border: #849bb1 1px solid;
     justify-self: right;
+}
+
+.sys-entry {
+    background: none;
+    justify-self: center;
+    border: 0px;
+    margin: 0px;
 }
 
 /* Optional: differentiate user vs AI messages */

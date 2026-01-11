@@ -1,6 +1,11 @@
+import sys
+import logging
 from langchain.tools import tool
 from dataclasses import dataclass, asdict
 from ASH2.tools.log_tools import log_tool_use
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 EMO_KEYS = [
     "happy", "sad", "angry", "fear", "surprise", "disgust",
@@ -46,7 +51,8 @@ class EmotionState:
 @tool
 def init_emo(state: dict) -> dict:
     """Initialize emotion state."""
-    print('used init_emo')
+    logging.info('Function init_emo called')
+    print('used init_emo', flush=True, file=sys.stderr)
     in_state = state
     
     state["emotions"] = EmotionState().as_dict()
@@ -61,7 +67,8 @@ def init_emo(state: dict) -> dict:
 @tool
 def get_emo(state: dict) -> str:
     """Get current emotional state."""
-    print('used get_emo')
+    logging.info('Function get_emo called')
+    print('used get_emo', flush=True, file=sys.stderr)
     emo = state.get("emotions", {})
     res = ", ".join(f"{k}: {v}" for k, v in emo.items())
     log_tool_use(
@@ -72,7 +79,6 @@ def get_emo(state: dict) -> str:
     )
     return res
 
-
 @tool
 def update_emo(state: dict, emo: str, val: int) -> dict:
     """
@@ -80,7 +86,8 @@ def update_emo(state: dict, emo: str, val: int) -> dict:
     emo: emotion name
     val: delta (-5 to +5 recommended)
     """
-    print('used update_emo')
+    logging.info('Function update_emo called with emo: %s, val: %d', emo, val)
+    print('used update_emo', flush=True, file=sys.stderr)
     inputs = [
         state,
         emo,
@@ -107,10 +114,11 @@ def update_emo(state: dict, emo: str, val: int) -> dict:
 def reset_emo(state: dict) -> dict:
     """
     resets the value of all emotions
-    to the nautral value.
+    to the natural value.
     """
+    logging.info('Function reset_emo called')
     in_state = state
-    print('used reset_emo')
+    print('used reset_emo', flush=True, file=sys.stderr)
     state["emotions"] = EmotionState().as_dict()
     log_tool_use(
         state=state,
@@ -119,4 +127,3 @@ def reset_emo(state: dict) -> dict:
         tool_output=state,
     )
     return state
-

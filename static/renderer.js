@@ -6,10 +6,11 @@ const sendButton = document.getElementById('send-button');
 
 const socket = io(); // auto-connects
 
-function logAdd(txt , is_user = false) {
+function logAdd(txt , from = "ai") {
   const logEntry = document.createElement('div'); // use div for long content
   logEntry.classList.add('log-entry');
-  if (is_user) logEntry.classList.add('user-entry');
+  if (from === "user") logEntry.classList.add('user-entry');
+  if (from === "system") logEntry.classList.add('sys-entry');
 
   // Convert markdown to HTML
   logEntry.innerHTML = marked.parse(txt);
@@ -31,7 +32,7 @@ socket.on("connect", () => {
 });
 
 socket.on("system", (data) => {
-  logAdd(data.msg);
+  logAdd(data.msg, "system");
 });
 
 socket.on("ash_response", (data) => {
@@ -42,12 +43,16 @@ socket.on("ash_response", (data) => {
 /* ---------- SEND MESSAGE ---------- */
 
 sendButton.addEventListener('click', () => {
+  socket.emit("client_time", {
+    time: new Date().toISOString()
+  });
+
   const message = inputField.value.trim();
   inputField.value = '';
 
   if (!message) return;
 
-  logAdd(`${user ? user : 'User'}: ${message}`,true);
+  logAdd(`${user ? user : 'User'}: ${message}`,'user');
 
   socket.emit("user_message", {
     user: user,

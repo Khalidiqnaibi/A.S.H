@@ -1,3 +1,4 @@
+import sys
 from langchain.tools import tool  
 import ast, operator as op
 from AgentSystem import Retriever, ChromaVDB, mistral
@@ -5,6 +6,8 @@ from langchain_classic.chains.query_constructor.schema import AttributeInfo
 import requests
 from dotenv import load_dotenv
 from datetime import datetime
+from flask import  session
+import logging
 
 load_dotenv()
 
@@ -94,16 +97,24 @@ def safe_calc(expr: str):
 @tool
 def calculator_tool(expression: str) -> str:
     """Perform safe arithmetic calculations."""
+    logging.info('Function calculator_tool called')
+    print(f"[TOOL] calculator_tool called with: {expression}", flush=True, file=sys.stderr)
     try:
         result = safe_calc(expression)
+        print(f"[TOOL] calculator_tool result: {result}", flush=True, file=sys.stderr)
         return f"Result: {result}"
     except Exception as e:
+        print(f"[TOOL] calculator_tool error: {e}", flush=True, file=sys.stderr)
         return f"Error in calculation: {str(e)}"
 
 @tool
 def date_time_tool(x: str) -> str:
     """Returns the current date and time now."""
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    logging.info('Function date_time_tool called')
+    print("date_time_tool called", flush=True , file=sys.stderr)
+    val = datetime.now().isoformat()
+    print(f"date_time_tool returns {val}", flush=True , file=sys.stderr)
+    return val
 
 def make_retriever_tool(retriever, tool_name="knowledge_retrieval_tool", description=None):
     """

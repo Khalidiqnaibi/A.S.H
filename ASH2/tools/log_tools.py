@@ -12,7 +12,7 @@ def log_tool_use(
         "agent", agent,
         "tool", tool_name,
         "input", tool_input,
-        "output", tool_output
+        "output", tool_output, flush=True
         )
     state.setdefault("tool_log", []).append({
         "time": datetime.now().isoformat(),
