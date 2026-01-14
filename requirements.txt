@@ -1,6 +1,11 @@
 pyttsx3
-nltk
+# nltk
 bs4
 pymongo
 flask-socketio 
 eventlet
+keras
+spacy
+tensorflow
+sentence_transformers
+transformers

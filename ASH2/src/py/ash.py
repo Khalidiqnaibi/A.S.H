@@ -30,11 +30,11 @@ from ASH2.tools.emo import(
     update_emo,
     reset_emo,
 )
-# from ASH2.tools.classification import (
-    # get_type,
-    # txtcllassfie,
-    # predict_class
-# )
+from ASH2.tools.classification import (
+    get_type,
+    txtcllassfie,
+    predict_class
+)
 
 ##############
 #~ Immortal ~#
