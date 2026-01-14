@@ -79,7 +79,7 @@ class ASH:
             try:
                 self.llm = mistral.MistralLLM(
                     temperature=llm_temperature,
-                    openrouter_api_key=OPENROUTER_API_KEY, 
+                    openrouter_key=OPENROUTER_API_KEY, 
                     openrouter_model=MISTRAL_OPENROUTER_MODEL
                 )
             except Exception as e:
