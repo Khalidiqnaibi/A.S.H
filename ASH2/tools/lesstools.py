@@ -94,7 +94,6 @@ def safe_calc(expr: str):
     tree = ast.parse(expr, mode='eval')
     return _safe_eval(tree.body)
 
-@tool
 def calculator_tool(expression: str) -> str:
     """Perform safe arithmetic calculations."""
     logging.info('Function calculator_tool called')
@@ -107,8 +106,7 @@ def calculator_tool(expression: str) -> str:
         print(f"[TOOL] calculator_tool error: {e}", flush=True, file=sys.stderr)
         return f"Error in calculation: {str(e)}"
 
-@tool
-def date_time_tool(x: str) -> str:
+def date_time_tool() -> str:
     """Returns the current date and time now."""
     logging.info('Function date_time_tool called')
     print("date_time_tool called", flush=True , file=sys.stderr)
@@ -120,7 +118,7 @@ def make_retriever_tool(retriever, tool_name="knowledge_retrieval_tool", descrip
     """
     Dynamically wraps a retriever instance into a LangChain tool.
     """
-    @tool(tool_name)
+    # @tool(tool_name)
     def _retriever_tool(query: str) -> str:
         """
         Retrieve relevant knowledge from the vector database using semantic + metadata search.

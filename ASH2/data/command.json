@@ -1,0 +1,31 @@
+{
+  "intents": [
+    {
+      "tag": "calculate",
+      "description": "Perform math or numeric calculations",
+      "patterns": [
+        "calculate 5 plus 7",
+        "what is 10 times 8",
+        "divide 100 by 4"
+      ]
+    },
+    {
+      "tag": "get_time",
+      "description": "Return the current date or time",
+      "patterns": [
+        "what time is it",
+        "give me the date",
+        "current time now"
+      ]
+    },
+    {
+      "tag": "retrieve_domain_data",
+      "description": "Fetch structured domain knowledge from internal database",
+      "patterns": [
+        "get patient history",
+        "retrieve company policies",
+        "load client profile"
+      ]
+    }
+  ]
+}

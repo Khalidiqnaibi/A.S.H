@@ -1,0 +1,44 @@
+{
+  "intents": [
+    {
+      "tag": "conversation",
+      "description": "Casual chat, greetings, small talk, opinions",
+      "patterns": [
+        "hello",
+        "hi ash",
+        "how are you",
+        "what's up",
+        "tell me a joke"
+      ]
+    },
+    {
+      "tag": "question",
+      "description": "User is asking for information or explanation",
+      "patterns": [
+        "what is AI",
+        "how does this work",
+        "explain neural networks",
+        "why is the sky blue"
+      ]
+    },
+    {
+      "tag": "command",
+      "description": "User wants the system to do something",
+      "patterns": [
+        "create a file",
+        "run the analysis",
+        "send an email",
+        "turn this into code"
+      ]
+    },
+    {
+      "tag": "search",
+      "description": "User wants to retrieve information from database or internet",
+      "patterns": [
+        "find articles about AI",
+        "search medical guidelines",
+        "lookup company revenue"
+      ]
+    }
+  ]
+}

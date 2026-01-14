@@ -1,5 +1,4 @@
 pyttsx3
-# nltk
 bs4
 pymongo
 flask-socketio 
@@ -7,5 +6,7 @@ eventlet
 keras
 spacy
 tensorflow
-sentence_transformers
-transformers
+numpy==1.26.4
+sentence-transformers==2.6.1
+transformers==4.38.2
+hf_xet
