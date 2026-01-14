@@ -108,15 +108,14 @@ def handle_user_message(data):
         print(f"[SOCKET] user_message from {sid} user={user} msg={msg}", file=sys.stderr, flush=True)
 
         # prepare context with client_time if present
-        state = client_states.setdefault(sid, {"client_time": None, "history": []})
-        context = {"client_time": state.get("client_time")}
+        state = client_states.setdefault(sid, { "history": []})
 
         # Form the query string the same way your older app did
         query = f"{user}: {msg}"
 
         # Call ASH.run with context; ash.run may raise — handle gracefully
         try:
-            response = ash.run(query, context=context)
+            response = ash.run(query)
         except TypeError:
             # backward compatibility: some ASH.run definitions accept only (query)
             response = ash.run(query)

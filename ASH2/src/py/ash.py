@@ -77,7 +77,11 @@ class ASH:
         # LLM wrapper (your mistral wrapper). If none passed, create one.
         if llm is None:
             try:
-                self.llm = mistral.MistralLLM(temperature=llm_temperature)
+                self.llm = mistral.MistralLLM(
+                    temperature=llm_temperature,
+                    openrouter_api_key=OPENROUTER_API_KEY, 
+                    openrouter_model=MISTRAL_OPENROUTER_MODEL
+                )
             except Exception as e:
                 _print_log("Warning: failed to instantiate MistralLLM wrapper:", e)
                 self.llm = None
@@ -281,7 +285,7 @@ class ASH:
     # -----------------------
     # Public API: run
     # -----------------------
-    def run(self, query: str, context: Optional[Dict[str, Any]] = None) -> str:
+    def run(self, query: str) -> str:
         """
         Execute full pipeline:
           1) deterministic routing/classification
@@ -290,11 +294,9 @@ class ASH:
           4) render final answer via LLM (narrator)
         """
         ash_state["input"] = query
-        if context and "client_time" in context:
-            ash_state["client_time"] = context["client_time"]
 
         # 1) routing + deterministic execution
-        route_result = self._deterministic_execute(query, context=context)
+        route_result = self._deterministic_execute(query)
 
         # 2) prepare facts to give to LLM renderer
         facts = {
@@ -354,5 +356,5 @@ if __name__ == "__main__":
         if q.lower() in ("exit", "quit"):
             break
         # provide any context (for local test we pass no client_time)
-        resp = ash.run(q, context={})
+        resp = ash.run(q)
         print("\nASH:", resp, "\n")

@@ -140,7 +140,7 @@ class EmbeddingCatalog:
             return False
 
     def most_similar(self, text: str, top_k: int = 3):
-        if not self.model or self.embeddings is None:
+        if self.model is None or self.embeddings is None or len(self.embeddings) == 0:
             return []
         q_emb = self.model.encode([text], convert_to_numpy=True, normalize_embeddings=True)[0]
         sims = (self.embeddings @ q_emb).tolist()
@@ -166,7 +166,7 @@ def _ensure_catalogs_loaded(force: bool = False):
     except Exception:
         commands_mtime = 0
 
-    if (not _INTENT_CATALOG.embeddings) or force:
+    if ( _INTENT_CATALOG.embeddings is None) or force:
         loaded = _INTENT_CATALOG.load_cache(INTENT_EMB_FNAME)
         if not loaded or (_INTENT_CATALOG and intents_mtime and (getattr(_INTENT_CATALOG, "_source_mtime", None) or 0) < intents_mtime):
             if SentenceTransformer is None:
@@ -177,7 +177,7 @@ def _ensure_catalogs_loaded(force: bool = False):
                 _INTENT_CATALOG.save_cache(INTENT_EMB_FNAME)
         _INTENT_CATALOG._source_mtime = intents_mtime
 
-    if (not _COMMAND_CATALOG.embeddings) or force:
+    if (_COMMAND_CATALOG.embeddings is None) or force:
         loaded = _COMMAND_CATALOG.load_cache(COMMAND_EMB_FNAME)
         if not loaded or (_COMMAND_CATALOG and commands_mtime and (getattr(_COMMAND_CATALOG, "_source_mtime", None) or 0) < commands_mtime):
             if SentenceTransformer is None:
