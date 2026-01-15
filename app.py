@@ -62,28 +62,6 @@ def on_disconnect():
     except Exception:
         pass
 
-@socketio.on("client_time")
-def handle_client_time(data):
-    """
-    Expects data = { "time": "<ISO string>" }
-    Stores per-socket client time for use by tools (date_time_tool).
-    Also stores it in Flask session as a convenience (may not persist across proxies).
-    """
-    sid = request.sid
-    ts = data.get("time") if isinstance(data, dict) else None
-    print(f"[SOCKET] client_time from {sid}: {ts}", file=sys.stderr, flush=True)
-    if sid not in client_states:
-        client_states[sid] = {"client_time": None, "history": []}
-    client_states[sid]["client_time"] = ts
-    # store a copy in the flask session (not strictly required)
-    try:
-        session["client_time"] = ts
-    except Exception:
-        # sometimes session can't be mutated depending on server config
-        pass
-    # optional ack
-    emit("system", {"msg": "client_time recorded"}, room=sid)
-
 @socketio.on("user_message")
 def handle_user_message(data):
     """

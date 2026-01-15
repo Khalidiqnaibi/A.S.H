@@ -43,9 +43,6 @@ socket.on("ash_response", (data) => {
 /* ---------- SEND MESSAGE ---------- */
 
 sendButton.addEventListener('click', () => {
-  socket.emit("client_time", {
-    time: new Date().toISOString()
-  });
 
   const message = inputField.value.trim();
   inputField.value = '';

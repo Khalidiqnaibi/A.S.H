@@ -220,7 +220,7 @@ class ASH:
             f"{json.dumps(facts, indent=2)}\n\n"
             "Emotional snapshot (internal state):\n"
             f"{json.dumps(ash_state.get('emotions', {}), indent=2)}\n\n"
-            "Respond like your emotional state. If facts are provided, use them exactly. Keep the answer one under paragraph."
+            "Present the data just given if any then say a small sentance, Respond like your emotional state. If facts are provided, use them exactly. Keep the answer one under paragraph."
         )
 
         # Create messages if langchain_core is present
