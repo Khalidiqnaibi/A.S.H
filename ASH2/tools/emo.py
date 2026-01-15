@@ -48,7 +48,6 @@ class EmotionState:
     def as_dict(self):
         return asdict(self)
 
-@tool
 def init_emo(state: dict) -> dict:
     """Initialize emotion state."""
     logging.info('Function init_emo called')
@@ -64,7 +63,6 @@ def init_emo(state: dict) -> dict:
     )
     return state
 
-@tool
 def get_emo(state: dict) -> str:
     """Get current emotional state."""
     logging.info('Function get_emo called')
@@ -79,7 +77,6 @@ def get_emo(state: dict) -> str:
     )
     return res
 
-@tool
 def update_emo(state: dict, emo: str, val: int) -> dict:
     """
     Update an emotion by value.
@@ -110,7 +107,6 @@ def update_emo(state: dict, emo: str, val: int) -> dict:
     )
     return state
 
-@tool
 def reset_emo(state: dict) -> dict:
     """
     resets the value of all emotions
