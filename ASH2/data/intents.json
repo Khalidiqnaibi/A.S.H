@@ -57,62 +57,6 @@
       ]
     },
     {
-      "tag": "command",
-      "description": "User explicitly wants the system to perform an operation or produce an output. Includes imperatives and action-oriented requests such as creating files, running code, sending messages, calculating values, transforming input, or returning time/date. The intent is execution.",
-      "patterns": [
-        "create a file",
-        "please create a file",
-        "make a new document",
-        "create a text file named notes.txt",
-        "create file called report.docx",
-        "run the analysis",
-        "please run the analysis now",
-        "start the data analysis pipeline",
-        "execute the analysis script",
-        "send an email",
-        "send an email to john",
-        "compose an email to jane with subject meeting",
-        "send an email saying I'll be late",
-        "calculate 5 plus 7",
-        "what is 5 plus 7",
-        "compute 5 + 7",
-        "what is 10 times 8",
-        "calculate 10 * 8",
-        "what's 10 multiplied by 8?",
-        "turn this into code",
-        "convert this idea into code",
-        "generate code from this description",
-        "write a python function that adds two numbers",
-        "what time is it",
-        "give me the date",
-        "current time now",
-        "what's the current time?",
-        "tell me today's date",
-        "show me the current UTC time",
-        "what's local time",
-        "set a reminder for tomorrow at 9am",
-        "create a calendar event for next Monday",
-        "open the file report.pdf",
-        "delete the temporary files",
-        "rename file old.txt to new.txt",
-        "download the latest dataset",
-        "upload this file to the server",
-        "compress the logs into a zip",
-        "run unit tests",
-        "deploy the latest build",
-        "restart the service",
-        "stop the background job",
-        "start the backup",
-        "schedule a meeting with the team",
-        "summarize this document",
-        "translate this into Spanish",
-        "format the code",
-        "lint the repository",
-        "calculate the sum of numbers from 1 to 100",
-        "what is 12345 times 6789"
-      ]
-    },
-    {
       "tag": "search",
       "description": "User wants to locate, look up, or retrieve information from internal data sources or the internet. Includes queries about finding articles, documents, records, datasets, news, or references, where the primary action is information retrieval rather than explanation or execution.",
       "patterns": [
@@ -166,6 +110,46 @@
         "find step-by-step guide for SSL certificate setup",
         "lookup the full text of RFC 7231",
         "search for reviews of the new smartphone model"
+      ]
+    },
+    {
+      "tag": "calculate",
+      "description": "Perform math or numeric calculations",
+      "patterns": [
+        "calculate 5 plus 7",
+        "what is 10 times 8",
+        "divide 100 by 4",
+        "calculate 5 plus 7",
+        "what is 5 plus 7",
+        "compute 5 + 7",
+        "what is 10 times 8",
+        "calculate 10 * 8",
+        "what's 10 multiplied by 8?"
+      ]
+    },
+    {
+      "tag": "get_time",
+      "description": "Return the current date or time",
+      "patterns": [
+        "what time is it",
+        "give me the date",
+        "current time now",
+        "what time is it",
+        "give me the date",
+        "current time now",
+        "what's the current time?",
+        "tell me today's date",
+        "show me the current UTC time",
+        "what's local time"
+      ]
+    },
+    {
+      "tag": "retrieve_domain_data",
+      "description": "Fetch structured domain knowledge from internal database",
+      "patterns": [
+        "get patient history",
+        "retrieve company policies",
+        "load client profile"
       ]
     }
   ]

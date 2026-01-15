@@ -22,7 +22,7 @@ except Exception:
         def __init__(self, content): self.content = content
 
 # Import router & tools (make sure these modules exist at these paths)
-from ASH2.tools.classification import classify_and_route, classify_intent, classify_command, sentiment_tool
+from ASH2.tools.classification import classify_and_route, classify_intent, sentiment_tool 
 from ASH2.tools.lesstools import date_time_tool, calculator_tool, factory  # factory.build_retriever
 from ASH2.tools.emo import init_emo, get_emo, update_emo, reset_emo, EmotionState
 
@@ -46,7 +46,7 @@ MISTRAL_OPENROUTER_MODEL = os.getenv("MISTRAL_OPENROUTER_MODEL")
 AshState = Dict[str, Any]
 
 # Default LLM settings (adjust env / config if you prefer)
-DEFAULT_LLM_TEMPERATURE = 0.7
+DEFAULT_LLM_TEMPERATURE = 0.9
 
 # Global shared state (singleton-ish) — persists across runs in same process
 ash_state: AshState = {
@@ -145,18 +145,17 @@ class ASH:
         }
 
         # Handle commands deterministically
-        if intent and intent.lower().startswith("command"):
-            cmd_tag = result["command"]
+        if intent:
+            cmd_tag = intent
             _print_log("Command intent detected:", cmd_tag, "score:", result["command_score"])
 
             # time / date commands
-            if cmd_tag and cmd_tag.lower() in ("time", "date", "datetime"):
+            if cmd_tag and cmd_tag.lower() in ("time", "date", "datetime" ,"get_time"):
                 # prefer client time if provided in context
-                client_time = date_time_tool()
-                tool_out = date_time_tool(client_time or "")
+                tool_out = date_time_tool()
                 result["tool_used"] = "date_time_tool"
                 result["tool_output"] = tool_out
-                self._append_tool_log("date_time_tool", client_time, tool_out)
+                self._append_tool_log("date_time_tool","", tool_out)
                 # append history
                 self._append_history("user", query)
                 self._append_history("tool", f"date_time_tool -> {tool_out}")
@@ -213,15 +212,15 @@ class ASH:
         # Compose a safe system + human prompt
         system_content = (
             f"You are {self.name}, a professional personal assistant. "
-            "Use the facts below verbatim where applicable. Do NOT call tools, do NOT change state, and do NOT invent facts."
+            "Use the facts below where applicable. Do NOT invent facts."
         )
         human_content = (
             f"User query: {query}\n\n"
-            "Facts (use verbatim if present):\n"
+            "Facts (use if present):\n"
             f"{json.dumps(facts, indent=2)}\n\n"
             "Emotional snapshot (internal state):\n"
             f"{json.dumps(ash_state.get('emotions', {}), indent=2)}\n\n"
-            "Respond naturally, politely, and concisely. If facts are provided, use them exactly. Keep answer short."
+            "Respond like your emotional state. If facts are provided, use them exactly. Keep the answer one under paragraph."
         )
 
         # Create messages if langchain_core is present
