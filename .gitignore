@@ -2,3 +2,4 @@
 *.pyc
 ASH2/data/embeddings_commands.pkl
 ASH2/data/embeddings_intents.pkl
+.env

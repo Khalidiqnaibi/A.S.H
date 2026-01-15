@@ -1,3 +1,4 @@
+import os
 import sys
 from langchain.tools import tool  
 import ast, operator as op
@@ -10,6 +11,9 @@ from flask import  session
 import logging
 
 load_dotenv()
+
+CHROMA = ChromaVDB()
+
 
 METADATA_FIELDS = [
     AttributeInfo(
@@ -44,32 +48,25 @@ METADATA_FIELDS = [
     )
 ]
 
-class RetrieverFactory:
-    def __init__(self, host: str = None, port: int = None):
-        self.chroma = ChromaVDB(meta_api_url="http://localhost:2020")
+# Save metadata schema for search
+CHROMA.save_metadata_map(metadata={f.name: {
+    "type": f.type,
+    "description": f.description
+} for f in METADATA_FIELDS})
 
-        if host and port:
-            self.chroma.init_cloud_db_client(host=host, port=port)
-
-        # Save metadata schema for search
-        self.chroma.save_metadata_map(metadata={f.name: {
-            "type": f.type,
-            "description": f.description
-        } for f in METADATA_FIELDS})
-
-    def build_retriever(self, llm=None, description: str = None):
-        if llm is None:
-            llm = mistral.MistralLLM(mode="openrouter", temperature=0.7)
-
-        retriever = Retriever(
-            "Financial Knowledge",
-            vdb=self.chroma,
-            llm=llm,
-            metadata_fields=METADATA_FIELDS
-        )
-        retriever.create_selfquery_retriever(doc_description=description)
-        return retriever
-
+def retrieve_tool(query: str,top=5, llm=None) -> str:
+    """Retrieve relevant knowledge from the vector database using semantic + metadata search."""
+    logging.info('Function retrieve_tool called')
+    print(f"[TOOL] retrieve_tool called with: {query}", flush=True, file=sys.stderr)
+    if llm is None:
+        llm = mistral.MistralLLM(mode="openrouter",openrouter_key=os.getenv("OPENROUTER_API_KEY"), temperature=0.7)
+    R=Retriever(
+        "Knowledge",
+        vdb=CHROMA,
+        llm=llm,
+        metadata_fields=METADATA_FIELDS
+    )
+    return R.retrieve(query, top_k=top)
 
 _ALLOWED_OPS = {
     ast.Add: op.add,
@@ -114,44 +111,10 @@ def date_time_tool() -> str:
     print(f"date_time_tool returns {val}", flush=True , file=sys.stderr)
     return val
 
-def make_retriever_tool(retriever, tool_name="knowledge_retrieval_tool", description=None):
-    """
-    Dynamically wraps a retriever instance into a LangChain tool.
-    """
-    # @tool(tool_name)
-    def _retriever_tool(query: str) -> str:
-        """
-        Retrieve relevant knowledge from the vector database using semantic + metadata search.
-        Input: natural language query
-        Output: concise structured knowledge text
-        """
-        results = retriever.retrieve_with_selfquery(query)
-        if not results:
-            return "No relevant knowledge found."
-        
-        formatted = "\n".join(
-            [f"- {doc.page_content} (source: {doc.metadata.get('source', 'unknown')})"
-             for doc in results]
-        )
-        return formatted
-
-    if description:
-        _retriever_tool.__doc__ = description
-
-    return _retriever_tool
-
-factory = RetrieverFactory(
-   host="localhost",
-   port=2000
-)
 
 if __name__ == "__main__":
 
-    retriever = factory.build_retriever(
-        llm=mistral.MistralLLM(mode="ollama", temperature=0.7),
-        description="the type of observer design pattern"
-    )
-
-    retrieval_tool = make_retriever_tool(retriever)
-
-    print(retrieval_tool("What is observer pattern?"))
+    print(retrieve_tool("What is observer pattern?"))
+    print(calculator_tool("12 / (2.3 + 0.7) * 4 - 3"))
+    print(date_time_tool())
+    

@@ -23,7 +23,7 @@ except Exception:
 
 # Import router & tools (make sure these modules exist at these paths)
 from ASH2.tools.classification import classify_and_route, classify_intent, sentiment_tool 
-from ASH2.tools.lesstools import date_time_tool, calculator_tool, factory  # factory.build_retriever
+from ASH2.tools.lesstools import date_time_tool, calculator_tool, retrieve_tool  # factory.build_retriever
 from ASH2.tools.emo import init_emo, get_emo, update_emo, reset_emo, EmotionState
 
 # AgentSystem / LLM wrapper (your existing wrapper)
@@ -181,8 +181,7 @@ class ASH:
             _print_log("Question intent detected; invoking retriever")
             try:
                 # create a retriever via factory (deterministic; avoid registering as LLM-callable tool)
-                retriever = factory.build_retriever(description="user question retrieval")
-                docs = retriever.retrieve_with_selfquery(query)
+                docs = retrieve_tool(query , llm=self.llm)
                 if docs:
                     formatted = "\n".join([f"- {d.page_content} (source: {d.metadata.get('source', 'unknown')})" for d in docs])
                 else:
@@ -198,7 +197,20 @@ class ASH:
 
         # Conversation or fallback: no tools used — LLM will render
         _print_log("Conversation / fallback; no deterministic tool executed.")
-        self._append_history("user", query)
+        try:
+                # create a retriever via factory (deterministic; avoid registering as LLM-callable tool)
+                docs = retrieve_tool(query , llm=self.llm)
+                if docs:
+                    formatted = "\n".join([f"- {d.page_content} (source: {d.metadata.get('source', 'unknown')})" for d in docs])
+                else:
+                    formatted = "No relevant knowledge found."
+                result["tool_used"] = "retriever"
+                result["tool_output"] = formatted
+                self._append_tool_log("retriever", query, formatted)
+                self._append_history("user", query)
+                self._append_history("tool", f"retriever -> {formatted}")
+        except Exception as e:
+                _print_log("Retriever error:", e)
         return result
 
     # -----------------------
