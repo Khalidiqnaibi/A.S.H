@@ -1,0 +1,142 @@
+:root {
+  --bg-main: #0f172a;
+  --bg-card: #020617;
+  --border: #334155;
+  --accent: #38bdf8;
+  --text-main: #e5e7eb;
+  --text-muted: #94a3b8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  margin: 0;
+  padding: 16px;
+  background: var(--bg-main);
+  color: var(--text-main);
+}
+
+/* ---------- Layout ---------- */
+
+.container {
+  max-width: 960px;
+  margin: auto;
+}
+
+/* ---------- Typography ---------- */
+
+h1 {
+  color: var(--accent);
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+  color: var(--text-main);
+}
+
+/* ---------- Sections ---------- */
+
+section {
+  background: var(--bg-card);
+  padding: 16px;
+  margin-bottom: 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+/* ---------- Inputs ---------- */
+
+textarea,
+input[type="text"],
+input[type="file"] {
+  width: 100%;
+  padding: 10px;
+  margin-top: 6px;
+  margin-bottom: 10px;
+  background: var(--bg-main);
+  color: var(--text-main);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+
+textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+/* ---------- Buttons ---------- */
+
+button {
+  width: 100%;
+  padding: 10px;
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  color: #020617;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: transform 0.05s ease, opacity 0.15s ease;
+}
+
+input#query {
+    width: 100%;
+    padding: 10px;
+    margin-top: 6px;
+    margin-bottom: 10px;
+    background: var(--bg-main);
+    color: var(--text-main);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.95rem;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+/* ---------- Results ---------- */
+
+pre {
+  background: #020617;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  overflow-x: auto;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* ---------- Desktop Enhancements ---------- */
+
+@media (min-width: 768px) {
+  section {
+    padding: 20px;
+  }
+
+  button {
+    width: auto;
+    min-width: 140px;
+  }
+
+  .row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .row > * {
+    flex: 1;
+  }
+}

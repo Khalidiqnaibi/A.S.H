@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Chroma Embed Server</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+
+    <h1>🧠 Chroma Embed Server</h1>
+
+    <section>
+      <h2>Embed Text</h2>
+      <textarea id="text" placeholder="Paste text here..."></textarea>
+      <button onclick="embedText()">Embed</button>
+    </section>
+
+    <section>
+      <h2>Embed File</h2>
+      <div class="row">
+        <input type="file" id="file">
+        <button onclick="embedFile()">Upload</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Query</h2>
+      <input id="query" placeholder="Ask something..." />
+      <button onclick="runQuery()">Search</button>
+      <pre id="results"></pre>
+    </section>
+
+  </div>
+<script>
+async function embedText() {
+  const text = document.getElementById("text").value;
+  await fetch("/embed/text", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ text })
+  });
+  alert("Text embedded");
+}
+
+async function embedFile() {
+  const file = document.getElementById("file").files[0];
+  const form = new FormData();
+  form.append("file", file);
+
+  await fetch("/embed/file", { method: "POST", body: form });
+  alert("File embedded");
+}
+
+async function runQuery() {
+  const query = document.getElementById("query").value;
+  const res = await fetch("/query", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ query })
+  });
+  const json = await res.json();
+  document.getElementById("results").textContent =
+    JSON.stringify(json, null, 2);
+}
+</script>
+
+</body>
+</html>
