@@ -19,7 +19,7 @@
     <section>
       <h2>Embed File</h2>
       <div class="row">
-        <input type="file" id="file">
+        <input type="file" id="file" />
         <button onclick="embedFile()">Upload</button>
       </div>
     </section>
@@ -40,6 +40,7 @@ async function embedText() {
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({ text })
   });
+  document.getElementById("text").value = '';
   alert("Text embedded");
 }
 
@@ -49,6 +50,7 @@ async function embedFile() {
   form.append("file", file);
 
   await fetch("/embed/file", { method: "POST", body: form });
+  document.getElementById("file").value = '';
   alert("File embedded");
 }
 
@@ -60,6 +62,7 @@ async function runQuery() {
     body: JSON.stringify({ query })
   });
   const json = await res.json();
+  document.getElementById("query").value = '';
   document.getElementById("results").textContent =
     JSON.stringify(json, null, 2);
 }

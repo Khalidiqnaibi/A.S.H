@@ -2,8 +2,11 @@ from flask import Flask, request, jsonify, render_template
 from werkzeug.utils import secure_filename
 import os
 from typing import Dict, Any
+from dotenv import load_dotenv
 
-from AgentSystem import ChromaVDB
+from AgentSystem import ChromaVDB,mistral
+
+load_dotenv('A.S.H\.env')
 
 UPLOAD_DIR = "./uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -12,7 +15,8 @@ app = Flask(__name__)
 app.config["UPLOAD_FOLDER"] = UPLOAD_DIR
 
 # Initialize VDB
-vdb = ChromaVDB()
+LLM = mistral.MistralLLM(mode="openrouter",openrouter_key=os.getenv("OPENROUTER_API_KEY"), temperature=0.7)
+vdb = ChromaVDB(llm=LLM)
 vdb.init_cloud_db_client()
 
 @app.route("/")
