@@ -104,7 +104,7 @@ def handle_user_message(data):
             response = "Sorry — something failed inside the assistant."
 
         # Optionally store in per-sid history (for debugging or reuse)
-        state["history"].append({"user": user, "message": msg, "response_preview": str(response)[:300], "time": datetime.utcnow().isoformat() if 'datetime' in globals() else None})
+        state["history"].append({"user": user, "message": msg, "response_preview": str(response)[:300], "time": datetime. now().isoformat() if 'datetime' in globals() else None})
 
         # Emit back to the client who sent it
         emit("ash_response", {"text": response}, room=sid)

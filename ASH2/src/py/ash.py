@@ -103,6 +103,26 @@ class ASH:
             "time": _now_iso()
         })
 
+    def _format_history_for_prompt(self, max_turns: int = 6) -> str:
+        """
+        Returns recent conversation history as a readable transcript
+        for the LLM. Only includes user + ash messages.
+        """
+        history = ash_state.get("history", [])
+
+        # Filter only conversational roles
+        convo = [h for h in history if h["role"] in ("user", "ash")]
+
+        # Take last N turns (user+ash pairs)
+        convo = convo[-max_turns * 2 :]
+
+        lines = []
+        for h in convo:
+            role = "User" if h["role"] == "user" else self.name
+            lines.append(f"{role}: {h['text']}")
+
+        return "\n".join(lines) if lines else "No prior conversation."
+
     def _append_tool_log(self, tool_name: str, tool_input: Any, tool_output: Any):
         ash_state.setdefault("tool_log", [])
         entry = {
@@ -223,12 +243,15 @@ class ASH:
         Ask the LLM to format a natural assistant response, using facts verbatim.
         LLM must not call tools or change state.
         """
+        history_block = self._format_history_for_prompt()
         # Compose a safe system + human prompt
         system_content = (
             f"You are {self.name}, a professional personal assistant. "
             "Use the facts below where applicable. Do NOT invent facts."
         )
         human_content = (
+            "Conversation so far:\n"
+            f"{history_block}\n\n"
             f"User query: {query}\n\n"
             "Facts (use if present):\n"
             f"{json.dumps(facts, indent=2)}\n\n"
