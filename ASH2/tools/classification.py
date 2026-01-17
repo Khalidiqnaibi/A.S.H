@@ -34,9 +34,7 @@ dotenv.load_dotenv()
 
 BASE_PATH = os.environ.get("ASH_AI_BASE", os.path.join(os.getcwd(), r"C:\Users\khaaf\Documents\GitHub\A.S.H\ASH2\data"))
 INTENTS_FILE = os.path.join(BASE_PATH, "intents.json")
-# COMMAND_FILE = os.path.join(BASE_PATH, "command.json")
 INTENT_EMB_FNAME = os.path.join(BASE_PATH, "embeddings_intents.pkl")
-# COMMAND_EMB_FNAME = os.path.join(BASE_PATH, "embeddings_commands.pkl")
 
 EMBEDDING_MODEL_NAME = os.environ.get("ASH_EMBED_MODEL", "all-MiniLM-L6-v2")
 SENTIMENT_MODEL_NAME = os.environ.get("ASH_SENTIMENT_MODEL", "distilbert-base-uncased-finetuned-sst-2-english")
@@ -66,14 +64,6 @@ def _intent_description_from_block(block: Dict[str, Any]) -> str:
     sample = " ; ".join(patterns[:6])
     return f"Intent `{block.get('tag','?')}` — example phrases: {sample}"
 
-# def _command_description_from_block(block: Dict[str, Any]) -> str:
-#     if not isinstance(block, dict):
-#         return ""
-#     if "description" in block and block["description"]:
-#         return str(block["description"])
-#     patterns = block.get("patterns", []) or block.get("examples", [])
-#     sample = " ; ".join(patterns[:6])
-#     return f"Command `{block.get('tag','?')}` — examples: {sample}"
 
 class EmbeddingCatalog:
     def __init__(self, model_name: str = EMBEDDING_MODEL_NAME):
@@ -150,23 +140,16 @@ class EmbeddingCatalog:
         return [(self.labels[i], float(sims[i])) for i in idxs]
 
 _INTENT_CATALOG = EmbeddingCatalog()
-# _COMMAND_CATALOG = EmbeddingCatalog()
 
 def _ensure_catalogs_loaded(force: bool = False):
     intents_json = _load_json(INTENTS_FILE) or {}
-    # commands_json = _load_json(COMMAND_FILE) or {}
 
     intents_blocks = intents_json.get("intents", [])
-    # commands_blocks = commands_json.get("intents", []) or commands_json.get("commands", [])
 
     try:
         intents_mtime = os.path.getmtime(INTENTS_FILE) if os.path.exists(INTENTS_FILE) else 0
     except Exception:
         intents_mtime = 0
-    # try:
-    #     commands_mtime = os.path.getmtime(COMMAND_FILE) if os.path.exists(COMMAND_FILE) else 0
-    # except Exception:
-    #     commands_mtime = 0
 
     if ( _INTENT_CATALOG.embeddings is None) or force:
         loaded = _INTENT_CATALOG.load_cache(INTENT_EMB_FNAME)
@@ -178,17 +161,6 @@ def _ensure_catalogs_loaded(force: bool = False):
                 _INTENT_CATALOG.build_from_json_blocks(intents_blocks)
                 _INTENT_CATALOG.save_cache(INTENT_EMB_FNAME)
         _INTENT_CATALOG._source_mtime = intents_mtime
-
-    # if (_COMMAND_CATALOG.embeddings is None) or force:
-    #     loaded = _COMMAND_CATALOG.load_cache(COMMAND_EMB_FNAME)
-    #     if not loaded or (_COMMAND_CATALOG and commands_mtime and (getattr(_COMMAND_CATALOG, "_source_mtime", None) or 0) < commands_mtime):
-    #         if SentenceTransformer is None:
-    #             logger.warning("Embedding model missing: cannot build command catalog")
-    #         else:
-    #             _COMMAND_CATALOG._load_model()
-    #             _COMMAND_CATALOG.build_from_json_blocks(commands_blocks)
-    #             _COMMAND_CATALOG.save_cache(COMMAND_EMB_FNAME)
-    #     _COMMAND_CATALOG._source_mtime = commands_mtime
 
 def classify_intent(query: str) -> Dict[str, Any]:
     logger.info("classify_intent called")
@@ -213,40 +185,6 @@ def get_intent_candidates(query: str, top_k: int = 3):
         return []
     raw = _INTENT_CATALOG.most_similar(query, top_k=top_k)
     return [{"intent": i, "score": s} for i, s in raw]
-
-# def classify_command(query: str) -> Dict[str, Any]:
-#     logger.info("classify_command called")
-#     _ensure_catalogs_loaded()
-#     if SentenceTransformer is None:
-#         return {"command": None, "score": 0.0}
-
-#     candidates = _COMMAND_CATALOG.most_similar(query, top_k=1)
-#     if not candidates:
-#         return {"command": None, "score": 0.0}
-#     cmd, score = candidates[0]
-#     logger.info("Command candidate: %s (score=%.3f)", cmd, score)
-#     if score < COMMAND_THRESHOLD:
-#         return {"command": None, "score": float(score)}
-#     return {"command": cmd, "score": float(score)}
-
-# def get_intent_and_command(query: str, top_k: int = 3):
-#     logger.info("get_intent_and_command called")
-#     _ensure_catalogs_loaded()
-#     if SentenceTransformer is None:
-#         return []
-#     raw = _TST_CATALOG.most_similar(query, top_k=top_k)
-#     x = [{"intent": i, "score": s} for i, s in raw]
-#     logger.info (x)
-
-#     candidates = x[0]
-#     if not candidates:
-#         return {"command": None, "score": 0.0}
-#     cmd = candidates.get("intent")
-#     score = candidates.get("score")
-#     logger.info("Command candidate: %s (score=%.3f)", cmd, score)
-#     if score < tst_threshhold:
-#         return {"command": None, "score": float(score)}
-#     return {"command": cmd, "score": float(score)}
 
 def sentiment_tool(text: str) -> Dict[str, Any]:
     logger.info("sentiment_tool called")
@@ -279,10 +217,7 @@ def sentiment_tool(text: str) -> Dict[str, Any]:
 def classify_and_route(query: str) -> Dict[str, Any]:
     top = classify_intent(query)
     out = {"intent": top.get("intent"), "intent_score": top.get("score"), "command": None, "command_score": 0.0}
-    # if out["intent"] and out["intent"].lower().startswith("command"):
-    #     cmd = classify_command(query)
-    #     out["command"] = cmd.get("command")
-    #     out["command_score"] = cmd.get("score")
+
     return out
 
 try:

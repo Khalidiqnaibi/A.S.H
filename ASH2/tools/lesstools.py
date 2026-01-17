@@ -12,7 +12,10 @@ import logging
 
 load_dotenv()
 
-CHROMA = ChromaVDB()
+LLM = mistral.MistralLLM(mode="openrouter",openrouter_key=os.getenv("OPENROUTER_API_KEY"), temperature=0.7)
+
+CHROMA = ChromaVDB(llm=LLM)
+CHROMA.init_cloud_db_client()
 
 
 METADATA_FIELDS = [
@@ -59,7 +62,7 @@ def retrieve_tool(query: str,top=5, llm=None) -> str:
     logging.info('Function retrieve_tool called')
     print(f"[TOOL] retrieve_tool called with: {query}", flush=True, file=sys.stderr)
     if llm is None:
-        llm = mistral.MistralLLM(mode="openrouter",openrouter_key=os.getenv("OPENROUTER_API_KEY"), temperature=0.7)
+        llm = LLM
     R=Retriever(
         "Knowledge",
         vdb=CHROMA,

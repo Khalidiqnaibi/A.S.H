@@ -173,44 +173,46 @@ class ASH:
                 return result
 
             # Add more command→tool mappings here as needed
-            _print_log("No deterministic tool mapped for command tag:", cmd_tag)
-            return result
+            # _print_log("No deterministic tool mapped for command tag:", cmd_tag)
+            # return result
 
-        # Handle questions -> use retriever (domain knowledge)
-        if intent and ("question" in intent.lower() or intent.lower().startswith("qust") or intent.lower().startswith("quest")):
-            _print_log("Question intent detected; invoking retriever")
+            # Handle questions -> use retriever (domain knowledge)
+            if ("question" in intent.lower() or intent.lower().startswith("qust") or intent.lower().startswith("quest")):
+                _print_log("Question intent detected; invoking retriever")
+                try:
+                    # create a retriever via factory (deterministic; avoid registering as LLM-callable tool)
+                    docs = retrieve_tool(query , llm=self.llm)
+                    if docs:
+                        formatted = "\n".join([f"- {d.page_content} (source: {d.metadata.get('source', 'unknown')})" for d in docs])
+                    else:
+                        formatted = "No relevant knowledge found."
+                    result["tool_used"] = "domain_knowledge_retriever"
+                    result["tool_output"] = formatted
+                    self._append_tool_log("domain_knowledge_retriever", query, formatted)
+                    self._append_history("user", query)
+                    self._append_history("tool", f"domain_knowledge_retriever -> {formatted}")
+                except Exception as e:
+                    _print_log("Retriever error:", e)
+                return result
+
+            # Conversation or fallback: no tools used — LLM will render
+            _print_log("Conversation / fallback; no deterministic tool executed.")
             try:
-                # create a retriever via factory (deterministic; avoid registering as LLM-callable tool)
-                docs = retrieve_tool(query , llm=self.llm)
-                if docs:
-                    formatted = "\n".join([f"- {d.page_content} (source: {d.metadata.get('source', 'unknown')})" for d in docs])
-                else:
-                    formatted = "No relevant knowledge found."
-                result["tool_used"] = "domain_knowledge_retriever"
-                result["tool_output"] = formatted
-                self._append_tool_log("domain_knowledge_retriever", query, formatted)
-                self._append_history("user", query)
-                self._append_history("tool", f"domain_knowledge_retriever -> {formatted}")
+                    # create a retriever via factory (deterministic; avoid registering as LLM-callable tool)
+                    docs = retrieve_tool(query , llm=self.llm)
+                    if docs:
+                        formatted = "\n".join([f"- {d.page_content} (source: {d.metadata.get('source', 'unknown')})" for d in docs])
+                    else:
+                        formatted = "No relevant knowledge found."
+                    result["tool_used"] = "retriever"
+                    result["tool_output"] = formatted
+                    self._append_tool_log("retriever", query, formatted)
+                    self._append_history("user", query)
+                    self._append_history("tool", f"retriever -> {formatted}")
             except Exception as e:
-                _print_log("Retriever error:", e)
+                    _print_log("Retriever error:", e)
             return result
-
-        # Conversation or fallback: no tools used — LLM will render
-        _print_log("Conversation / fallback; no deterministic tool executed.")
-        try:
-                # create a retriever via factory (deterministic; avoid registering as LLM-callable tool)
-                docs = retrieve_tool(query , llm=self.llm)
-                if docs:
-                    formatted = "\n".join([f"- {d.page_content} (source: {d.metadata.get('source', 'unknown')})" for d in docs])
-                else:
-                    formatted = "No relevant knowledge found."
-                result["tool_used"] = "retriever"
-                result["tool_output"] = formatted
-                self._append_tool_log("retriever", query, formatted)
-                self._append_history("user", query)
-                self._append_history("tool", f"retriever -> {formatted}")
-        except Exception as e:
-                _print_log("Retriever error:", e)
+        _print_log("No intent detected; no tools executed.")
         return result
 
     # -----------------------
