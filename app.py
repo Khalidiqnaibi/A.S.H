@@ -55,6 +55,7 @@ def on_connect():
 def on_disconnect():
     sid = request.sid
     print(f"[SOCKET] disconnect: {sid}", file=sys.stderr, flush=True)
+    emit("system", {"msg": "Ash says bye!"}, room=sid)
     # cleanup
     client_states.pop(sid, None)
     try:
@@ -93,7 +94,7 @@ def handle_user_message(data):
 
         # Call ASH.run with context; ash.run may raise — handle gracefully
         try:
-            response = ash.run(query)
+            response = ash.run(msg)
         except TypeError:
             # backward compatibility: some ASH.run definitions accept only (query)
             response = ash.run(query)

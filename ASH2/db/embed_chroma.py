@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 from AgentSystem import ChromaVDB,mistral
 
-load_dotenv('A.S.H\.env')
+load_dotenv(r'A.S.H\.env')
 
 UPLOAD_DIR = "./uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
