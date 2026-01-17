@@ -33,7 +33,15 @@ app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config["SECRET_KEY"] = app.config.get("SECRET_KEY", "dev-secret")
 
 # SocketIO setup: allow all origins (development). Adjust in production.
-socketio = SocketIO(app, cors_allowed_origins="*", manage_session=False)
+socketio = SocketIO(
+    app,
+    cors_allowed_origins="*",
+    ping_timeout=60,
+    ping_interval=25,
+    max_http_buffer_size=10_000_000, 
+    manage_session=False
+)
+
 
 # Per-sid client state storage
 client_states: Dict[str, Dict] = {}  # sid -> {"client_time": ..., "history": [...]}
@@ -118,4 +126,4 @@ def handle_user_message(data):
 # Start server
 if __name__ == "__main__":
     print("Starting ASH Socket.IO server on 0.0.0.0:5000", file=sys.stderr)
-    socketio.run(app, host="0.0.0.0", port=5000, debug=True)
+    socketio.run(app, host="0.0.0.0", port=5000, debug=False)

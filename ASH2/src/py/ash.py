@@ -201,7 +201,7 @@ class ASH:
                 _print_log("Question intent detected; invoking retriever")
                 try:
                     # create a retriever via factory (deterministic; avoid registering as LLM-callable tool)
-                    docs = retrieve_tool(query , llm=self.llm)
+                    docs = retrieve_tool(query, top=3, llm=self.llm)
                     if docs:
                         formatted = "\n".join([f"- {d.page_content} (source: {d.metadata.get('source', 'unknown')})" for d in docs])
                     else:
@@ -219,7 +219,7 @@ class ASH:
             _print_log("Conversation / fallback; no deterministic tool executed.")
             try:
                     # create a retriever via factory (deterministic; avoid registering as LLM-callable tool)
-                    docs = retrieve_tool(query , llm=self.llm)
+                    docs = retrieve_tool(query, top=5 , llm=self.llm)
                     if docs:
                         formatted = "\n".join([f"- {d.page_content} (source: {d.metadata.get('source', 'unknown')})" for d in docs])
                     else:
@@ -257,7 +257,7 @@ class ASH:
             f"{json.dumps(facts, indent=2)}\n\n"
             "Emotional snapshot (internal state):\n"
             f"{json.dumps(ash_state.get('emotions', {}), indent=2)}\n\n"
-            "Present the data just given if any then say a small sentance, Respond like your emotional state. If facts are provided, use them exactly. Keep the answer one under paragraph."
+            "Present the data just given if any in a human readable format, then say a small sentence, Respond like your emotional state. If facts are provided, use them."
         )
 
         # Create messages if langchain_core is present

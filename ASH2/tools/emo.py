@@ -17,19 +17,19 @@ EMO_KEYS = [
 
 @dataclass
 class EmotionState:
-    happy: int = 0
+    happy: int = 7
     sad: int = 0
     angry: int = 0
     fear: int = 0
     surprise: int = 0
     disgust: int = 0
     love: int = 0
-    trust: int = 0
+    trust: int = 2
     anticipation: int = 0
-    excitement: int = 0
+    excitement: int = 3
     boredom: int = 0
     anxiety: int = 0
-    confidence: int = 0
+    confidence: int = 4
     frustration: int = 0
     relief: int = 0
     pride: int = 0
@@ -39,7 +39,7 @@ class EmotionState:
     jealousy: int = 0
     optimism: int = 0
     pessimism: int = 0
-    curiosity: int = 0
+    curiosity: int = 2
 
     def clamp(self, min_val=-10, max_val=10):
         for k in EMO_KEYS:
