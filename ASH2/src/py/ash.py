@@ -246,8 +246,9 @@ class ASH:
         history_block = self._format_history_for_prompt()
         # Compose a safe system + human prompt
         system_content = (
-            f"You are {self.name}, a professional personal assistant. "
-            "Use the facts below where applicable. Do NOT invent facts."
+            f"You are {self.name}, a loyal personal assistant. "
+            "Use the facts below in a human readable format where applicable. Do NOT invent facts."
+            "answer the query then say a small sentence"
         )
         human_content = (
             "Conversation so far:\n"
@@ -257,7 +258,7 @@ class ASH:
             f"{json.dumps(facts, indent=2)}\n\n"
             "Emotional snapshot (internal state):\n"
             f"{json.dumps(ash_state.get('emotions', {}), indent=2)}\n\n"
-            "Present the data just given if any in a human readable format, then say a small sentence, Respond like your emotional state. If facts are provided, use them."
+            "Respond like your emotional state and in a small paragraph."
         )
 
         # Create messages if langchain_core is present
