@@ -22,7 +22,8 @@ except Exception:
         def __init__(self, content): self.content = content
 
 # Import router & tools (make sure these modules exist at these paths)
-from ASH2.tools.classification import classify_and_route, classify_intent, sentiment_tool 
+from ASH2.tools.classification import classify_and_route, classify_intent, sentiment_tool
+from ASH2.tools.registry import CommandRegistry 
 from ASH2.tools.lesstools import date_time_tool, calculator_tool, retrieve_tool  # factory.build_retriever
 from ASH2.tools.emo import init_emo, get_emo, update_emo, reset_emo, EmotionState
 
@@ -45,7 +46,6 @@ MISTRAL_OPENROUTER_MODEL = os.getenv("MISTRAL_OPENROUTER_MODEL")
 # Simple runtime state type
 AshState = Dict[str, Any]
 
-# Default LLM settings (adjust env / config if you prefer)
 DEFAULT_LLM_TEMPERATURE = 0.9
 
 # Global shared state (singleton-ish) — persists across runs in same process
@@ -91,6 +91,15 @@ class ASH:
         # optional local caches / settings
         self.intent_threshold = None  # keep default from classification module
         _print_log(f"{self.name} initialized (LLM present: {bool(self.llm)})")
+        self.registry = CommandRegistry()
+
+        # register tools
+        self.registry.register_tool("date_time_tool", lambda _: date_time_tool())
+        self.registry.register_tool("calculator_tool", calculator_tool)
+        self.registry.register_tool("retriever", lambda q: retrieve_tool(q, top=5, llm=self.llm))
+
+        self.registry.load_commands()
+        _print_log("ASH online. Commands loaded:", list(self.registry.commands))
 
     # -----------------------
     # State helpers
@@ -135,105 +144,6 @@ class ASH:
         ash_state["tool_log"].append(entry)
         # immediate debug print
         _print_log("[TOOL LOG]", tool_name, "input=", str(tool_input)[:200], "output=", str(tool_output)[:200])
-
-    # -----------------------
-    # Router + executor
-    # -----------------------
-    def _deterministic_execute(self, query: str) -> Dict[str, Any]:
-        """
-        Use classify_and_route (embedding router) to decide what to run.
-        Execute tools in code (no LLM decision).
-        Returns a dict: { intent, intent_score, command, command_score, tool_used, tool_output }
-        """
-        _print_log("Routing query:", query)
-        # classify_and_route returns a dict: intent, intent_score, command, command_score
-        try:
-            route = classify_and_route(query)
-        except Exception as e:
-            _print_log("Router failed:", e)
-            route = {"intent": "conversation", "intent_score": 0.0, "command": None, "command_score": 0.0}
-
-        intent = route.get("intent", "conversation")
-        result = {
-            "intent": intent,
-            "intent_score": route.get("intent_score", 0.0),
-            "command": route.get("command"),
-            "command_score": route.get("command_score", 0.0),
-            "tool_used": None,
-            "tool_output": None,
-            "raw_route": route
-        }
-
-        # Handle commands deterministically
-        if intent:
-            cmd_tag = intent
-            _print_log("Command intent detected:", cmd_tag, "score:", result["command_score"])
-
-            # time / date commands
-            if cmd_tag and cmd_tag.lower() in ("time", "date", "datetime" ,"get_time"):
-                # prefer client time if provided in context
-                tool_out = date_time_tool()
-                result["tool_used"] = "date_time_tool"
-                result["tool_output"] = tool_out
-                self._append_tool_log("date_time_tool","", tool_out)
-                # append history
-                self._append_history("user", query)
-                self._append_history("tool", f"date_time_tool -> {tool_out}")
-                return result
-
-            # calculator / math commands
-            if cmd_tag and cmd_tag.lower() in ("calc", "calculate", "math", "compute"):
-                # crude extraction: pass whole string to calculator tool which will safe-calc or error
-                tool_out = calculator_tool(query)
-                result["tool_used"] = "calculator_tool"
-                result["tool_output"] = tool_out
-                self._append_tool_log("calculator_tool", query, tool_out)
-                self._append_history("user", query)
-                self._append_history("tool", f"calculator_tool -> {tool_out}")
-                return result
-
-            # Add more command→tool mappings here as needed
-            # _print_log("No deterministic tool mapped for command tag:", cmd_tag)
-            # return result
-
-            # Handle questions -> use retriever (domain knowledge)
-            if ("question" in intent.lower() or intent.lower().startswith("qust") or intent.lower().startswith("quest")):
-                _print_log("Question intent detected; invoking retriever")
-                try:
-                    # create a retriever via factory (deterministic; avoid registering as LLM-callable tool)
-                    docs = retrieve_tool(query, top=3, llm=self.llm)
-                    if docs:
-                        formatted = "\n".join([f"- {d.page_content} (source: {d.metadata.get('source', 'unknown')})" for d in docs])
-                    else:
-                        formatted = "No relevant knowledge found."
-                    result["tool_used"] = "domain_knowledge_retriever"
-                    result["tool_output"] = formatted
-                    self._append_tool_log("domain_knowledge_retriever", query, formatted)
-                    self._append_history("user", query)
-                    self._append_history("tool", f"domain_knowledge_retriever -> {formatted}")
-                except Exception as e:
-                    _print_log("Retriever error:", e)
-                return result
-
-            # Conversation or fallback: no tools used — LLM will render
-            _print_log("Conversation / fallback; no deterministic tool executed.")
-            try:
-                    # create a retriever via factory (deterministic; avoid registering as LLM-callable tool)
-                    docs = retrieve_tool(query, top=5 , llm=self.llm)
-                    if docs:
-                        formatted = "\n".join([f"- {d.page_content} (source: {d.metadata.get('source', 'unknown')})" for d in docs])
-                    else:
-                        formatted = "No relevant knowledge found."
-                    result["tool_used"] = "retriever"
-                    result["tool_output"] = formatted
-                    self._append_tool_log("retriever", query, formatted)
-                    self._append_history("user", query)
-                    self._append_history("tool", f"retriever -> {formatted}")
-            except Exception as e:
-                    _print_log("Retriever error:", e)
-            return result
-        _print_log("No intent detected; no tools executed.")
-        return result
 
     # -----------------------
     # LLM rendering (narrator)
@@ -322,6 +232,7 @@ class ASH:
     # -----------------------
     # Public API: run
     # -----------------------
+
     def run(self, query: str) -> str:
         """
         Execute full pipeline:
@@ -331,41 +242,43 @@ class ASH:
           4) render final answer via LLM (narrator)
         """
         ash_state["input"] = query
+        self._append_history("user", query)
 
-        # 1) routing + deterministic execution
-        route_result = self._deterministic_execute(query)
+        route = classify_and_route(query)
+        cmd_id = route.get("command")
+        score = route.get("score", 0.0)
 
-        # 2) prepare facts to give to LLM renderer
+        tool_output = None
+        if cmd_id and score >= 0.3:
+            tool_output = self.registry.execute(cmd_id, query)
+        else:
+            # fallback retriever
+            try:
+                tool = self.registry.tools.get("retriever")
+                docs = tool(query) if tool else None
+                if docs:
+                    formatted = "\n".join([f"- {d.page_content} (source: {d.metadata.get('source','unknown')})" for d in docs])
+                else:
+                    formatted = "No relevant knowledge found."
+                cmd_id = "conversation"
+                tool_output = formatted
+                self._append_tool_log("retriever", query, formatted)
+                self._append_history("tool", f"retriever -> {formatted}")
+            except Exception as e:
+                _print_log("Retriever fallback error:", e)
+                tool_output = "No information available."
+
         facts = {
-            "intent": route_result.get("intent"),
-            "intent_score": route_result.get("intent_score"),
-            "command": route_result.get("command"),
-            "command_score": route_result.get("command_score"),
-            "tool_used": route_result.get("tool_used"),
-            "tool_output": route_result.get("tool_output"),
+            "command": cmd_id,
+            "confidence": score,
+            "tool_output": tool_output
         }
 
-        # 3) optionally update emotions (example logic)
-        # You can implement richer emotion policies; here is a simple demo:
-        try:
-            # small heuristic: if wrong tool usage or user asks again, increase frustration
-            if facts["tool_used"] is None and facts["intent"] and facts["intent"].lower().startswith("command"):
-                # call update_emo to show changing emotion (this is deterministic tool call)
-                update_emo(ash_state, "frustration", 1)
-                self._append_tool_log("update_emo", {"emo": "frustration", "val": 1}, ash_state["emotions"])
-        except Exception as e:
-            _print_log("Emotion update failed:", e)
+        reply = self._render_with_llm(query, facts)
+        ash_state["res"] = reply
+        self._append_history("ash", reply)
 
-        # 4) render via LLM (narrator)
-        final_text = self._render_with_llm(query, facts)
-
-        # 5) persist final result in state and history
-        ash_state["res"] = final_text
-        self._append_history("ash", final_text)
-
-        # Print short summary to stderr for debugging
-        _print_log("Finished run: intent=", facts["intent"], "tool=", facts["tool_used"])
-        return final_text
+        return reply
 
     # utility: pretty print current state (developer helper)
     def status_info(self) -> Dict[str, Any]:

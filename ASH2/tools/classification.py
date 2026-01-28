@@ -167,16 +167,20 @@ def classify_intent(query: str) -> Dict[str, Any]:
     _ensure_catalogs_loaded()
     if SentenceTransformer is None:
         logger.warning("Embedding model not available; returning 'conversation'")
-        return {"intent": "conversation", "score": 0.0}
+        return {"command": "conversation", "score": 0.0}
 
     candidates = _INTENT_CATALOG.most_similar(query, top_k=1)
     if not candidates:
-        return {"intent": "conversation", "score": 0.0}
+        return {"command": "conversation", "score": 0.0}
     intent, score = candidates[0]
     logger.info("Intent candidate: %s (score=%.3f)", intent, score)
     if score < INTENT_THRESHOLD:
-        return {"intent": "conversation", "score": float(score)}
-    return {"intent": intent, "score": float(score)}
+        return {"command": "conversation", "score": float(score)}
+    return  {
+        "command": intent,
+        "score": float(score)
+    }
+
 
 def get_intent_candidates(query: str, top_k: int = 3):
     logger.info("get_intent_candidates called")
@@ -216,7 +220,7 @@ def sentiment_tool(text: str) -> Dict[str, Any]:
 
 def classify_and_route(query: str) -> Dict[str, Any]:
     top = classify_intent(query)
-    out = {"intent": top.get("intent"), "intent_score": top.get("score"), "command": None, "command_score": 0.0}
+    out = {"command": top.get("command"), "score": top.get("score")}
 
     return out
 
