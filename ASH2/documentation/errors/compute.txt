@@ -1,0 +1,5 @@
+2026-02-05 22:57:13,684 - INFO - Function calculator_tool called
+[TOOL] calculator_tool called with: compute 10+20+3000/2-10
+[TOOL] calculator_tool error: invalid syntax (<unknown>, line 1)
+[ASH] [TOOL LOG] calculator_tool input= compute 10+20+3000/2-10 output= Error in calculation: invalid syntax (<unknown>, line 1)
+[ASH] Finished run: intent= calculate tool= calculator_tool
