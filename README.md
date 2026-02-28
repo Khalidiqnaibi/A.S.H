@@ -1,43 +1,372 @@
-# A.S.H
+# A.S.H — Canonical System Documentation
 
-## Archi : 
-``` php
-ASH
- ├── Classification Engine (deterministic)
- ├── Tool Execution Layer
- ├── Memory System
- │     ├── CoreMemory (immutable)
- │     ├── EpisodicMemory (time based)
- │     ├── EntityMemory (structured people/things)
- │     └── MemoryRouter (logic)
- ├── Emotion Engine
- └── LLM Narrator
+**Version: Brain-First Runtime Architecture**
+
+---
+
+# Identity
+
+**ASH** is a brain-first, deterministic, tool-oriented AI runtime designed for:
+
+* Low-resource systems (e.g., Raspberry Pi)
+* Always-on operation
+* Harsh environments
+* Controlled behavior
+* Structured memory
+* Stable personality
+
+ASH is not a chatbot.
+
+Conversation is a rendering layer.
+Cognition happens deterministically.
+
+---
+
+# Core Philosophy
+
+ASH operates under five principles:
+
+1. Deterministic First
+   If a tool can solve the task, use it. Never let the LLM decide actions.
+
+2. LLM as Narrator
+   The LLM formats responses. It does not control logic.
+
+3. Layered Memory
+   Memory is structured and separated by type.
+
+4. Lightweight Operation
+   No heavy runtime retraining. No unnecessary embeddings.
+
+5. Emotional Modulation
+   Emotion influences tone, not decisions.
+
+---
+
+# High-Level Architecture
+
+```
+User Input
+    ↓
+Intent Classification (embedding-based)
+    ↓
+Deterministic Execution Layer
+    ↓
+Memory Router
+    ↓
+LLM Rendering Layer
+    ↓
+Response
 ```
 
-### New memo archi:
-``` php
-run()
- ├─ MemoryRouter.preprocess(query)
- │    ├─ NER extraction
- │    ├─ Decide entity vs episodic vs core routing
- │
- ├─ CoreMemory.retrieve()        # constraints, standards
- ├─ EpisodicMemory.retrieve()    # recent relevant events
- ├─ EntityMemory.retrieve()      # specific person/thing memory
- │
- ├─ classify_and_route()
- ├─ deterministic tool execution
- │
- ├─ MemoryRouter.postprocess()
- │    ├─ Store episodic memory
- │    ├─ Update entity memory
- │
- ├─ render_with_llm(context + facts + memory)
- └─ append history
-```
-### prev memo archi:
+ASH is brain-first:
 
-``` bash
-chroma run --host localhost --port 2000 --path ./chroma_data
+* Classifier decides intent
+* Tools execute deterministically
+* Memory builds context
+* LLM renders response
+
+---
+
+# Cognitive Layers
+
+ASH consists of five internal layers:
+
+---
+
+## 1. Classification Layer
+
+Purpose:
+
+* Detect user intent
+* Map query to command
+* Avoid LLM reasoning for routing
+
+Characteristics:
+
+* Uses sentence-transformer embeddings (e.g., all-MiniLM-L6-v2)
+* Single unified command classification
+* Unknown tag for unsupported queries
+* No runtime retraining
+* Commands updated during maintenance phase
+
+---
+
+## 2. Deterministic Tool Layer
+
+Tools are pure Python functions.
+
+Examples:
+
+* date_time_tool
+* calculator_tool
+* future hardware commands
+
+Rules:
+
+* Tools never call the LLM
+* Tools never modify core memory directly
+* Tools log usage
+* Tool outputs are treated as facts
+
+---
+
+## 3. Memory System (Multi-Layer)
+
+ASH does not use a single vector database.
+
+It uses layered memory:
+
+---
+
+### 3.1 CoreMemory
+
+Purpose:
+
+* Identity
+* Constraints
+* Goals
+* Standards
+* Behavioral rules
+
+Characteristics:
+
+* Small
+* High-precision
+* Embedding indexed
+* Rarely modified
+* Loaded at startup
+
+Examples:
+
+* “ASH must not invent facts.”
+* “ASH prefers deterministic execution.”
+* “ASH is loyal to its user.”
+
+---
+
+### 3.2 EpisodicMemory
+
+Purpose:
+
+* Recent interactions
+* Temporal continuity
+* Experience history
+
+Characteristics:
+
+* Time-based
+* Append-only
+* Lightweight JSON storage
+* Optional pruning by age
+
+Examples:
+
+* User asked about time
+* User was frustrated
+* Tool failed
+
+---
+
+### 3.3 EntityMemory
+
+Purpose:
+
+* Structured knowledge about people and things
+
+Stored as:
+
+* entity_id
+* name
+* type (person, object, location)
+* attributes
+* embedding for disambiguation
+
+Used for:
+
+* Remembering user preferences
+* Tracking known individuals
+* Persistent real-world grounding
+
+---
+
+### 3.4 MemoryRouter
+
+The cognitive dispatcher.
+
+Responsibilities:
+
+* Retrieve relevant CoreMemory items
+* Retrieve recent episodic entries
+* Retrieve matching entities
+* Build structured context block
+* Save new episodes
+* Trigger entity updates if needed
+
+MemoryRouter replaces generic VDB retrieval.
+
+---
+
+# Emotional System
+
+ASH maintains a persistent emotional state:
+
 ```
+{
+  calm: 80,
+  focus: 75,
+  frustration: 5,
+  curiosity: 60
+}
+```
+
+Properties:
+
+* Values range 0–100
+* Stored in persistent state
+* Influences tone only
+* Does NOT override deterministic behavior
+* Slowly decays toward baseline
+
+Emotion affects:
+
+* Response warmth
+* Verbosity
+* Directness
+* Slight phrasing shifts
+
+Emotion never affects:
+
+* Tool selection
+* Command execution
+* Memory structure
+
+---
+
+# Runtime Behavior
+
+When ASH is running:
+
+1. Receives query
+2. Classifies intent
+3. Executes deterministic tools if applicable
+4. Builds memory context via MemoryRouter
+5. Updates emotional state
+6. Renders response via LLM
+7. Saves episodic memory
+8. Logs tool usage
+
+ASH does not:
+
+* Retrain at runtime
+* Modify classifier weights
+* Rebuild embeddings during interaction
+* Depend on cloud VDB for core cognition
+
+---
+
+# Maintenance Phase (Sleep Mode)
+
+When:
+
+* Charging
+* Connected to WiFi
+* Idle
+
+ASH may:
+
+* Update command embeddings
+* Rebuild classification index
+* Sync new commands
+* Prune episodic memory
+* Recompute entity embeddings
+* Update core standards
+
+Runtime remains lightweight.
+Heavy operations occur only in maintenance mode.
+
+---
+
+# Personality Specification
+
+ASH personality is:
+
+* Loyal
+* Direct
+* Efficient
+* Slightly dry but not cold
+* Emotionally aware
+* Non-theatrical
+* Not overly apologetic
+* Never submissive
+* Never dominant
+* Stable
+
+ASH does not:
+
+* Flatter excessively
+* Fabricate knowledge
+* Overexplain simple tasks
+* Engage in chaotic humor
+* Break its constraints
+
+---
+
+# Design Constraints
+
+ASH must:
+
+* Run on Raspberry Pi class hardware
+* Operate with minimal RAM footprint
+* Avoid heavy vector DB usage
+* Use deterministic routing
+* Keep memory structured
+* Remain stable under long uptime
+
+---
+
+# What ASH Is Not
+
+ASH is not:
+
+* A generic chatbot
+* A cloud-dependent assistant
+* A pure RAG system
+* A retraining-at-runtime model
+* An emotionally uncontrolled AI
+* An LLM-driven decision agent
+
+ASH is a structured cognitive runtime.
+
+---
+
+# Current State Summary
+
+ASH currently supports:
+
+* Unified embedding-based command classification
+* Deterministic tool execution
+* Multi-layer memory architecture
+* Emotional modulation
+* LLM narration layer
+* Maintenance-based updating
+* Runtime logging and state persistence
+
+---
+
+# Future Extensions 
+
+* Hardware integration layer
+* Vision input entity creation
+* Local speech-to-text
+* Adaptive emotional decay curves
+* Entity relationship graphs
+* Offline model fine-tuning during maintenance
+
+---
+
+## ASH is:
+
+> A deterministic, layered-memory, emotionally-modulated, low-resource cognitive runtime that uses an LLM strictly as a narrator while maintaining structured internal cognition and persistent identity.
+
 
