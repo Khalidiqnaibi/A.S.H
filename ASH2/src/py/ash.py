@@ -23,8 +23,11 @@ except Exception:
 
 # Import router & tools (make sure these modules exist at these paths)
 from ASH2.tools.classification import classify_and_route, classify_intent, sentiment_tool 
-from ASH2.tools.lesstools import date_time_tool, calculator_tool, retrieve_tool  # factory.build_retriever
+from ASH2.tools.lesstools import date_time_tool, calculator_tool
 from ASH2.tools.emo import init_emo, get_emo, update_emo, reset_emo, EmotionState
+
+# memory
+from ASH2.src.memory.memory_router import MemoryRouter
 
 # AgentSystem / LLM wrapper (your existing wrapper)
 from AgentSystem import mistral  # your mistral wrapper
@@ -74,6 +77,7 @@ class ASH:
         self.user = USER
         self.start_time = datetime.now()
         self.status = "online"
+        self.memory = MemoryRouter()
         # LLM wrapper (your mistral wrapper). If none passed, create one.
         if llm is None:
             try:
@@ -196,41 +200,6 @@ class ASH:
             # _print_log("No deterministic tool mapped for command tag:", cmd_tag)
             # return result
 
-            # Handle questions -> use retriever (domain knowledge)
-            if ("question" in intent.lower() or intent.lower().startswith("qust") or intent.lower().startswith("quest")):
-                _print_log("Question intent detected; invoking retriever")
-                try:
-                    # create a retriever via factory (deterministic; avoid registering as LLM-callable tool)
-                    docs = retrieve_tool(query, top=3, llm=self.llm)
-                    if docs:
-                        formatted = "\n".join([f"- {d.page_content} (source: {d.metadata.get('source', 'unknown')})" for d in docs])
-                    else:
-                        formatted = "No relevant knowledge found."
-                    result["tool_used"] = "domain_knowledge_retriever"
-                    result["tool_output"] = formatted
-                    self._append_tool_log("domain_knowledge_retriever", query, formatted)
-                    self._append_history("user", query)
-                    self._append_history("tool", f"domain_knowledge_retriever -> {formatted}")
-                except Exception as e:
-                    _print_log("Retriever error:", e)
-                return result
-
-            # Conversation or fallback: no tools used — LLM will render
-            _print_log("Conversation / fallback; no deterministic tool executed.")
-            try:
-                    # create a retriever via factory (deterministic; avoid registering as LLM-callable tool)
-                    docs = retrieve_tool(query, top=5 , llm=self.llm)
-                    if docs:
-                        formatted = "\n".join([f"- {d.page_content} (source: {d.metadata.get('source', 'unknown')})" for d in docs])
-                    else:
-                        formatted = "No relevant knowledge found."
-                    result["tool_used"] = "retriever"
-                    result["tool_output"] = formatted
-                    self._append_tool_log("retriever", query, formatted)
-                    self._append_history("user", query)
-                    self._append_history("tool", f"retriever -> {formatted}")
-            except Exception as e:
-                    _print_log("Retriever error:", e)
             return result
         _print_log("No intent detected; no tools executed.")
         return result
@@ -329,20 +298,20 @@ class ASH:
           2) execute tools in code when required
           3) update state/tool_log/history
           4) render final answer via LLM (narrator)
+          5) save interaction to memory
         """
         ash_state["input"] = query
 
         # 1) routing + deterministic execution
         route_result = self._deterministic_execute(query)
+        memory_context = self.memory.build_context(query)
 
         # 2) prepare facts to give to LLM renderer
         facts = {
             "intent": route_result.get("intent"),
-            "intent_score": route_result.get("intent_score"),
-            "command": route_result.get("command"),
-            "command_score": route_result.get("command_score"),
             "tool_used": route_result.get("tool_used"),
             "tool_output": route_result.get("tool_output"),
+            "memory_context": memory_context
         }
 
         # 3) optionally update emotions (example logic)
@@ -362,6 +331,12 @@ class ASH:
         # 5) persist final result in state and history
         ash_state["res"] = final_text
         self._append_history("ash", final_text)
+
+        # 6) save interaction to memory
+        self.memory.save_episode(
+            user_input=query,
+            ash_output=final_text
+        )
 
         # Print short summary to stderr for debugging
         _print_log("Finished run: intent=", facts["intent"], "tool=", facts["tool_used"])

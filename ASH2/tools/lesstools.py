@@ -1,75 +1,76 @@
-import os
+# import os
 import sys
 from langchain.tools import tool  
 import ast, operator as op
-from AgentSystem import Retriever, ChromaVDB, mistral
-from langchain_classic.chains.query_constructor.schema import AttributeInfo
-import requests
+# from AgentSystem import Retriever, ChromaVDB, mistral
+# from langchain_classic.chains.query_constructor.schema import AttributeInfo
+# import requests
 from dotenv import load_dotenv
 from datetime import datetime
-from flask import  session
+# from flask import  session
 import logging
 
 load_dotenv()
 
-LLM = mistral.MistralLLM(mode="openrouter",openrouter_key=os.getenv("OPENROUTER_API_KEY"), temperature=0.7)
+# legacy memory sys
+# LLM = mistral.MistralLLM(mode="openrouter",openrouter_key=os.getenv("OPENROUTER_API_KEY"), temperature=0.7)
 
-CHROMA = ChromaVDB(llm=LLM)
-CHROMA.init_cloud_db_client()
+# CHROMA = ChromaVDB(llm=LLM)
+# CHROMA.init_cloud_db_client()
 
 
-METADATA_FIELDS = [
-    AttributeInfo(
-        name="source",
-        description="Origin of the knowledge item (e.g., blog, article, manual)",
-        type="string"
-    ),
-    AttributeInfo(
-        name="type",
-        description="Type of content (text, image, video, audio)",
-        type="string"
-    ),
-    AttributeInfo(
-        name="description",
-        description="Short explanation about the content",
-        type="string"
-    ),
-    AttributeInfo(
-        name="summary",
-        description="Optional summarized version of the content",
-        type="string"
-    ),
-    AttributeInfo(
-        name="keywords",
-        description="Comma-separated keywords for search and retrieval",
-        type="string"
-    ),
-    AttributeInfo(
-        name="topic",
-        description="Category or topic of the knowledge item",
-        type="string"
-    )
-]
+# METADATA_FIELDS = [
+#     AttributeInfo(
+#         name="source",
+#         description="Origin of the knowledge item (e.g., blog, article, manual)",
+#         type="string"
+#     ),
+#     AttributeInfo(
+#         name="type",
+#         description="Type of content (text, image, video, audio)",
+#         type="string"
+#     ),
+#     AttributeInfo(
+#         name="description",
+#         description="Short explanation about the content",
+#         type="string"
+#     ),
+#     AttributeInfo(
+#         name="summary",
+#         description="Optional summarized version of the content",
+#         type="string"
+#     ),
+#     AttributeInfo(
+#         name="keywords",
+#         description="Comma-separated keywords for search and retrieval",
+#         type="string"
+#     ),
+#     AttributeInfo(
+#         name="topic",
+#         description="Category or topic of the knowledge item",
+#         type="string"
+#     )
+# ]
 
-# Save metadata schema for search
-CHROMA.save_metadata_map(metadata={f.name: {
-    "type": f.type,
-    "description": f.description
-} for f in METADATA_FIELDS})
+# # Save metadata schema for search
+# CHROMA.save_metadata_map(metadata={f.name: {
+#     "type": f.type,
+#     "description": f.description
+# } for f in METADATA_FIELDS})
 
-def retrieve_tool(query: str,top=5, llm=None) -> str:
-    """Retrieve relevant knowledge from the vector database using semantic + metadata search."""
-    logging.info('Function retrieve_tool called')
-    print(f"[TOOL] retrieve_tool called with: {query}", flush=True, file=sys.stderr)
-    if llm is None:
-        llm = LLM
-    R=Retriever(
-        "Knowledge",
-        vdb=CHROMA,
-        llm=llm,
-        metadata_fields=METADATA_FIELDS
-    )
-    return R.retrieve(query, top_k=top)
+# def retrieve_tool(query: str,top=5, llm=None) -> str:
+#     """Retrieve relevant knowledge from the vector database using semantic + metadata search."""
+#     logging.info('Function retrieve_tool called')
+#     print(f"[TOOL] retrieve_tool called with: {query}", flush=True, file=sys.stderr)
+#     if llm is None:
+#         llm = LLM
+#     R=Retriever(
+#         "Knowledge",
+#         vdb=CHROMA,
+#         llm=llm,
+#         metadata_fields=METADATA_FIELDS
+#     )
+#     return R.retrieve(query, top_k=top)
 
 _ALLOWED_OPS = {
     ast.Add: op.add,
@@ -117,7 +118,7 @@ def date_time_tool() -> str:
 
 if __name__ == "__main__":
 
-    print(retrieve_tool("What is observer pattern?"))
+    # print(retrieve_tool("What is observer pattern?"))
     print(calculator_tool("12 / (2.3 + 0.7) * 4 - 3"))
     print(date_time_tool())
     
