@@ -75,6 +75,9 @@ class EmbeddingCatalog:
         self._source_mtime = None
         self._load_model()
 
+    def get_model(self):
+        return self.model
+
     def _load_model(self):
         if SentenceTransformer is None:
             logger.error("SentenceTransformer not available. Install sentence-transformers.")

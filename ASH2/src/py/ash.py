@@ -22,12 +22,15 @@ except Exception:
         def __init__(self, content): self.content = content
 
 # Import router & tools (make sure these modules exist at these paths)
-from ASH2.tools.classification import classify_and_route, classify_intent, sentiment_tool 
+from ASH2.tools.classification import classify_and_route, classify_intent, sentiment_tool ,_INTENT_CATALOG
 from ASH2.tools.lesstools import date_time_tool, calculator_tool
 from ASH2.tools.emo import init_emo, get_emo, update_emo, reset_emo, EmotionState
 
 # memory
 from ASH2.src.memory.memory_router import MemoryRouter
+from ASH2.src.memory.core.core_manager import CoreMemoryEngine
+from ASH2.src.memory.entity.entity_manager import EntityManager
+from ASH2.src.memory.episodic.episodic_manager import EpisodicMemory
 
 # AgentSystem / LLM wrapper (your existing wrapper)
 from AgentSystem import mistral  # your mistral wrapper
@@ -50,6 +53,8 @@ AshState = Dict[str, Any]
 
 # Default LLM settings (adjust env / config if you prefer)
 DEFAULT_LLM_TEMPERATURE = 0.9
+
+embedder= _INTENT_CATALOG.get_model()
 
 # Global shared state (singleton-ish) — persists across runs in same process
 ash_state: AshState = {
@@ -77,7 +82,17 @@ class ASH:
         self.user = USER
         self.start_time = datetime.now()
         self.status = "online"
-        self.memory = MemoryRouter()
+
+        # Initialize memory engines
+        self.core_memory = CoreMemoryEngine(embedder=embedder)
+        self.entity_memory = EntityManager()
+        self.episodic_memory = EpisodicMemory(embedder=embedder)
+
+        self.memory = MemoryRouter(
+            core_mem=self.core_memory,
+            entity_mem=self.entity_memory,
+            episodic_mem=self.episodic_memory
+        )
         # LLM wrapper (your mistral wrapper). If none passed, create one.
         if llm is None:
             try:
@@ -219,10 +234,26 @@ class ASH:
             "Use the facts below in a human readable format where applicable. Do NOT invent facts."
             "answer the query then say a small sentence"
         )
+        # Retrieve relevant episodic memory
+        try:
+            recent_episodes = self.episodic_memory.retrieve(query, top_k=3)
+            episode_block = "\n".join([ep.summary for ep in recent_episodes])
+        except Exception:
+            episode_block = ""
+
+        # Retrieve core constraints
+        try:
+            core_block = json.dumps(self.core_memory.dump_all(), indent=2)
+        except Exception:
+            core_block = ""
         human_content = (
             "Conversation so far:\n"
             f"{history_block}\n\n"
             f"User query: {query}\n\n"
+            "Relevant Core Constraints:\n"
+            f"{core_block}\n\n"
+            "Relevant Episodic Memory:\n"
+            f"{episode_block}\n\n"
             "Facts (use if present):\n"
             f"{json.dumps(facts, indent=2)}\n\n"
             "Emotional snapshot (internal state):\n"
@@ -304,7 +335,7 @@ class ASH:
 
         # 1) routing + deterministic execution
         route_result = self._deterministic_execute(query)
-        memory_context = self.memory.build_context(query)
+        memory_context = self.memory.route_utterance(query)
 
         # 2) prepare facts to give to LLM renderer
         facts = {
@@ -333,10 +364,16 @@ class ASH:
         self._append_history("ash", final_text)
 
         # 6) save interaction to memory
-        self.memory.save_episode(
-            user_input=query,
-            ash_output=final_text
-        )
+        try:
+            mem_result = self.memory.route_utterance(
+                text=query,
+                source="chat",
+                importance=0.5,
+                actor=self.user
+            )
+            _print_log("Memory routed:", mem_result)
+        except Exception as e:
+            _print_log("Memory routing failed:", e)
 
         # Print short summary to stderr for debugging
         _print_log("Finished run: intent=", facts["intent"], "tool=", facts["tool_used"])

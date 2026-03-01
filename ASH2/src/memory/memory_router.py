@@ -6,6 +6,10 @@ from typing import Any, Dict, List, Optional
 from .ner import NERExtractor
 from .disambiguation import Disambiguator
 
+from .core.core_manager import CoreMemoryEngine
+from .entity.entity_manager import EntityManager
+from .episodic.episodic_manager import EpisodicMemory
+
 logger = logging.getLogger("ash.router")
 logger.setLevel(logging.INFO)
 if not logger.handlers:
@@ -27,9 +31,9 @@ class MemoryRouter:
 
     def __init__(
         self,
-        core_mem,
-        entity_mem,
-        episodic_mem,
+        core_mem = CoreMemoryEngine,
+        entity_mem =EntityManager,
+        episodic_mem = EpisodicMemory,
         ner: Optional[NERExtractor] = None,
         disamb: Optional[Disambiguator] = None,
         config: Optional[Dict[str, Any]] = None,
