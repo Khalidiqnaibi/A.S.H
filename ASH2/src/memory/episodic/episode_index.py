@@ -14,8 +14,9 @@ class EpisodeIndex:
 
     def rebuild(self, episodes: List[Episode]):
         self.episodes = episodes
-        vecs = [self.embedder.embed(ep.summary) for ep in episodes]
-        self.vectors = np.vstack(vecs) if vecs else None
+        summaries = [ep.summary for ep in episodes]
+        vecs = self.embedder.encode(summaries)
+        self.vectors = vecs        
 
     def search(self, query: str, top_k=5):
         if self.vectors is None:
