@@ -1,0 +1,18 @@
+{
+  "dec191ab-4a06-458c-8808-2058e27c201c": {
+    "entity_id": "dec191ab-4a06-458c-8808-2058e27c201c",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "this"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "This",
+      "last_seen_context": "This should be it .. how you feeling now ash that i fixed you",
+      "source": "chat",
+      "updated_at": 1782293815.6429842
+    },
+    "created_at": 1782293558.728646,
+    "updated_at": 1782293815.6429842
+  }
+}

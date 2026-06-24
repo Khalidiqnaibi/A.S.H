@@ -14,9 +14,17 @@ class EpisodeIndex:
 
     def rebuild(self, episodes: List[Episode]):
         self.episodes = episodes
+        
+        # Guard clause: If there are no episodes, do not invoke the embedder
+        if not episodes:
+            self.vectors = None
+            return
+
         summaries = [ep.summary for ep in episodes]
         vecs = self.embedder.encode(summaries)
-        self.vectors = vecs        
+        
+        # Convert to numpy array if sentence-transformers returned a list or torch tensor
+        self.vectors = np.array(vecs)    
 
     def search(self, query: str, top_k=5):
         if self.vectors is None:

@@ -51,7 +51,7 @@ class MemoryRouter:
         }
         # core keywords: words that usually indicate core facts/rules (customize)
         self.core_keywords = set(["policy", "constraint", "rule", "standard", "limit", "goal", "mission", "aim"])
-
+    
     # ----------------------
     # Public entry
     # ----------------------
@@ -60,24 +60,23 @@ class MemoryRouter:
         Main call to route a text. Returns a dict describing action taken.
         Steps:
           1) run NER
-          2) decide if it's core (policy/goal), entity update, or episodic
-          3) if entity: disambiguate and update/create
-          4) append to episodic if not core/entity or also link
+          2) decide if it's core (policy/goal)
+          3) if entities are detected: generically map them and pass to self.entity.ingest()
+          4) append a clean interaction timeline window to episodic memory
         """
         start = time.time()
         ents = self.ner.extract(text)
         logger.info("NER extracted %d entities", len(ents))
 
-        # quick heuristic: core detection
+        # Quick heuristic: core detection
         low_text = text.lower()
         core_score = sum(1 for kw in self.core_keywords if kw in low_text)
         is_core = core_score >= self.config["core_keyword_min_count"]
 
         result = {"routed_as": None, "details": {}, "time": 0.0}
 
-        # if core -> add to core memory (idempotent)
+        # If core -> add to core memory (idempotent)
         if is_core or importance >= 0.9:
-            # Core payload: store text (and a short summary)
             key = self._core_key_from_text(text)
             payload = {
                 "text": text,
@@ -96,46 +95,44 @@ class MemoryRouter:
             except Exception as e:
                 logger.exception("Core memory add failed: %s", e)
 
-        # If entities present -> attempt to link/update entity memories
+        # Generically process ANY entity type via unified entity ingestion architecture
         linked_entities = []
         for ent in ents:
             mention = ent["text"]
-            label = ent.get("label", "UNKNOWN")
-            # get candidates from entity memory (entity_mem must implement find_candidates(name) -> list)
+            # Map labels generically (spaCy PERSON -> person, ORG -> organization, GPE -> location, etc.)
+            raw_label = ent.get("label", "unknown").lower()
+            
+            # Formulate the payload data payload strictly adhering to Entity model constraints
+            entity_payload = {
+                "entity_type": raw_label,
+                "primary_identifiers": {
+                    "name": mention.lower().strip()
+                },
+                "attributes": {
+                    "canonical_name": mention,
+                    "last_seen_context": text,
+                    "source": source,
+                    "updated_at": time.time()
+                }
+            }
+
             try:
-                candidates = self.entity.find_candidates(mention)  # expects list of dicts with id,name,aliases
-            except Exception:
-                candidates = []
-
-            # disambiguate
-            disamb = self.disambiguator.most_likely(mention, candidates, top_k=3)
-            top = disamb[0] if disamb else None
-
-            if top and top.get("score", 0.0) >= self.config["entity_link_threshold"]:
-                # auto-update the matched entity
-                ent_id = top["candidate"]["id"]
-                try:
-                    update_payload = {"last_seen": time.time(), "last_mention": mention, "label": label, "source": source}
-                    self.entity.update_entity(ent_id, update_payload)
-                    linked_entities.append(ent_id)
-                    logger.info("Linked mention '%s' -> entity %s (score=%.3f)", mention, ent_id, top["score"])
-                except Exception:
-                    logger.exception("Entity update failed for %s", ent_id)
-            else:
-                # create a new entity if importance high enough (or collect as candidate)
-                if importance >= 0.7:
-                    # create entity
-                    try:
-                        new_ent = self.entity.create_entity(name=mention, label=label, aliases=[mention], metadata={"source": source})
-                        linked_entities.append(new_ent.get("id"))
-                        logger.info("Created new entity for mention '%s' -> %s", mention, new_ent.get("id"))
-                    except Exception:
-                        logger.exception("Entity creation failed for mention '%s'", mention)
+                # Let your specialized manager execute resolution, matching, or creation safely
+                resolved_ent = self.entity.ingest(entity_payload)
+                linked_entities.append(resolved_ent.entity_id)
+                logger.info("Ingested entity: '%s' [%s] -> ID: %s", mention, raw_label, resolved_ent.entity_id)
+            except Exception as ex:
+                logger.warning("Entity ingestion workflow failed for mention '%s': %s", mention, ex)
 
         # Always store an episodic record for the event
         try:
             summary = self._summarize_for_episode(text, ents, actor)
-            ep = self.episodic.add_episode(summary=summary, event_type="interaction", related_entities=linked_entities, importance=importance)
+            ep = self.episodic.add_episode(
+                summary=summary, 
+                event_type="interaction", 
+                related_entities=linked_entities, 
+                importance=importance
+            )
             result["routed_as"] = "episodic"
             result["details"] = {"episode_id": ep.episode_id, "linked_entities": linked_entities}
             logger.info("Added episode %s (linked %d entities)", ep.episode_id, len(linked_entities))
@@ -145,7 +142,7 @@ class MemoryRouter:
 
         result["time"] = time.time() - start
         return result
-
+    
     # ----------------------
     # Helpers
     # ----------------------
