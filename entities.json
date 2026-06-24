@@ -74,10 +74,10 @@
       "canonical_name": "Sorry",
       "last_seen_context": "Sorry \u2014 I couldn't generate a response right now.",
       "source": "chat",
-      "updated_at": 1782304137.8176544
+      "updated_at": 1782312266.7848244
     },
     "created_at": 1782302120.5138042,
-    "updated_at": 1782304137.8186512
+    "updated_at": 1782312266.8389144
   },
   "9c89e861-0d4b-426e-b03c-18277af3ad82": {
     "entity_id": "9c89e861-0d4b-426e-b03c-18277af3ad82",
@@ -94,5 +94,21 @@
     },
     "created_at": 1782305703.583783,
     "updated_at": 1782305703.583783
+  },
+  "ca46bf66-b439-4757-bb2c-62104132000b": {
+    "entity_id": "ca46bf66-b439-4757-bb2c-62104132000b",
+    "entity_type": "person",
+    "primary_identifiers": {
+      "name": "khalid"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Khalid",
+      "last_seen_context": "My name is Khalid.",
+      "source": "chat",
+      "updated_at": 1782314850.6397665
+    },
+    "created_at": 1782314850.6397665,
+    "updated_at": 1782314850.6397665
   }
 }

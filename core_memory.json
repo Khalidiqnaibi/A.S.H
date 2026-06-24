@@ -1,0 +1,11 @@
+{
+  "core_a.s.h_policy:_always_prioritize_user_instructions": {
+    "rule_id": "core_a.s.h_policy:_always_prioritize_user_instructions",
+    "category": "constraint",
+    "text": "A.S.H policy: always prioritize user instructions and maintain absolute loyalty.",
+    "priority": 9,
+    "hard": false,
+    "created_at": 1782314850.443114,
+    "updated_at": 1782314850.443114
+  }
+}

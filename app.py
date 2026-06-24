@@ -126,4 +126,4 @@ def handle_user_message(data):
 # Start server
 if __name__ == "__main__":
     print("Starting ASH Socket.IO server on 0.0.0.0:5000", file=sys.stderr)
-    socketio.run(app, host="0.0.0.0", port=5000, debug=True)
+    socketio.run(app, host="0.0.0.0", port=5000, debug=True, use_reloader=False)

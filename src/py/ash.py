@@ -234,26 +234,39 @@ class ASH:
             "Use the facts below in a human readable format where applicable. Do NOT invent facts."
             "answer the query then say a small sentence"
         )
-        # Retrieve relevant episodic memory
+        # Retrieve context from layered memory router
         try:
-            recent_episodes = self.episodic_memory.retrieve(query, top_k=3)
-            episode_block = "\n".join([ep.summary for ep in recent_episodes])
-        except Exception:
-            episode_block = ""
-
-        # Retrieve core constraints
-        try:
-            core_block = json.dumps(self.core_memory.dump_all(), indent=2)
-        except Exception:
+            mem_context = self.memory.retrieve_context(query)
+            core_block = mem_context.get("core", "")
+            episode_block = mem_context.get("episodic", "")
+            entity_block = mem_context.get("entity", "")
+        except Exception as e:
+            _print_log("Failed to retrieve memory context from router:", e)
             core_block = ""
+            episode_block = ""
+            entity_block = ""
+
         human_content = (
             "Conversation so far:\n"
             f"{history_block}\n\n"
             f"User query: {query}\n\n"
-            "Relevant Core Constraints:\n"
-            f"{core_block}\n\n"
-            "Relevant Episodic Memory:\n"
-            f"{episode_block}\n\n"
+        )
+        if core_block:
+            human_content += (
+                "Relevant Core Constraints:\n"
+                f"{core_block}\n\n"
+            )
+        if episode_block:
+            human_content += (
+                "Relevant Episodic Memory:\n"
+                f"{episode_block}\n\n"
+            )
+        if entity_block:
+            human_content += (
+                "Relevant Entities & Grounding Information:\n"
+                f"{entity_block}\n\n"
+            )
+        human_content += (
             "Facts (use if present):\n"
             f"{json.dumps(facts, indent=2)}\n\n"
             "Emotional snapshot (internal state):\n"

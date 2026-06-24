@@ -41,7 +41,7 @@ class EpisodeIndex:
         if self.vectors is None:
             return []
 
-        q = self.embedder.embed(query)
+        q = self.embedder.encode(query)
         sims = self._cosine(q, self.vectors)
         idxs = np.argsort(-sims)[:top_k]
 

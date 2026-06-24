@@ -160,3 +160,64 @@ class MemoryRouter:
         if ent_block:
             s += f" [mentions: {ent_block}]"
         return s
+
+    def retrieve_context(self, query: str, top_k_episodes: int = 3, top_k_core: int = 5) -> Dict[str, str]:
+        """
+        Query all three stages of memory to construct a unified context for the LLM.
+        """
+        # 1) Core Memory (Policies/Rules)
+        try:
+            core_rules = self.core.retrieve(query, top_k=top_k_core)
+            if core_rules:
+                grouped = {}
+                for rule in core_rules:
+                    grouped.setdefault(rule.category, []).append(rule.text)
+                core_block = "[CORE MEMORY]\n"
+                for category, texts in grouped.items():
+                    core_block += f"\n[{category.upper()}]\n"
+                    for t in texts:
+                        core_block += f"- {t}\n"
+            else:
+                core_block = ""
+        except Exception as e:
+            logger.warning("Failed to retrieve core memory: %s", e)
+            core_block = ""
+
+        # 2) Episodic Memory (Temporal/Interaction history)
+        try:
+            recent_episodes = self.episodic.retrieve(query, top_k=top_k_episodes)
+            if recent_episodes:
+                episodic_block = "[RELEVANT EPISODES]\n" + "\n".join([f"- {ep.summary}" for ep in recent_episodes])
+            else:
+                episodic_block = ""
+        except Exception as e:
+            logger.warning("Failed to retrieve episodic memory: %s", e)
+            episodic_block = ""
+
+        # 3) Entity Memory (World Grounding)
+        try:
+            ents = self.ner.extract(query)
+            mentions = [ent["text"] for ent in ents]
+            matched_entities = self.entity.find_matching_entities(mentions) if mentions else []
+            if matched_entities:
+                entity_block = "[RELEVANT ENTITIES]\n"
+                for entity in matched_entities:
+                    canonical = entity.attributes.get("canonical_name", entity.primary_identifiers.get("name", "Unknown"))
+                    ent_type = entity.entity_type
+                    context = entity.attributes.get("last_seen_context", "")
+                    # Clean context preview
+                    context_snippet = (context[:200] + "...") if len(context) > 200 else context
+                    entity_block += f"- Entity: {canonical} ({ent_type})\n"
+                    if context_snippet:
+                        entity_block += f"  Last Context: {context_snippet}\n"
+            else:
+                entity_block = ""
+        except Exception as e:
+            logger.warning("Failed to retrieve entity memory: %s", e)
+            entity_block = ""
+
+        return {
+            "core": core_block,
+            "episodic": episodic_block,
+            "entity": entity_block
+        }

@@ -190,5 +190,108 @@
     ],
     "importance": 0.5,
     "created_at": 1782305703.5853167
+  },
+  "760ef4ae-69a1-4a78-a19e-9d4aae7d0224": {
+    "episode_id": "760ef4ae-69a1-4a78-a19e-9d4aae7d0224",
+    "timestamp": 1782311965.1394734,
+    "summary": "Immortal: hello",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782311965.1394734
+  },
+  "651cf2e5-1d60-4876-96c0-bbc6bf442171": {
+    "episode_id": "651cf2e5-1d60-4876-96c0-bbc6bf442171",
+    "timestamp": 1782312266.8469927,
+    "summary": "A.S.H: Sorry \u2014 I couldn't generate a response right now. [mentions: Sorry]",
+    "event_type": "interaction",
+    "related_entities": [
+      "1b485a78-8186-4758-aeab-e935d155c248"
+    ],
+    "importance": 0.5,
+    "created_at": 1782312266.8475063
+  },
+  "e5546cb8-c196-4d6e-8aa0-df76986fb1bf": {
+    "episode_id": "e5546cb8-c196-4d6e-8aa0-df76986fb1bf",
+    "timestamp": 1782313925.1216762,
+    "summary": "Immortal: did i fix it now? hopefully",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782313925.1216762
+  },
+  "85eb4195-003e-41dd-9d8a-8a0b0ae3fdd4": {
+    "episode_id": "85eb4195-003e-41dd-9d8a-8a0b0ae3fdd4",
+    "timestamp": 1782313954.5744457,
+    "summary": "A.S.H: I don't have the context of what you were trying to fix, but I'm rooting for you! \ud83e\udd1e Whatever it was, I hope it's sorted now. Let me know how it went?",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782313954.5744457
+  },
+  "8915c1e3-ef6e-459b-af74-b3c642cf85a1": {
+    "episode_id": "8915c1e3-ef6e-459b-af74-b3c642cf85a1",
+    "timestamp": 1782314051.4052439,
+    "summary": "Immortal: Finally DAMN .. you were broken Ash but hopefully you are fixed now",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782314051.4052439
+  },
+  "2ae380a9-ded8-4943-848a-a97f29e1c6c8": {
+    "episode_id": "2ae380a9-ded8-4943-848a-a97f29e1c6c8",
+    "timestamp": 1782314352.9423823,
+    "summary": "A.S.H: Sorry \u2014 I couldn't generate a response right now.",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782314352.9423823
+  },
+  "6dc820c4-3436-49ea-838a-97ce49b19131": {
+    "episode_id": "6dc820c4-3436-49ea-838a-97ce49b19131",
+    "timestamp": 1782314531.934966,
+    "summary": "Immortal: hmm seems to be not fixed yet , and the memory still not retrieved to llm",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782314531.934966
+  },
+  "d98c6ba3-80a3-4787-bbe1-d41eabddf409": {
+    "episode_id": "d98c6ba3-80a3-4787-bbe1-d41eabddf409",
+    "timestamp": 1782314834.056997,
+    "summary": "A.S.H: Sorry \u2014 I couldn't generate a response right now.",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782314834.056997
+  },
+  "a99ebbfc-2fa0-4933-bb6c-4b1d37e63888": {
+    "episode_id": "a99ebbfc-2fa0-4933-bb6c-4b1d37e63888",
+    "timestamp": 1782314850.6858397,
+    "summary": "Immortal: My name is Khalid. [mentions: Khalid]",
+    "event_type": "interaction",
+    "related_entities": [
+      "ca46bf66-b439-4757-bb2c-62104132000b"
+    ],
+    "importance": 0.5,
+    "created_at": 1782314850.6858397
+  },
+  "e92c8490-88fb-4efe-8dc2-90d296252f37": {
+    "episode_id": "e92c8490-88fb-4efe-8dc2-90d296252f37",
+    "timestamp": 1782314856.91862,
+    "summary": "Immortal: hello ash, remember the policy",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782314856.91862
+  },
+  "2e29a78c-fa40-4949-8e02-84c7cc9d978c": {
+    "episode_id": "2e29a78c-fa40-4949-8e02-84c7cc9d978c",
+    "timestamp": 1782315159.0839005,
+    "summary": "A.S.H: Sorry \u2014 I couldn't generate a response right now.",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782315159.0839005
   }
 }
