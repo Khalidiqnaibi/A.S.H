@@ -22,15 +22,15 @@ except Exception:
         def __init__(self, content): self.content = content
 
 # Import router & tools (make sure these modules exist at these paths)
-from ASH2.tools.classification import classify_and_route, classify_intent, sentiment_tool ,_INTENT_CATALOG
-from ASH2.tools.lesstools import date_time_tool, calculator_tool
-from ASH2.tools.emo import init_emo, get_emo, update_emo, reset_emo, EmotionState
+from tools.classification import classify_and_route, classify_intent, sentiment_tool ,_INTENT_CATALOG
+from tools.lesstools import date_time_tool, calculator_tool
+from tools.emo import init_emo, get_emo, update_emo, reset_emo, EmotionState
 
 # memory
-from ASH2.src.memory.memory_router import MemoryRouter
-from ASH2.src.memory.core.core_manager import CoreMemoryEngine
-from ASH2.src.memory.entity.entity_manager import EntityManager
-from ASH2.src.memory.episodic.episodic_manager import EpisodicMemory
+from src.memory.memory_router import MemoryRouter
+from src.memory.core.core_manager import CoreMemoryEngine
+from src.memory.entity.entity_manager import EntityManager
+from src.memory.episodic.episodic_manager import EpisodicMemory
 
 # AgentSystem / LLM wrapper (your existing wrapper)
 from AgentSystem import mistral  # your mistral wrapper

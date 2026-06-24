@@ -2,7 +2,7 @@ import sys
 import logging
 from langchain.tools import tool
 from dataclasses import dataclass, asdict
-from ASH2.tools.log_tools import log_tool_use
+from tools.log_tools import log_tool_use
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

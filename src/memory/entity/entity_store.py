@@ -2,6 +2,8 @@
 
 import json
 from typing import Dict, List, Optional
+
+from dataclasses import asdict
 from .entity_model import Entity
 
 
@@ -22,11 +24,7 @@ class EntityStore:
 
     def _save(self):
         with open(self.path, "w") as f:
-            json.dump(
-                {eid: vars(ent) for eid, ent in self.entities.items()},
-                f,
-                indent=2,
-            )
+            json.dump({eid: asdict(ent) for eid, ent in self.entities.items()}, f, indent=2)
 
     def add(self, entity: Entity):
         self.entities[entity.entity_id] = entity

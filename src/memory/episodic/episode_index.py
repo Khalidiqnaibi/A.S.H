@@ -29,6 +29,12 @@ class EpisodeIndex:
         return [(sims[i], self.episodes[i]) for i in idxs]
 
     def _cosine(self, q, M):
-        q = q / np.linalg.norm(q)
-        M = M / np.linalg.norm(M, axis=1, keepdims=True)
+        # Stabilize denominator with a small epsilon threshold
+        q_norm = np.linalg.norm(q)
+        q = q / (q_norm if q_norm > 0 else 1e-9)
+        
+        m_norms = np.linalg.norm(M, axis=1, keepdims=True)
+        m_norms = np.where(m_norms == 0, 1e-9, m_norms)
+        M = M / m_norms
+        
         return M @ q

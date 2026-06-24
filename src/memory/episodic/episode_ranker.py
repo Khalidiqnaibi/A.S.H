@@ -28,3 +28,4 @@ class EpisodeRanker:
             ranked.append((final_score, ep))
 
         ranked.sort(reverse=True, key=lambda x: x[0])
+        return ranked

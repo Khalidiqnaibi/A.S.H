@@ -31,9 +31,9 @@ class MemoryRouter:
 
     def __init__(
         self,
-        core_mem = CoreMemoryEngine,
-        entity_mem =EntityManager,
-        episodic_mem = EpisodicMemory,
+        core_mem : CoreMemoryEngine,
+        entity_mem : EntityManager,
+        episodic_mem : EpisodicMemory,
         ner: Optional[NERExtractor] = None,
         disamb: Optional[Disambiguator] = None,
         config: Optional[Dict[str, Any]] = None,

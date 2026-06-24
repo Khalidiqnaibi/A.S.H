@@ -16,11 +16,11 @@ from typing import Dict
 from datetime import datetime
 
 try:
-    from ASH2.src.py.ash import ash  # preferred: import the instantiated object
+    from src.py.ash import ash  # preferred: import the instantiated object
 except Exception:
     # fallback: try importing class and instantiate
     try:
-        from ASH2.src.py.ash import ASH as ASHClass
+        from src.py.ash import ASH as ASHClass
         ash = ASHClass()
     except Exception as e:
         print("Failed to import ASH:", e, file=sys.stderr)

@@ -1,5 +1,6 @@
 # episode_store.py
 
+from dataclasses import asdict
 import json
 from typing import Dict, List
 from .episode_model import Episode
@@ -23,11 +24,7 @@ class EpisodeStore:
 
     def _save(self):
         with open(self.path, "w") as f:
-            json.dump(
-                {eid: vars(ep) for eid, ep in self.episodes.items()},
-                f,
-                indent=2
-            )
+            json.dump({eid: asdict(ep) for eid, ep in self.episodes.items()}, f, indent=2)
 
     def add(self, episode: Episode):
         self.episodes[episode.episode_id] = episode

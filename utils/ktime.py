@@ -1,7 +1,7 @@
 from datetime import datetime,timedelta
 from nltk.tokenize import word_tokenize, sent_tokenize
 
-from sen import Sen
+from utils.sen import Sen
 
 class Ktime():
     def __init__(self):
