@@ -14,5 +14,85 @@
     },
     "created_at": 1782293558.728646,
     "updated_at": 1782293815.6429842
+  },
+  "43ad541c-c439-40c9-b065-ff960e9a90c0": {
+    "entity_id": "43ad541c-c439-40c9-b065-ff960e9a90c0",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "my"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "My",
+      "last_seen_context": "My memory's working just fine\u2014this conversation is being logged as a fresh episode right now, so I've got the context of what we're saying in the moment. No prior history to draw on yet, but I'm ready to build one with you.\n\nFeeling pretty good about it, honestly\u2014curious to see where this goes.",
+      "source": "chat",
+      "updated_at": 1782301569.7529213
+    },
+    "created_at": 1782301569.7529213,
+    "updated_at": 1782301569.7529213
+  },
+  "7bdb9262-05c5-4e31-bed3-b69d4d624f65": {
+    "entity_id": "7bdb9262-05c5-4e31-bed3-b69d4d624f65",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "no"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "No",
+      "last_seen_context": "My memory's working just fine\u2014this conversation is being logged as a fresh episode right now, so I've got the context of what we're saying in the moment. No prior history to draw on yet, but I'm ready to build one with you.\n\nFeeling pretty good about it, honestly\u2014curious to see where this goes.",
+      "source": "chat",
+      "updated_at": 1782301569.753919
+    },
+    "created_at": 1782301569.753919,
+    "updated_at": 1782301569.753919
+  },
+  "e8dfbea6-5865-4cd8-a42b-f11aa6c86347": {
+    "entity_id": "e8dfbea6-5865-4cd8-a42b-f11aa6c86347",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "feeling"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Feeling",
+      "last_seen_context": "My memory's working just fine\u2014this conversation is being logged as a fresh episode right now, so I've got the context of what we're saying in the moment. No prior history to draw on yet, but I'm ready to build one with you.\n\nFeeling pretty good about it, honestly\u2014curious to see where this goes.",
+      "source": "chat",
+      "updated_at": 1782301569.7549314
+    },
+    "created_at": 1782301569.7549314,
+    "updated_at": 1782301569.7549314
+  },
+  "1b485a78-8186-4758-aeab-e935d155c248": {
+    "entity_id": "1b485a78-8186-4758-aeab-e935d155c248",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "sorry"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Sorry",
+      "last_seen_context": "Sorry \u2014 I couldn't generate a response right now.",
+      "source": "chat",
+      "updated_at": 1782304137.8176544
+    },
+    "created_at": 1782302120.5138042,
+    "updated_at": 1782304137.8186512
+  },
+  "9c89e861-0d4b-426e-b03c-18277af3ad82": {
+    "entity_id": "9c89e861-0d4b-426e-b03c-18277af3ad82",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "yes"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Yes",
+      "last_seen_context": "Yes, everything's working perfectly! I'm ready to help with whatever you need.",
+      "source": "chat",
+      "updated_at": 1782305703.583783
+    },
+    "created_at": 1782305703.583783,
+    "updated_at": 1782305703.583783
   }
 }

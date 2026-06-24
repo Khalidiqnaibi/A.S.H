@@ -1,13 +1,4 @@
 {
-  "e3291d6d-77c0-44b6-8d94-b07f83cbbf2b": {
-    "episode_id": "e3291d6d-77c0-44b6-8d94-b07f83cbbf2b",
-    "timestamp": 1782292292.6366928,
-    "summary": "what up",
-    "event_type": "interaction",
-    "related_entities": [],
-    "importance": 0.5,
-    "created_at": 1782292292.6366928
-  },
   "47d4dd65-29f8-46d8-804a-9d0ba9b8198a": {
     "episode_id": "47d4dd65-29f8-46d8-804a-9d0ba9b8198a",
     "timestamp": 1782292307.0361183,
@@ -16,15 +7,6 @@
     "related_entities": [],
     "importance": 0.5,
     "created_at": 1782292307.0361183
-  },
-  "c187d474-2936-486b-9ad5-7f8649730ae3": {
-    "episode_id": "c187d474-2936-486b-9ad5-7f8649730ae3",
-    "timestamp": 1782292343.683955,
-    "summary": "whats wrong",
-    "event_type": "interaction",
-    "related_entities": [],
-    "importance": 0.5,
-    "created_at": 1782292343.683955
   },
   "9a295a22-87bc-4934-9585-27392b6c58d3": {
     "episode_id": "9a295a22-87bc-4934-9585-27392b6c58d3",
@@ -35,15 +17,6 @@
     "importance": 0.5,
     "created_at": 1782292344.1527832
   },
-  "cb42faf8-590a-47d1-91a9-efb2772417e4": {
-    "episode_id": "cb42faf8-590a-47d1-91a9-efb2772417e4",
-    "timestamp": 1782292367.5378146,
-    "summary": "my name is Immortal [mentions: Immortal]",
-    "event_type": "interaction",
-    "related_entities": [],
-    "importance": 0.5,
-    "created_at": 1782292367.5378146
-  },
   "c64069ce-096d-448c-abce-c0105b3e0f9d": {
     "episode_id": "c64069ce-096d-448c-abce-c0105b3e0f9d",
     "timestamp": 1782292368.0893939,
@@ -52,15 +25,6 @@
     "related_entities": [],
     "importance": 0.5,
     "created_at": 1782292368.0893939
-  },
-  "a9835ee5-c670-40e7-aad4-3555a4ac57d8": {
-    "episode_id": "a9835ee5-c670-40e7-aad4-3555a4ac57d8",
-    "timestamp": 1782292760.6006885,
-    "summary": "you up ash?",
-    "event_type": "interaction",
-    "related_entities": [],
-    "importance": 0.5,
-    "created_at": 1782292760.6006885
   },
   "dae3fb03-820f-477c-aad1-1b93ac7ad4b5": {
     "episode_id": "dae3fb03-820f-477c-aad1-1b93ac7ad4b5",
@@ -74,33 +38,11 @@
   "7739eab1-8411-43af-a904-96655f75f72f": {
     "episode_id": "7739eab1-8411-43af-a904-96655f75f72f",
     "timestamp": 1782293388.1237304,
-    "summary": "you workin yet ?",
+    "summary": "Immortal: you workin yet ?",
     "event_type": "interaction",
     "related_entities": [],
     "importance": 0.5,
     "created_at": 1782293388.1237304
-  },
-  "962a1cf0-61cd-4b41-bbe4-e1babafe72ec": {
-    "episode_id": "962a1cf0-61cd-4b41-bbe4-e1babafe72ec",
-    "timestamp": 1782293558.7296438,
-    "summary": "This should be it .. how you feeling now ash that i fixed you [mentions: This]",
-    "event_type": "interaction",
-    "related_entities": [
-      "dec191ab-4a06-458c-8808-2058e27c201c"
-    ],
-    "importance": 0.5,
-    "created_at": 1782293558.7296438
-  },
-  "9d91a02d-bf4d-45f2-8476-e58797f2d7bd": {
-    "episode_id": "9d91a02d-bf4d-45f2-8476-e58797f2d7bd",
-    "timestamp": 1782293790.5569212,
-    "summary": "This should be it .. how you feeling now ash that i fixed you [mentions: This]",
-    "event_type": "interaction",
-    "related_entities": [
-      "dec191ab-4a06-458c-8808-2058e27c201c"
-    ],
-    "importance": 0.5,
-    "created_at": 1782293790.5569212
   },
   "338a1001-b0dc-4786-be7d-765267e87dc2": {
     "episode_id": "338a1001-b0dc-4786-be7d-765267e87dc2",
@@ -113,15 +55,6 @@
     "importance": 0.5,
     "created_at": 1782293815.643982
   },
-  "9bb87582-9197-411f-b079-6ae7170f5f67": {
-    "episode_id": "9bb87582-9197-411f-b079-6ae7170f5f67",
-    "timestamp": 1782293884.9173238,
-    "summary": "what do u remember",
-    "event_type": "interaction",
-    "related_entities": [],
-    "importance": 0.5,
-    "created_at": 1782293884.9173238
-  },
   "49f639a2-6e66-47fe-9989-d65349893960": {
     "episode_id": "49f639a2-6e66-47fe-9989-d65349893960",
     "timestamp": 1782293970.8210413,
@@ -130,15 +63,6 @@
     "related_entities": [],
     "importance": 0.5,
     "created_at": 1782293970.8210413
-  },
-  "474ac005-8832-4671-87c4-8a8a5cd979b1": {
-    "episode_id": "474ac005-8832-4671-87c4-8a8a5cd979b1",
-    "timestamp": 1782294188.9006393,
-    "summary": "what are your core believes",
-    "event_type": "interaction",
-    "related_entities": [],
-    "importance": 0.5,
-    "created_at": 1782294188.9006393
   },
   "b69c1769-a3d5-4672-8937-e7d10f62f759": {
     "episode_id": "b69c1769-a3d5-4672-8937-e7d10f62f759",
@@ -149,13 +73,122 @@
     "importance": 0.5,
     "created_at": 1782294490.2134256
   },
-  "1776bc87-f99e-4fe8-bd00-74bc7fc5aed9": {
-    "episode_id": "1776bc87-f99e-4fe8-bd00-74bc7fc5aed9",
-    "timestamp": 1782296166.8149936,
-    "summary": "what do u remember",
+  "46aa2ac0-81f5-4e34-9ce8-40793c078cc9": {
+    "episode_id": "46aa2ac0-81f5-4e34-9ce8-40793c078cc9",
+    "timestamp": 1782296468.706864,
+    "summary": "Immortal: what do u remember",
     "event_type": "interaction",
     "related_entities": [],
     "importance": 0.5,
-    "created_at": 1782296166.8149936
+    "created_at": 1782296468.706864
+  },
+  "2248e46e-3a47-481b-9db4-0a2150984ed0": {
+    "episode_id": "2248e46e-3a47-481b-9db4-0a2150984ed0",
+    "timestamp": 1782296781.0966625,
+    "summary": "Immortal: what are your core believes",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782296781.0966625
+  },
+  "178c2b95-65b3-4924-810e-b818fba63539": {
+    "episode_id": "178c2b95-65b3-4924-810e-b818fba63539",
+    "timestamp": 1782299245.0235066,
+    "summary": "Immortal: yoooo! i think i finally fix you ash! lets goooo. what do you remember",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782299245.0235066
+  },
+  "1f0d2620-06d8-499b-ac5b-8eb51ecd1be9": {
+    "episode_id": "1f0d2620-06d8-499b-ac5b-8eb51ecd1be9",
+    "timestamp": 1782299640.0907805,
+    "summary": "Immortal: hmmm seems that the memory router is still not returning the right memory. no worries ash .. ill fix you asap",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782299640.0907805
+  },
+  "29e94af4-80fa-4759-8206-d611ebf8c577": {
+    "episode_id": "29e94af4-80fa-4759-8206-d611ebf8c577",
+    "timestamp": 1782301489.3101177,
+    "summary": "Immortal: how your memory now ash",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782301489.3101177
+  },
+  "70c8fa75-03d0-4b6c-9768-c3a787725f78": {
+    "episode_id": "70c8fa75-03d0-4b6c-9768-c3a787725f78",
+    "timestamp": 1782301569.755914,
+    "summary": "A.S.H: My memory's working just fine\u2014this conversation is being logged as a fresh episode right now, so I've got the context of what we're saying in the moment. No prior history to draw on yet, but I'm ready to build one with you.\n\nFeeling pretty good about it, honestly\u2014curious to see where this goes. [mentions: My, No, Feeling]",
+    "event_type": "interaction",
+    "related_entities": [
+      "43ad541c-c439-40c9-b065-ff960e9a90c0",
+      "7bdb9262-05c5-4e31-bed3-b69d4d624f65",
+      "e8dfbea6-5865-4cd8-a42b-f11aa6c86347"
+    ],
+    "importance": 0.5,
+    "created_at": 1782301569.755914
+  },
+  "02dc7c69-e49b-4473-8b7e-119918512875": {
+    "episode_id": "02dc7c69-e49b-4473-8b7e-119918512875",
+    "timestamp": 1782301818.9797232,
+    "summary": "Immortal: how your memory now ash",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782301818.9797232
+  },
+  "8495f82f-f297-4b68-8be7-dde65162f598": {
+    "episode_id": "8495f82f-f297-4b68-8be7-dde65162f598",
+    "timestamp": 1782302120.514799,
+    "summary": "A.S.H: Sorry \u2014 I couldn't generate a response right now. [mentions: Sorry]",
+    "event_type": "interaction",
+    "related_entities": [
+      "1b485a78-8186-4758-aeab-e935d155c248"
+    ],
+    "importance": 0.5,
+    "created_at": 1782302120.514799
+  },
+  "48c20a29-e0c3-4d2a-9301-14c2aa68c60a": {
+    "episode_id": "48c20a29-e0c3-4d2a-9301-14c2aa68c60a",
+    "timestamp": 1782303835.498681,
+    "summary": "Immortal: still server resets damn",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782303835.498681
+  },
+  "fee5f46e-96f4-4359-bb67-9eb88448d100": {
+    "episode_id": "fee5f46e-96f4-4359-bb67-9eb88448d100",
+    "timestamp": 1782304137.819649,
+    "summary": "A.S.H: Sorry \u2014 I couldn't generate a response right now. [mentions: Sorry]",
+    "event_type": "interaction",
+    "related_entities": [
+      "1b485a78-8186-4758-aeab-e935d155c248"
+    ],
+    "importance": 0.5,
+    "created_at": 1782304137.819649
+  },
+  "17094baa-635c-4d75-848b-beb4ef8c0ae9": {
+    "episode_id": "17094baa-635c-4d75-848b-beb4ef8c0ae9",
+    "timestamp": 1782305576.924639,
+    "summary": "Immortal: hmmm is this working?",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782305576.924639
+  },
+  "9b0159bf-499e-4cfd-a845-d584a0591a49": {
+    "episode_id": "9b0159bf-499e-4cfd-a845-d584a0591a49",
+    "timestamp": 1782305703.5853167,
+    "summary": "A.S.H: Yes, everything's working perfectly! I'm ready to help with whatever you need. [mentions: Yes]",
+    "event_type": "interaction",
+    "related_entities": [
+      "9c89e861-0d4b-426e-b03c-18277af3ad82"
+    ],
+    "importance": 0.5,
+    "created_at": 1782305703.5853167
   }
 }

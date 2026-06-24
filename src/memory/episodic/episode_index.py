@@ -24,7 +24,18 @@ class EpisodeIndex:
         vecs = self.embedder.encode(summaries)
         
         # Convert to numpy array if sentence-transformers returned a list or torch tensor
-        self.vectors = np.array(vecs)    
+        self.vectors = np.array(vecs)   
+
+    def append_single(self, episode):
+        self.episodes.append(episode)
+        # Encode only the *one* new sentence
+        new_vec = self.embedder.encode([episode.summary]) 
+        
+        if self.vectors is None:
+            self.vectors = new_vec
+        else:
+            # Concatenate it to the bottom of your existing matrix
+            self.vectors = np.vstack([self.vectors, new_vec]) 
 
     def search(self, query: str, top_k=5):
         if self.vectors is None:

@@ -22,18 +22,17 @@ class EpisodicMemory:
     # Add Episode
     # ---------------------
 
-    def add_episode(self, summary, event_type,
-                    related_entities=None, importance=0.5):
-
+    def add_episode(self, summary, event_type, related_entities=None, importance=0.5):
         ep = Episode.create(
             summary=summary,
             event_type=event_type,
             related_entities=related_entities,
             importance=importance
         )
-
         self.store.add(ep)
-        self._rebuild_index()
+        
+        # Fast path: incremental update in RAM instead of full file re-encoding!
+        self.index.append_single(ep) 
         return ep
 
     # ---------------------

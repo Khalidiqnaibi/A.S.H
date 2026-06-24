@@ -300,6 +300,10 @@ class ASH:
             gen_fn = getattr(self.llm, "generate", None) or getattr(self.llm, "complete", None)
             if callable(gen_fn):
                 llm_resp = gen_fn(messages)
+                # CRITICAL FIX: If your custom wrapper returns a tuple, grab the first item (the text)
+                if isinstance(llm_resp, tuple):
+                    return str(llm_resp[0])
+                
                 content = getattr(llm_resp, "content", str(llm_resp))
                 return content
         except Exception as e:
@@ -323,21 +327,19 @@ class ASH:
     # Public API: run
     # -----------------------
     def run(self, query: str) -> str:
-        """
-        Execute full pipeline:
-          1) deterministic routing/classification
-          2) execute tools in code when required
-          3) update state/tool_log/history
-          4) render final answer via LLM (narrator)
-          5) save interaction to memory
-        """
         ash_state["input"] = query
 
         # 1) routing + deterministic execution
         route_result = self._deterministic_execute(query)
-        memory_context = self.memory.route_utterance(query)
+        
+        # 2) Route the USER query ONCE (with the actor tag applied immediately)
+        memory_context = self.memory.route_utterance(
+            text=query,
+            source="chat",
+            importance=0.5,
+            actor=self.user
+        )
 
-        # 2) prepare facts to give to LLM renderer
         facts = {
             "intent": route_result.get("intent"),
             "tool_used": route_result.get("tool_used"),
@@ -345,33 +347,20 @@ class ASH:
             "memory_context": memory_context
         }
 
-        # 3) optionally update emotions (example logic)
-        # You can implement richer emotion policies; here is a simple demo:
-        try:
-            # small heuristic: if wrong tool usage or user asks again, increase frustration
-            if facts["tool_used"] is None and facts["intent"] and facts["intent"].lower().startswith("command"):
-                # call update_emo to show changing emotion (this is deterministic tool call)
-                update_emo(ash_state, "frustration", 1)
-                self._append_tool_log("update_emo", {"emo": "frustration", "val": 1}, ash_state["emotions"])
-        except Exception as e:
-            _print_log("Emotion update failed:", e)
-
-        # 4) render via LLM (narrator)
+        # 3) render via LLM (narrator)
         final_text = self._render_with_llm(query, facts)
 
-        # 5) persist final result in state and history
         ash_state["res"] = final_text
         self._append_history("ash", final_text)
 
-        # 6) save interaction to memory
+        # 4) Save ASH's response to memory (NOT the user's query again!)
         try:
-            mem_result = self.memory.route_utterance(
-                text=query,
+            self.memory.route_utterance(
+                text=final_text,
                 source="chat",
                 importance=0.5,
-                actor=self.user
+                actor=self.name  # Use ASH's name here
             )
-            _print_log("Memory routed:", mem_result)
         except Exception as e:
             _print_log("Memory routing failed:", e)
 
