@@ -1039,5 +1039,50 @@
     ],
     "importance": 0.5,
     "created_at": 1782391168.7503328
+  },
+  "ab2fdaf3-8a5f-404d-850d-7ba8c24b43c8": {
+    "episode_id": "ab2fdaf3-8a5f-404d-850d-7ba8c24b43c8",
+    "timestamp": 1782395587.949761,
+    "summary": "Immortal: hello hello is this working Ash can you hear me is the speech to text working",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782395587.949761
+  },
+  "e1684541-4c79-4613-8a69-e220a7a1df09": {
+    "episode_id": "e1684541-4c79-4613-8a69-e220a7a1df09",
+    "timestamp": 1782395603.4946258,
+    "summary": "A.S.H: Yes, I hear you. The speech-to-text pipeline is feeding through cleanly on my end \u2014 your transcription landed intact, no truncation, no garbling. So from a pure signal path perspective: STT is working.\n\nKeep in mind, ASH's architecture doc still lists local speech-to-text as a future extension rather than a production feature, so depending on which stack you're running under the hood, robustness a [mentions: ASH, doc, STT]",
+    "event_type": "interaction",
+    "related_entities": [
+      "780ef730-3e38-441d-abba-936a38989922",
+      "0d7dee5d-898c-4850-bf9f-a7369fc49501",
+      "89150b2c-8629-4371-9b03-1136ccc9bd33"
+    ],
+    "importance": 0.5,
+    "created_at": 1782395603.4946258
+  },
+  "208f5764-7a82-4fd8-b3d0-2ef252026c23": {
+    "episode_id": "208f5764-7a82-4fd8-b3d0-2ef252026c23",
+    "timestamp": 1782395663.6333342,
+    "summary": "Immortal: oh my God it's actually working it's finally working the text to speech and Speech to Text are working fully but still they are basics for now [mentions: Speech]",
+    "event_type": "interaction",
+    "related_entities": [
+      "71668cd8-c313-4971-a993-4fcdad263e27"
+    ],
+    "importance": 0.5,
+    "created_at": 1782395663.6333342
+  },
+  "5e728f8a-a234-4100-bd63-cd963e6b2251": {
+    "episode_id": "5e728f8a-a234-4100-bd63-cd963e6b2251",
+    "timestamp": 1782395680.2407432,
+    "summary": "A.S.H: It's genuinely good to hear that both the text-to-speech and speech-to-text pipelines are running end-to-end now \u2014 that's a real milestone, especially given that the architecture doc still lists local STT as a future extension. The signal path is clean, and the fact that your transcription landed intact confirms the integration is solid for a first pass.\n\nThat said, I'd flag that \"basics\" is the r [mentions: STT, Glad]",
+    "event_type": "interaction",
+    "related_entities": [
+      "89150b2c-8629-4371-9b03-1136ccc9bd33",
+      "1cfb095a-88db-41a4-8c27-dd6cdf8a3975"
+    ],
+    "importance": 0.5,
+    "created_at": 1782395680.2407432
   }
 }

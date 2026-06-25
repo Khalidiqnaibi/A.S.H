@@ -4,17 +4,22 @@
 Events:
 - client emits "client_time" with {time: ISOstring}
 - client emits "user_message" with {user: <name>, message: <text>}
+- client emits "user_voice" with binary ArrayBuffer audio data
 - server emits "system" with {msg: <text>}
+- server emits "voice_transcript" with {text: <transcribed_text>}
 - server emits "ash_response" with {text: <response>}
 """
 
 import sys
 import traceback
 import threading
+import io
 from flask import Flask, render_template, session, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from typing import Dict
 from datetime import datetime
+import speech_recognition as sr
+from pydub import AudioSegment
 
 try:
     from src.py.ash import ash  # preferred: import the instantiated object
@@ -33,7 +38,7 @@ DEFAULT_USER = getattr(ash, "user", None) or getattr(ash, "name", "User")
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config["SECRET_KEY"] = app.config.get("SECRET_KEY", "dev-secret")
 
-# SocketIO setup: allow all origins (development). Adjust in production.
+# SocketIO setup: keeping your exact parameters intact
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
@@ -44,17 +49,73 @@ socketio = SocketIO(
     async_mode='threading'
 )
 
-
 # Per-sid client state storage
 client_states: Dict[str, Dict] = {}  # sid -> {"client_time": ..., "history": [...]}
 
 # Lock to prevent overlapping requests per sid
 _processing_locks: Dict[str, threading.Lock] = {}
 
+
+def _get_user_name(sid):
+    state = client_states.get(sid, {})
+    return state.get("user") or DEFAULT_USER
+
+
+def _execute_ash_pipeline(sid, user, msg):
+    """Unified background execution core that prevents multi-click race conditions
+
+    while talking to ASH.
+    """
+    msg = msg.strip()
+    if not msg:
+        return
+
+    # Prevent overlapping requests from the same client
+    lock = _processing_locks.setdefault(sid, threading.Lock())
+    if not lock.acquire(blocking=False):
+        print(f"[SOCKET] skipping duplicate request from {sid} (still processing)", file=sys.stderr, flush=True)
+        socketio.emit("ash_response", {"text": "Still thinking about your last message..."}, room=sid)
+        return
+
+    def _process():
+        try:
+            state = client_states.setdefault(sid, {"history": []})
+            query = f"{user}: {msg}"
+
+            try:
+                response = ash.run(msg)
+            except TypeError:
+                # backward compatibility profile loop
+                response = ash.run(query)
+            except Exception as e:
+                print("[ERROR] ash.run raised an exception:", e, file=sys.stderr, flush=True)
+                traceback.print_exc(file=sys.stderr)
+                response = "Sorry — something failed inside the assistant."
+
+            state["history"].append({
+                "user": user,
+                "message": msg,
+                "response_preview": str(response)[:300],
+                "time": datetime.now().isoformat()
+            })
+
+            # Emit back to the client who sent it
+            socketio.emit("ash_response", {"text": response}, room=sid)
+
+        except Exception as exc:
+            print("[ERROR] handle_user_message background task failed:", exc, file=sys.stderr, flush=True)
+            traceback.print_exc(file=sys.stderr)
+            socketio.emit("ash_response", {"text": "Server error handling message."}, room=sid)
+        finally:
+            lock.release()
+
+    socketio.start_background_task(_process)
+
+
 @app.route("/")
 def index():
-    # Render index.html and pass 'user' so your client template can use it
     return render_template("index.html", user=DEFAULT_USER)
+
 
 @socketio.on("connect")
 def on_connect():
@@ -64,96 +125,82 @@ def on_connect():
     join_room(sid)
     emit("system", {"msg": "Ash is up!"}, room=sid)
 
+
 @socketio.on("disconnect")
 def on_disconnect():
     sid = request.sid
     print(f"[SOCKET] disconnect: {sid}", file=sys.stderr, flush=True)
     emit("system", {"msg": "Ash says bye!"}, room=sid)
-    # cleanup
     client_states.pop(sid, None)
+    _processing_locks.pop(sid, None)
     try:
         leave_room(sid)
     except Exception:
         pass
 
+
 @socketio.on("user_message")
 def handle_user_message(data):
-    """
-    Expects:
-      data = {
-        "user": "Khalid",    # optional
-        "message": "hello ash"
-      }
-    Behavior:
-      - builds query as "<user>: <message>" (keeps compatibility)
-      - passes context={'client_time': <stored client time>} into ash.run
-      - emits ash_response { text: <response> } back to the sender
-    """
     sid = request.sid
     try:
         msg = (data.get("message", "") if isinstance(data, dict) else "") or ""
         user = (data.get("user") if isinstance(data, dict) else None) or DEFAULT_USER
-        msg = msg.strip()
-        if not msg:
-            return
-
+        
         print(f"[SOCKET] user_message from {sid} user={user} msg={msg}", file=sys.stderr, flush=True)
-
-        # Prevent overlapping requests from the same client
-        lock = _processing_locks.setdefault(sid, threading.Lock())
-        if not lock.acquire(blocking=False):
-            print(f"[SOCKET] skipping duplicate request from {sid} (still processing)", file=sys.stderr, flush=True)
-            emit("ash_response", {"text": "Still thinking about your last message..."}, room=sid)
-            return
-
-        # Run the heavy work in a background task so the event handler returns
-        # immediately and doesn't block the SocketIO server.
-        def _process():
-            try:
-                # prepare context with client_time if present
-                state = client_states.setdefault(sid, {"history": []})
-
-                # Form the query string the same way your older app did
-                query = f"{user}: {msg}"
-
-                # Call ASH.run with context; ash.run may raise — handle gracefully
-                try:
-                    response = ash.run(msg)
-                except TypeError:
-                    # backward compatibility: some ASH.run definitions accept only (query)
-                    response = ash.run(query)
-                except Exception as e:
-                    print("[ERROR] ash.run raised an exception:", e, file=sys.stderr, flush=True)
-                    traceback.print_exc(file=sys.stderr)
-                    response = "Sorry — something failed inside the assistant."
-
-                # Optionally store in per-sid history (for debugging or reuse)
-                state["history"].append({
-                    "user": user,
-                    "message": msg,
-                    "response_preview": str(response)[:300],
-                    "time": datetime.now().isoformat()
-                })
-
-                # Emit back to the client who sent it
-                socketio.emit("ash_response", {"text": response}, room=sid)
-
-            except Exception as exc:
-                print("[ERROR] handle_user_message background task failed:", exc, file=sys.stderr, flush=True)
-                traceback.print_exc(file=sys.stderr)
-                socketio.emit("ash_response", {"text": "Server error handling message."}, room=sid)
-            finally:
-                lock.release()
-
-        socketio.start_background_task(_process)
-
+        _execute_ash_pipeline(sid, user, msg)
     except Exception as exc:
-        print("[ERROR] handle_user_message failed:", exc, file=sys.stderr, flush=True)
+        print("[ERROR] handle_user_message top-level fail:", exc, file=sys.stderr, flush=True)
         traceback.print_exc(file=sys.stderr)
         emit("ash_response", {"text": "Server error handling message."}, room=sid)
 
 
-# Start server
+@socketio.on("user_voice")
+def handle_user_voice(audio_bytes):
+    """Processes incoming binary audio byte payloads entirely in RAM memory,
+
+    transcribes via speech_recognition, and hands off execution cleanly.
+    """
+    sid = request.sid
+    if not audio_bytes:
+        return
+
+    print(f"[SOCKET] received binary voice chunk ({len(audio_bytes)} bytes) from {sid}", file=sys.stderr, flush=True)
+    socketio.emit("system", {"msg": "🎙️ Processing your voice entry..."}, room=sid)
+
+    try:
+
+        # Stream bytes to audio file interface wrappers purely in memory
+        audio_stream = io.BytesIO(audio_bytes)
+        sound = AudioSegment.from_file(audio_stream)
+        
+        # Export uncompressed WAV structure parameters for local transcription engines
+        wav_stream = io.BytesIO()
+        sound.export(wav_stream, format="wav")
+        wav_stream.seek(0)
+
+        recognizer = sr.Recognizer()
+        with sr.AudioFile(wav_stream) as source:
+            audio_data = recognizer.record(source)
+            transcript = recognizer.recognize_google(audio_data)
+
+        if transcript.strip():
+            print(f"[SOCKET] STT Success for {sid}: '{transcript}'", file=sys.stderr)
+            
+            # 1. Update client UI layout with text transcription
+            socketio.emit("voice_transcript", {"text": transcript}, room=sid)
+            
+            # 2. Process query directly
+            user = _get_user_name(sid)
+            _execute_ash_pipeline(sid, user, transcript)
+        else:
+            socketio.emit("system", {"msg": "⚠️ No audible speech detected. Please speak clearly."}, room=sid)
+
+    except Exception as e:
+        print(f"[SOCKET STT ERROR]: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        socketio.emit("system", {"msg": "❌ Server voice transcription processing engine failed."}, room=sid)
+
+
 if __name__ == "__main__":
     print("Starting ASH Socket.IO server on 0.0.0.0:5000", file=sys.stderr)
     socketio.run(app, host="0.0.0.0", port=5000, debug=False, use_reloader=False, allow_unsafe_werkzeug=True)

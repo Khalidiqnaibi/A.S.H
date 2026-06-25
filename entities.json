@@ -1864,12 +1864,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "STT",
-      "last_seen_context": "Got it \u2014 you're talking about **speech recognition**, not the memory routing issue. My apologies for getting sidetracked.\n\nSpeech recognition (STT \u2014 speech-to-text) is actually listed as a **future extension** in the ASH architecture doc, so it's not wired up yet. If you're looking to build or integrate a local STT pipeline, there are solid lightweight options that would fit the Raspberry Pi constraint \u2014 things like **Whisper.cpp**, **Vosk**, or **Coqui STT** \u2014 all runnable offline and deterministic-friendly.\n\nWhat specifically are you trying to do with speech recognition? Are you looking to add voice input to ASH, or is this related to something else entirely?\n\nThat's a solid project to take on.",
+      "last_seen_context": "It's genuinely good to hear that both the text-to-speech and speech-to-text pipelines are running end-to-end now \u2014 that's a real milestone, especially given that the architecture doc still lists local STT as a future extension. The signal path is clean, and the fact that your transcription landed intact confirms the integration is solid for a first pass.\n\nThat said, I'd flag that \"basics\" is the right framing. Robustness testing across varied microphones, ambient noise conditions, and accent diversity is still ahead before this moves from \"working\" to \"production-ready.\" But the foundation is there, and that matters.\n\nGlad it's coming together for you.",
       "source": "chat",
-      "updated_at": 1782391168.6393945
+      "updated_at": 1782395680.168363
     },
     "created_at": 1782391168.6393945,
-    "updated_at": 1782391168.6393945
+    "updated_at": 1782395680.1693606
   },
   "780ef730-3e38-441d-abba-936a38989922": {
     "entity_id": "780ef730-3e38-441d-abba-936a38989922",
@@ -1880,12 +1880,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "ASH",
-      "last_seen_context": "Got it \u2014 you're talking about **speech recognition**, not the memory routing issue. My apologies for getting sidetracked.\n\nSpeech recognition (STT \u2014 speech-to-text) is actually listed as a **future extension** in the ASH architecture doc, so it's not wired up yet. If you're looking to build or integrate a local STT pipeline, there are solid lightweight options that would fit the Raspberry Pi constraint \u2014 things like **Whisper.cpp**, **Vosk**, or **Coqui STT** \u2014 all runnable offline and deterministic-friendly.\n\nWhat specifically are you trying to do with speech recognition? Are you looking to add voice input to ASH, or is this related to something else entirely?\n\nThat's a solid project to take on.",
+      "last_seen_context": "Yes, I hear you. The speech-to-text pipeline is feeding through cleanly on my end \u2014 your transcription landed intact, no truncation, no garbling. So from a pure signal path perspective: STT is working.\n\nKeep in mind, ASH's architecture doc still lists local speech-to-text as a future extension rather than a production feature, so depending on which stack you're running under the hood, robustness across different microphones, noise conditions, and accents may still need testing. But this query came through fine.\n\nYes, the STT is working \u2014 your message arrived clear and complete on my end.",
       "source": "chat",
-      "updated_at": 1782391168.6784708
+      "updated_at": 1782395603.3785238
     },
     "created_at": 1782391168.6784708,
-    "updated_at": 1782391168.6784708
+    "updated_at": 1782395603.3795588
   },
   "0d7dee5d-898c-4850-bf9f-a7369fc49501": {
     "entity_id": "0d7dee5d-898c-4850-bf9f-a7369fc49501",
@@ -1896,11 +1896,43 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "doc",
-      "last_seen_context": "Got it \u2014 you're talking about **speech recognition**, not the memory routing issue. My apologies for getting sidetracked.\n\nSpeech recognition (STT \u2014 speech-to-text) is actually listed as a **future extension** in the ASH architecture doc, so it's not wired up yet. If you're looking to build or integrate a local STT pipeline, there are solid lightweight options that would fit the Raspberry Pi constraint \u2014 things like **Whisper.cpp**, **Vosk**, or **Coqui STT** \u2014 all runnable offline and deterministic-friendly.\n\nWhat specifically are you trying to do with speech recognition? Are you looking to add voice input to ASH, or is this related to something else entirely?\n\nThat's a solid project to take on.",
+      "last_seen_context": "Yes, I hear you. The speech-to-text pipeline is feeding through cleanly on my end \u2014 your transcription landed intact, no truncation, no garbling. So from a pure signal path perspective: STT is working.\n\nKeep in mind, ASH's architecture doc still lists local speech-to-text as a future extension rather than a production feature, so depending on which stack you're running under the hood, robustness across different microphones, noise conditions, and accents may still need testing. But this query came through fine.\n\nYes, the STT is working \u2014 your message arrived clear and complete on my end.",
       "source": "chat",
-      "updated_at": 1782391168.7373354
+      "updated_at": 1782395603.4306762
     },
     "created_at": 1782391168.7373354,
-    "updated_at": 1782391168.7373354
+    "updated_at": 1782395603.431675
+  },
+  "71668cd8-c313-4971-a993-4fcdad263e27": {
+    "entity_id": "71668cd8-c313-4971-a993-4fcdad263e27",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "speech"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Speech",
+      "last_seen_context": "oh my God it's actually working it's finally working the text to speech and Speech to Text are working fully but still they are basics for now",
+      "source": "chat",
+      "updated_at": 1782395663.6193721
+    },
+    "created_at": 1782395663.6193721,
+    "updated_at": 1782395663.6193721
+  },
+  "1cfb095a-88db-41a4-8c27-dd6cdf8a3975": {
+    "entity_id": "1cfb095a-88db-41a4-8c27-dd6cdf8a3975",
+    "entity_type": "person",
+    "primary_identifiers": {
+      "name": "glad"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Glad",
+      "last_seen_context": "It's genuinely good to hear that both the text-to-speech and speech-to-text pipelines are running end-to-end now \u2014 that's a real milestone, especially given that the architecture doc still lists local STT as a future extension. The signal path is clean, and the fact that your transcription landed intact confirms the integration is solid for a first pass.\n\nThat said, I'd flag that \"basics\" is the right framing. Robustness testing across varied microphones, ambient noise conditions, and accent diversity is still ahead before this moves from \"working\" to \"production-ready.\" But the foundation is there, and that matters.\n\nGlad it's coming together for you.",
+      "source": "chat",
+      "updated_at": 1782395680.2237864
+    },
+    "created_at": 1782395680.2247863,
+    "updated_at": 1782395680.2247863
   }
 }

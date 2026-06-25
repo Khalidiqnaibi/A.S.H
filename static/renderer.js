@@ -1,8 +1,10 @@
+// renderer.js
 const user =  window.USERNAME || null;
 
 const chatLog = document.getElementById('chat-log');
 const inputField = document.getElementById('input-field');
 const sendButton = document.getElementById('send-button');
+const micButton = document.getElementById('mic-button'); // Form component bind
 
 const socket = io(); // auto-connects
 
@@ -58,7 +60,22 @@ socket.on("ash_response", (data) => {
   sendButton.disabled = false;
   kprint(data.text);
   
-  speakText(data.text); 
+  speakText(data.text); // Preserved TTS output engine invocation loop
+});
+
+// Appends user text log bubble during hands-free WebSocket transcription returns
+socket.on("voice_transcript", (data) => {
+    logAdd(`${user ? user : 'User'}: ${data.text}`, 'user');
+    
+    // Inject identical processing indicators to match core click flow architectures
+    const thinkingDiv = document.createElement('div');
+    thinkingDiv.id = 'thinking-indicator';
+    thinkingDiv.classList.add('log-entry', 'sys-entry');
+    thinkingDiv.textContent = 'ASH is thinking...';
+    chatLog.appendChild(thinkingDiv);
+    chatLog.scrollTop = chatLog.scrollHeight;
+    
+    sendButton.disabled = true;
 });
 
 
@@ -99,9 +116,10 @@ inputField.addEventListener('keyup', (event) => {
   }
 });
 
+
 /* ---------- VOICE I/O (STT & TTS) ---------- */
 
-// 1. Text-to-Speech (TTS) Setup
+// 1. Text-to-Speech (TTS) Setup - COMPLETELY PRESERVED
 let ttsEnabled = false;
 const ttsToggle = document.getElementById('tts-toggle');
 const synth = window.speechSynthesis;
@@ -126,4 +144,59 @@ function speakText(text) {
     if (preferredVoice) utterance.voice = preferredVoice;
 
     synth.speak(utterance);
+}
+
+// 2. Binary Socket.IO Audio Recorder Pipeline
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+
+if (micButton) {
+    micButton.addEventListener('click', async () => {
+        if (isRecording) {
+            mediaRecorder.stop();
+        } else {
+            audioChunks = [];
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) audioChunks.push(event.data);
+                };
+                
+                mediaRecorder.onstart = () => {
+                    isRecording = true;
+                    micButton.classList.add('recording');
+                    inputField.placeholder = "Listening... Press mic again to stop.";
+                };
+                
+                mediaRecorder.onstop = async () => {
+                    isRecording = false;
+                    micButton.classList.remove('recording');
+                    inputField.placeholder = "Processing voice payload...";
+                    
+                    // Kill device stream tracks to turn off recording hardware lights
+                    stream.getTracks().forEach(track => track.stop());
+                    
+                    // Combine audio buffer frames to assemble raw binary chunks
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    
+                    // Unpack immutable data stream into an ArrayBuffer container block
+                    const arrayBuffer = await audioBlob.arrayBuffer();
+                    
+                    // Stream binary elements directly via WebSocket pipelines
+                    socket.emit("user_voice", arrayBuffer);
+                    
+                    inputField.placeholder = "Talk to ASH...";
+                };
+                
+                mediaRecorder.start();
+                
+            } catch (err) {
+                console.error("WebSocket microphone acquisition failure:", err);
+                logAdd("⚠️ Could not claim mic hardware. Check browser rules.", "system");
+            }
+        }
+    });
 }

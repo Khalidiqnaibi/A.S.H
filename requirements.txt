@@ -10,3 +10,5 @@ numpy==1.26.4
 sentence-transformers==2.6.1
 transformers==4.38.2
 hf_xet
+SpeechRecognition 
+pydub
