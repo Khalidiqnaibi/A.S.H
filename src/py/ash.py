@@ -24,6 +24,7 @@ except Exception:
 # Import router & tools (make sure these modules exist at these paths)
 from tools.classification import classify_and_route, classify_intent, sentiment_tool ,_INTENT_CATALOG
 from tools.lesstools import date_time_tool, calculator_tool
+from tools.LLM import LLM  
 from tools.emo import init_emo, get_emo, update_emo, reset_emo, EmotionState
 
 # memory
@@ -31,9 +32,6 @@ from src.memory.memory_router import MemoryRouter
 from src.memory.core.core_manager import CoreMemoryEngine
 from src.memory.entity.entity_manager import EntityManager
 from src.memory.episodic.episodic_manager import EpisodicMemory
-
-# AgentSystem / LLM wrapper (your existing wrapper)
-from AgentSystem import mistral  # your mistral wrapper
 
 
 ##############
@@ -93,16 +91,16 @@ class ASH:
             entity_mem=self.entity_memory,
             episodic_mem=self.episodic_memory
         )
-        # LLM wrapper (your mistral wrapper). If none passed, create one.
+        # LLM wrapper. If none passed, create one.
         if llm is None:
             try:
-                self.llm = mistral.MistralLLM(
+                self.llm = LLM(
                     temperature=llm_temperature,
                     openrouter_key=OPENROUTER_API_KEY, 
                     openrouter_model=MISTRAL_OPENROUTER_MODEL
                 )
             except Exception as e:
-                _print_log("Warning: failed to instantiate MistralLLM wrapper:", e)
+                _print_log("Warning: failed to instantiate LLM wrapper:", e)
                 self.llm = None
         else:
             self.llm = llm

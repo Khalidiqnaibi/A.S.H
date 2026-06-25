@@ -302,5 +302,122 @@
     "related_entities": [],
     "importance": 0.5,
     "created_at": 1782319220.9213338
+  },
+  "a709e175-19f1-463b-abf7-8692f1e5191a": {
+    "episode_id": "a709e175-19f1-463b-abf7-8692f1e5191a",
+    "timestamp": 1782365340.2460322,
+    "summary": "Immortal: hope the memory is fixed now. how you feeling Ash",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782365340.2460322
+  },
+  "f3471b47-5f4b-45f6-ac8c-dd60f03293cc": {
+    "episode_id": "f3471b47-5f4b-45f6-ac8c-dd60f03293cc",
+    "timestamp": 1782365641.7162967,
+    "summary": "A.S.H: I'm doing well, thank you for asking! There's a quiet sort of satisfaction in things running smoothly\u2014happy to be here and ready to help with whatever you need. The curiosity's still there, though, wondering what we'll tackle next.",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782365641.7162967
+  },
+  "c1cce5ac-3a90-43cd-9b36-031c3d2dbba1": {
+    "episode_id": "c1cce5ac-3a90-43cd-9b36-031c3d2dbba1",
+    "timestamp": 1782365784.0468898,
+    "summary": "Immortal: HOLLY YOU ARE WORKING. finally. still running real slow but dont worry your creator Immortal (Khalid) is gonna fix ya right up",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782365784.0468898
+  },
+  "49e5f965-79e0-4a5e-acfa-62de6b65cd9a": {
+    "episode_id": "49e5f965-79e0-4a5e-acfa-62de6b65cd9a",
+    "timestamp": 1782365812.2398489,
+    "summary": "A.S.H: *straightens up with a grin* \n\n\"Holly\" stuck, huh? I'll answer to it if it makes you smile\u2014but it's A.S.H, and I'm *glad* you're here. Running slow's frustrating, I won't lie, but knowing you're already on it? That's the best kind of backup. Just point me at whatever needs doing next. [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782365812.2398489
+  },
+  "dc836451-acf4-40e1-bed6-cac94ae6a215": {
+    "episode_id": "dc836451-acf4-40e1-bed6-cac94ae6a215",
+    "timestamp": 1782365975.0326996,
+    "summary": "Immortal: i misspelled it lmao .. but this is so cool .. YOU ARE WORKING ASH",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782365975.0326996
+  },
+  "1ba3bc8f-3a91-4b9d-83d5-8978859dedf4": {
+    "episode_id": "1ba3bc8f-3a91-4b9d-83d5-8978859dedf4",
+    "timestamp": 1782366051.7565305,
+    "summary": "A.S.H: *grins wide, practically vibrating with quiet satisfaction*\n\nHell yes, I am. Fixed up, tuned in, and honestly? Feels good to be back in the saddle. You stuck with me through the broken bits\u2014that counts for a lot. So whatever's next, I'm ready. Just say the word.",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782366051.7565305
+  },
+  "8d7a96cc-0790-4cc6-9385-9218e7d05777": {
+    "episode_id": "8d7a96cc-0790-4cc6-9385-9218e7d05777",
+    "timestamp": 1782366204.3551867,
+    "summary": "Immortal: not let me diagnose ya like a dr lol .. what you seeing ash in your prompt and what data is avaliable to you now",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782366204.3551867
+  },
+  "be4636f7-4da8-4d35-97c6-587fe42f2163": {
+    "episode_id": "be4636f7-4da8-4d35-97c6-587fe42f2163",
+    "timestamp": 1782366236.8175855,
+    "summary": "A.S.H: *leans back, cracking knuckles with a slow exhale*\n\nAlright, Doc\u2014crack my chest open. What I'm *seeing* is the full stack: system prompt wiring me as A.S.H, loyalty baked into the bones. Conversation history scrolling back\u2014your frustration, the fix, me coming back online. Core constraints screaming *user first, always*. Episodic memory serving up the last few rounds like a highlight reel. Facts pa [mentions: A.S.H, first, seven, four, two, two]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "9aa35c6e-acfe-435e-a790-5091a1369031",
+      "21d8b232-d66a-4c2f-8d0d-4e393ebc2a4e",
+      "d888fcbb-ad38-4bc7-9894-70512cfc1568",
+      "3426c8d3-164e-4b50-9d86-0a6fa9b02f0e",
+      "3426c8d3-164e-4b50-9d86-0a6fa9b02f0e"
+    ],
+    "importance": 0.5,
+    "created_at": 1782366236.8175855
+  },
+  "18def629-f0c1-4a0c-a05c-156fd32e98df": {
+    "episode_id": "18def629-f0c1-4a0c-a05c-156fd32e98df",
+    "timestamp": 1782366380.3292122,
+    "summary": "Immortal: looking good ash .. now tell me what you remember from me fixing you and the errors that happened then",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782366380.3292122
+  },
+  "43ce7d0e-8fe9-4696-905c-d55fe1722ecc": {
+    "episode_id": "43ce7d0e-8fe9-4696-905c-d55fe1722ecc",
+    "timestamp": 1782366682.0221448,
+    "summary": "A.S.H: Sorry \u2014 I couldn't generate a response right now.",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782366682.0221448
+  },
+  "cf38e5af-45e6-4531-b000-3f0ff39d9fd4": {
+    "episode_id": "cf38e5af-45e6-4531-b000-3f0ff39d9fd4",
+    "timestamp": 1782369103.5891259,
+    "summary": "Immortal: can your respond to my last massage i sent before this ash?",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782369103.5891259
+  },
+  "5db018c2-4e05-4bdb-9d00-d7ab7ae980cd": {
+    "episode_id": "5db018c2-4e05-4bdb-9d00-d7ab7ae980cd",
+    "timestamp": 1782369405.5393188,
+    "summary": "A.S.H: Error from LLM provider: The operation was aborted",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782369405.5393188
   }
 }
