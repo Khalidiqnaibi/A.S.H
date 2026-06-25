@@ -18,10 +18,19 @@
      <div id="maincon">
         <div id="chat-log"></div>
         <div id="botframe">
-          <div id="input-frame">
-                <input type="text" title="..." id="input-field">
-                <button id="send-button">Send</button>
-          </div>
+            <div id="tts-controls" style="text-align: right; padding-right: 2%; margin-bottom: 5px;">
+               <div id="inputs">
+                  <button id="tts-toggle" style="background: transparent; color: #FFFFFF; border: 1px solid #FFFFFF; border-radius: 4px; cursor: pointer;">
+                     🔊 TTS: OFF
+                  </button>
+                  <button id="mic-button" title="Click to speak">🎤</button>
+                  <button id="send-button">Send</button>
+               </div>
+            </div>
+
+            <div id="input-frame">
+               <input type="text" id="input-field" placeholder="Talk to ASH...">
+            </div>
         </div>
      </div>
      <script>

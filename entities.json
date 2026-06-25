@@ -1838,5 +1838,69 @@
     },
     "created_at": 1782374826.8027785,
     "updated_at": 1782374826.8027785
+  },
+  "92699fd5-2079-46a6-9f55-94971a3da9aa": {
+    "entity_id": "92699fd5-2079-46a6-9f55-94971a3da9aa",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "tts"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "TTS",
+      "last_seen_context": "Fair enough \u2014 I logged it as episodic when it should've been routed to core memory. That's on me. I'll reclassify it now so it sticks where it belongs. You focus on the speech pipeline; I'll clean up my own house.\n\nTake your time with the TTS fix \u2014 I'll be right here when you're ready.",
+      "source": "chat",
+      "updated_at": 1782390069.5459263
+    },
+    "created_at": 1782390069.5935187,
+    "updated_at": 1782390069.5935187
+  },
+  "89150b2c-8629-4371-9b03-1136ccc9bd33": {
+    "entity_id": "89150b2c-8629-4371-9b03-1136ccc9bd33",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "stt"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "STT",
+      "last_seen_context": "Got it \u2014 you're talking about **speech recognition**, not the memory routing issue. My apologies for getting sidetracked.\n\nSpeech recognition (STT \u2014 speech-to-text) is actually listed as a **future extension** in the ASH architecture doc, so it's not wired up yet. If you're looking to build or integrate a local STT pipeline, there are solid lightweight options that would fit the Raspberry Pi constraint \u2014 things like **Whisper.cpp**, **Vosk**, or **Coqui STT** \u2014 all runnable offline and deterministic-friendly.\n\nWhat specifically are you trying to do with speech recognition? Are you looking to add voice input to ASH, or is this related to something else entirely?\n\nThat's a solid project to take on.",
+      "source": "chat",
+      "updated_at": 1782391168.6393945
+    },
+    "created_at": 1782391168.6393945,
+    "updated_at": 1782391168.6393945
+  },
+  "780ef730-3e38-441d-abba-936a38989922": {
+    "entity_id": "780ef730-3e38-441d-abba-936a38989922",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "ash"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "ASH",
+      "last_seen_context": "Got it \u2014 you're talking about **speech recognition**, not the memory routing issue. My apologies for getting sidetracked.\n\nSpeech recognition (STT \u2014 speech-to-text) is actually listed as a **future extension** in the ASH architecture doc, so it's not wired up yet. If you're looking to build or integrate a local STT pipeline, there are solid lightweight options that would fit the Raspberry Pi constraint \u2014 things like **Whisper.cpp**, **Vosk**, or **Coqui STT** \u2014 all runnable offline and deterministic-friendly.\n\nWhat specifically are you trying to do with speech recognition? Are you looking to add voice input to ASH, or is this related to something else entirely?\n\nThat's a solid project to take on.",
+      "source": "chat",
+      "updated_at": 1782391168.6784708
+    },
+    "created_at": 1782391168.6784708,
+    "updated_at": 1782391168.6784708
+  },
+  "0d7dee5d-898c-4850-bf9f-a7369fc49501": {
+    "entity_id": "0d7dee5d-898c-4850-bf9f-a7369fc49501",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "doc"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "doc",
+      "last_seen_context": "Got it \u2014 you're talking about **speech recognition**, not the memory routing issue. My apologies for getting sidetracked.\n\nSpeech recognition (STT \u2014 speech-to-text) is actually listed as a **future extension** in the ASH architecture doc, so it's not wired up yet. If you're looking to build or integrate a local STT pipeline, there are solid lightweight options that would fit the Raspberry Pi constraint \u2014 things like **Whisper.cpp**, **Vosk**, or **Coqui STT** \u2014 all runnable offline and deterministic-friendly.\n\nWhat specifically are you trying to do with speech recognition? Are you looking to add voice input to ASH, or is this related to something else entirely?\n\nThat's a solid project to take on.",
+      "source": "chat",
+      "updated_at": 1782391168.7373354
+    },
+    "created_at": 1782391168.7373354,
+    "updated_at": 1782391168.7373354
   }
 }

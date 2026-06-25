@@ -979,5 +979,65 @@
     ],
     "importance": 0.5,
     "created_at": 1782374826.8667407
+  },
+  "9d5be7e5-8db8-42cf-9a47-9e3194b884b5": {
+    "episode_id": "9d5be7e5-8db8-42cf-9a47-9e3194b884b5",
+    "timestamp": 1782378375.7157211,
+    "summary": "Immortal: what up",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782378375.7157211
+  },
+  "09504790-1b04-4724-9408-370f025ebc12": {
+    "episode_id": "09504790-1b04-4724-9408-370f025ebc12",
+    "timestamp": 1782378387.7563915,
+    "summary": "A.S.H: Not much, just running idle in the background, ready to go. What do you need?",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782378387.7563915
+  },
+  "31156cca-1e9a-48d2-bf59-16b3d9ec1de4": {
+    "episode_id": "31156cca-1e9a-48d2-bf59-16b3d9ec1de4",
+    "timestamp": 1782390042.082729,
+    "summary": "Immortal: i just added tts to  your system but still some errors with the speach re .. hang tight im fixing it",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782390042.082729
+  },
+  "acc4f4e1-1c93-43cb-94fe-404fc1002e84": {
+    "episode_id": "acc4f4e1-1c93-43cb-94fe-404fc1002e84",
+    "timestamp": 1782390069.7242465,
+    "summary": "A.S.H: Fair enough \u2014 I logged it as episodic when it should've been routed to core memory. That's on me. I'll reclassify it now so it sticks where it belongs. You focus on the speech pipeline; I'll clean up my own house.\n\nTake your time with the TTS fix \u2014 I'll be right here when you're ready. [mentions: TTS]",
+    "event_type": "interaction",
+    "related_entities": [
+      "92699fd5-2079-46a6-9f55-94971a3da9aa"
+    ],
+    "importance": 0.5,
+    "created_at": 1782390069.7242465
+  },
+  "54cca734-9cb8-41ca-8acd-a2a80a1c0459": {
+    "episode_id": "54cca734-9cb8-41ca-8acd-a2a80a1c0459",
+    "timestamp": 1782391157.6685998,
+    "summary": "Immortal: im talking about speach recognition not about the memory issue",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782391157.6685998
+  },
+  "bd4c5aec-a5ae-401b-b516-192df4c172bd": {
+    "episode_id": "bd4c5aec-a5ae-401b-b516-192df4c172bd",
+    "timestamp": 1782391168.7503328,
+    "summary": "A.S.H: Got it \u2014 you're talking about **speech recognition**, not the memory routing issue. My apologies for getting sidetracked.\n\nSpeech recognition (STT \u2014 speech-to-text) is actually listed as a **future extension** in the ASH architecture doc, so it's not wired up yet. If you're looking to build or integrate a local STT pipeline, there are solid lightweight options that would fit the Raspberry Pi const [mentions: STT, ASH, doc]",
+    "event_type": "interaction",
+    "related_entities": [
+      "89150b2c-8629-4371-9b03-1136ccc9bd33",
+      "780ef730-3e38-441d-abba-936a38989922",
+      "0d7dee5d-898c-4850-bf9f-a7369fc49501"
+    ],
+    "importance": 0.5,
+    "created_at": 1782391168.7503328
   }
 }

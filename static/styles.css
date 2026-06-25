@@ -13,6 +13,38 @@ input::-moz-focus-inner { /* Remove the inner border on Firefox */
     border: 0;
 }
 
+#inputs {
+    display: flex;
+    justify-content: flex-end;
+    flex-direction: row;
+}
+
+#mic-button {
+    border-radius: 6px;
+    background: #042b46;
+    color: #FFFFFF;
+    border: #FFFFFF 1px solid;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: background 0.3s;
+}
+
+#mic-button:hover {
+    background: #1e4159;
+}
+
+/* Pulsing effect when listening */
+#mic-button.recording {
+    background: #ff4444;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.6; }
+    100% { opacity: 1; }
+}
+
 #maincon {
     background-color:#849bb1;
     min-height: 100vh;
@@ -118,17 +150,18 @@ input::-moz-focus-inner { /* Remove the inner border on Firefox */
     width: 100%;
     display: grid;
     margin: 0;
-    margin-top: 1.5%;
+    margin-top: 0.75%;
 }
 
 #input-frame {
     align-self: center;
     justify-self: center;
-    width: 97%;
-    display: grid;
-    grid-template-columns: 90% 10% ;
-    margin: 0;
-    padding: 0;
+    width: 100%;
+    display: flex;
+    margin: 0px;
+    padding: 0px;
+    justify-content: center;
+    margin-bottom: 5px;
 }
 
 #input-field {
@@ -138,7 +171,8 @@ input::-moz-focus-inner { /* Remove the inner border on Firefox */
     align-self: center;
     text-indent: 10px;
     background-color: #042b46;
-    padding: 0;
+    padding: 2px;
+    margin-bottom: 5px;
     border-color:#042b46;
     border-width: 1px;
     height: 25px;
@@ -155,8 +189,17 @@ input::-moz-focus-inner { /* Remove the inner border on Firefox */
     border-width:0px;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     height: 30px;
-    width: 100%;
+    width: 60px;;
     transition: all 0.1s ease;
+}
+
+#inputs button{
+    transition: all 0.1s ease;
+    margin-right: 5px;
+}
+
+#inputs button:hover{
+    transform: scale(1.02);
 }
 
 #send-button:hover{

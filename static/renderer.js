@@ -53,9 +53,12 @@ socket.on("ash_response", (data) => {
   // Remove thinking indicator if present
   const thinking = document.getElementById('thinking-indicator');
   if (thinking) thinking.remove();
+  
   // Re-enable send button
   sendButton.disabled = false;
   kprint(data.text);
+  
+  speakText(data.text); 
 });
 
 
@@ -95,3 +98,32 @@ inputField.addEventListener('keyup', (event) => {
     sendButton.click();
   }
 });
+
+/* ---------- VOICE I/O (STT & TTS) ---------- */
+
+// 1. Text-to-Speech (TTS) Setup
+let ttsEnabled = false;
+const ttsToggle = document.getElementById('tts-toggle');
+const synth = window.speechSynthesis;
+
+if (ttsToggle) {
+    ttsToggle.addEventListener('click', () => {
+        ttsEnabled = !ttsEnabled;
+        ttsToggle.textContent = ttsEnabled ? "🔊 TTS: ON" : "🔊 TTS: OFF";
+        ttsToggle.style.background = ttsEnabled ? "#042b46" : "transparent";
+    });
+}
+
+function speakText(text) {
+    if (!ttsEnabled || !synth) return;
+    const cleanText = text.replace(/[*_~`#>-]/g, '');
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    
+    const voices = synth.getVoices();
+    const preferredVoice = voices.find(v => v.lang.includes('en-GB') || v.lang.includes('en-US'));
+    if (preferredVoice) utterance.voice = preferredVoice;
+
+    synth.speak(utterance);
+}
