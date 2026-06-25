@@ -293,5 +293,14 @@
     "related_entities": [],
     "importance": 0.5,
     "created_at": 1782315159.0839005
+  },
+  "405ec8d6-f9bf-4298-b6c4-334c2fd13511": {
+    "episode_id": "405ec8d6-f9bf-4298-b6c4-334c2fd13511",
+    "timestamp": 1782319220.9213338,
+    "summary": "Immortal: what do you remember Ash about the your memory issues",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782319220.9213338
   }
 }
