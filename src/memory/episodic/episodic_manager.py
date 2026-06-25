@@ -43,4 +43,4 @@ class EpisodicMemory:
 
         scored = self.index.search(query, top_k=top_k * 2)
         ranked = self.ranker.rank(scored)
-        return ranked[:top_k]
+        return [ep for _, ep in ranked[:top_k]]

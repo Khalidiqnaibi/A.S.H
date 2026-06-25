@@ -17,7 +17,7 @@ class CoreIndex:
         self.vectors = []
 
         for rule in rules:
-            vec = self.embedder.embed(rule.text)
+            vec = self.embedder.encode(rule.text)
             self.vectors.append(vec)
 
         if self.vectors:
@@ -27,7 +27,7 @@ class CoreIndex:
         if not self.rules:
             return []
 
-        q_vec = self.embedder.embed(query)
+        q_vec = self.embedder.encode(query)
 
         sims = self._cosine_similarity(q_vec, self.vectors)
         ranked = np.argsort(-sims)

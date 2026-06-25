@@ -78,3 +78,36 @@ class CoreMemoryEngine:
                 output += f"- {t}\n"
 
         return output
+
+    # ----------------------------
+    # Compatibility Methods
+    # ----------------------------
+
+    def add(self, key: str, payload: dict):
+        import time
+        existing = self.store.get(key)
+        if existing:
+            existing.text = payload.get("text", existing.text)
+            existing.updated_at = time.time()
+            self.store.update(existing)
+        else:
+            rule = CoreRule(
+                rule_id=key,
+                category="constraint",
+                text=payload.get("text", ""),
+                priority=int(payload.get("importance", 0.5) * 10),
+                hard=False
+            )
+            self.store.add(rule)
+        self._rebuild_index()
+
+    def dump_all(self) -> dict:
+        return {rule.rule_id: {
+            "rule_id": rule.rule_id,
+            "category": rule.category,
+            "text": rule.text,
+            "priority": rule.priority,
+            "hard": rule.hard,
+            "created_at": rule.created_at,
+            "updated_at": rule.updated_at
+        } for rule in self.store.all()}

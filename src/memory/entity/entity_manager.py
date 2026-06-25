@@ -34,4 +34,21 @@ class EntityManager:
             return incoming
 
         if decision == "ambiguous":
-            raise Exception("Ambiguous entity match. Manual confirmation required.")
+            # Fallback: create as new entity instead of crashing
+            import logging
+            logging.getLogger("ash.entity").warning(
+                "Ambiguous entity match for '%s' — creating new entry.",
+                entity_data.get("primary_identifiers", {}).get("name", "unknown")
+            )
+            self.store.add(incoming)
+            return incoming
+
+    def find_matching_entities(self, mentions: list) -> list:
+        matched = []
+        lower_mentions = [m.lower().strip() for m in mentions]
+        for entity in self.store.all():
+            name = entity.primary_identifiers.get("name", "").lower().strip()
+            canonical = entity.attributes.get("canonical_name", "").lower().strip()
+            if (name and name in lower_mentions) or (canonical and canonical in lower_mentions):
+                matched.append(entity)
+        return matched

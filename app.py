@@ -10,6 +10,7 @@ Events:
 
 import sys
 import traceback
+import threading
 from flask import Flask, render_template, session, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from typing import Dict
@@ -36,15 +37,19 @@ app.config["SECRET_KEY"] = app.config.get("SECRET_KEY", "dev-secret")
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
-    ping_timeout=60,
+    ping_timeout=120,
     ping_interval=25,
     max_http_buffer_size=10_000_000, 
-    manage_session=False
+    manage_session=False,
+    async_mode='threading'
 )
 
 
 # Per-sid client state storage
 client_states: Dict[str, Dict] = {}  # sid -> {"client_time": ..., "history": [...]}
+
+# Lock to prevent overlapping requests per sid
+_processing_locks: Dict[str, threading.Lock] = {}
 
 @app.route("/")
 def index():
@@ -94,36 +99,61 @@ def handle_user_message(data):
 
         print(f"[SOCKET] user_message from {sid} user={user} msg={msg}", file=sys.stderr, flush=True)
 
-        # prepare context with client_time if present
-        state = client_states.setdefault(sid, { "history": []})
+        # Prevent overlapping requests from the same client
+        lock = _processing_locks.setdefault(sid, threading.Lock())
+        if not lock.acquire(blocking=False):
+            print(f"[SOCKET] skipping duplicate request from {sid} (still processing)", file=sys.stderr, flush=True)
+            emit("ash_response", {"text": "Still thinking about your last message..."}, room=sid)
+            return
 
-        # Form the query string the same way your older app did
-        query = f"{user}: {msg}"
+        # Run the heavy work in a background task so the event handler returns
+        # immediately and doesn't block the SocketIO server.
+        def _process():
+            try:
+                # prepare context with client_time if present
+                state = client_states.setdefault(sid, {"history": []})
 
-        # Call ASH.run with context; ash.run may raise — handle gracefully
-        try:
-            response = ash.run(msg)
-        except TypeError:
-            # backward compatibility: some ASH.run definitions accept only (query)
-            response = ash.run(query)
-        except Exception as e:
-            print("[ERROR] ash.run raised an exception:", e, file=sys.stderr, flush=True)
-            traceback.print_exc()
-            response = "Sorry — something failed inside the assistant."
+                # Form the query string the same way your older app did
+                query = f"{user}: {msg}"
 
-        # Optionally store in per-sid history (for debugging or reuse)
-        state["history"].append({"user": user, "message": msg, "response_preview": str(response)[:300], "time": datetime. now().isoformat() if 'datetime' in globals() else None})
+                # Call ASH.run with context; ash.run may raise — handle gracefully
+                try:
+                    response = ash.run(msg)
+                except TypeError:
+                    # backward compatibility: some ASH.run definitions accept only (query)
+                    response = ash.run(query)
+                except Exception as e:
+                    print("[ERROR] ash.run raised an exception:", e, file=sys.stderr, flush=True)
+                    traceback.print_exc(file=sys.stderr)
+                    response = "Sorry — something failed inside the assistant."
 
-        # Emit back to the client who sent it
-        emit("ash_response", {"text": response}, room=sid)
+                # Optionally store in per-sid history (for debugging or reuse)
+                state["history"].append({
+                    "user": user,
+                    "message": msg,
+                    "response_preview": str(response)[:300],
+                    "time": datetime.now().isoformat()
+                })
+
+                # Emit back to the client who sent it
+                socketio.emit("ash_response", {"text": response}, room=sid)
+
+            except Exception as exc:
+                print("[ERROR] handle_user_message background task failed:", exc, file=sys.stderr, flush=True)
+                traceback.print_exc(file=sys.stderr)
+                socketio.emit("ash_response", {"text": "Server error handling message."}, room=sid)
+            finally:
+                lock.release()
+
+        socketio.start_background_task(_process)
 
     except Exception as exc:
         print("[ERROR] handle_user_message failed:", exc, file=sys.stderr, flush=True)
-        traceback.print_exc()
+        traceback.print_exc(file=sys.stderr)
         emit("ash_response", {"text": "Server error handling message."}, room=sid)
 
 
 # Start server
 if __name__ == "__main__":
     print("Starting ASH Socket.IO server on 0.0.0.0:5000", file=sys.stderr)
-    socketio.run(app, host="0.0.0.0", port=5000, debug=True)
+    socketio.run(app, host="0.0.0.0", port=5000, debug=False, use_reloader=False, allow_unsafe_werkzeug=True)
