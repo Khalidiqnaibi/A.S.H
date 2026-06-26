@@ -28,10 +28,11 @@ class NERExtractor:
     Fallback: lightweight regex + heuristics.
     """
 
-    def __init__(self, model_name: str = "en_core_web_sm"):
+    def __init__(self, model_name: str = "en_core_web_sm", assistant_name:str="A.S.H"):
         self.model_name = model_name
         self.nlp = None
-        
+        self.assistant_name = assistant_name
+                        
         # Load custom A.S.H stop words from a flat text file
         self.custom_stop_words = self._load_custom_stops("ignore_words.txt")
 
@@ -96,45 +97,74 @@ class NERExtractor:
             return False
             
         return True
+    
+    def _resolve_pronoun(self, token_text: str):
+        """Simple state-based coreference resolution."""
+        pronouns = {
+            "i": self.last_speaker,
+            "me": self.last_speaker,
+            "my": self.last_speaker,
+            "you": "A.S.H" if self.last_speaker != "A.S.H" else self.last_subject,
+            "he": self.last_subject,
+            "she": self.last_subject
+        }
+        return pronouns.get(token_text.lower())
 
     def extract(self, text: str) -> List[Dict[str, Any]]:
-        """
-        Returns list of cleaned entities:
-        [{ "text": "Khalid", "label": "PERSON", "start": 10, "end": 16, "confidence": 0.9 }, ...]
-        """
         ents = []
         
-        user_match = re.match(r"^([A-Za-z0-9_.-]+):\s*", text)
+        # 1. SPEAKER DETECTION
+        # Splits "Immortal: hello" -> speaker="Immortal", clean_text="hello"
+        speaker_match = re.match(r"^([A-Za-z0-9_.-]+):\s*", text)
         clean_text = text
         
-        if user_match:
-            speaker_name = user_match.group(1)
+        if speaker_match:
+            speaker_name = speaker_match.group(1).strip()
+            self.last_speaker = speaker_name
+            
+            # Label as SPEAKER_USER or SPEAKER_SELF
+            is_self = speaker_name.lower() == self.assistant_name.lower()
+            label = "SPEAKER_SELF" if is_self else "SPEAKER_USER"
+            
             ents.append({
                 "text": speaker_name,
-                "label": "USER",  # New dedicated label!
-                "start": user_match.start(1),
-                "end": user_match.end(1),
+                "label": label,
+                "start": speaker_match.start(1),
+                "end": speaker_match.end(1),
                 "confidence": 1.0
             })
-            # Remove prefix for general NER so it doesn't get confused
-            clean_text = text[user_match.end():]
-        
+            clean_text = text[speaker_match.end():]
+
+        # 2. ENTITY EXTRACTION
         if self.nlp:
             doc = self.nlp(clean_text)
             for ent in doc.ents:
                 if self._is_valid_entity(ent.text, ent.label_):
+                    self.last_subject = ent.text # Update context state
+                    
                     ents.append({
                         "text": ent.text,
                         "label": ent.label_,
-                        "start": ent.start_char,
-                        "end": ent.end_char,
+                        "start": ent.start_char + (len(text) - len(clean_text)),
+                        "end": ent.end_char + (len(text) - len(clean_text)),
                         "confidence": 0.9
                     })
-            
-            # De-duplicate identical entities in the same string
-            unique_ents = {e['text'].lower(): e for e in ents}
-            return list(unique_ents.values())
-
+        
+        # 3. PRONOUN RESOLUTION
+        # Look for pronouns in the text and resolve them against our context state
+        words = clean_text.split()
+        for word in words:
+            clean_word = re.sub(r'[^\w]', '', word).lower()
+            if clean_word in ["i", "me", "my", "you", "he", "she"]:
+                resolved = self._resolve_pronoun(clean_word)
+                if resolved:
+                    ents.append({
+                        "text": clean_word,
+                        "label": "RESOLVED_ENTITY",
+                        "refers_to": resolved,
+                        "confidence": 0.7
+                    })
+    
         # --- FALLBACK NER LOGIC ---
         for m in re.finditer(r"([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)", clean_text):
             ents.append({"text": m.group(1), "label": "EMAIL", "start": m.start(), "end": m.end(), "confidence": 0.85})
@@ -158,7 +188,7 @@ class NERExtractor:
 if __name__ == "__main__":
     extr = NERExtractor()
     
-    test_sentence = "Immortal: HOLLY YOU ARE WORKING. finally. still running real slow but dont worry your creator Immortal (Khalid) is gonna fix ya right up"
+    test_sentence = "Immortal: HOLLY YOU ARE WORKING. finally. still running real slow but dont worry your creator Khalid is gonna fix ya right up"
     
     print("\n--- TEST RUN ---")
     print(f"Input: {test_sentence}")
