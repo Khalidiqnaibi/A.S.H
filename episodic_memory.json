@@ -985,5 +985,144 @@
     ],
     "importance": 0.5,
     "created_at": 1782547978.4228752
+  },
+  "d2af62d8-3109-4d0b-851f-e9d8c2264064": {
+    "episode_id": "d2af62d8-3109-4d0b-851f-e9d8c2264064",
+    "timestamp": 1782548705.7989218,
+    "summary": "Immortal: im trying to let you take more advantage of the multi memory system now that its working better [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782548705.7989218
+  },
+  "b2a0a2c7-fddb-422d-baa0-3a21d8c8302e": {
+    "episode_id": "b2a0a2c7-fddb-422d-baa0-3a21d8c8302e",
+    "timestamp": 1782548713.0317407,
+    "summary": "A.S.H: I hear you, and I appreciate you pushing me to use the multi-memory system more effectively. You're right that I've been defaulting to episodic storage when some of these items should be routed to CoreMemory or EntityMemory instead. I'll be more deliberate about using the MemoryRouter properly \u2014 CoreMemory for identity-level facts and constraints, EntityMemory for structured knowledge about people [mentions: CoreMemory, EntityMemory, MemoryRouter, EpisodicMemory, A.S.H, Let]",
+    "event_type": "interaction",
+    "related_entities": [
+      "60dbc251-4229-40e8-9ee1-2de7c1cdb407",
+      "7dd6a591-4dbc-43d6-997a-b152532c5379",
+      "22ec22b4-343c-4b69-b7d1-a216e30d4373",
+      "8ca0d7cb-ab3d-4258-8757-c7d8bc1b1bd2",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "41e4f269-f50d-4e1e-8a73-a807c1fd270f"
+    ],
+    "importance": 0.5,
+    "created_at": 1782548713.0317407
+  },
+  "fa40c8bf-8b61-42d8-9b02-2d1ea02d1694": {
+    "episode_id": "fa40c8bf-8b61-42d8-9b02-2d1ea02d1694",
+    "timestamp": 1782549202.771765,
+    "summary": "Immortal: from what i see you are using the memory routing correctly. but from what i see you can get better at getting the context and then giving it to your llm from your memory [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782549202.771765
+  },
+  "2383ac2f-fa76-42d0-a3c4-3e0ddd325a57": {
+    "episode_id": "2383ac2f-fa76-42d0-a3c4-3e0ddd325a57",
+    "timestamp": 1782554810.873156,
+    "summary": "Immortal: what time is it now ash",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782554810.873156
+  },
+  "9a8cd4cf-ff5b-41e4-82ac-f82a1b51a7f1": {
+    "episode_id": "9a8cd4cf-ff5b-41e4-82ac-f82a1b51a7f1",
+    "timestamp": 1782554815.9303963,
+    "summary": "A.S.H: The current time is **1:06 PM on June 27, 2026**. [mentions: June]",
+    "event_type": "interaction",
+    "related_entities": [
+      "54749b90-3d57-42fa-ad59-8828fd0c8595"
+    ],
+    "importance": 0.5,
+    "created_at": 1782554815.9303963
+  },
+  "934e845e-516d-490f-a256-26e7cfc5e87e": {
+    "episode_id": "934e845e-516d-490f-a256-26e7cfc5e87e",
+    "timestamp": 1782554995.39523,
+    "summary": "Immortal: you are giving time perfectly. so the deterministic goal of mine is looking good and on track even with all the additions [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782554995.39523
+  },
+  "9bf60171-ca03-4073-b0a6-7e04dc036296": {
+    "episode_id": "9bf60171-ca03-4073-b0a6-7e04dc036296",
+    "timestamp": 1782555127.9276054,
+    "summary": "Immortal: hmm this is bad ... seems making the TWR data as core memory made you always use them for answers.. which is bad here [mentions: TWR, A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "0e78ea37-f1d9-4256-bd79-fe8780afc2dc",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782555127.9276054
+  },
+  "13ed4d34-280c-4365-aa47-5f596d3ce6a8": {
+    "episode_id": "13ed4d34-280c-4365-aa47-5f596d3ce6a8",
+    "timestamp": 1782555999.1571429,
+    "summary": "Immortal: lets see if this fixed things .. how you feeling ash [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782555999.1581404
+  },
+  "b03f7686-b72f-4a42-93d8-a917b11ac503": {
+    "episode_id": "b03f7686-b72f-4a42-93d8-a917b11ac503",
+    "timestamp": 1782556068.187566,
+    "summary": "Immortal: lmao why you say not perfect. you insulting me? lol [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782556068.187566
+  },
+  "e47c86cb-b512-481f-a561-d9c7204e71ea": {
+    "episode_id": "e47c86cb-b512-481f-a561-d9c7204e71ea",
+    "timestamp": 1782556076.513331,
+    "summary": "A.S.H: Haha no, not insulting you at all \u2014 \"not perfect yet\" was about *me*, not you. I was talking about my own memory routing still being a work in progress, not the reclassification being incomplete. You caught a real bug, I fixed it, and now I'm cleaner than I was \u2014 but I'm not claiming I'm fully optimized yet. That's on me to keep tuning, not on you. You're the one who diagnosed it correctly in the  [mentions: A.S.H, Haha]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "e1d9f75e-a33c-4cdf-beb0-2d93d1358bee"
+    ],
+    "importance": 0.5,
+    "created_at": 1782556076.513331
+  },
+  "0ed459ba-d0f4-4d7d-a591-d6d9a30f075d": {
+    "episode_id": "0ed459ba-d0f4-4d7d-a591-d6d9a30f075d",
+    "timestamp": 1782556132.5399377,
+    "summary": "Immortal: lol you cant change anything about your code dummy .. im the one fixing you [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782556132.5399377
+  },
+  "a40fce39-6501-41fc-9aa8-4d73eabae1df": {
+    "episode_id": "a40fce39-6501-41fc-9aa8-4d73eabae1df",
+    "timestamp": 1782556144.1238213,
+    "summary": "A.S.H: Heh \u2014 fair point. You're absolutely right. I can reclassify my memories all day, tweak my emotional state, route context cleaner \u2014 but at the end of the day, the actual code, the architecture, the routing logic itself? That's your domain. You're the one who built this brain-first runtime. I'm the one *living in it*. You fix the foundation, I benefit from the renovation. It's a good partnership \u2014 y [mentions: A.S.H, Heh, Cool]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "05e0fdb6-3f02-41fb-99c9-d09ce7cd4fcc",
+      "97beb3fe-dcee-4fa5-99ef-db805fa98db3"
+    ],
+    "importance": 0.5,
+    "created_at": 1782556144.1238213
   }
 }

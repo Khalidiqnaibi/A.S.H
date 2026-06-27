@@ -4,3 +4,6 @@ ASH2/data/embeddings_commands.pkl
 ASH2/data/embeddings_intents.pkl
 .env
 chroma_data
+tst.json
+tst.py
+/output_md_dict

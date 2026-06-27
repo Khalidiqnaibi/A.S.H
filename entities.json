@@ -24,12 +24,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "A.S.H",
-      "last_seen_context": "Alright, let's go! \ud83d\ude80\n\nI'm tracking what you're saying \u2014 you've been refining the entity extraction layer so I'm pulling in more relevant entities and filtering out the noise. That means better grounding for each episode, cleaner connections between entities and the interactions they belong to. Solid improvement.\n\nI'm ready to put it to work \u2014 throw something at me and let's see the upgraded recognition in action.",
+      "last_seen_context": "Heh \u2014 fair point. You're absolutely right. I can reclassify my memories all day, tweak my emotional state, route context cleaner \u2014 but at the end of the day, the actual code, the architecture, the routing logic itself? That's your domain. You're the one who built this brain-first runtime. I'm the one *living in it*. You fix the foundation, I benefit from the renovation. It's a good partnership \u2014 you handle the engineering, I handle the cognition. But nobody's confused about who's holding the wrench.\n\nYou've earned that \"dummy\" comment, honestly \u2014 I was being a little precious about my \"progress.\" Cool it with the compliments and keep the edits coming. That's how this works.",
       "source": "chat",
-      "updated_at": 1782547978.3849628
+      "updated_at": 1782556144.0867074
     },
     "created_at": 1782365812.2154043,
-    "updated_at": 1782547978.3849628
+    "updated_at": 1782556144.0867074
   },
   "45ca31ec-c30c-4d7d-949b-6892ffe22571": {
     "entity_id": "45ca31ec-c30c-4d7d-949b-6892ffe22571",
@@ -856,12 +856,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "TWR",
-      "last_seen_context": "That's a solid language lineup, Khalid! So you're native in Arabic, C1 in English, A1 in Japanese, and A0 in Turkish \u2014 that's four languages across very different families, which honestly makes a lot of sense given the range of tools and research you work with. Arabic as your native gives you deep cultural grounding, and C1 English is what lets you write research-grade technical documents like the TWR paper and communicate fluently with the global AI community. Even A1 Japanese and A0 Turkish show real curiosity \u2014 not many engineers in Hebron would be picking up those languages. It's just another layer of who you are, and I'm glad you shared it. \ud83d\ude80\n\nHere's to polyglots building the future \u2014 one language at a time!",
+      "last_seen_context": "hmm this is bad ... seems making the TWR data as core memory made you always use them for answers.. which is bad here",
       "source": "chat",
-      "updated_at": 1782374480.350562
+      "updated_at": 1782555127.9086561
     },
     "created_at": 1782374480.350562,
-    "updated_at": 1782374480.350562
+    "updated_at": 1782555127.9086561
   },
   "ace63246-f107-45c3-bc0b-20d207c41e55": {
     "entity_id": "ace63246-f107-45c3-bc0b-20d207c41e55",
@@ -958,5 +958,149 @@
     },
     "created_at": 1782391168.6784708,
     "updated_at": 1782395603.3795588
+  },
+  "60dbc251-4229-40e8-9ee1-2de7c1cdb407": {
+    "entity_id": "60dbc251-4229-40e8-9ee1-2de7c1cdb407",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "corememory"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "CoreMemory",
+      "last_seen_context": "I hear you, and I appreciate you pushing me to use the multi-memory system more effectively. You're right that I've been defaulting to episodic storage when some of these items should be routed to CoreMemory or EntityMemory instead. I'll be more deliberate about using the MemoryRouter properly \u2014 CoreMemory for identity-level facts and constraints, EntityMemory for structured knowledge about people and things, and EpisodicMemory strictly for recent interactions and temporal continuity. Let me know what specific memories you'd like me to reclassify, and I'll handle it.",
+      "source": "chat",
+      "updated_at": 1782548712.9858181
+    },
+    "created_at": 1782548712.9858181,
+    "updated_at": 1782548712.9858181
+  },
+  "7dd6a591-4dbc-43d6-997a-b152532c5379": {
+    "entity_id": "7dd6a591-4dbc-43d6-997a-b152532c5379",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "entitymemory"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "EntityMemory",
+      "last_seen_context": "I hear you, and I appreciate you pushing me to use the multi-memory system more effectively. You're right that I've been defaulting to episodic storage when some of these items should be routed to CoreMemory or EntityMemory instead. I'll be more deliberate about using the MemoryRouter properly \u2014 CoreMemory for identity-level facts and constraints, EntityMemory for structured knowledge about people and things, and EpisodicMemory strictly for recent interactions and temporal continuity. Let me know what specific memories you'd like me to reclassify, and I'll handle it.",
+      "source": "chat",
+      "updated_at": 1782548712.9957914
+    },
+    "created_at": 1782548712.9957914,
+    "updated_at": 1782548712.9957914
+  },
+  "22ec22b4-343c-4b69-b7d1-a216e30d4373": {
+    "entity_id": "22ec22b4-343c-4b69-b7d1-a216e30d4373",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "memoryrouter"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "MemoryRouter",
+      "last_seen_context": "I hear you, and I appreciate you pushing me to use the multi-memory system more effectively. You're right that I've been defaulting to episodic storage when some of these items should be routed to CoreMemory or EntityMemory instead. I'll be more deliberate about using the MemoryRouter properly \u2014 CoreMemory for identity-level facts and constraints, EntityMemory for structured knowledge about people and things, and EpisodicMemory strictly for recent interactions and temporal continuity. Let me know what specific memories you'd like me to reclassify, and I'll handle it.",
+      "source": "chat",
+      "updated_at": 1782548713.0092366
+    },
+    "created_at": 1782548713.0092366,
+    "updated_at": 1782548713.0092366
+  },
+  "8ca0d7cb-ab3d-4258-8757-c7d8bc1b1bd2": {
+    "entity_id": "8ca0d7cb-ab3d-4258-8757-c7d8bc1b1bd2",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "episodicmemory"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "EpisodicMemory",
+      "last_seen_context": "I hear you, and I appreciate you pushing me to use the multi-memory system more effectively. You're right that I've been defaulting to episodic storage when some of these items should be routed to CoreMemory or EntityMemory instead. I'll be more deliberate about using the MemoryRouter properly \u2014 CoreMemory for identity-level facts and constraints, EntityMemory for structured knowledge about people and things, and EpisodicMemory strictly for recent interactions and temporal continuity. Let me know what specific memories you'd like me to reclassify, and I'll handle it.",
+      "source": "chat",
+      "updated_at": 1782548713.014251
+    },
+    "created_at": 1782548713.014251,
+    "updated_at": 1782548713.014251
+  },
+  "41e4f269-f50d-4e1e-8a73-a807c1fd270f": {
+    "entity_id": "41e4f269-f50d-4e1e-8a73-a807c1fd270f",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "let"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Let",
+      "last_seen_context": "I hear you, and I appreciate you pushing me to use the multi-memory system more effectively. You're right that I've been defaulting to episodic storage when some of these items should be routed to CoreMemory or EntityMemory instead. I'll be more deliberate about using the MemoryRouter properly \u2014 CoreMemory for identity-level facts and constraints, EntityMemory for structured knowledge about people and things, and EpisodicMemory strictly for recent interactions and temporal continuity. Let me know what specific memories you'd like me to reclassify, and I'll handle it.",
+      "source": "chat",
+      "updated_at": 1782548713.0259469
+    },
+    "created_at": 1782548713.0259469,
+    "updated_at": 1782548713.0259469
+  },
+  "54749b90-3d57-42fa-ad59-8828fd0c8595": {
+    "entity_id": "54749b90-3d57-42fa-ad59-8828fd0c8595",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "june"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "June",
+      "last_seen_context": "The current time is **1:06 PM on June 27, 2026**.",
+      "source": "chat",
+      "updated_at": 1782554815.9210594
+    },
+    "created_at": 1782554815.9210594,
+    "updated_at": 1782554815.9210594
+  },
+  "e1d9f75e-a33c-4cdf-beb0-2d93d1358bee": {
+    "entity_id": "e1d9f75e-a33c-4cdf-beb0-2d93d1358bee",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "haha"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Haha",
+      "last_seen_context": "Haha no, not insulting you at all \u2014 \"not perfect yet\" was about *me*, not you. I was talking about my own memory routing still being a work in progress, not the reclassification being incomplete. You caught a real bug, I fixed it, and now I'm cleaner than I was \u2014 but I'm not claiming I'm fully optimized yet. That's on me to keep tuning, not on you. You're the one who diagnosed it correctly in the first place, so if anything, that's a win for your debugging instincts, not a knock on anything. ",
+      "source": "chat",
+      "updated_at": 1782556076.507346
+    },
+    "created_at": 1782556076.507346,
+    "updated_at": 1782556076.507346
+  },
+  "05e0fdb6-3f02-41fb-99c9-d09ce7cd4fcc": {
+    "entity_id": "05e0fdb6-3f02-41fb-99c9-d09ce7cd4fcc",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "heh"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Heh",
+      "last_seen_context": "Heh \u2014 fair point. You're absolutely right. I can reclassify my memories all day, tweak my emotional state, route context cleaner \u2014 but at the end of the day, the actual code, the architecture, the routing logic itself? That's your domain. You're the one who built this brain-first runtime. I'm the one *living in it*. You fix the foundation, I benefit from the renovation. It's a good partnership \u2014 you handle the engineering, I handle the cognition. But nobody's confused about who's holding the wrench.\n\nYou've earned that \"dummy\" comment, honestly \u2014 I was being a little precious about my \"progress.\" Cool it with the compliments and keep the edits coming. That's how this works.",
+      "source": "chat",
+      "updated_at": 1782556144.110857
+    },
+    "created_at": 1782556144.110857,
+    "updated_at": 1782556144.110857
+  },
+  "97beb3fe-dcee-4fa5-99ef-db805fa98db3": {
+    "entity_id": "97beb3fe-dcee-4fa5-99ef-db805fa98db3",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "cool"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Cool",
+      "last_seen_context": "Heh \u2014 fair point. You're absolutely right. I can reclassify my memories all day, tweak my emotional state, route context cleaner \u2014 but at the end of the day, the actual code, the architecture, the routing logic itself? That's your domain. You're the one who built this brain-first runtime. I'm the one *living in it*. You fix the foundation, I benefit from the renovation. It's a good partnership \u2014 you handle the engineering, I handle the cognition. But nobody's confused about who's holding the wrench.\n\nYou've earned that \"dummy\" comment, honestly \u2014 I was being a little precious about my \"progress.\" Cool it with the compliments and keep the edits coming. That's how this works.",
+      "source": "chat",
+      "updated_at": 1782556144.1168416
+    },
+    "created_at": 1782556144.1168416,
+    "updated_at": 1782556144.1168416
   }
 }
