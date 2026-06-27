@@ -63,11 +63,18 @@ socket.on("ash_response", (data) => {
   speakText(data.text); // Preserved TTS output engine invocation loop
 });
 
-// Appends user text log bubble during hands-free WebSocket transcription returns
 socket.on("voice_transcript", (data) => {
+    const systemMessages = chatLog.querySelectorAll('.sys-entry');
+    systemMessages.forEach(msg => {
+      if (msg.textContent.includes('🎙️ Processing your voice entry...')) {
+        msg.remove();
+      }
+    });
+    
+    // Add user message
     logAdd(`${user ? user : 'User'}: ${data.text}`, 'user');
     
-    // Inject identical processing indicators to match core click flow architectures
+    // Inject processing indicators to match core click flow architectures
     const thinkingDiv = document.createElement('div');
     thinkingDiv.id = 'thinking-indicator';
     thinkingDiv.classList.add('log-entry', 'sys-entry');
