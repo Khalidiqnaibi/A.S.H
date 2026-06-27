@@ -19,7 +19,7 @@ if not logger.handlers:
     logger.addHandler(h)
 
 # 1. LABELS WE CARE ABOUT: Ignore numbers (CARDINAL), dates, and percents. 
-USEFUL_LABELS = {"PERSON", "ORG", "GPE", "LOC", "PRODUCT", "EVENT", "WORK_OF_ART", "FAC", "NORP"}
+USEFUL_LABELS = {"PERSON", "ORG", "GPE", "LOC", "PRODUCT", "EVENT", "WORK_OF_ART", "FAC", "NORP", "DATE"}
 
 class NERExtractor:
     """
