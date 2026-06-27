@@ -86,17 +86,35 @@ class CoreMemoryEngine:
     def add(self, key: str, payload: dict):
         import time
         existing = self.store.get(key)
+
+        # Backward compatible: callers that only ever passed
+        # {"text":..., "importance":...} keep getting exactly the old
+        # behavior (category="constraint", hard=False, priority from
+        # importance). Callers that now classify the statement (see
+        # MemoryRouter._classify_core_candidate) can additionally pass
+        # "category" / "hard", and optionally override "priority" directly.
+        category = payload.get("category", "constraint")
+        hard = bool(payload.get("hard", False))
+        if "priority" in payload:
+            priority = int(payload["priority"])
+        else:
+            priority = int(payload.get("importance", 0.5) * 10)
+
         if existing:
             existing.text = payload.get("text", existing.text)
+            existing.category = payload.get("category", existing.category)
+            existing.hard = payload.get("hard", existing.hard)
+            if "priority" in payload or "importance" in payload:
+                existing.priority = priority
             existing.updated_at = time.time()
             self.store.update(existing)
         else:
             rule = CoreRule(
                 rule_id=key,
-                category="constraint",
+                category=category,
                 text=payload.get("text", ""),
-                priority=int(payload.get("importance", 0.5) * 10),
-                hard=False
+                priority=priority,
+                hard=hard
             )
             self.store.add(rule)
         self._rebuild_index()
@@ -110,4 +128,4 @@ class CoreMemoryEngine:
             "hard": rule.hard,
             "created_at": rule.created_at,
             "updated_at": rule.updated_at
-        } for rule in self.store.all()}
+        } for rule in self.store.all()}

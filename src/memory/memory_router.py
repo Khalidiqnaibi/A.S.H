@@ -3,7 +3,7 @@ import logging
 import re
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .ner import NERExtractor
 from .disambiguation import Disambiguator
@@ -43,6 +43,69 @@ _STOPWORDS = {
     "today", "tomorrow", "yesterday", "now", "currently", "still", "right",
 }
 
+# ----------------------------------------------------------------------
+# Core-memory ingestion classification.
+#
+# Merely *mentioning* a core-memory-ish word ("what's our goal for the
+# rule changes?") is not the same as *asserting* one ("from now on,
+# always prioritize user instructions"). A flat keyword counter can't
+# tell those apart -- it would happily store the question. The classifier
+# below requires either:
+#   - an explicit author-tagged prefix ("Policy: ..."), the strongest
+#     possible signal, since someone is deliberately authoring an entry, or
+#   - a directive marker ("always", "never", "must", "from now on", ...)
+#     plus at least one matching category keyword, or
+#   - enough same-category keyword density on its own, as long as the
+#     sentence isn't phrased as a question.
+# Questions are excluded unless they also carry a directive, since asking
+# about a rule is not the same as stating one.
+# ----------------------------------------------------------------------
+_CORE_CATEGORY_KEYWORDS = {
+    "identity": {"identity", "you are", "i am", "your name", "you're called", "i'm called", "call you"},
+    "goal": {"goal", "mission", "objective", "purpose", "aim"},
+    "constraint": {"constraint", "rule", "policy", "limit", "forbidden", "not allowed", "restriction"},
+    "standard": {"standard", "guideline", "convention", "best practice"},
+}
+
+_CORE_DIRECTIVE_PHRASES = {
+    "remember that", "remember this", "from now on", "going forward",
+    "as a rule", "as a policy", "as a standard", "as a constraint", "as a guideline",
+    "make sure to always", "don't ever", "do not ever",
+}
+_CORE_DIRECTIVE_WORDS = {"always", "never", "must"}
+
+# Hedging/opinion language ("i think", "kind of", "ngl") signals a casual
+# remark, not a durable assertion -- even if it happens to contain enough
+# category keywords to otherwise clear the density bar.
+_CASUAL_HEDGE_MARKERS = {
+    "i think", "i guess", "kind of", "sort of", "lowkey", "kinda",
+    "probably", "maybe", "ngl", "tbh", "imo", "lol", "jk", "just kidding",
+}
+
+# Explicit author-tagged prefixes -> category. Unambiguous: someone wrote
+# the entry deliberately, so it's always honored as a hard rule.
+_CORE_EXPLICIT_PREFIXES = {
+    "policy:": "constraint",
+    "rule:": "constraint",
+    "constraint:": "constraint",
+    "standard:": "standard",
+    "identity:": "identity",
+    "goal:": "goal",
+    "mission:": "goal",
+    "remember:": "constraint",
+}
+
+_QUESTION_LEADS = {
+    "what", "why", "how", "when", "where", "who", "which", "whats",
+    "can", "could", "would", "is", "are", "do", "does", "did", "will", "should",
+}
+
+# "Our mission is to ...", "Your name is ASH" -- unambiguous defining
+# statements. Worth recognizing even on a single keyword hit, since the
+# sentence structure itself (subject + "is to" / "name is") is inherently
+# declarative, not a passing mention.
+_CORE_DEFINITION_RE = re.compile(r"\b(?:mission|goal|purpose|aim|objective)\s+is\s+to\b|\byour name is\b")
+
 
 class MemoryRouter:
     """
@@ -54,6 +117,8 @@ class MemoryRouter:
     Expected collaborator interfaces (matching core_manager.py / entity_manager.py /
     episodic_manager.py):
       - core_mem: CoreMemoryEngine — .add(key, payload), .retrieve(query, top_k) -> List[CoreRule]
+        (payload may include "category" and "hard" in addition to "text"/"importance";
+        CoreMemoryEngine.add() falls back to category="constraint", hard=False if omitted)
       - entity_mem: EntityManager — .ingest(entity_data), .find_matching_entities(mentions) -> List[Entity],
         and a `.store` with `.all() -> List[Entity]`
       - episodic_mem: EpisodicMemory — .add_episode(summary, event_type, related_entities, importance),
@@ -78,13 +143,16 @@ class MemoryRouter:
         self.disambiguator = disamb or Disambiguator()
         self.config = {
             "entity_link_threshold": 0.6,  # candidate score above this => auto-link (write path)
-            "core_keyword_min_count": 2,   # heuristics: if core keywords appear >= this, store in core
+            "core_keyword_min_count": 2,   # same-category keyword hits needed to store as core w/o a directive marker
             "save_min_importance": 0.2,
+            # Caller-asserted importance at/above this always stores as core,
+            # even if the text doesn't otherwise look like a directive.
+            "core_force_importance": 0.9,
 
             # --- retrieval tuning ---
             # How big a candidate pool to pull from core/episodic before we
             # filter it down. Bigger multiplier = more recall to choose from.
-            "retrieval_fetch_multiplier": 3,
+            "retrieval_fetch_multiplier": 4,
             # Minimum blended relevance score (0..1) a core/episodic memory
             # needs to be kept, unless it's flagged "always keep" below.
             "retrieval_relevance_threshold": 0.12,
@@ -101,8 +169,11 @@ class MemoryRouter:
 
             **(config or {})
         }
-        # core keywords: words that usually indicate core facts/rules (customize)
-        self.core_keywords = set(["policy", "constraint", "rule", "standard", "limit", "goal", "mission", "aim"])
+        # Flattened view of the categorized core keywords, kept for any
+        # external introspection -- classification itself uses the
+        # per-category dict (_CORE_CATEGORY_KEYWORDS) so it can both detect
+        # *and* tag the right category.
+        self.core_keywords = {kw for kws in _CORE_CATEGORY_KEYWORDS.values() for kw in kws}
 
     # ----------------------
     # Public entry
@@ -112,7 +183,9 @@ class MemoryRouter:
         Main call to route a text. Returns a dict describing action taken.
         Steps:
           1) run NER
-          2) decide if it's core (policy/goal)
+          2) classify whether the text is an actual durable core-memory
+             statement (identity/goal/constraint/standard) -- not just a
+             sentence that happens to mention one of those words
           3) if entities are detected: generically map them and pass to self.entity.ingest()
           4) append a clean interaction timeline window to episodic memory
         """
@@ -120,28 +193,32 @@ class MemoryRouter:
         ents = self.ner.extract(text)
         logger.info("NER extracted %d entities", len(ents))
 
-        # Quick heuristic: core detection
-        low_text = text.lower()
-        core_score = sum(1 for kw in self.core_keywords if kw in low_text)
-        is_core = core_score >= self.config["core_keyword_min_count"]
+        # Real core-memory classification: declarative directive/identity/
+        # goal/standard statement, not just a sentence that happens to
+        # contain one of those words (see _classify_core_candidate).
+        classification = self._classify_core_candidate(text)
+        force_core = importance >= self.config["core_force_importance"]
 
         result = {"routed_as": None, "details": {}, "time": 0.0}
 
         # If core -> add to core memory (idempotent)
-        if is_core or importance >= 0.9:
+        if classification or force_core:
+            category, hard = classification or ("constraint", False)
             key = self._core_key_from_text(text)
             payload = {
                 "text": text,
                 "summary": text[:512],
                 "importance": importance,
+                "category": category,
+                "hard": hard,
                 "source": source,
                 "actor": actor
             }
             try:
                 self.core.add(key, payload)
                 result["routed_as"] = "core"
-                result["details"] = {"key": key}
-                logger.info("Stored CORE memory key=%s", key)
+                result["details"] = {"key": key, "category": category, "hard": hard}
+                logger.info("Stored CORE memory key=%s category=%s hard=%s", key, category, hard)
                 result["time"] = time.time() - start
                 return result
             except Exception as e:
@@ -202,6 +279,91 @@ class MemoryRouter:
         # naive key: take first 6 words normalized
         k = "_".join(text.lower().strip().split()[:6])
         return f"core_{k}"
+
+    def _looks_like_question(self, low_text: str) -> bool:
+        """True if `low_text` (already lowercased) reads as an inquiry
+        rather than a statement -- ends in '?', or opens with a question
+        word/auxiliary verb."""
+        if low_text.rstrip().endswith("?"):
+            return True
+        m = re.match(r"[a-z']+", low_text)
+        if not m:
+            return False
+        first = m.group(0).split("'")[0]
+        return first in _QUESTION_LEADS
+
+    def _classify_core_candidate(self, text: str) -> Optional[Tuple[str, bool]]:
+        """
+        Decide whether `text` reads like an actual durable core-memory
+        statement (identity/goal/constraint/standard) rather than ordinary
+        chat that merely contains one of those words in passing.
+
+        Returns (category, hard) if it should be stored as core memory,
+        otherwise None.
+        """
+        stripped = text.strip()
+        if not stripped:
+            return None
+        low = stripped.lower()
+
+        # Explicit author-tagged prefix ("Policy: ...") is unambiguous --
+        # always honored, and always treated as hard since it was clearly
+        # written on purpose as a rule.
+        for prefix, category in _CORE_EXPLICIT_PREFIXES.items():
+            if low.startswith(prefix):
+                return category, True
+
+        is_question = self._looks_like_question(low)
+
+        # Multi-word phrases ("from now on", "remember that", "as a policy")
+        # are specifically meta-instructional and rarely show up in casual
+        # chat about something else -- safe to treat as a standalone signal.
+        has_strong_directive = any(phrase in low for phrase in _CORE_DIRECTIVE_PHRASES)
+        # Single words ("always", "never", "must") are common hyperbole in
+        # ordinary speech ("I'll never understand...", "you must be
+        # kidding") -- only meaningful paired with a real category keyword.
+        has_word_directive = any(re.search(rf"\b{word}\b", low) for word in _CORE_DIRECTIVE_WORDS)
+        has_definition = bool(_CORE_DEFINITION_RE.search(low))
+        has_directive = has_strong_directive or has_word_directive or has_definition
+
+        # A question is an inquiry, not an assertion -- "what's the rule
+        # here?" shouldn't become a rule. Unless it's *also* carrying an
+        # explicit directive, in which case it's not really a question.
+        if is_question and not has_directive:
+            return None
+
+        category_hits = {
+            cat: sum(1 for kw in kws if kw in low)
+            for cat, kws in _CORE_CATEGORY_KEYWORDS.items()
+        }
+        best_category = max(category_hits, key=lambda c: category_hits[c])
+        best_hits = category_hits[best_category]
+
+        # A strong directive phrase is enough on its own -- fall back to
+        # "constraint" if it doesn't happen to overlap a category keyword.
+        if has_strong_directive:
+            return (best_category if best_hits >= 1 else "constraint"), True
+
+        # Unambiguous defining structure ("our mission is to...", "your
+        # name is...") is valid on a single keyword hit -- the sentence
+        # shape itself is declarative, so density isn't the right bar.
+        if has_definition and best_hits >= 1:
+            return best_category, False
+
+        # A hyperbolic directive word only counts paired with a real
+        # category keyword ("you must always prioritize user safety").
+        if has_word_directive and best_hits >= 1:
+            return best_category, True
+
+        # No directive language at all: require real keyword density, and
+        # bail out on hedged/opinionated phrasing ("i think the policy
+        # limit is kind of annoying") even if it clears that bar -- that's
+        # commentary, not an assertion.
+        is_hedged = any(marker in low for marker in _CASUAL_HEDGE_MARKERS)
+        if best_hits >= self.config["core_keyword_min_count"] and not is_question and not is_hedged:
+            return best_category, False
+
+        return None
 
     def _summarize_for_episode(self, text: str, ents: List[Dict[str, Any]], actor: Optional[str]):
         # very small summarizer: mention entities and a short truncated text
