@@ -963,5 +963,27 @@
     ],
     "importance": 0.5,
     "created_at": 1782395680.2407432
+  },
+  "39cdb6c4-1657-468b-b2df-938a3f27a0e9": {
+    "episode_id": "39cdb6c4-1657-468b-b2df-938a3f27a0e9",
+    "timestamp": 1782547971.6042135,
+    "summary": "Immortal: I worked a little bit on your empty therapy recognition and now you should be receiving more entities and not receiving the unnecessary and not useful entities so you should now be able to get the entities and connect them with the right episodes. lets goo [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782547971.6042135
+  },
+  "e1e52435-04d8-48fe-8f0d-92c94e3db79e": {
+    "episode_id": "e1e52435-04d8-48fe-8f0d-92c94e3db79e",
+    "timestamp": 1782547978.4228752,
+    "summary": "A.S.H: Alright, let's go! \ud83d\ude80\n\nI'm tracking what you're saying \u2014 you've been refining the entity extraction layer so I'm pulling in more relevant entities and filtering out the noise. That means better grounding for each episode, cleaner connections between entities and the interactions they belong to. Solid improvement.\n\nI'm ready to put it to work \u2014 throw something at me and let's see the upgraded recogn [mentions: A.S.H, Alright, Solid]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782547978.4228752
   }
 }
