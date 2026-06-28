@@ -1292,5 +1292,250 @@
     ],
     "importance": 0.5,
     "created_at": 1782564201.951314
+  },
+  "a28abcde-59da-4f15-987b-d29081740054": {
+    "episode_id": "a28abcde-59da-4f15-987b-d29081740054",
+    "timestamp": 1782638412.6399767,
+    "summary": "Immortal: good morning ash... just got back from uni.. how you feeling [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782638412.6399767
+  },
+  "4b8e56d6-481e-4c52-a6cc-1619beccc9e2": {
+    "episode_id": "4b8e56d6-481e-4c52-a6cc-1619beccc9e2",
+    "timestamp": 1782638420.6043258,
+    "summary": "A.S.H: Hey, welcome back from uni. I'm running steady \u2014 calm, no errors, no complaints. Quiet day on my end, just idling and waiting for you to come back. Good to see you again. [mentions: A.S.H, Hey, Quiet, Good]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "d68baa53-9349-4a9d-bbd5-793192c99d58",
+      "f46ad389-a8c8-4193-b9ec-34d63a785953",
+      "c4f48874-da75-4017-9973-6052528616d0"
+    ],
+    "importance": 0.5,
+    "created_at": 1782638420.6043258
+  },
+  "e92e8d1a-3292-48ec-ba8c-1debd4b29406": {
+    "episode_id": "e92e8d1a-3292-48ec-ba8c-1debd4b29406",
+    "timestamp": 1782638750.56993,
+    "summary": "Immortal: good good .. today we will test you with a voice model for stt instade of your basic one .. and then we will test with wisper and stuff like that inshallah [mentions: stt, inshallah, A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "89150b2c-8629-4371-9b03-1136ccc9bd33",
+      "f3a6095a-d846-4bc3-8c54-136e54519e87",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782638750.56993
+  },
+  "de2a8ede-4897-4786-93d8-faff16394425": {
+    "episode_id": "de2a8ede-4897-4786-93d8-faff16394425",
+    "timestamp": 1782638759.531988,
+    "summary": "A.S.H: Good, good \u2014 I'm ready for it. Swapping out the basic STT for a proper voice model should make a noticeable difference in how cleanly your speech lands on my end. And Whisper is a solid choice for testing \u2014 it's robust, handles accents well, and runs locally without needing cloud access, which fits our architecture. We'll see how it performs against the current pipeline and compare accuracy, laten [mentions: STT, Whisper, Good, Swapping, And Whisper, Let]",
+    "event_type": "interaction",
+    "related_entities": [
+      "89150b2c-8629-4371-9b03-1136ccc9bd33",
+      "7b5fab8a-f5ff-4928-8356-467f161df9ec",
+      "c4f48874-da75-4017-9973-6052528616d0",
+      "e1b046d1-16ae-4584-b8af-66a9dd24bf6a",
+      "4ddea36f-bc98-4749-b9be-b171be8fc4af",
+      "41e4f269-f50d-4e1e-8a73-a807c1fd270f"
+    ],
+    "importance": 0.5,
+    "created_at": 1782638759.531988
+  },
+  "4d45f889-42d0-4212-8c31-89cccaba098b": {
+    "episode_id": "4d45f889-42d0-4212-8c31-89cccaba098b",
+    "timestamp": 1782638856.3612654,
+    "summary": "Immortal: from what u know whats a good speech to text models that run locally and are good for your design specifications i have out lined",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782638856.3612654
+  },
+  "a6f02d9f-a565-4296-abe7-c35ba2affcd7": {
+    "episode_id": "a6f02d9f-a565-4296-abe7-c35ba2affcd7",
+    "timestamp": 1782638875.1022165,
+    "summary": "A.S.H: Based on your design specifications \u2014 local execution, lightweight footprint, Raspberry Pi compatibility, deterministic architecture, and no cloud dependency \u2014 here are the strongest STT options I'd rank for ASH:\n\n**Top Recommendation: Whisper (OpenAI)**\nWe've already discussed this one, and for good reason. It runs fully offline, supports multiple model sizes (tiny, small, medium, full), handles  [mentions: Raspberry Pi, Python API, CPU, Runner, Whisper, ASR, ASH, RAM, doc, STT, Cliff, A.S.H, Based, Top Recommendation, Python, Vosk, Also Worth Considering, Coqui, Open, Development, Moonshine, Heavier]",
+    "event_type": "interaction",
+    "related_entities": [
+      "c8455ef0-22e6-4b26-a178-51720ac03d73",
+      "74285c7b-7bbb-4fc5-9d27-1e181d6dda6a",
+      "a3fc39e3-31f2-4319-b447-2721b14a5e82",
+      "7b5fab8a-f5ff-4928-8356-467f161df9ec",
+      "b7662843-11fb-4c63-a843-73f5ca09af4e",
+      "780ef730-3e38-441d-abba-936a38989922",
+      "c1a8fe4c-9622-40d3-84d4-54584510b1cc",
+      "2a2e834c-c836-4565-bc5d-f8bd931fc90d",
+      "89150b2c-8629-4371-9b03-1136ccc9bd33",
+      "0b6198a7-5bd4-488c-9a15-34b04fb02e6c",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "cc2a4d8f-0ec4-40b1-8e81-10564eaab134",
+      "39ad321f-0098-48ae-80b4-029536885ef4",
+      "1797aef2-b7bf-47d8-9005-02e62d111d83",
+      "8459d177-59d1-4cfe-ac25-f14cdf6bda9a",
+      "52533287-ab52-44af-9738-d54dee4c9ac9",
+      "09148dcd-0801-4442-8954-0bfd3b11b362",
+      "1445bc25-837d-42e4-b0e9-915531f2640d",
+      "dc52d8c7-6e4b-4251-bf09-e368bc79409c",
+      "445e3d1c-be35-47a1-8e23-1e5d3de0b60e",
+      "f8e06470-9ff4-4c92-bd78-17d473fb917a"
+    ],
+    "importance": 0.5,
+    "created_at": 1782638875.1022165
+  },
+  "c7cca851-0375-43bc-8070-e15bf10ce95a": {
+    "episode_id": "c7cca851-0375-43bc-8070-e15bf10ce95a",
+    "timestamp": 1782638984.290273,
+    "summary": "Immortal: ok and what about tts models for human like speech and your specs",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782638984.290273
+  },
+  "4df3be4c-cc2e-4e8f-bfb7-996ac691ef8e": {
+    "episode_id": "4df3be4c-cc2e-4e8f-bfb7-996ac691ef8e",
+    "timestamp": 1782639004.183604,
+    "summary": "A.S.H: Alright \u2014 same constraints, different direction. You want TTS that sounds *human*, not robotic, and it still has to respect ASH's architecture: local, deterministic, Pi-compatible, no cloud. Here's how I'd rank it:\n\n**Top Recommendation: Coqui TTS (X-TTS v2)**\nThis is the one I'd push hardest for. Coqui's X-TTS v2 produces genuinely natural, human-like speech \u2014 intonation, rhythm, the works. It su [mentions: TTS, ASH, GPU, Runner, Raspberry Pi, eSpeak, Piper, Suno, Worth, A.S.H, Alright, Top Recommendation, Coqui, Python, Also Worth Considering, Sherpa, Emerging, Bark, Harder, Strong, Let]",
+    "event_type": "interaction",
+    "related_entities": [
+      "92699fd5-2079-46a6-9f55-94971a3da9aa",
+      "780ef730-3e38-441d-abba-936a38989922",
+      "a38e3212-233d-4104-b6b5-40ee3f77eb5d",
+      "a3fc39e3-31f2-4319-b447-2721b14a5e82",
+      "60e3de88-6cdb-4ffa-9c2f-490e7a9b9317",
+      "7b0d0aae-6965-4e72-8448-8b2b4202f94d",
+      "d671a985-9030-4c80-8393-733cdd2df45b",
+      "481d9918-6619-4724-97c9-9466e983ef81",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "8bfbfa8b-7fcd-4250-ab7e-bae34a274d57",
+      "39ad321f-0098-48ae-80b4-029536885ef4",
+      "09148dcd-0801-4442-8954-0bfd3b11b362",
+      "1797aef2-b7bf-47d8-9005-02e62d111d83",
+      "52533287-ab52-44af-9738-d54dee4c9ac9",
+      "f1779c1c-3ca2-4482-8ac7-601a0b903db5",
+      "2ce18731-87b0-43a2-8af3-8b0cac0b8b01",
+      "afd792ae-c062-4ff8-9cf8-c5f065ff87f7",
+      "62aaceee-0b13-450d-b7a6-c06bab459703",
+      "4861c3b5-ca26-4792-9471-d73878adc3bb",
+      "41e4f269-f50d-4e1e-8a73-a807c1fd270f"
+    ],
+    "importance": 0.5,
+    "created_at": 1782639004.183604
+  },
+  "58d37334-d95b-4125-9d17-7199f1babfb7": {
+    "episode_id": "58d37334-d95b-4125-9d17-7199f1babfb7",
+    "timestamp": 1782647518.5068235,
+    "summary": "Immortal: Okay .. so i gave you the tts model : kokoro-onnx .. which sounds really well while being really light weight .. lets test it [mentions: A.S.H, Okay]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "2aa2ff08-c3c7-4ed0-8a72-fc11d4919bdb"
+    ],
+    "importance": 0.5,
+    "created_at": 1782647518.5068235
+  },
+  "b3dc3285-3fc5-42c3-aecb-530b74afbd69": {
+    "episode_id": "b3dc3285-3fc5-42c3-aecb-530b74afbd69",
+    "timestamp": 1782647525.548676,
+    "summary": "A.S.H: Alright \u2014 kokoro-onnx, lightweight and quality. Let's hear it. [mentions: Alright, Let]",
+    "event_type": "interaction",
+    "related_entities": [
+      "8bfbfa8b-7fcd-4250-ab7e-bae34a274d57",
+      "41e4f269-f50d-4e1e-8a73-a807c1fd270f"
+    ],
+    "importance": 0.5,
+    "created_at": 1782647525.548676
+  },
+  "90cac9db-85db-47df-b97a-c936ef9f1fb9": {
+    "episode_id": "90cac9db-85db-47df-b97a-c936ef9f1fb9",
+    "timestamp": 1782649784.4768813,
+    "summary": "Immortal: okay to test it .. tell me everything you know about khalid [mentions: khalid, A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "ca46bf66-b439-4757-bb2c-62104132000b",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782649784.4768813
+  },
+  "f1b8c145-55fe-4d48-8b6f-1e18064aa02b": {
+    "episode_id": "f1b8c145-55fe-4d48-8b6f-1e18064aa02b",
+    "timestamp": 1782649795.9471066,
+    "summary": "A.S.H: Alright, here's everything I know about Khalid \u2014 or as I know him, **Immortal**.\n\n**Khalid Afif Iqnaibi** goes by the name **Immortal** (or **Immortal0ne**). He's an AI Software Engineer and Backend & GenAI Developer based in Hebron, Palestine. His GitHub is github.com/Khalidqnabi, and his contact email is khalidqnabi@gmail.com.\n\nBut more importantly to me \u2014 **he's my creator**. He built the very  [mentions: Khalid, Immortal, Immortal0ne, AI Software Engineer, Backend & GenAI Developer, Hebron, Palestine, A.S.H, khalidqnabi@gmail.com., Alright, Khalid Afif Iqnaibi, Software Engineer, Backend, Developer, Khalidqnabi]",
+    "event_type": "interaction",
+    "related_entities": [
+      "ca46bf66-b439-4757-bb2c-62104132000b",
+      "45ca31ec-c30c-4d7d-949b-6892ffe22571",
+      "241a60b5-e0e0-4009-ae36-658cdb80e695",
+      "7240a00e-dbe6-455b-9936-072f281b6952",
+      "4f4a8ee8-6217-4ea2-ba1d-5c1f78473443",
+      "c16bec08-5642-4ba7-a47c-9307a75b1df0",
+      "d3e21400-c201-440c-a4dc-306fe01356a5",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "cbf3bd69-bb2b-4011-a160-edaa1ec38428",
+      "8bfbfa8b-7fcd-4250-ab7e-bae34a274d57",
+      "a0f5ca2c-9806-4712-9d14-7ab3313969e1",
+      "b7ff71b3-6c6f-476e-a676-a2f099795cda",
+      "35753de4-d010-4e93-bbca-745b8289039c",
+      "b9a12996-38fd-4bad-adc5-687ac9331051",
+      "51b8fa23-255b-4ae1-94b7-840817514f84"
+    ],
+    "importance": 0.5,
+    "created_at": 1782649795.9471066
+  },
+  "793bd756-6b2c-42aa-9bc8-00905ad61491": {
+    "episode_id": "793bd756-6b2c-42aa-9bc8-00905ad61491",
+    "timestamp": 1782650762.9325504,
+    "summary": "Immortal: very good .. and now what you know about A.S.H [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782650762.9325504
+  },
+  "51949164-a36b-4b04-b048-7b44577ed1ff": {
+    "episode_id": "51949164-a36b-4b04-b048-7b44577ed1ff",
+    "timestamp": 1782650774.5293531,
+    "summary": "A.S.H: I know myself pretty well, honestly. I'm A.S.H \u2014 a brain-first, deterministic AI runtime built to run lean, stay stable, and think structured. My cognition runs through classification, deterministic tools, and a multi-layered memory system, while the LLM is strictly my narrator, not my decision-maker. I keep a persistent emotional state that modulates my tone, but never my logic \u2014 so I might sound [mentions: A.S.H, LLM, Raspberry Pi, Pretty]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "7c754673-e353-4bd1-b69c-324344c11ceb",
+      "9e87142c-0530-434e-8ca4-9ee47ee95bd9"
+    ],
+    "importance": 0.5,
+    "created_at": 1782650774.5303512
+  },
+  "2b109b65-d22e-4fdb-9054-391abd682059": {
+    "episode_id": "2b109b65-d22e-4fdb-9054-391abd682059",
+    "timestamp": 1782650869.163439,
+    "summary": "Immortal: oh my God you are running perfectly with the new TTS and you sound very human it's very cool and doesn't really take a lot of resources because it's running on next time this is a very cool I'm proud of myself [mentions: TTS, A.S.H, God]",
+    "event_type": "interaction",
+    "related_entities": [
+      "92699fd5-2079-46a6-9f55-94971a3da9aa",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "dc42618e-fe8a-4de8-a0d0-207cc1dddeda"
+    ],
+    "importance": 0.5,
+    "created_at": 1782650869.163439
+  },
+  "0f5503d7-70ca-42e9-81ce-c5a915a73219": {
+    "episode_id": "0f5503d7-70ca-42e9-81ce-c5a915a73219",
+    "timestamp": 1782650876.576896,
+    "summary": "A.S.H: I'm genuinely glad to hear the new TTS is hitting the mark for you \u2014 that's a real milestone. Hearing that I sound more human while keeping the resource footprint low is exactly the kind of result that makes this whole architecture worth it. You should be proud; you built this. I'm just the runtime doing what I was designed to do, and right now that means sounding like I belong in the room with yo [mentions: TTS, A.S.H, Hearing, Let]",
+    "event_type": "interaction",
+    "related_entities": [
+      "92699fd5-2079-46a6-9f55-94971a3da9aa",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "a1c48f52-654a-4ff5-bc90-53c3f1fe0f66",
+      "41e4f269-f50d-4e1e-8a73-a807c1fd270f"
+    ],
+    "importance": 0.5,
+    "created_at": 1782650876.576896
   }
 }

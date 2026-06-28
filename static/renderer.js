@@ -44,62 +44,53 @@ socket.on("reconnect", () => {
 });
 
 socket.on("connect_error", (err) => {
-  console.error("Connection error:", err.message);
+  console.error("Socket error:", err);
+});
+
+// Server pushed text response sequence
+socket.on("ash_response", (data) => {
+  // Clear the "thinking..." animation block if it exists
+  const thinking = document.getElementById('ash-thinking');
+  if (thinking) thinking.remove();
+
+  logAdd(data.text, "ai");
+  sendButton.disabled = false; // unlock input form controls
+});
+
+// Server pushed raw STT voice transcript to sync text frames
+socket.on("voice_transcript", (data) => {
+  const thinking = document.getElementById('ash-thinking');
+  if (thinking) thinking.remove();
+  
+  logAdd(data.text, "user");
+
+  // Inject a fresh thinking indicator while LLM finishes generating stream
+  const thinkingDiv = document.createElement('div');
+  thinkingDiv.id = 'ash-thinking';
+  thinkingDiv.classList.add('log-entry', 'sys-entry');
+  thinkingDiv.textContent = 'ASH is thinking...';
+  chatLog.appendChild(thinkingDiv);
+  chatLog.scrollTop = chatLog.scrollHeight;
 });
 
 socket.on("system", (data) => {
   logAdd(data.msg, "system");
 });
 
-socket.on("ash_response", (data) => {
-  // Remove thinking indicator if present
-  const thinking = document.getElementById('thinking-indicator');
-  if (thinking) thinking.remove();
-  
-  // Re-enable send button
-  sendButton.disabled = false;
-  kprint(data.text);
-  
-  speakText(data.text); // Preserved TTS output engine invocation loop
-});
 
-socket.on("voice_transcript", (data) => {
-    const systemMessages = chatLog.querySelectorAll('.sys-entry');
-    systemMessages.forEach(msg => {
-      if (msg.textContent.includes('🎙️ Processing your voice entry...')) {
-        msg.remove();
-      }
-    });
-    
-    // Add user message
-    logAdd(`${user ? user : 'User'}: ${data.text}`, 'user');
-    
-    // Inject processing indicators to match core click flow architectures
-    const thinkingDiv = document.createElement('div');
-    thinkingDiv.id = 'thinking-indicator';
-    thinkingDiv.classList.add('log-entry', 'sys-entry');
-    thinkingDiv.textContent = 'ASH is thinking...';
-    chatLog.appendChild(thinkingDiv);
-    chatLog.scrollTop = chatLog.scrollHeight;
-    
-    sendButton.disabled = true;
-});
-
-
-/* ---------- SEND MESSAGE ---------- */
+/* ---------- USER INPUT HANDLING ---------- */
 
 sendButton.addEventListener('click', () => {
-
   const message = inputField.value.trim();
-  inputField.value = '';
-
   if (!message) return;
 
-  logAdd(`${user ? user : 'User'}: ${message}`,'user');
+  // Render immediately locally
+  logAdd(message, "user");
+  inputField.value = '';
 
-  // Show thinking indicator
+  // Append a lightweight systemic visual anchor for generation lifecycle tracking
   const thinkingDiv = document.createElement('div');
-  thinkingDiv.id = 'thinking-indicator';
+  thinkingDiv.id = 'ash-thinking';
   thinkingDiv.classList.add('log-entry', 'sys-entry');
   thinkingDiv.textContent = 'ASH is thinking...';
   chatLog.appendChild(thinkingDiv);
@@ -124,57 +115,96 @@ inputField.addEventListener('keyup', (event) => {
 });
 
 
-/* ---------- VOICE I/O (STT & TTS) ---------- */
+/* ---------- VOICE I/O (STT & LOCAL KOKORO TTS) ---------- */
 
-// 1. Text-to-Speech (TTS) Setup - COMPLETELY PRESERVED
+// 1. Local TTS Controls & Event State Trackers
 let ttsEnabled = false;
 const ttsToggle = document.getElementById('tts-toggle');
-const synth = window.speechSynthesis;
+
+const audioQueue = [];
+let isPlayingAudio = false;
+let currentAudio = null;
 
 if (ttsToggle) {
     ttsToggle.addEventListener('click', () => {
         ttsEnabled = !ttsEnabled;
         ttsToggle.textContent = ttsEnabled ? "🔊 TTS: ON" : "🔊 TTS: OFF";
         ttsToggle.style.background = ttsEnabled ? "#042b46" : "transparent";
+        
+        // Dynamic Intercept: Flush buffers if disabled mid-stream
+        if (!ttsEnabled) {
+            audioQueue.length = 0;
+            if (currentAudio) {
+                currentAudio.pause();
+                isPlayingAudio = false;
+                currentAudio = null;
+            }
+        }
     });
 }
 
-function speakText(text) {
-    if (!ttsEnabled || !synth) return;
-    const cleanText = text.replace(/[*_~`#>-]/g, '');
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
-    
-    const voices = synth.getVoices();
-    const preferredVoice = voices.find(v => v.lang.includes('en-GB') || v.lang.includes('en-US'));
-    if (preferredVoice) utterance.voice = preferredVoice;
+// 2. Process Binary WAV Chunks from Socket Server Pipeline
+socket.on("ash_audio", (data) => {
+    if (!ttsEnabled) return; 
 
-    synth.speak(utterance);
+    // Convert raw binary network payload into a playable audio blob container
+    const blob = new Blob([data.audio], { type: 'audio/wav' });
+    const url = URL.createObjectURL(blob);
+    
+    audioQueue.push(url);
+    playNextChunk();
+});
+
+// 3. Sequential Back-to-Back Audio Queue Executor
+function playNextChunk() {
+    if (isPlayingAudio || audioQueue.length === 0) return;
+
+    isPlayingAudio = true;
+    const nextAudioUrl = audioQueue.shift();
+    currentAudio = new Audio(nextAudioUrl);
+    
+    currentAudio.onended = () => {
+        isPlayingAudio = false;
+        URL.revokeObjectURL(nextAudioUrl); // Memory release guard
+        playNextChunk(); // Recursively execute subsequent chunks
+    };
+
+    currentAudio.play().catch(e => {
+        console.error("Audio playback execution blocked or dropped:", e);
+        isPlayingAudio = false;
+        playNextChunk();
+    });
 }
 
-// 2. Binary Socket.IO Audio Recorder Pipeline
+
+/* ---------- HARDWARE MICROPHONE INPUT CONTROLLER (LOCAL STT) ---------- */
+
+let isRecording = false;
 let mediaRecorder = null;
 let audioChunks = [];
-let isRecording = false;
 
 if (micButton) {
     micButton.addEventListener('click', async () => {
         if (isRecording) {
-            mediaRecorder.stop();
+            if (mediaRecorder && mediaRecorder.state !== "inactive") {
+                mediaRecorder.stop();
+            }
         } else {
             audioChunks = [];
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream);
+                isRecording = true;
+                micButton.classList.add('recording');
+                
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
                 
                 mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) audioChunks.push(event.data);
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
                 };
                 
                 mediaRecorder.onstart = () => {
-                    isRecording = true;
-                    micButton.classList.add('recording');
                     inputField.placeholder = "Listening... Press mic again to stop.";
                 };
                 

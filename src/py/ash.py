@@ -235,6 +235,7 @@ class ASH:
         # Retrieve context from layered memory router
         try:
             mem_context = self.memory.retrieve_context(query)
+            print("memory: " , mem_context)
             core_block = mem_context.get("core", "")
             episode_block = mem_context.get("episodic", "")
             entity_block = mem_context.get("entity", "")

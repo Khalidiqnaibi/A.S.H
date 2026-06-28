@@ -3,6 +3,14 @@
 **Version: Brain-First Runtime Architecture**
 
 ---
+# setup
+``` bash
+pip install -r "requirements.txt"
+mkdir -p models
+curl -L -o models/kokoro-v1.0.onnx https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
+curl -L -o models/voices-v1.0.bin https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
+```
+---
 
 # Identity
 

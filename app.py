@@ -21,6 +21,8 @@ from datetime import datetime
 import speech_recognition as sr
 from pydub import AudioSegment
 
+from tools.tts import TTSEngine
+
 try:
     from src.py.ash import ash  # preferred: import the instantiated object
 except Exception:
@@ -48,6 +50,8 @@ socketio = SocketIO(
     manage_session=False,
     async_mode='threading'
 )
+
+tts_engine = TTSEngine(model_path="models/kokoro-v1.0.onnx", voices_path="models/voices-v1.0.bin")
 
 # Per-sid client state storage
 client_states: Dict[str, Dict] = {}  # sid -> {"client_time": ..., "history": [...]}
@@ -101,6 +105,10 @@ def _execute_ash_pipeline(sid, user, msg):
 
             # Emit back to the client who sent it
             socketio.emit("ash_response", {"text": response}, room=sid)
+            
+            # Stream the TTS Audio Chunks
+            for audio_chunk in tts_engine.stream_audio(response):
+                    socketio.emit("ash_audio", {"audio": audio_chunk}, room=sid)
 
         except Exception as exc:
             print("[ERROR] handle_user_message background task failed:", exc, file=sys.stderr, flush=True)

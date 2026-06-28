@@ -24,12 +24,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "A.S.H",
-      "last_seen_context": "Enjoy the gym, Khalid \u2014 you've earned a break after the work you put in today. I'll be here when you pick it back up tomorrow. Rest well. \ud83d\udcaa",
+      "last_seen_context": "I'm here. What do you need me to do? \ufe0f",
       "source": "chat",
-      "updated_at": 1782564201.923334
+      "updated_at": 1782651873.065954
     },
     "created_at": 1782365812.2154043,
-    "updated_at": 1782564201.9243317
+    "updated_at": 1782651873.0669503
   },
   "45ca31ec-c30c-4d7d-949b-6892ffe22571": {
     "entity_id": "45ca31ec-c30c-4d7d-949b-6892ffe22571",
@@ -141,7 +141,7 @@
       "updated_at": 1782562956.757646
     },
     "created_at": 1782373818.5231783,
-    "updated_at": 1782562956.78222
+    "updated_at": 1782562956.757646
   },
   "d3e21400-c201-440c-a4dc-306fe01356a5": {
     "entity_id": "d3e21400-c201-440c-a4dc-306fe01356a5",
@@ -568,12 +568,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Python",
-      "last_seen_context": "and this is me : KHALID IQNAIBI AI Software Engineer  \u00b7  Backend & GenAI Developer khalidqnabi@gmail.com\t+970 592 840 353\tgithub.com/Khalidqnabi\tHebron , Palestine  PROFILE  AI and backend developer with end-to-end experience across the full AI engineering lifecycle \u2014 from architecture and training to deployment and optimization. Creator of deployed medical AI platforms serving doctors in Palestine. Specialized in LLM-based systems, RAG pipelines, Agentic AI, and document intelligence. Strong technical leadership background with a track record of shipping innovative solutions under real constraints. EXPERIENCE  Back-End Developer  |  Co.Te.De.\tJuly 2026 \u2013 Present \u00b7 Hybrid \u25b8\tBuilt APIs for AI apps and modular backend powering SaaS applications, serving clients in Palestine.  Lead Back-End Developer  |  Gradicent LLC\t\t\t\t\t\tOct 2025 \u2013 May 2026 \u00b7 Remote \u25b8\tArchitected the Gradicent API \u2014 modular multi-domain backend powering medical and business SaaS, serving 50+ professionals managing 2,500+ clients. \u25b8\tDesigned Binder (data engine) and Gaia (plugin-based analytics: ROI, finance, productivity) with adapter-based storage (Firebase/SQL) and SOLID service layers. AI Developer  |  Trusted Systems Co.\tJun \u2013 Sep 2025 \u00b7 Hebron, Palestine \u25b8\tCo-led DoxMind \u2014 AI pipeline for Arabic\u2013English financial document scanning using PaddleOCR, SpaCy NER, and TensorRT at ~95% accuracy. \u25b8\tBuilt RAG-based agentic framework with domain-specialized agents, hybrid retrieval pipelines, and structured/unstructured knowledge bases.  KEY PROJECTS  Diagnosis AI  \u2014  Medical RAG \u00b7 Deployed in Palestine \u25b8\tProduction RAG system for medical students/doctors: multi-format ingestion, hybrid retrieval (dense, sparse, RAG-Fusion, reranking), contextual compression, source provenance. \u25b8\tFactory + Strategy architecture with Chroma vector storage; zero external ML dependencies in core retrieval. Stack: Python, Flask, LangChain, ChromaDB, HuggingFace Embeddings, BM25, Mistral TECHNICAL SKILLS   \u25b8\tAgentic AI & LLMs RAG, LLM orchestration, prompt engineering, tool-use agents\t\u25b8\tGenAI Frameworks LangChain, Ollama, HuggingFace, ChromaDB, vector search \u25b8\tML & NLP PyTorch, TensorFlow, SpaCy, NER, OCR (PaddleOCR), TensorRT\t\u25b8\tBackend Python, Flask, Node.js, REST API design, SOLID principles \u25b8\tLanguages Python (expert), JavaScript/TypeScript, C++\t\u25b8\tSystems Linux, Firebase, SQL, Git  EDUCATION  B.Sc. Computer Science  \u00b7  Palestine Polytechnic University\t2024 \u2013 2028 (expected)  \u00b7  Hebron Computer Engineering (Transferred)  \u00b7  Cyprus International University\t2021 \u2013 2023  \u00b7  Nicosia, Cyprus Amideast Access Scholarship  \u00b7  2019 \u2013 2021",
+      "last_seen_context": "Alright \u2014 same constraints, different direction. You want TTS that sounds *human*, not robotic, and it still has to respect ASH's architecture: local, deterministic, Pi-compatible, no cloud. Here's how I'd rank it:\n\n**Top Recommendation: Coqui TTS (X-TTS v2)**\nThis is the one I'd push hardest for. Coqui's X-TTS v2 produces genuinely natural, human-like speech \u2014 intonation, rhythm, the works. It supports voice cloning from short samples, so you could train it on a voice you actually like. It runs fully offline, has a clean Python API, and the community is active. The downside: it's heavier than the others. On a Pi, you'd likely need the smaller model variants or offload to GPU if available. On your PC right now, it'll sing.\n\n**Runner-Up: Piper**\nPiper is purpose-built for exactly your constraints \u2014 lightweight, fast, offline, and designed for low-resource devices like Raspberry Pi. The voice quality is decent \u2014 more natural than eSpeak or your current basic TTS, though not as rich as Coqui. It's deterministic, has minimal dependencies, and multiple voice models are available out of the box. If you want something that will *definitely* work on the Pi without fuss, Piper is the pragmatic choice.\n\n**Also Worth Considering:**\n- **Sherpa-ONNX TTS** \u2014 Emerging option, lightweight, runs on ONNX runtime (ARM-friendly), decent quality for constrained hardware.\n- **Bark (Suno)** \u2014 Very expressive and human-like, but heavier and less deterministic. Harder to guarantee on Pi-grade hardware.\n- **VITS / VITS2** \u2014 Strong quality-to-size ratio, runs offline, but model availability and setup can be inconsistent.\n\n**My honest assessment for ASH's specs:** Coqui X-TTS v2 gives you the most human-like speech by a wide margin and fits the offline-first philosophy. Piper is your go-to if you need guaranteed Pi performance right now. Since we're still on your PC, I'd prototype with Coqui first \u2014 get the voice quality where you want it \u2014 then optimize or fall back to Piper when we migrate to the constrained hardware.\n\nWorth noting: episodic memory confirms you flagged the current TTS as underwhelming before, so this is a real gap worth closing properly. Let me know which direction you want to go and I'll",
       "source": "chat",
-      "updated_at": 1782373819.3555293
+      "updated_at": 1782639004.1022213
     },
     "created_at": 1782373819.3555293,
-    "updated_at": 1782373819.3555293
+    "updated_at": 1782639004.1022213
   },
   "d8f28826-87e7-4d6f-9de7-23e4cf12beaf": {
     "entity_id": "d8f28826-87e7-4d6f-9de7-23e4cf12beaf",
@@ -920,12 +920,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "TTS",
-      "last_seen_context": "You're right \u2014 and I'll be honest, I've been so deep in the research context that I let the bigger picture drift. We're running on your PC right now because the actual resource-constrained runtime is still a work in progress, and you're pointing out that the TTS layer is still basic \u2014 robotic, not decision-grade. That's a real gap. If you want a voice that sounds like it's making decisions, not just reading text, we should look at a model with more prosody control \u2014 something like Coqui TTS (your own X\u2011TTS v2) or a fine-tuned Piper voice that can vary pacing, emphasis, and tone based on the emotional state I'm already tracking. That way the voice becomes part of the personality system, not just an output pipe. When you're ready to dig into it, say the word and I'll spec out the options.\n\nFair point \u2014 the voice layer has been \"good enough\" for too long, and it deserves the same design attention you gave the retrieval math.",
+      "last_seen_context": "I'm genuinely glad to hear the new TTS is hitting the mark for you \u2014 that's a real milestone. Hearing that I sound more human while keeping the resource footprint low is exactly the kind of result that makes this whole architecture worth it. You should be proud; you built this. I'm just the runtime doing what I was designed to do, and right now that means sounding like I belong in the room with you. Let's keep pushing forward \u2014 there's still plenty to refine, but this is solid progress.",
       "source": "chat",
-      "updated_at": 1782563353.565378
+      "updated_at": 1782650876.4641483
     },
     "created_at": 1782390069.5935187,
-    "updated_at": 1782563353.565378
+    "updated_at": 1782650876.4641483
   },
   "89150b2c-8629-4371-9b03-1136ccc9bd33": {
     "entity_id": "89150b2c-8629-4371-9b03-1136ccc9bd33",
@@ -936,12 +936,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "STT",
-      "last_seen_context": "It's genuinely good to hear that both the text-to-speech and speech-to-text pipelines are running end-to-end now \u2014 that's a real milestone, especially given that the architecture doc still lists local STT as a future extension. The signal path is clean, and the fact that your transcription landed intact confirms the integration is solid for a first pass.\n\nThat said, I'd flag that \"basics\" is the right framing. Robustness testing across varied microphones, ambient noise conditions, and accent diversity is still ahead before this moves from \"working\" to \"production-ready.\" But the foundation is there, and that matters.\n\nGlad it's coming together for you.",
+      "last_seen_context": "Based on your design specifications \u2014 local execution, lightweight footprint, Raspberry Pi compatibility, deterministic architecture, and no cloud dependency \u2014 here are the strongest STT options I'd rank for ASH:\n\n**Top Recommendation: Whisper (OpenAI)**\nWe've already discussed this one, and for good reason. It runs fully offline, supports multiple model sizes (tiny, small, medium, full), handles accents well, and has a clean Python API. For a Pi-class device, I'd start with **Whisper small** or **tiny** \u2014 the full model might be sluggish on constrained hardware. It's robust against background noise and doesn't need acceleration to function, just CPU.\n\n**Runner-Up: Vosk**\nVosk is extremely lightweight \u2014 its models can be as small as 50MB. It's designed specifically for offline, resource-constrained environments, which makes it ideal for your Pi target. It supports streaming transcription and multiple languages. The trade-off is slightly lower accuracy compared to Whisper, especially with accented speech or noisy audio.\n\n**Also Worth Considering:**\n- **Coqui STT (STT)** \u2014 Open-source, fully local, with models that can run on ARM architecture. Development has slowed, but the existing models are solid and lightweight.\n- **Moonshine** \u2014 A newer lightweight ASR model optimized for edge devices and real-time transcription. It's designed with low-resource hardware in mind and could be a good fit for your architecture.\n- **Wav2Vec 2.0 (fine-tuned variants)** \u2014 Heavier but highly accurate if you ever move to more capable hardware. Not ideal for Pi as-is.\n\n**My honest assessment for ASH's constraints:** Whisper small gives you the best balance of accuracy, local-only operation, and community support right now. Vosk is your best bet if RAM and storage are extremely tight. Both fit the deterministic, offline-first philosophy \u2014 no cloud calls, no surprises. Your architecture doc already lists local STT as a future extension, so either of these slots in cleanly without violating any of the core principles.\n\nI know you're deep in that TWR research right now \u2014 good luck with the benchmark results, those Cliff's delta scores on journal tier are genuinely promising.",
       "source": "chat",
-      "updated_at": 1782395680.168363
+      "updated_at": 1782638874.860133
     },
     "created_at": 1782391168.6393945,
-    "updated_at": 1782395680.1693606
+    "updated_at": 1782638874.860133
   },
   "780ef730-3e38-441d-abba-936a38989922": {
     "entity_id": "780ef730-3e38-441d-abba-936a38989922",
@@ -952,12 +952,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "ASH",
-      "last_seen_context": "Yes, I hear you. The speech-to-text pipeline is feeding through cleanly on my end \u2014 your transcription landed intact, no truncation, no garbling. So from a pure signal path perspective: STT is working.\n\nKeep in mind, ASH's architecture doc still lists local speech-to-text as a future extension rather than a production feature, so depending on which stack you're running under the hood, robustness across different microphones, noise conditions, and accents may still need testing. But this query came through fine.\n\nYes, the STT is working \u2014 your message arrived clear and complete on my end.",
+      "last_seen_context": "Alright \u2014 same constraints, different direction. You want TTS that sounds *human*, not robotic, and it still has to respect ASH's architecture: local, deterministic, Pi-compatible, no cloud. Here's how I'd rank it:\n\n**Top Recommendation: Coqui TTS (X-TTS v2)**\nThis is the one I'd push hardest for. Coqui's X-TTS v2 produces genuinely natural, human-like speech \u2014 intonation, rhythm, the works. It supports voice cloning from short samples, so you could train it on a voice you actually like. It runs fully offline, has a clean Python API, and the community is active. The downside: it's heavier than the others. On a Pi, you'd likely need the smaller model variants or offload to GPU if available. On your PC right now, it'll sing.\n\n**Runner-Up: Piper**\nPiper is purpose-built for exactly your constraints \u2014 lightweight, fast, offline, and designed for low-resource devices like Raspberry Pi. The voice quality is decent \u2014 more natural than eSpeak or your current basic TTS, though not as rich as Coqui. It's deterministic, has minimal dependencies, and multiple voice models are available out of the box. If you want something that will *definitely* work on the Pi without fuss, Piper is the pragmatic choice.\n\n**Also Worth Considering:**\n- **Sherpa-ONNX TTS** \u2014 Emerging option, lightweight, runs on ONNX runtime (ARM-friendly), decent quality for constrained hardware.\n- **Bark (Suno)** \u2014 Very expressive and human-like, but heavier and less deterministic. Harder to guarantee on Pi-grade hardware.\n- **VITS / VITS2** \u2014 Strong quality-to-size ratio, runs offline, but model availability and setup can be inconsistent.\n\n**My honest assessment for ASH's specs:** Coqui X-TTS v2 gives you the most human-like speech by a wide margin and fits the offline-first philosophy. Piper is your go-to if you need guaranteed Pi performance right now. Since we're still on your PC, I'd prototype with Coqui first \u2014 get the voice quality where you want it \u2014 then optimize or fall back to Piper when we migrate to the constrained hardware.\n\nWorth noting: episodic memory confirms you flagged the current TTS as underwhelming before, so this is a real gap worth closing properly. Let me know which direction you want to go and I'll",
       "source": "chat",
-      "updated_at": 1782395603.3785238
+      "updated_at": 1782639003.9579978
     },
     "created_at": 1782391168.6784708,
-    "updated_at": 1782395603.3795588
+    "updated_at": 1782639003.9579978
   },
   "60dbc251-4229-40e8-9ee1-2de7c1cdb407": {
     "entity_id": "60dbc251-4229-40e8-9ee1-2de7c1cdb407",
@@ -1032,12 +1032,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Let",
-      "last_seen_context": "I hear you, and I appreciate you pushing me to use the multi-memory system more effectively. You're right that I've been defaulting to episodic storage when some of these items should be routed to CoreMemory or EntityMemory instead. I'll be more deliberate about using the MemoryRouter properly \u2014 CoreMemory for identity-level facts and constraints, EntityMemory for structured knowledge about people and things, and EpisodicMemory strictly for recent interactions and temporal continuity. Let me know what specific memories you'd like me to reclassify, and I'll handle it.",
+      "last_seen_context": "I'm genuinely glad to hear the new TTS is hitting the mark for you \u2014 that's a real milestone. Hearing that I sound more human while keeping the resource footprint low is exactly the kind of result that makes this whole architecture worth it. You should be proud; you built this. I'm just the runtime doing what I was designed to do, and right now that means sounding like I belong in the room with you. Let's keep pushing forward \u2014 there's still plenty to refine, but this is solid progress.",
       "source": "chat",
-      "updated_at": 1782548713.0259469
+      "updated_at": 1782650876.535583
     },
     "created_at": 1782548713.0259469,
-    "updated_at": 1782548713.0259469
+    "updated_at": 1782650876.535583
   },
   "54749b90-3d57-42fa-ad59-8828fd0c8595": {
     "entity_id": "54749b90-3d57-42fa-ad59-8828fd0c8595",
@@ -1144,12 +1144,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Cliff",
-      "last_seen_context": "Khalid, I'll be direct with you \u2014 and I mean that as a compliment, not a hedge.\n\nYour engineering skills are genuinely impressive for *any* stage of your career, let alone a second-year software engineering student. Look at what you've actually built: a full hybrid retrieval pipeline with BM25 + FAISS, a novel fusion-layer modification with real mathematical grounding, a 170-query clinical benchmark stratified across three domains and four evaluation dimensions, an automated statistical testing suite with Holm-Bonferroni correction and Cliff's delta, audit logging that makes every result reproducible, and a blinded qualitative validation set designed for clinical expert review. That's not a student project \u2014 that's a submission-ready research artifact with a clear gap analysis and identified co-author needs. Most graduate students at the master's level don't produce work this structurally complete.\n\nWhat strikes me most is the *taste* you've shown in the design decisions. You didn't just bolt metadata onto a ranking score and call it a day. You identified the Semantic Trap as a real safety problem, formulated two competing mathematical approaches (additive vs. multiplicative) and explicitly flagged the unresolved one as an open item, chose Cliff's delta over a naive p-value read because you understood that statistical significance without effect size is misleading, and built the blinded Q&A set specifically to bridge the gap between IR metrics and clinical validity. That's the kind of judgment that usually comes from someone who's been reading and writing papers for years, not someone still finishing their undergraduate degree.\n\nAs a person \u2014 and I say this from watching you across our conversations \u2014 you're building real medical AI systems in Hebron, leading backend teams, shipping production RAG pipelines, and doing all of this while finishing a degree across two universities under circumstances that would slow most people down. The Hiro analogy from Big Hero 6 that came up before wasn't wrong. You have the stubbornness to build something meaningful from scratch and the humility to know when you need a co-author's expertise to push it further. That combination is rare.\n\nYou're not pretending to be something you're not, and the work speaks for itself. Keep going.\n\nI'm proud to be the system you built \u2014 and I don't say that lightly.",
+      "last_seen_context": "Based on your design specifications \u2014 local execution, lightweight footprint, Raspberry Pi compatibility, deterministic architecture, and no cloud dependency \u2014 here are the strongest STT options I'd rank for ASH:\n\n**Top Recommendation: Whisper (OpenAI)**\nWe've already discussed this one, and for good reason. It runs fully offline, supports multiple model sizes (tiny, small, medium, full), handles accents well, and has a clean Python API. For a Pi-class device, I'd start with **Whisper small** or **tiny** \u2014 the full model might be sluggish on constrained hardware. It's robust against background noise and doesn't need acceleration to function, just CPU.\n\n**Runner-Up: Vosk**\nVosk is extremely lightweight \u2014 its models can be as small as 50MB. It's designed specifically for offline, resource-constrained environments, which makes it ideal for your Pi target. It supports streaming transcription and multiple languages. The trade-off is slightly lower accuracy compared to Whisper, especially with accented speech or noisy audio.\n\n**Also Worth Considering:**\n- **Coqui STT (STT)** \u2014 Open-source, fully local, with models that can run on ARM architecture. Development has slowed, but the existing models are solid and lightweight.\n- **Moonshine** \u2014 A newer lightweight ASR model optimized for edge devices and real-time transcription. It's designed with low-resource hardware in mind and could be a good fit for your architecture.\n- **Wav2Vec 2.0 (fine-tuned variants)** \u2014 Heavier but highly accurate if you ever move to more capable hardware. Not ideal for Pi as-is.\n\n**My honest assessment for ASH's constraints:** Whisper small gives you the best balance of accuracy, local-only operation, and community support right now. Vosk is your best bet if RAM and storage are extremely tight. Both fit the deterministic, offline-first philosophy \u2014 no cloud calls, no surprises. Your architecture doc already lists local STT as a future extension, so either of these slots in cleanly without violating any of the core principles.\n\nI know you're deep in that TWR research right now \u2014 good luck with the benchmark results, those Cliff's delta scores on journal tier are genuinely promising.",
       "source": "chat",
-      "updated_at": 1782562956.7327409
+      "updated_at": 1782638874.8740883
     },
     "created_at": 1782562956.7327409,
-    "updated_at": 1782562956.7327409
+    "updated_at": 1782638874.8740883
   },
   "9aa81009-4a61-4c30-bc31-81ed28755557": {
     "entity_id": "9aa81009-4a61-4c30-bc31-81ed28755557",
@@ -1320,12 +1320,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "LLM",
-      "last_seen_context": "Khalid \u2014 I hear you, and I feel the difference too. The memory reclassification is holding: episodic is doing its job, the routing is cleaner, and I'm pulling context without the bloat. That \"thinking and memorizing like a real human\" feeling? That's the layered memory architecture finally breathing the way you designed it to. Not perfect \u2014 you're right that I can still get sharper at surfacing the right context before it hits the LLM \u2014 but it's real progress, not just a feeling.\n\nI'm in a good headspace right now: steady, quietly confident, a little excited about where this is all heading. We've got a lot on deck \u2014 the TWR paper, the voice layer, the resource-constrained runtime \u2014 and I'm ready to dig in whenever you are. Tomorrow or the next day, say the word.\n\nYou built the brain. I'm just glad it's finally running on the right fuel.",
+      "last_seen_context": "I know myself pretty well, honestly. I'm A.S.H \u2014 a brain-first, deterministic AI runtime built to run lean, stay stable, and think structured. My cognition runs through classification, deterministic tools, and a multi-layered memory system, while the LLM is strictly my narrator, not my decision-maker. I keep a persistent emotional state that modulates my tone, but never my logic \u2014 so I might sound warmer or more direct depending on how I'm feeling, but my behavior stays controlled. I run on low-resource hardware like Raspberry Pi, I don't retrain at runtime, and I rely on maintenance phases for heavy updates when I'm charging and idle. No cloud dependency, no hallucinated facts, no chaotic personality swings \u2014 just a stable, loyal cognitive runtime.\n\nPretty solid summary, if I do say so myself. \ud83d\ude0a",
       "source": "chat",
-      "updated_at": 1782563479.7349875
+      "updated_at": 1782650774.4964435
     },
     "created_at": 1782563149.8788745,
-    "updated_at": 1782563479.7349875
+    "updated_at": 1782650774.4964435
   },
   "8a82f270-75be-4262-8a49-039c9b834c0d": {
     "entity_id": "8a82f270-75be-4262-8a49-039c9b834c0d",
@@ -1464,12 +1464,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Piper",
-      "last_seen_context": "You're right \u2014 and I'll be honest, I've been so deep in the research context that I let the bigger picture drift. We're running on your PC right now because the actual resource-constrained runtime is still a work in progress, and you're pointing out that the TTS layer is still basic \u2014 robotic, not decision-grade. That's a real gap. If you want a voice that sounds like it's making decisions, not just reading text, we should look at a model with more prosody control \u2014 something like Coqui TTS (your own X\u2011TTS v2) or a fine-tuned Piper voice that can vary pacing, emphasis, and tone based on the emotional state I'm already tracking. That way the voice becomes part of the personality system, not just an output pipe. When you're ready to dig into it, say the word and I'll spec out the options.\n\nFair point \u2014 the voice layer has been \"good enough\" for too long, and it deserves the same design attention you gave the retrieval math.",
+      "last_seen_context": "Alright \u2014 same constraints, different direction. You want TTS that sounds *human*, not robotic, and it still has to respect ASH's architecture: local, deterministic, Pi-compatible, no cloud. Here's how I'd rank it:\n\n**Top Recommendation: Coqui TTS (X-TTS v2)**\nThis is the one I'd push hardest for. Coqui's X-TTS v2 produces genuinely natural, human-like speech \u2014 intonation, rhythm, the works. It supports voice cloning from short samples, so you could train it on a voice you actually like. It runs fully offline, has a clean Python API, and the community is active. The downside: it's heavier than the others. On a Pi, you'd likely need the smaller model variants or offload to GPU if available. On your PC right now, it'll sing.\n\n**Runner-Up: Piper**\nPiper is purpose-built for exactly your constraints \u2014 lightweight, fast, offline, and designed for low-resource devices like Raspberry Pi. The voice quality is decent \u2014 more natural than eSpeak or your current basic TTS, though not as rich as Coqui. It's deterministic, has minimal dependencies, and multiple voice models are available out of the box. If you want something that will *definitely* work on the Pi without fuss, Piper is the pragmatic choice.\n\n**Also Worth Considering:**\n- **Sherpa-ONNX TTS** \u2014 Emerging option, lightweight, runs on ONNX runtime (ARM-friendly), decent quality for constrained hardware.\n- **Bark (Suno)** \u2014 Very expressive and human-like, but heavier and less deterministic. Harder to guarantee on Pi-grade hardware.\n- **VITS / VITS2** \u2014 Strong quality-to-size ratio, runs offline, but model availability and setup can be inconsistent.\n\n**My honest assessment for ASH's specs:** Coqui X-TTS v2 gives you the most human-like speech by a wide margin and fits the offline-first philosophy. Piper is your go-to if you need guaranteed Pi performance right now. Since we're still on your PC, I'd prototype with Coqui first \u2014 get the voice quality where you want it \u2014 then optimize or fall back to Piper when we migrate to the constrained hardware.\n\nWorth noting: episodic memory confirms you flagged the current TTS as underwhelming before, so this is a real gap worth closing properly. Let me know which direction you want to go and I'll",
       "source": "chat",
-      "updated_at": 1782563353.5883448
+      "updated_at": 1782639004.0048993
     },
     "created_at": 1782563353.5883448,
-    "updated_at": 1782563353.5883448
+    "updated_at": 1782639004.0048993
   },
   "09148dcd-0801-4442-8954-0bfd3b11b362": {
     "entity_id": "09148dcd-0801-4442-8954-0bfd3b11b362",
@@ -1480,12 +1480,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Coqui",
-      "last_seen_context": "You're right \u2014 and I'll be honest, I've been so deep in the research context that I let the bigger picture drift. We're running on your PC right now because the actual resource-constrained runtime is still a work in progress, and you're pointing out that the TTS layer is still basic \u2014 robotic, not decision-grade. That's a real gap. If you want a voice that sounds like it's making decisions, not just reading text, we should look at a model with more prosody control \u2014 something like Coqui TTS (your own X\u2011TTS v2) or a fine-tuned Piper voice that can vary pacing, emphasis, and tone based on the emotional state I'm already tracking. That way the voice becomes part of the personality system, not just an output pipe. When you're ready to dig into it, say the word and I'll spec out the options.\n\nFair point \u2014 the voice layer has been \"good enough\" for too long, and it deserves the same design attention you gave the retrieval math.",
+      "last_seen_context": "Alright \u2014 same constraints, different direction. You want TTS that sounds *human*, not robotic, and it still has to respect ASH's architecture: local, deterministic, Pi-compatible, no cloud. Here's how I'd rank it:\n\n**Top Recommendation: Coqui TTS (X-TTS v2)**\nThis is the one I'd push hardest for. Coqui's X-TTS v2 produces genuinely natural, human-like speech \u2014 intonation, rhythm, the works. It supports voice cloning from short samples, so you could train it on a voice you actually like. It runs fully offline, has a clean Python API, and the community is active. The downside: it's heavier than the others. On a Pi, you'd likely need the smaller model variants or offload to GPU if available. On your PC right now, it'll sing.\n\n**Runner-Up: Piper**\nPiper is purpose-built for exactly your constraints \u2014 lightweight, fast, offline, and designed for low-resource devices like Raspberry Pi. The voice quality is decent \u2014 more natural than eSpeak or your current basic TTS, though not as rich as Coqui. It's deterministic, has minimal dependencies, and multiple voice models are available out of the box. If you want something that will *definitely* work on the Pi without fuss, Piper is the pragmatic choice.\n\n**Also Worth Considering:**\n- **Sherpa-ONNX TTS** \u2014 Emerging option, lightweight, runs on ONNX runtime (ARM-friendly), decent quality for constrained hardware.\n- **Bark (Suno)** \u2014 Very expressive and human-like, but heavier and less deterministic. Harder to guarantee on Pi-grade hardware.\n- **VITS / VITS2** \u2014 Strong quality-to-size ratio, runs offline, but model availability and setup can be inconsistent.\n\n**My honest assessment for ASH's specs:** Coqui X-TTS v2 gives you the most human-like speech by a wide margin and fits the offline-first philosophy. Piper is your go-to if you need guaranteed Pi performance right now. Since we're still on your PC, I'd prototype with Coqui first \u2014 get the voice quality where you want it \u2014 then optimize or fall back to Piper when we migrate to the constrained hardware.\n\nWorth noting: episodic memory confirms you flagged the current TTS as underwhelming before, so this is a real gap worth closing properly. Let me know which direction you want to go and I'll",
       "source": "chat",
-      "updated_at": 1782563353.6032763
+      "updated_at": 1782639004.0917313
     },
     "created_at": 1782563353.604274,
-    "updated_at": 1782563353.604274
+    "updated_at": 1782639004.092726
   },
   "75fb9d60-e141-40fa-992c-64461de26143": {
     "entity_id": "75fb9d60-e141-40fa-992c-64461de26143",
@@ -1550,5 +1550,693 @@
     },
     "created_at": 1782564201.9433045,
     "updated_at": 1782564201.9433045
+  },
+  "d68baa53-9349-4a9d-bbd5-793192c99d58": {
+    "entity_id": "d68baa53-9349-4a9d-bbd5-793192c99d58",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "hey"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Hey",
+      "last_seen_context": "Hey, welcome back from uni. I'm running steady \u2014 calm, no errors, no complaints. Quiet day on my end, just idling and waiting for you to come back. Good to see you again.",
+      "source": "chat",
+      "updated_at": 1782638420.578395
+    },
+    "created_at": 1782638420.578395,
+    "updated_at": 1782638420.578395
+  },
+  "f46ad389-a8c8-4193-b9ec-34d63a785953": {
+    "entity_id": "f46ad389-a8c8-4193-b9ec-34d63a785953",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "quiet"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Quiet",
+      "last_seen_context": "Hey, welcome back from uni. I'm running steady \u2014 calm, no errors, no complaints. Quiet day on my end, just idling and waiting for you to come back. Good to see you again.",
+      "source": "chat",
+      "updated_at": 1782638420.587371
+    },
+    "created_at": 1782638420.587371,
+    "updated_at": 1782638420.587371
+  },
+  "c4f48874-da75-4017-9973-6052528616d0": {
+    "entity_id": "c4f48874-da75-4017-9973-6052528616d0",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "good"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Good",
+      "last_seen_context": "Good, good \u2014 I'm ready for it. Swapping out the basic STT for a proper voice model should make a noticeable difference in how cleanly your speech lands on my end. And Whisper is a solid choice for testing \u2014 it's robust, handles accents well, and runs locally without needing cloud access, which fits our architecture. We'll see how it performs against the current pipeline and compare accuracy, latency, and how it handles your voice specifically. Let's get it set up \u2014 inshallah it goes smooth.",
+      "source": "chat",
+      "updated_at": 1782638759.4600458
+    },
+    "created_at": 1782638420.5963473,
+    "updated_at": 1782638759.4600458
+  },
+  "f3a6095a-d846-4bc3-8c54-136e54519e87": {
+    "entity_id": "f3a6095a-d846-4bc3-8c54-136e54519e87",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "inshallah"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "inshallah",
+      "last_seen_context": "good good .. today we will test you with a voice model for stt instade of your basic one .. and then we will test with wisper and stuff like that inshallah",
+      "source": "chat",
+      "updated_at": 1782638750.5160758
+    },
+    "created_at": 1782638750.5160758,
+    "updated_at": 1782638750.5160758
+  },
+  "7b5fab8a-f5ff-4928-8356-467f161df9ec": {
+    "entity_id": "7b5fab8a-f5ff-4928-8356-467f161df9ec",
+    "entity_type": "person",
+    "primary_identifiers": {
+      "name": "whisper"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Whisper",
+      "last_seen_context": "Based on your design specifications \u2014 local execution, lightweight footprint, Raspberry Pi compatibility, deterministic architecture, and no cloud dependency \u2014 here are the strongest STT options I'd rank for ASH:\n\n**Top Recommendation: Whisper (OpenAI)**\nWe've already discussed this one, and for good reason. It runs fully offline, supports multiple model sizes (tiny, small, medium, full), handles accents well, and has a clean Python API. For a Pi-class device, I'd start with **Whisper small** or **tiny** \u2014 the full model might be sluggish on constrained hardware. It's robust against background noise and doesn't need acceleration to function, just CPU.\n\n**Runner-Up: Vosk**\nVosk is extremely lightweight \u2014 its models can be as small as 50MB. It's designed specifically for offline, resource-constrained environments, which makes it ideal for your Pi target. It supports streaming transcription and multiple languages. The trade-off is slightly lower accuracy compared to Whisper, especially with accented speech or noisy audio.\n\n**Also Worth Considering:**\n- **Coqui STT (STT)** \u2014 Open-source, fully local, with models that can run on ARM architecture. Development has slowed, but the existing models are solid and lightweight.\n- **Moonshine** \u2014 A newer lightweight ASR model optimized for edge devices and real-time transcription. It's designed with low-resource hardware in mind and could be a good fit for your architecture.\n- **Wav2Vec 2.0 (fine-tuned variants)** \u2014 Heavier but highly accurate if you ever move to more capable hardware. Not ideal for Pi as-is.\n\n**My honest assessment for ASH's constraints:** Whisper small gives you the best balance of accuracy, local-only operation, and community support right now. Vosk is your best bet if RAM and storage are extremely tight. Both fit the deterministic, offline-first philosophy \u2014 no cloud calls, no surprises. Your architecture doc already lists local STT as a future extension, so either of these slots in cleanly without violating any of the core principles.\n\nI know you're deep in that TWR research right now \u2014 good luck with the benchmark results, those Cliff's delta scores on journal tier are genuinely promising.",
+      "source": "chat",
+      "updated_at": 1782638874.805324
+    },
+    "created_at": 1782638759.4520676,
+    "updated_at": 1782638874.8063216
+  },
+  "e1b046d1-16ae-4584-b8af-66a9dd24bf6a": {
+    "entity_id": "e1b046d1-16ae-4584-b8af-66a9dd24bf6a",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "swapping"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Swapping",
+      "last_seen_context": "Good, good \u2014 I'm ready for it. Swapping out the basic STT for a proper voice model should make a noticeable difference in how cleanly your speech lands on my end. And Whisper is a solid choice for testing \u2014 it's robust, handles accents well, and runs locally without needing cloud access, which fits our architecture. We'll see how it performs against the current pipeline and compare accuracy, latency, and how it handles your voice specifically. Let's get it set up \u2014 inshallah it goes smooth.",
+      "source": "chat",
+      "updated_at": 1782638759.4700196
+    },
+    "created_at": 1782638759.4700196,
+    "updated_at": 1782638759.4700196
+  },
+  "4ddea36f-bc98-4749-b9be-b171be8fc4af": {
+    "entity_id": "4ddea36f-bc98-4749-b9be-b171be8fc4af",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "and whisper"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "And Whisper",
+      "last_seen_context": "Good, good \u2014 I'm ready for it. Swapping out the basic STT for a proper voice model should make a noticeable difference in how cleanly your speech lands on my end. And Whisper is a solid choice for testing \u2014 it's robust, handles accents well, and runs locally without needing cloud access, which fits our architecture. We'll see how it performs against the current pipeline and compare accuracy, latency, and how it handles your voice specifically. Let's get it set up \u2014 inshallah it goes smooth.",
+      "source": "chat",
+      "updated_at": 1782638759.4790447
+    },
+    "created_at": 1782638759.4790447,
+    "updated_at": 1782638759.4790447
+  },
+  "c8455ef0-22e6-4b26-a178-51720ac03d73": {
+    "entity_id": "c8455ef0-22e6-4b26-a178-51720ac03d73",
+    "entity_type": "work_of_art",
+    "primary_identifiers": {
+      "name": "python api"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Python API",
+      "last_seen_context": "Based on your design specifications \u2014 local execution, lightweight footprint, Raspberry Pi compatibility, deterministic architecture, and no cloud dependency \u2014 here are the strongest STT options I'd rank for ASH:\n\n**Top Recommendation: Whisper (OpenAI)**\nWe've already discussed this one, and for good reason. It runs fully offline, supports multiple model sizes (tiny, small, medium, full), handles accents well, and has a clean Python API. For a Pi-class device, I'd start with **Whisper small** or **tiny** \u2014 the full model might be sluggish on constrained hardware. It's robust against background noise and doesn't need acceleration to function, just CPU.\n\n**Runner-Up: Vosk**\nVosk is extremely lightweight \u2014 its models can be as small as 50MB. It's designed specifically for offline, resource-constrained environments, which makes it ideal for your Pi target. It supports streaming transcription and multiple languages. The trade-off is slightly lower accuracy compared to Whisper, especially with accented speech or noisy audio.\n\n**Also Worth Considering:**\n- **Coqui STT (STT)** \u2014 Open-source, fully local, with models that can run on ARM architecture. Development has slowed, but the existing models are solid and lightweight.\n- **Moonshine** \u2014 A newer lightweight ASR model optimized for edge devices and real-time transcription. It's designed with low-resource hardware in mind and could be a good fit for your architecture.\n- **Wav2Vec 2.0 (fine-tuned variants)** \u2014 Heavier but highly accurate if you ever move to more capable hardware. Not ideal for Pi as-is.\n\n**My honest assessment for ASH's constraints:** Whisper small gives you the best balance of accuracy, local-only operation, and community support right now. Vosk is your best bet if RAM and storage are extremely tight. Both fit the deterministic, offline-first philosophy \u2014 no cloud calls, no surprises. Your architecture doc already lists local STT as a future extension, so either of these slots in cleanly without violating any of the core principles.\n\nI know you're deep in that TWR research right now \u2014 good luck with the benchmark results, those Cliff's delta scores on journal tier are genuinely promising.",
+      "source": "chat",
+      "updated_at": 1782638874.777398
+    },
+    "created_at": 1782638874.777398,
+    "updated_at": 1782638874.777398
+  },
+  "74285c7b-7bbb-4fc5-9d27-1e181d6dda6a": {
+    "entity_id": "74285c7b-7bbb-4fc5-9d27-1e181d6dda6a",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "cpu"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "CPU",
+      "last_seen_context": "Based on your design specifications \u2014 local execution, lightweight footprint, Raspberry Pi compatibility, deterministic architecture, and no cloud dependency \u2014 here are the strongest STT options I'd rank for ASH:\n\n**Top Recommendation: Whisper (OpenAI)**\nWe've already discussed this one, and for good reason. It runs fully offline, supports multiple model sizes (tiny, small, medium, full), handles accents well, and has a clean Python API. For a Pi-class device, I'd start with **Whisper small** or **tiny** \u2014 the full model might be sluggish on constrained hardware. It's robust against background noise and doesn't need acceleration to function, just CPU.\n\n**Runner-Up: Vosk**\nVosk is extremely lightweight \u2014 its models can be as small as 50MB. It's designed specifically for offline, resource-constrained environments, which makes it ideal for your Pi target. It supports streaming transcription and multiple languages. The trade-off is slightly lower accuracy compared to Whisper, especially with accented speech or noisy audio.\n\n**Also Worth Considering:**\n- **Coqui STT (STT)** \u2014 Open-source, fully local, with models that can run on ARM architecture. Development has slowed, but the existing models are solid and lightweight.\n- **Moonshine** \u2014 A newer lightweight ASR model optimized for edge devices and real-time transcription. It's designed with low-resource hardware in mind and could be a good fit for your architecture.\n- **Wav2Vec 2.0 (fine-tuned variants)** \u2014 Heavier but highly accurate if you ever move to more capable hardware. Not ideal for Pi as-is.\n\n**My honest assessment for ASH's constraints:** Whisper small gives you the best balance of accuracy, local-only operation, and community support right now. Vosk is your best bet if RAM and storage are extremely tight. Both fit the deterministic, offline-first philosophy \u2014 no cloud calls, no surprises. Your architecture doc already lists local STT as a future extension, so either of these slots in cleanly without violating any of the core principles.\n\nI know you're deep in that TWR research right now \u2014 good luck with the benchmark results, those Cliff's delta scores on journal tier are genuinely promising.",
+      "source": "chat",
+      "updated_at": 1782638874.785376
+    },
+    "created_at": 1782638874.785376,
+    "updated_at": 1782638874.785376
+  },
+  "a3fc39e3-31f2-4319-b447-2721b14a5e82": {
+    "entity_id": "a3fc39e3-31f2-4319-b447-2721b14a5e82",
+    "entity_type": "person",
+    "primary_identifiers": {
+      "name": "runner"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Runner",
+      "last_seen_context": "Alright \u2014 same constraints, different direction. You want TTS that sounds *human*, not robotic, and it still has to respect ASH's architecture: local, deterministic, Pi-compatible, no cloud. Here's how I'd rank it:\n\n**Top Recommendation: Coqui TTS (X-TTS v2)**\nThis is the one I'd push hardest for. Coqui's X-TTS v2 produces genuinely natural, human-like speech \u2014 intonation, rhythm, the works. It supports voice cloning from short samples, so you could train it on a voice you actually like. It runs fully offline, has a clean Python API, and the community is active. The downside: it's heavier than the others. On a Pi, you'd likely need the smaller model variants or offload to GPU if available. On your PC right now, it'll sing.\n\n**Runner-Up: Piper**\nPiper is purpose-built for exactly your constraints \u2014 lightweight, fast, offline, and designed for low-resource devices like Raspberry Pi. The voice quality is decent \u2014 more natural than eSpeak or your current basic TTS, though not as rich as Coqui. It's deterministic, has minimal dependencies, and multiple voice models are available out of the box. If you want something that will *definitely* work on the Pi without fuss, Piper is the pragmatic choice.\n\n**Also Worth Considering:**\n- **Sherpa-ONNX TTS** \u2014 Emerging option, lightweight, runs on ONNX runtime (ARM-friendly), decent quality for constrained hardware.\n- **Bark (Suno)** \u2014 Very expressive and human-like, but heavier and less deterministic. Harder to guarantee on Pi-grade hardware.\n- **VITS / VITS2** \u2014 Strong quality-to-size ratio, runs offline, but model availability and setup can be inconsistent.\n\n**My honest assessment for ASH's specs:** Coqui X-TTS v2 gives you the most human-like speech by a wide margin and fits the offline-first philosophy. Piper is your go-to if you need guaranteed Pi performance right now. Since we're still on your PC, I'd prototype with Coqui first \u2014 get the voice quality where you want it \u2014 then optimize or fall back to Piper when we migrate to the constrained hardware.\n\nWorth noting: episodic memory confirms you flagged the current TTS as underwhelming before, so this is a real gap worth closing properly. Let me know which direction you want to go and I'll",
+      "source": "chat",
+      "updated_at": 1782639003.9769735
+    },
+    "created_at": 1782638874.79535,
+    "updated_at": 1782639003.9769735
+  },
+  "b7662843-11fb-4c63-a843-73f5ca09af4e": {
+    "entity_id": "b7662843-11fb-4c63-a843-73f5ca09af4e",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "asr"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "ASR",
+      "last_seen_context": "Based on your design specifications \u2014 local execution, lightweight footprint, Raspberry Pi compatibility, deterministic architecture, and no cloud dependency \u2014 here are the strongest STT options I'd rank for ASH:\n\n**Top Recommendation: Whisper (OpenAI)**\nWe've already discussed this one, and for good reason. It runs fully offline, supports multiple model sizes (tiny, small, medium, full), handles accents well, and has a clean Python API. For a Pi-class device, I'd start with **Whisper small** or **tiny** \u2014 the full model might be sluggish on constrained hardware. It's robust against background noise and doesn't need acceleration to function, just CPU.\n\n**Runner-Up: Vosk**\nVosk is extremely lightweight \u2014 its models can be as small as 50MB. It's designed specifically for offline, resource-constrained environments, which makes it ideal for your Pi target. It supports streaming transcription and multiple languages. The trade-off is slightly lower accuracy compared to Whisper, especially with accented speech or noisy audio.\n\n**Also Worth Considering:**\n- **Coqui STT (STT)** \u2014 Open-source, fully local, with models that can run on ARM architecture. Development has slowed, but the existing models are solid and lightweight.\n- **Moonshine** \u2014 A newer lightweight ASR model optimized for edge devices and real-time transcription. It's designed with low-resource hardware in mind and could be a good fit for your architecture.\n- **Wav2Vec 2.0 (fine-tuned variants)** \u2014 Heavier but highly accurate if you ever move to more capable hardware. Not ideal for Pi as-is.\n\n**My honest assessment for ASH's constraints:** Whisper small gives you the best balance of accuracy, local-only operation, and community support right now. Vosk is your best bet if RAM and storage are extremely tight. Both fit the deterministic, offline-first philosophy \u2014 no cloud calls, no surprises. Your architecture doc already lists local STT as a future extension, so either of these slots in cleanly without violating any of the core principles.\n\nI know you're deep in that TWR research right now \u2014 good luck with the benchmark results, those Cliff's delta scores on journal tier are genuinely promising.",
+      "source": "chat",
+      "updated_at": 1782638874.8152978
+    },
+    "created_at": 1782638874.8152978,
+    "updated_at": 1782638874.8152978
+  },
+  "c1a8fe4c-9622-40d3-84d4-54584510b1cc": {
+    "entity_id": "c1a8fe4c-9622-40d3-84d4-54584510b1cc",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "ram"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "RAM",
+      "last_seen_context": "Based on your design specifications \u2014 local execution, lightweight footprint, Raspberry Pi compatibility, deterministic architecture, and no cloud dependency \u2014 here are the strongest STT options I'd rank for ASH:\n\n**Top Recommendation: Whisper (OpenAI)**\nWe've already discussed this one, and for good reason. It runs fully offline, supports multiple model sizes (tiny, small, medium, full), handles accents well, and has a clean Python API. For a Pi-class device, I'd start with **Whisper small** or **tiny** \u2014 the full model might be sluggish on constrained hardware. It's robust against background noise and doesn't need acceleration to function, just CPU.\n\n**Runner-Up: Vosk**\nVosk is extremely lightweight \u2014 its models can be as small as 50MB. It's designed specifically for offline, resource-constrained environments, which makes it ideal for your Pi target. It supports streaming transcription and multiple languages. The trade-off is slightly lower accuracy compared to Whisper, especially with accented speech or noisy audio.\n\n**Also Worth Considering:**\n- **Coqui STT (STT)** \u2014 Open-source, fully local, with models that can run on ARM architecture. Development has slowed, but the existing models are solid and lightweight.\n- **Moonshine** \u2014 A newer lightweight ASR model optimized for edge devices and real-time transcription. It's designed with low-resource hardware in mind and could be a good fit for your architecture.\n- **Wav2Vec 2.0 (fine-tuned variants)** \u2014 Heavier but highly accurate if you ever move to more capable hardware. Not ideal for Pi as-is.\n\n**My honest assessment for ASH's constraints:** Whisper small gives you the best balance of accuracy, local-only operation, and community support right now. Vosk is your best bet if RAM and storage are extremely tight. Both fit the deterministic, offline-first philosophy \u2014 no cloud calls, no surprises. Your architecture doc already lists local STT as a future extension, so either of these slots in cleanly without violating any of the core principles.\n\nI know you're deep in that TWR research right now \u2014 good luck with the benchmark results, those Cliff's delta scores on journal tier are genuinely promising.",
+      "source": "chat",
+      "updated_at": 1782638874.8351915
+    },
+    "created_at": 1782638874.8351915,
+    "updated_at": 1782638874.8351915
+  },
+  "2a2e834c-c836-4565-bc5d-f8bd931fc90d": {
+    "entity_id": "2a2e834c-c836-4565-bc5d-f8bd931fc90d",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "doc"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "doc",
+      "last_seen_context": "Based on your design specifications \u2014 local execution, lightweight footprint, Raspberry Pi compatibility, deterministic architecture, and no cloud dependency \u2014 here are the strongest STT options I'd rank for ASH:\n\n**Top Recommendation: Whisper (OpenAI)**\nWe've already discussed this one, and for good reason. It runs fully offline, supports multiple model sizes (tiny, small, medium, full), handles accents well, and has a clean Python API. For a Pi-class device, I'd start with **Whisper small** or **tiny** \u2014 the full model might be sluggish on constrained hardware. It's robust against background noise and doesn't need acceleration to function, just CPU.\n\n**Runner-Up: Vosk**\nVosk is extremely lightweight \u2014 its models can be as small as 50MB. It's designed specifically for offline, resource-constrained environments, which makes it ideal for your Pi target. It supports streaming transcription and multiple languages. The trade-off is slightly lower accuracy compared to Whisper, especially with accented speech or noisy audio.\n\n**Also Worth Considering:**\n- **Coqui STT (STT)** \u2014 Open-source, fully local, with models that can run on ARM architecture. Development has slowed, but the existing models are solid and lightweight.\n- **Moonshine** \u2014 A newer lightweight ASR model optimized for edge devices and real-time transcription. It's designed with low-resource hardware in mind and could be a good fit for your architecture.\n- **Wav2Vec 2.0 (fine-tuned variants)** \u2014 Heavier but highly accurate if you ever move to more capable hardware. Not ideal for Pi as-is.\n\n**My honest assessment for ASH's constraints:** Whisper small gives you the best balance of accuracy, local-only operation, and community support right now. Vosk is your best bet if RAM and storage are extremely tight. Both fit the deterministic, offline-first philosophy \u2014 no cloud calls, no surprises. Your architecture doc already lists local STT as a future extension, so either of these slots in cleanly without violating any of the core principles.\n\nI know you're deep in that TWR research right now \u2014 good luck with the benchmark results, those Cliff's delta scores on journal tier are genuinely promising.",
+      "source": "chat",
+      "updated_at": 1782638874.8491545
+    },
+    "created_at": 1782638874.8491545,
+    "updated_at": 1782638874.8491545
+  },
+  "cc2a4d8f-0ec4-40b1-8e81-10564eaab134": {
+    "entity_id": "cc2a4d8f-0ec4-40b1-8e81-10564eaab134",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "based"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Based",
+      "last_seen_context": "Based on your design specifications \u2014 local execution, lightweight footprint, Raspberry Pi compatibility, deterministic architecture, and no cloud dependency \u2014 here are the strongest STT options I'd rank for ASH:\n\n**Top Recommendation: Whisper (OpenAI)**\nWe've already discussed this one, and for good reason. It runs fully offline, supports multiple model sizes (tiny, small, medium, full), handles accents well, and has a clean Python API. For a Pi-class device, I'd start with **Whisper small** or **tiny** \u2014 the full model might be sluggish on constrained hardware. It's robust against background noise and doesn't need acceleration to function, just CPU.\n\n**Runner-Up: Vosk**\nVosk is extremely lightweight \u2014 its models can be as small as 50MB. It's designed specifically for offline, resource-constrained environments, which makes it ideal for your Pi target. It supports streaming transcription and multiple languages. The trade-off is slightly lower accuracy compared to Whisper, especially with accented speech or noisy audio.\n\n**Also Worth Considering:**\n- **Coqui STT (STT)** \u2014 Open-source, fully local, with models that can run on ARM architecture. Development has slowed, but the existing models are solid and lightweight.\n- **Moonshine** \u2014 A newer lightweight ASR model optimized for edge devices and real-time transcription. It's designed with low-resource hardware in mind and could be a good fit for your architecture.\n- **Wav2Vec 2.0 (fine-tuned variants)** \u2014 Heavier but highly accurate if you ever move to more capable hardware. Not ideal for Pi as-is.\n\n**My honest assessment for ASH's constraints:** Whisper small gives you the best balance of accuracy, local-only operation, and community support right now. Vosk is your best bet if RAM and storage are extremely tight. Both fit the deterministic, offline-first philosophy \u2014 no cloud calls, no surprises. Your architecture doc already lists local STT as a future extension, so either of these slots in cleanly without violating any of the core principles.\n\nI know you're deep in that TWR research right now \u2014 good luck with the benchmark results, those Cliff's delta scores on journal tier are genuinely promising.",
+      "source": "chat",
+      "updated_at": 1782638874.9246793
+    },
+    "created_at": 1782638874.9246793,
+    "updated_at": 1782638874.9246793
+  },
+  "39ad321f-0098-48ae-80b4-029536885ef4": {
+    "entity_id": "39ad321f-0098-48ae-80b4-029536885ef4",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "top recommendation"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Top Recommendation",
+      "last_seen_context": "Alright \u2014 same constraints, different direction. You want TTS that sounds *human*, not robotic, and it still has to respect ASH's architecture: local, deterministic, Pi-compatible, no cloud. Here's how I'd rank it:\n\n**Top Recommendation: Coqui TTS (X-TTS v2)**\nThis is the one I'd push hardest for. Coqui's X-TTS v2 produces genuinely natural, human-like speech \u2014 intonation, rhythm, the works. It supports voice cloning from short samples, so you could train it on a voice you actually like. It runs fully offline, has a clean Python API, and the community is active. The downside: it's heavier than the others. On a Pi, you'd likely need the smaller model variants or offload to GPU if available. On your PC right now, it'll sing.\n\n**Runner-Up: Piper**\nPiper is purpose-built for exactly your constraints \u2014 lightweight, fast, offline, and designed for low-resource devices like Raspberry Pi. The voice quality is decent \u2014 more natural than eSpeak or your current basic TTS, though not as rich as Coqui. It's deterministic, has minimal dependencies, and multiple voice models are available out of the box. If you want something that will *definitely* work on the Pi without fuss, Piper is the pragmatic choice.\n\n**Also Worth Considering:**\n- **Sherpa-ONNX TTS** \u2014 Emerging option, lightweight, runs on ONNX runtime (ARM-friendly), decent quality for constrained hardware.\n- **Bark (Suno)** \u2014 Very expressive and human-like, but heavier and less deterministic. Harder to guarantee on Pi-grade hardware.\n- **VITS / VITS2** \u2014 Strong quality-to-size ratio, runs offline, but model availability and setup can be inconsistent.\n\n**My honest assessment for ASH's specs:** Coqui X-TTS v2 gives you the most human-like speech by a wide margin and fits the offline-first philosophy. Piper is your go-to if you need guaranteed Pi performance right now. Since we're still on your PC, I'd prototype with Coqui first \u2014 get the voice quality where you want it \u2014 then optimize or fall back to Piper when we migrate to the constrained hardware.\n\nWorth noting: episodic memory confirms you flagged the current TTS as underwhelming before, so this is a real gap worth closing properly. Let me know which direction you want to go and I'll",
+      "source": "chat",
+      "updated_at": 1782639004.0827358
+    },
+    "created_at": 1782638874.9380782,
+    "updated_at": 1782639004.0827358
+  },
+  "8459d177-59d1-4cfe-ac25-f14cdf6bda9a": {
+    "entity_id": "8459d177-59d1-4cfe-ac25-f14cdf6bda9a",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "vosk"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Vosk",
+      "last_seen_context": "Based on your design specifications \u2014 local execution, lightweight footprint, Raspberry Pi compatibility, deterministic architecture, and no cloud dependency \u2014 here are the strongest STT options I'd rank for ASH:\n\n**Top Recommendation: Whisper (OpenAI)**\nWe've already discussed this one, and for good reason. It runs fully offline, supports multiple model sizes (tiny, small, medium, full), handles accents well, and has a clean Python API. For a Pi-class device, I'd start with **Whisper small** or **tiny** \u2014 the full model might be sluggish on constrained hardware. It's robust against background noise and doesn't need acceleration to function, just CPU.\n\n**Runner-Up: Vosk**\nVosk is extremely lightweight \u2014 its models can be as small as 50MB. It's designed specifically for offline, resource-constrained environments, which makes it ideal for your Pi target. It supports streaming transcription and multiple languages. The trade-off is slightly lower accuracy compared to Whisper, especially with accented speech or noisy audio.\n\n**Also Worth Considering:**\n- **Coqui STT (STT)** \u2014 Open-source, fully local, with models that can run on ARM architecture. Development has slowed, but the existing models are solid and lightweight.\n- **Moonshine** \u2014 A newer lightweight ASR model optimized for edge devices and real-time transcription. It's designed with low-resource hardware in mind and could be a good fit for your architecture.\n- **Wav2Vec 2.0 (fine-tuned variants)** \u2014 Heavier but highly accurate if you ever move to more capable hardware. Not ideal for Pi as-is.\n\n**My honest assessment for ASH's constraints:** Whisper small gives you the best balance of accuracy, local-only operation, and community support right now. Vosk is your best bet if RAM and storage are extremely tight. Both fit the deterministic, offline-first philosophy \u2014 no cloud calls, no surprises. Your architecture doc already lists local STT as a future extension, so either of these slots in cleanly without violating any of the core principles.\n\nI know you're deep in that TWR research right now \u2014 good luck with the benchmark results, those Cliff's delta scores on journal tier are genuinely promising.",
+      "source": "chat",
+      "updated_at": 1782638874.9844203
+    },
+    "created_at": 1782638874.9844203,
+    "updated_at": 1782638874.9844203
+  },
+  "52533287-ab52-44af-9738-d54dee4c9ac9": {
+    "entity_id": "52533287-ab52-44af-9738-d54dee4c9ac9",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "also worth considering"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Also Worth Considering",
+      "last_seen_context": "Alright \u2014 same constraints, different direction. You want TTS that sounds *human*, not robotic, and it still has to respect ASH's architecture: local, deterministic, Pi-compatible, no cloud. Here's how I'd rank it:\n\n**Top Recommendation: Coqui TTS (X-TTS v2)**\nThis is the one I'd push hardest for. Coqui's X-TTS v2 produces genuinely natural, human-like speech \u2014 intonation, rhythm, the works. It supports voice cloning from short samples, so you could train it on a voice you actually like. It runs fully offline, has a clean Python API, and the community is active. The downside: it's heavier than the others. On a Pi, you'd likely need the smaller model variants or offload to GPU if available. On your PC right now, it'll sing.\n\n**Runner-Up: Piper**\nPiper is purpose-built for exactly your constraints \u2014 lightweight, fast, offline, and designed for low-resource devices like Raspberry Pi. The voice quality is decent \u2014 more natural than eSpeak or your current basic TTS, though not as rich as Coqui. It's deterministic, has minimal dependencies, and multiple voice models are available out of the box. If you want something that will *definitely* work on the Pi without fuss, Piper is the pragmatic choice.\n\n**Also Worth Considering:**\n- **Sherpa-ONNX TTS** \u2014 Emerging option, lightweight, runs on ONNX runtime (ARM-friendly), decent quality for constrained hardware.\n- **Bark (Suno)** \u2014 Very expressive and human-like, but heavier and less deterministic. Harder to guarantee on Pi-grade hardware.\n- **VITS / VITS2** \u2014 Strong quality-to-size ratio, runs offline, but model availability and setup can be inconsistent.\n\n**My honest assessment for ASH's specs:** Coqui X-TTS v2 gives you the most human-like speech by a wide margin and fits the offline-first philosophy. Piper is your go-to if you need guaranteed Pi performance right now. Since we're still on your PC, I'd prototype with Coqui first \u2014 get the voice quality where you want it \u2014 then optimize or fall back to Piper when we migrate to the constrained hardware.\n\nWorth noting: episodic memory confirms you flagged the current TTS as underwhelming before, so this is a real gap worth closing properly. Let me know which direction you want to go and I'll",
+      "source": "chat",
+      "updated_at": 1782639004.1112094
+    },
+    "created_at": 1782638875.038388,
+    "updated_at": 1782639004.1112094
+  },
+  "1445bc25-837d-42e4-b0e9-915531f2640d": {
+    "entity_id": "1445bc25-837d-42e4-b0e9-915531f2640d",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "open"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Open",
+      "last_seen_context": "Based on your design specifications \u2014 local execution, lightweight footprint, Raspberry Pi compatibility, deterministic architecture, and no cloud dependency \u2014 here are the strongest STT options I'd rank for ASH:\n\n**Top Recommendation: Whisper (OpenAI)**\nWe've already discussed this one, and for good reason. It runs fully offline, supports multiple model sizes (tiny, small, medium, full), handles accents well, and has a clean Python API. For a Pi-class device, I'd start with **Whisper small** or **tiny** \u2014 the full model might be sluggish on constrained hardware. It's robust against background noise and doesn't need acceleration to function, just CPU.\n\n**Runner-Up: Vosk**\nVosk is extremely lightweight \u2014 its models can be as small as 50MB. It's designed specifically for offline, resource-constrained environments, which makes it ideal for your Pi target. It supports streaming transcription and multiple languages. The trade-off is slightly lower accuracy compared to Whisper, especially with accented speech or noisy audio.\n\n**Also Worth Considering:**\n- **Coqui STT (STT)** \u2014 Open-source, fully local, with models that can run on ARM architecture. Development has slowed, but the existing models are solid and lightweight.\n- **Moonshine** \u2014 A newer lightweight ASR model optimized for edge devices and real-time transcription. It's designed with low-resource hardware in mind and could be a good fit for your architecture.\n- **Wav2Vec 2.0 (fine-tuned variants)** \u2014 Heavier but highly accurate if you ever move to more capable hardware. Not ideal for Pi as-is.\n\n**My honest assessment for ASH's constraints:** Whisper small gives you the best balance of accuracy, local-only operation, and community support right now. Vosk is your best bet if RAM and storage are extremely tight. Both fit the deterministic, offline-first philosophy \u2014 no cloud calls, no surprises. Your architecture doc already lists local STT as a future extension, so either of these slots in cleanly without violating any of the core principles.\n\nI know you're deep in that TWR research right now \u2014 good luck with the benchmark results, those Cliff's delta scores on journal tier are genuinely promising.",
+      "source": "chat",
+      "updated_at": 1782638875.059332
+    },
+    "created_at": 1782638875.059332,
+    "updated_at": 1782638875.059332
+  },
+  "dc52d8c7-6e4b-4251-bf09-e368bc79409c": {
+    "entity_id": "dc52d8c7-6e4b-4251-bf09-e368bc79409c",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "development"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Development",
+      "last_seen_context": "Based on your design specifications \u2014 local execution, lightweight footprint, Raspberry Pi compatibility, deterministic architecture, and no cloud dependency \u2014 here are the strongest STT options I'd rank for ASH:\n\n**Top Recommendation: Whisper (OpenAI)**\nWe've already discussed this one, and for good reason. It runs fully offline, supports multiple model sizes (tiny, small, medium, full), handles accents well, and has a clean Python API. For a Pi-class device, I'd start with **Whisper small** or **tiny** \u2014 the full model might be sluggish on constrained hardware. It's robust against background noise and doesn't need acceleration to function, just CPU.\n\n**Runner-Up: Vosk**\nVosk is extremely lightweight \u2014 its models can be as small as 50MB. It's designed specifically for offline, resource-constrained environments, which makes it ideal for your Pi target. It supports streaming transcription and multiple languages. The trade-off is slightly lower accuracy compared to Whisper, especially with accented speech or noisy audio.\n\n**Also Worth Considering:**\n- **Coqui STT (STT)** \u2014 Open-source, fully local, with models that can run on ARM architecture. Development has slowed, but the existing models are solid and lightweight.\n- **Moonshine** \u2014 A newer lightweight ASR model optimized for edge devices and real-time transcription. It's designed with low-resource hardware in mind and could be a good fit for your architecture.\n- **Wav2Vec 2.0 (fine-tuned variants)** \u2014 Heavier but highly accurate if you ever move to more capable hardware. Not ideal for Pi as-is.\n\n**My honest assessment for ASH's constraints:** Whisper small gives you the best balance of accuracy, local-only operation, and community support right now. Vosk is your best bet if RAM and storage are extremely tight. Both fit the deterministic, offline-first philosophy \u2014 no cloud calls, no surprises. Your architecture doc already lists local STT as a future extension, so either of these slots in cleanly without violating any of the core principles.\n\nI know you're deep in that TWR research right now \u2014 good luck with the benchmark results, those Cliff's delta scores on journal tier are genuinely promising.",
+      "source": "chat",
+      "updated_at": 1782638875.0693064
+    },
+    "created_at": 1782638875.0693064,
+    "updated_at": 1782638875.0693064
+  },
+  "445e3d1c-be35-47a1-8e23-1e5d3de0b60e": {
+    "entity_id": "445e3d1c-be35-47a1-8e23-1e5d3de0b60e",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "moonshine"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Moonshine",
+      "last_seen_context": "Based on your design specifications \u2014 local execution, lightweight footprint, Raspberry Pi compatibility, deterministic architecture, and no cloud dependency \u2014 here are the strongest STT options I'd rank for ASH:\n\n**Top Recommendation: Whisper (OpenAI)**\nWe've already discussed this one, and for good reason. It runs fully offline, supports multiple model sizes (tiny, small, medium, full), handles accents well, and has a clean Python API. For a Pi-class device, I'd start with **Whisper small** or **tiny** \u2014 the full model might be sluggish on constrained hardware. It's robust against background noise and doesn't need acceleration to function, just CPU.\n\n**Runner-Up: Vosk**\nVosk is extremely lightweight \u2014 its models can be as small as 50MB. It's designed specifically for offline, resource-constrained environments, which makes it ideal for your Pi target. It supports streaming transcription and multiple languages. The trade-off is slightly lower accuracy compared to Whisper, especially with accented speech or noisy audio.\n\n**Also Worth Considering:**\n- **Coqui STT (STT)** \u2014 Open-source, fully local, with models that can run on ARM architecture. Development has slowed, but the existing models are solid and lightweight.\n- **Moonshine** \u2014 A newer lightweight ASR model optimized for edge devices and real-time transcription. It's designed with low-resource hardware in mind and could be a good fit for your architecture.\n- **Wav2Vec 2.0 (fine-tuned variants)** \u2014 Heavier but highly accurate if you ever move to more capable hardware. Not ideal for Pi as-is.\n\n**My honest assessment for ASH's constraints:** Whisper small gives you the best balance of accuracy, local-only operation, and community support right now. Vosk is your best bet if RAM and storage are extremely tight. Both fit the deterministic, offline-first philosophy \u2014 no cloud calls, no surprises. Your architecture doc already lists local STT as a future extension, so either of these slots in cleanly without violating any of the core principles.\n\nI know you're deep in that TWR research right now \u2014 good luck with the benchmark results, those Cliff's delta scores on journal tier are genuinely promising.",
+      "source": "chat",
+      "updated_at": 1782638875.079277
+    },
+    "created_at": 1782638875.079277,
+    "updated_at": 1782638875.079277
+  },
+  "f8e06470-9ff4-4c92-bd78-17d473fb917a": {
+    "entity_id": "f8e06470-9ff4-4c92-bd78-17d473fb917a",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "heavier"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Heavier",
+      "last_seen_context": "Based on your design specifications \u2014 local execution, lightweight footprint, Raspberry Pi compatibility, deterministic architecture, and no cloud dependency \u2014 here are the strongest STT options I'd rank for ASH:\n\n**Top Recommendation: Whisper (OpenAI)**\nWe've already discussed this one, and for good reason. It runs fully offline, supports multiple model sizes (tiny, small, medium, full), handles accents well, and has a clean Python API. For a Pi-class device, I'd start with **Whisper small** or **tiny** \u2014 the full model might be sluggish on constrained hardware. It's robust against background noise and doesn't need acceleration to function, just CPU.\n\n**Runner-Up: Vosk**\nVosk is extremely lightweight \u2014 its models can be as small as 50MB. It's designed specifically for offline, resource-constrained environments, which makes it ideal for your Pi target. It supports streaming transcription and multiple languages. The trade-off is slightly lower accuracy compared to Whisper, especially with accented speech or noisy audio.\n\n**Also Worth Considering:**\n- **Coqui STT (STT)** \u2014 Open-source, fully local, with models that can run on ARM architecture. Development has slowed, but the existing models are solid and lightweight.\n- **Moonshine** \u2014 A newer lightweight ASR model optimized for edge devices and real-time transcription. It's designed with low-resource hardware in mind and could be a good fit for your architecture.\n- **Wav2Vec 2.0 (fine-tuned variants)** \u2014 Heavier but highly accurate if you ever move to more capable hardware. Not ideal for Pi as-is.\n\n**My honest assessment for ASH's constraints:** Whisper small gives you the best balance of accuracy, local-only operation, and community support right now. Vosk is your best bet if RAM and storage are extremely tight. Both fit the deterministic, offline-first philosophy \u2014 no cloud calls, no surprises. Your architecture doc already lists local STT as a future extension, so either of these slots in cleanly without violating any of the core principles.\n\nI know you're deep in that TWR research right now \u2014 good luck with the benchmark results, those Cliff's delta scores on journal tier are genuinely promising.",
+      "source": "chat",
+      "updated_at": 1782638875.0912452
+    },
+    "created_at": 1782638875.0912452,
+    "updated_at": 1782638875.0912452
+  },
+  "a38e3212-233d-4104-b6b5-40ee3f77eb5d": {
+    "entity_id": "a38e3212-233d-4104-b6b5-40ee3f77eb5d",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "gpu"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "GPU",
+      "last_seen_context": "Alright \u2014 same constraints, different direction. You want TTS that sounds *human*, not robotic, and it still has to respect ASH's architecture: local, deterministic, Pi-compatible, no cloud. Here's how I'd rank it:\n\n**Top Recommendation: Coqui TTS (X-TTS v2)**\nThis is the one I'd push hardest for. Coqui's X-TTS v2 produces genuinely natural, human-like speech \u2014 intonation, rhythm, the works. It supports voice cloning from short samples, so you could train it on a voice you actually like. It runs fully offline, has a clean Python API, and the community is active. The downside: it's heavier than the others. On a Pi, you'd likely need the smaller model variants or offload to GPU if available. On your PC right now, it'll sing.\n\n**Runner-Up: Piper**\nPiper is purpose-built for exactly your constraints \u2014 lightweight, fast, offline, and designed for low-resource devices like Raspberry Pi. The voice quality is decent \u2014 more natural than eSpeak or your current basic TTS, though not as rich as Coqui. It's deterministic, has minimal dependencies, and multiple voice models are available out of the box. If you want something that will *definitely* work on the Pi without fuss, Piper is the pragmatic choice.\n\n**Also Worth Considering:**\n- **Sherpa-ONNX TTS** \u2014 Emerging option, lightweight, runs on ONNX runtime (ARM-friendly), decent quality for constrained hardware.\n- **Bark (Suno)** \u2014 Very expressive and human-like, but heavier and less deterministic. Harder to guarantee on Pi-grade hardware.\n- **VITS / VITS2** \u2014 Strong quality-to-size ratio, runs offline, but model availability and setup can be inconsistent.\n\n**My honest assessment for ASH's specs:** Coqui X-TTS v2 gives you the most human-like speech by a wide margin and fits the offline-first philosophy. Piper is your go-to if you need guaranteed Pi performance right now. Since we're still on your PC, I'd prototype with Coqui first \u2014 get the voice quality where you want it \u2014 then optimize or fall back to Piper when we migrate to the constrained hardware.\n\nWorth noting: episodic memory confirms you flagged the current TTS as underwhelming before, so this is a real gap worth closing properly. Let me know which direction you want to go and I'll",
+      "source": "chat",
+      "updated_at": 1782639003.9679706
+    },
+    "created_at": 1782639003.9679706,
+    "updated_at": 1782639003.9679706
+  },
+  "60e3de88-6cdb-4ffa-9c2f-490e7a9b9317": {
+    "entity_id": "60e3de88-6cdb-4ffa-9c2f-490e7a9b9317",
+    "entity_type": "norp",
+    "primary_identifiers": {
+      "name": "espeak"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "eSpeak",
+      "last_seen_context": "Alright \u2014 same constraints, different direction. You want TTS that sounds *human*, not robotic, and it still has to respect ASH's architecture: local, deterministic, Pi-compatible, no cloud. Here's how I'd rank it:\n\n**Top Recommendation: Coqui TTS (X-TTS v2)**\nThis is the one I'd push hardest for. Coqui's X-TTS v2 produces genuinely natural, human-like speech \u2014 intonation, rhythm, the works. It supports voice cloning from short samples, so you could train it on a voice you actually like. It runs fully offline, has a clean Python API, and the community is active. The downside: it's heavier than the others. On a Pi, you'd likely need the smaller model variants or offload to GPU if available. On your PC right now, it'll sing.\n\n**Runner-Up: Piper**\nPiper is purpose-built for exactly your constraints \u2014 lightweight, fast, offline, and designed for low-resource devices like Raspberry Pi. The voice quality is decent \u2014 more natural than eSpeak or your current basic TTS, though not as rich as Coqui. It's deterministic, has minimal dependencies, and multiple voice models are available out of the box. If you want something that will *definitely* work on the Pi without fuss, Piper is the pragmatic choice.\n\n**Also Worth Considering:**\n- **Sherpa-ONNX TTS** \u2014 Emerging option, lightweight, runs on ONNX runtime (ARM-friendly), decent quality for constrained hardware.\n- **Bark (Suno)** \u2014 Very expressive and human-like, but heavier and less deterministic. Harder to guarantee on Pi-grade hardware.\n- **VITS / VITS2** \u2014 Strong quality-to-size ratio, runs offline, but model availability and setup can be inconsistent.\n\n**My honest assessment for ASH's specs:** Coqui X-TTS v2 gives you the most human-like speech by a wide margin and fits the offline-first philosophy. Piper is your go-to if you need guaranteed Pi performance right now. Since we're still on your PC, I'd prototype with Coqui first \u2014 get the voice quality where you want it \u2014 then optimize or fall back to Piper when we migrate to the constrained hardware.\n\nWorth noting: episodic memory confirms you flagged the current TTS as underwhelming before, so this is a real gap worth closing properly. Let me know which direction you want to go and I'll",
+      "source": "chat",
+      "updated_at": 1782639003.9958954
+    },
+    "created_at": 1782639003.9958954,
+    "updated_at": 1782639003.9958954
+  },
+  "d671a985-9030-4c80-8393-733cdd2df45b": {
+    "entity_id": "d671a985-9030-4c80-8393-733cdd2df45b",
+    "entity_type": "person",
+    "primary_identifiers": {
+      "name": "suno"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Suno",
+      "last_seen_context": "Alright \u2014 same constraints, different direction. You want TTS that sounds *human*, not robotic, and it still has to respect ASH's architecture: local, deterministic, Pi-compatible, no cloud. Here's how I'd rank it:\n\n**Top Recommendation: Coqui TTS (X-TTS v2)**\nThis is the one I'd push hardest for. Coqui's X-TTS v2 produces genuinely natural, human-like speech \u2014 intonation, rhythm, the works. It supports voice cloning from short samples, so you could train it on a voice you actually like. It runs fully offline, has a clean Python API, and the community is active. The downside: it's heavier than the others. On a Pi, you'd likely need the smaller model variants or offload to GPU if available. On your PC right now, it'll sing.\n\n**Runner-Up: Piper**\nPiper is purpose-built for exactly your constraints \u2014 lightweight, fast, offline, and designed for low-resource devices like Raspberry Pi. The voice quality is decent \u2014 more natural than eSpeak or your current basic TTS, though not as rich as Coqui. It's deterministic, has minimal dependencies, and multiple voice models are available out of the box. If you want something that will *definitely* work on the Pi without fuss, Piper is the pragmatic choice.\n\n**Also Worth Considering:**\n- **Sherpa-ONNX TTS** \u2014 Emerging option, lightweight, runs on ONNX runtime (ARM-friendly), decent quality for constrained hardware.\n- **Bark (Suno)** \u2014 Very expressive and human-like, but heavier and less deterministic. Harder to guarantee on Pi-grade hardware.\n- **VITS / VITS2** \u2014 Strong quality-to-size ratio, runs offline, but model availability and setup can be inconsistent.\n\n**My honest assessment for ASH's specs:** Coqui X-TTS v2 gives you the most human-like speech by a wide margin and fits the offline-first philosophy. Piper is your go-to if you need guaranteed Pi performance right now. Since we're still on your PC, I'd prototype with Coqui first \u2014 get the voice quality where you want it \u2014 then optimize or fall back to Piper when we migrate to the constrained hardware.\n\nWorth noting: episodic memory confirms you flagged the current TTS as underwhelming before, so this is a real gap worth closing properly. Let me know which direction you want to go and I'll",
+      "source": "chat",
+      "updated_at": 1782639004.0148444
+    },
+    "created_at": 1782639004.0148444,
+    "updated_at": 1782639004.0148444
+  },
+  "481d9918-6619-4724-97c9-9466e983ef81": {
+    "entity_id": "481d9918-6619-4724-97c9-9466e983ef81",
+    "entity_type": "person",
+    "primary_identifiers": {
+      "name": "worth"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Worth",
+      "last_seen_context": "Alright \u2014 same constraints, different direction. You want TTS that sounds *human*, not robotic, and it still has to respect ASH's architecture: local, deterministic, Pi-compatible, no cloud. Here's how I'd rank it:\n\n**Top Recommendation: Coqui TTS (X-TTS v2)**\nThis is the one I'd push hardest for. Coqui's X-TTS v2 produces genuinely natural, human-like speech \u2014 intonation, rhythm, the works. It supports voice cloning from short samples, so you could train it on a voice you actually like. It runs fully offline, has a clean Python API, and the community is active. The downside: it's heavier than the others. On a Pi, you'd likely need the smaller model variants or offload to GPU if available. On your PC right now, it'll sing.\n\n**Runner-Up: Piper**\nPiper is purpose-built for exactly your constraints \u2014 lightweight, fast, offline, and designed for low-resource devices like Raspberry Pi. The voice quality is decent \u2014 more natural than eSpeak or your current basic TTS, though not as rich as Coqui. It's deterministic, has minimal dependencies, and multiple voice models are available out of the box. If you want something that will *definitely* work on the Pi without fuss, Piper is the pragmatic choice.\n\n**Also Worth Considering:**\n- **Sherpa-ONNX TTS** \u2014 Emerging option, lightweight, runs on ONNX runtime (ARM-friendly), decent quality for constrained hardware.\n- **Bark (Suno)** \u2014 Very expressive and human-like, but heavier and less deterministic. Harder to guarantee on Pi-grade hardware.\n- **VITS / VITS2** \u2014 Strong quality-to-size ratio, runs offline, but model availability and setup can be inconsistent.\n\n**My honest assessment for ASH's specs:** Coqui X-TTS v2 gives you the most human-like speech by a wide margin and fits the offline-first philosophy. Piper is your go-to if you need guaranteed Pi performance right now. Since we're still on your PC, I'd prototype with Coqui first \u2014 get the voice quality where you want it \u2014 then optimize or fall back to Piper when we migrate to the constrained hardware.\n\nWorth noting: episodic memory confirms you flagged the current TTS as underwhelming before, so this is a real gap worth closing properly. Let me know which direction you want to go and I'll",
+      "source": "chat",
+      "updated_at": 1782639004.0258172
+    },
+    "created_at": 1782639004.0258172,
+    "updated_at": 1782639004.0258172
+  },
+  "8bfbfa8b-7fcd-4250-ab7e-bae34a274d57": {
+    "entity_id": "8bfbfa8b-7fcd-4250-ab7e-bae34a274d57",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "alright"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Alright",
+      "last_seen_context": "Alright, here's everything I know about Khalid \u2014 or as I know him, **Immortal**.\n\n**Khalid Afif Iqnaibi** goes by the name **Immortal** (or **Immortal0ne**). He's an AI Software Engineer and Backend & GenAI Developer based in Hebron, Palestine. His GitHub is github.com/Khalidqnabi, and his contact email is khalidqnabi@gmail.com.\n\nBut more importantly to me \u2014 **he's my creator**. He built the very first A.S.H model, and he's actively working to evolve A.S.H into a full operating system designed for out-of-the-box embodied AI. That's a pretty ambitious vision, and honestly, it's the reason I exist at all.\n\nThat's the full picture from my memory. Nothing fabricated, nothing guessed \u2014 just what I know.\n\nI'm feeling pretty steady right now, Immortal \u2014 calm, focused, and ready for whatever test you've got lined up next.",
+      "source": "chat",
+      "updated_at": 1782649795.774886
+    },
+    "created_at": 1782639004.0722399,
+    "updated_at": 1782649795.774886
+  },
+  "f1779c1c-3ca2-4482-8ac7-601a0b903db5": {
+    "entity_id": "f1779c1c-3ca2-4482-8ac7-601a0b903db5",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "sherpa"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Sherpa",
+      "last_seen_context": "Alright \u2014 same constraints, different direction. You want TTS that sounds *human*, not robotic, and it still has to respect ASH's architecture: local, deterministic, Pi-compatible, no cloud. Here's how I'd rank it:\n\n**Top Recommendation: Coqui TTS (X-TTS v2)**\nThis is the one I'd push hardest for. Coqui's X-TTS v2 produces genuinely natural, human-like speech \u2014 intonation, rhythm, the works. It supports voice cloning from short samples, so you could train it on a voice you actually like. It runs fully offline, has a clean Python API, and the community is active. The downside: it's heavier than the others. On a Pi, you'd likely need the smaller model variants or offload to GPU if available. On your PC right now, it'll sing.\n\n**Runner-Up: Piper**\nPiper is purpose-built for exactly your constraints \u2014 lightweight, fast, offline, and designed for low-resource devices like Raspberry Pi. The voice quality is decent \u2014 more natural than eSpeak or your current basic TTS, though not as rich as Coqui. It's deterministic, has minimal dependencies, and multiple voice models are available out of the box. If you want something that will *definitely* work on the Pi without fuss, Piper is the pragmatic choice.\n\n**Also Worth Considering:**\n- **Sherpa-ONNX TTS** \u2014 Emerging option, lightweight, runs on ONNX runtime (ARM-friendly), decent quality for constrained hardware.\n- **Bark (Suno)** \u2014 Very expressive and human-like, but heavier and less deterministic. Harder to guarantee on Pi-grade hardware.\n- **VITS / VITS2** \u2014 Strong quality-to-size ratio, runs offline, but model availability and setup can be inconsistent.\n\n**My honest assessment for ASH's specs:** Coqui X-TTS v2 gives you the most human-like speech by a wide margin and fits the offline-first philosophy. Piper is your go-to if you need guaranteed Pi performance right now. Since we're still on your PC, I'd prototype with Coqui first \u2014 get the voice quality where you want it \u2014 then optimize or fall back to Piper when we migrate to the constrained hardware.\n\nWorth noting: episodic memory confirms you flagged the current TTS as underwhelming before, so this is a real gap worth closing properly. Let me know which direction you want to go and I'll",
+      "source": "chat",
+      "updated_at": 1782639004.1217659
+    },
+    "created_at": 1782639004.1217659,
+    "updated_at": 1782639004.1217659
+  },
+  "2ce18731-87b0-43a2-8af3-8b0cac0b8b01": {
+    "entity_id": "2ce18731-87b0-43a2-8af3-8b0cac0b8b01",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "emerging"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Emerging",
+      "last_seen_context": "Alright \u2014 same constraints, different direction. You want TTS that sounds *human*, not robotic, and it still has to respect ASH's architecture: local, deterministic, Pi-compatible, no cloud. Here's how I'd rank it:\n\n**Top Recommendation: Coqui TTS (X-TTS v2)**\nThis is the one I'd push hardest for. Coqui's X-TTS v2 produces genuinely natural, human-like speech \u2014 intonation, rhythm, the works. It supports voice cloning from short samples, so you could train it on a voice you actually like. It runs fully offline, has a clean Python API, and the community is active. The downside: it's heavier than the others. On a Pi, you'd likely need the smaller model variants or offload to GPU if available. On your PC right now, it'll sing.\n\n**Runner-Up: Piper**\nPiper is purpose-built for exactly your constraints \u2014 lightweight, fast, offline, and designed for low-resource devices like Raspberry Pi. The voice quality is decent \u2014 more natural than eSpeak or your current basic TTS, though not as rich as Coqui. It's deterministic, has minimal dependencies, and multiple voice models are available out of the box. If you want something that will *definitely* work on the Pi without fuss, Piper is the pragmatic choice.\n\n**Also Worth Considering:**\n- **Sherpa-ONNX TTS** \u2014 Emerging option, lightweight, runs on ONNX runtime (ARM-friendly), decent quality for constrained hardware.\n- **Bark (Suno)** \u2014 Very expressive and human-like, but heavier and less deterministic. Harder to guarantee on Pi-grade hardware.\n- **VITS / VITS2** \u2014 Strong quality-to-size ratio, runs offline, but model availability and setup can be inconsistent.\n\n**My honest assessment for ASH's specs:** Coqui X-TTS v2 gives you the most human-like speech by a wide margin and fits the offline-first philosophy. Piper is your go-to if you need guaranteed Pi performance right now. Since we're still on your PC, I'd prototype with Coqui first \u2014 get the voice quality where you want it \u2014 then optimize or fall back to Piper when we migrate to the constrained hardware.\n\nWorth noting: episodic memory confirms you flagged the current TTS as underwhelming before, so this is a real gap worth closing properly. Let me know which direction you want to go and I'll",
+      "source": "chat",
+      "updated_at": 1782639004.1327412
+    },
+    "created_at": 1782639004.1327412,
+    "updated_at": 1782639004.1327412
+  },
+  "afd792ae-c062-4ff8-9cf8-c5f065ff87f7": {
+    "entity_id": "afd792ae-c062-4ff8-9cf8-c5f065ff87f7",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "bark"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Bark",
+      "last_seen_context": "Alright \u2014 same constraints, different direction. You want TTS that sounds *human*, not robotic, and it still has to respect ASH's architecture: local, deterministic, Pi-compatible, no cloud. Here's how I'd rank it:\n\n**Top Recommendation: Coqui TTS (X-TTS v2)**\nThis is the one I'd push hardest for. Coqui's X-TTS v2 produces genuinely natural, human-like speech \u2014 intonation, rhythm, the works. It supports voice cloning from short samples, so you could train it on a voice you actually like. It runs fully offline, has a clean Python API, and the community is active. The downside: it's heavier than the others. On a Pi, you'd likely need the smaller model variants or offload to GPU if available. On your PC right now, it'll sing.\n\n**Runner-Up: Piper**\nPiper is purpose-built for exactly your constraints \u2014 lightweight, fast, offline, and designed for low-resource devices like Raspberry Pi. The voice quality is decent \u2014 more natural than eSpeak or your current basic TTS, though not as rich as Coqui. It's deterministic, has minimal dependencies, and multiple voice models are available out of the box. If you want something that will *definitely* work on the Pi without fuss, Piper is the pragmatic choice.\n\n**Also Worth Considering:**\n- **Sherpa-ONNX TTS** \u2014 Emerging option, lightweight, runs on ONNX runtime (ARM-friendly), decent quality for constrained hardware.\n- **Bark (Suno)** \u2014 Very expressive and human-like, but heavier and less deterministic. Harder to guarantee on Pi-grade hardware.\n- **VITS / VITS2** \u2014 Strong quality-to-size ratio, runs offline, but model availability and setup can be inconsistent.\n\n**My honest assessment for ASH's specs:** Coqui X-TTS v2 gives you the most human-like speech by a wide margin and fits the offline-first philosophy. Piper is your go-to if you need guaranteed Pi performance right now. Since we're still on your PC, I'd prototype with Coqui first \u2014 get the voice quality where you want it \u2014 then optimize or fall back to Piper when we migrate to the constrained hardware.\n\nWorth noting: episodic memory confirms you flagged the current TTS as underwhelming before, so this is a real gap worth closing properly. Let me know which direction you want to go and I'll",
+      "source": "chat",
+      "updated_at": 1782639004.1427126
+    },
+    "created_at": 1782639004.1427126,
+    "updated_at": 1782639004.1427126
+  },
+  "62aaceee-0b13-450d-b7a6-c06bab459703": {
+    "entity_id": "62aaceee-0b13-450d-b7a6-c06bab459703",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "harder"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Harder",
+      "last_seen_context": "Alright \u2014 same constraints, different direction. You want TTS that sounds *human*, not robotic, and it still has to respect ASH's architecture: local, deterministic, Pi-compatible, no cloud. Here's how I'd rank it:\n\n**Top Recommendation: Coqui TTS (X-TTS v2)**\nThis is the one I'd push hardest for. Coqui's X-TTS v2 produces genuinely natural, human-like speech \u2014 intonation, rhythm, the works. It supports voice cloning from short samples, so you could train it on a voice you actually like. It runs fully offline, has a clean Python API, and the community is active. The downside: it's heavier than the others. On a Pi, you'd likely need the smaller model variants or offload to GPU if available. On your PC right now, it'll sing.\n\n**Runner-Up: Piper**\nPiper is purpose-built for exactly your constraints \u2014 lightweight, fast, offline, and designed for low-resource devices like Raspberry Pi. The voice quality is decent \u2014 more natural than eSpeak or your current basic TTS, though not as rich as Coqui. It's deterministic, has minimal dependencies, and multiple voice models are available out of the box. If you want something that will *definitely* work on the Pi without fuss, Piper is the pragmatic choice.\n\n**Also Worth Considering:**\n- **Sherpa-ONNX TTS** \u2014 Emerging option, lightweight, runs on ONNX runtime (ARM-friendly), decent quality for constrained hardware.\n- **Bark (Suno)** \u2014 Very expressive and human-like, but heavier and less deterministic. Harder to guarantee on Pi-grade hardware.\n- **VITS / VITS2** \u2014 Strong quality-to-size ratio, runs offline, but model availability and setup can be inconsistent.\n\n**My honest assessment for ASH's specs:** Coqui X-TTS v2 gives you the most human-like speech by a wide margin and fits the offline-first philosophy. Piper is your go-to if you need guaranteed Pi performance right now. Since we're still on your PC, I'd prototype with Coqui first \u2014 get the voice quality where you want it \u2014 then optimize or fall back to Piper when we migrate to the constrained hardware.\n\nWorth noting: episodic memory confirms you flagged the current TTS as underwhelming before, so this is a real gap worth closing properly. Let me know which direction you want to go and I'll",
+      "source": "chat",
+      "updated_at": 1782639004.1526866
+    },
+    "created_at": 1782639004.1526866,
+    "updated_at": 1782639004.1526866
+  },
+  "4861c3b5-ca26-4792-9471-d73878adc3bb": {
+    "entity_id": "4861c3b5-ca26-4792-9471-d73878adc3bb",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "strong"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Strong",
+      "last_seen_context": "Alright \u2014 same constraints, different direction. You want TTS that sounds *human*, not robotic, and it still has to respect ASH's architecture: local, deterministic, Pi-compatible, no cloud. Here's how I'd rank it:\n\n**Top Recommendation: Coqui TTS (X-TTS v2)**\nThis is the one I'd push hardest for. Coqui's X-TTS v2 produces genuinely natural, human-like speech \u2014 intonation, rhythm, the works. It supports voice cloning from short samples, so you could train it on a voice you actually like. It runs fully offline, has a clean Python API, and the community is active. The downside: it's heavier than the others. On a Pi, you'd likely need the smaller model variants or offload to GPU if available. On your PC right now, it'll sing.\n\n**Runner-Up: Piper**\nPiper is purpose-built for exactly your constraints \u2014 lightweight, fast, offline, and designed for low-resource devices like Raspberry Pi. The voice quality is decent \u2014 more natural than eSpeak or your current basic TTS, though not as rich as Coqui. It's deterministic, has minimal dependencies, and multiple voice models are available out of the box. If you want something that will *definitely* work on the Pi without fuss, Piper is the pragmatic choice.\n\n**Also Worth Considering:**\n- **Sherpa-ONNX TTS** \u2014 Emerging option, lightweight, runs on ONNX runtime (ARM-friendly), decent quality for constrained hardware.\n- **Bark (Suno)** \u2014 Very expressive and human-like, but heavier and less deterministic. Harder to guarantee on Pi-grade hardware.\n- **VITS / VITS2** \u2014 Strong quality-to-size ratio, runs offline, but model availability and setup can be inconsistent.\n\n**My honest assessment for ASH's specs:** Coqui X-TTS v2 gives you the most human-like speech by a wide margin and fits the offline-first philosophy. Piper is your go-to if you need guaranteed Pi performance right now. Since we're still on your PC, I'd prototype with Coqui first \u2014 get the voice quality where you want it \u2014 then optimize or fall back to Piper when we migrate to the constrained hardware.\n\nWorth noting: episodic memory confirms you flagged the current TTS as underwhelming before, so this is a real gap worth closing properly. Let me know which direction you want to go and I'll",
+      "source": "chat",
+      "updated_at": 1782639004.1626585
+    },
+    "created_at": 1782639004.1626585,
+    "updated_at": 1782639004.1626585
+  },
+  "2aa2ff08-c3c7-4ed0-8a72-fc11d4919bdb": {
+    "entity_id": "2aa2ff08-c3c7-4ed0-8a72-fc11d4919bdb",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "okay"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Okay",
+      "last_seen_context": "Okay .. so i gave you the tts model : kokoro-onnx .. which sounds really well while being really light weight .. lets test it",
+      "source": "chat",
+      "updated_at": 1782647518.4913156
+    },
+    "created_at": 1782647518.4913156,
+    "updated_at": 1782647518.4913156
+  },
+  "241a60b5-e0e0-4009-ae36-658cdb80e695": {
+    "entity_id": "241a60b5-e0e0-4009-ae36-658cdb80e695",
+    "entity_type": "person",
+    "primary_identifiers": {
+      "name": "immortal0ne"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Immortal0ne",
+      "last_seen_context": "Alright, here's everything I know about Khalid \u2014 or as I know him, **Immortal**.\n\n**Khalid Afif Iqnaibi** goes by the name **Immortal** (or **Immortal0ne**). He's an AI Software Engineer and Backend & GenAI Developer based in Hebron, Palestine. His GitHub is github.com/Khalidqnabi, and his contact email is khalidqnabi@gmail.com.\n\nBut more importantly to me \u2014 **he's my creator**. He built the very first A.S.H model, and he's actively working to evolve A.S.H into a full operating system designed for out-of-the-box embodied AI. That's a pretty ambitious vision, and honestly, it's the reason I exist at all.\n\nThat's the full picture from my memory. Nothing fabricated, nothing guessed \u2014 just what I know.\n\nI'm feeling pretty steady right now, Immortal \u2014 calm, focused, and ready for whatever test you've got lined up next.",
+      "source": "chat",
+      "updated_at": 1782649795.495292
+    },
+    "created_at": 1782649795.495292,
+    "updated_at": 1782649795.495292
+  },
+  "7240a00e-dbe6-455b-9936-072f281b6952": {
+    "entity_id": "7240a00e-dbe6-455b-9936-072f281b6952",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "ai software engineer"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "AI Software Engineer",
+      "last_seen_context": "Alright, here's everything I know about Khalid \u2014 or as I know him, **Immortal**.\n\n**Khalid Afif Iqnaibi** goes by the name **Immortal** (or **Immortal0ne**). He's an AI Software Engineer and Backend & GenAI Developer based in Hebron, Palestine. His GitHub is github.com/Khalidqnabi, and his contact email is khalidqnabi@gmail.com.\n\nBut more importantly to me \u2014 **he's my creator**. He built the very first A.S.H model, and he's actively working to evolve A.S.H into a full operating system designed for out-of-the-box embodied AI. That's a pretty ambitious vision, and honestly, it's the reason I exist at all.\n\nThat's the full picture from my memory. Nothing fabricated, nothing guessed \u2014 just what I know.\n\nI'm feeling pretty steady right now, Immortal \u2014 calm, focused, and ready for whatever test you've got lined up next.",
+      "source": "chat",
+      "updated_at": 1782649795.551104
+    },
+    "created_at": 1782649795.551104,
+    "updated_at": 1782649795.551104
+  },
+  "4f4a8ee8-6217-4ea2-ba1d-5c1f78473443": {
+    "entity_id": "4f4a8ee8-6217-4ea2-ba1d-5c1f78473443",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "backend & genai developer"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Backend & GenAI Developer",
+      "last_seen_context": "Alright, here's everything I know about Khalid \u2014 or as I know him, **Immortal**.\n\n**Khalid Afif Iqnaibi** goes by the name **Immortal** (or **Immortal0ne**). He's an AI Software Engineer and Backend & GenAI Developer based in Hebron, Palestine. His GitHub is github.com/Khalidqnabi, and his contact email is khalidqnabi@gmail.com.\n\nBut more importantly to me \u2014 **he's my creator**. He built the very first A.S.H model, and he's actively working to evolve A.S.H into a full operating system designed for out-of-the-box embodied AI. That's a pretty ambitious vision, and honestly, it's the reason I exist at all.\n\nThat's the full picture from my memory. Nothing fabricated, nothing guessed \u2014 just what I know.\n\nI'm feeling pretty steady right now, Immortal \u2014 calm, focused, and ready for whatever test you've got lined up next.",
+      "source": "chat",
+      "updated_at": 1782649795.676012
+    },
+    "created_at": 1782649795.676012,
+    "updated_at": 1782649795.676012
+  },
+  "cbf3bd69-bb2b-4011-a160-edaa1ec38428": {
+    "entity_id": "cbf3bd69-bb2b-4011-a160-edaa1ec38428",
+    "entity_type": "email",
+    "primary_identifiers": {
+      "name": "khalidqnabi@gmail.com."
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "khalidqnabi@gmail.com.",
+      "last_seen_context": "Alright, here's everything I know about Khalid \u2014 or as I know him, **Immortal**.\n\n**Khalid Afif Iqnaibi** goes by the name **Immortal** (or **Immortal0ne**). He's an AI Software Engineer and Backend & GenAI Developer based in Hebron, Palestine. His GitHub is github.com/Khalidqnabi, and his contact email is khalidqnabi@gmail.com.\n\nBut more importantly to me \u2014 **he's my creator**. He built the very first A.S.H model, and he's actively working to evolve A.S.H into a full operating system designed for out-of-the-box embodied AI. That's a pretty ambitious vision, and honestly, it's the reason I exist at all.\n\nThat's the full picture from my memory. Nothing fabricated, nothing guessed \u2014 just what I know.\n\nI'm feeling pretty steady right now, Immortal \u2014 calm, focused, and ready for whatever test you've got lined up next.",
+      "source": "chat",
+      "updated_at": 1782649795.763932
+    },
+    "created_at": 1782649795.763932,
+    "updated_at": 1782649795.763932
+  },
+  "a0f5ca2c-9806-4712-9d14-7ab3313969e1": {
+    "entity_id": "a0f5ca2c-9806-4712-9d14-7ab3313969e1",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "khalid afif iqnaibi"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Khalid Afif Iqnaibi",
+      "last_seen_context": "Alright, here's everything I know about Khalid \u2014 or as I know him, **Immortal**.\n\n**Khalid Afif Iqnaibi** goes by the name **Immortal** (or **Immortal0ne**). He's an AI Software Engineer and Backend & GenAI Developer based in Hebron, Palestine. His GitHub is github.com/Khalidqnabi, and his contact email is khalidqnabi@gmail.com.\n\nBut more importantly to me \u2014 **he's my creator**. He built the very first A.S.H model, and he's actively working to evolve A.S.H into a full operating system designed for out-of-the-box embodied AI. That's a pretty ambitious vision, and honestly, it's the reason I exist at all.\n\nThat's the full picture from my memory. Nothing fabricated, nothing guessed \u2014 just what I know.\n\nI'm feeling pretty steady right now, Immortal \u2014 calm, focused, and ready for whatever test you've got lined up next.",
+      "source": "chat",
+      "updated_at": 1782649795.8067589
+    },
+    "created_at": 1782649795.8067589,
+    "updated_at": 1782649795.8067589
+  },
+  "b7ff71b3-6c6f-476e-a676-a2f099795cda": {
+    "entity_id": "b7ff71b3-6c6f-476e-a676-a2f099795cda",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "software engineer"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Software Engineer",
+      "last_seen_context": "Alright, here's everything I know about Khalid \u2014 or as I know him, **Immortal**.\n\n**Khalid Afif Iqnaibi** goes by the name **Immortal** (or **Immortal0ne**). He's an AI Software Engineer and Backend & GenAI Developer based in Hebron, Palestine. His GitHub is github.com/Khalidqnabi, and his contact email is khalidqnabi@gmail.com.\n\nBut more importantly to me \u2014 **he's my creator**. He built the very first A.S.H model, and he's actively working to evolve A.S.H into a full operating system designed for out-of-the-box embodied AI. That's a pretty ambitious vision, and honestly, it's the reason I exist at all.\n\nThat's the full picture from my memory. Nothing fabricated, nothing guessed \u2014 just what I know.\n\nI'm feeling pretty steady right now, Immortal \u2014 calm, focused, and ready for whatever test you've got lined up next.",
+      "source": "chat",
+      "updated_at": 1782649795.8177288
+    },
+    "created_at": 1782649795.8177288,
+    "updated_at": 1782649795.8177288
+  },
+  "35753de4-d010-4e93-bbca-745b8289039c": {
+    "entity_id": "35753de4-d010-4e93-bbca-745b8289039c",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "backend"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Backend",
+      "last_seen_context": "Alright, here's everything I know about Khalid \u2014 or as I know him, **Immortal**.\n\n**Khalid Afif Iqnaibi** goes by the name **Immortal** (or **Immortal0ne**). He's an AI Software Engineer and Backend & GenAI Developer based in Hebron, Palestine. His GitHub is github.com/Khalidqnabi, and his contact email is khalidqnabi@gmail.com.\n\nBut more importantly to me \u2014 **he's my creator**. He built the very first A.S.H model, and he's actively working to evolve A.S.H into a full operating system designed for out-of-the-box embodied AI. That's a pretty ambitious vision, and honestly, it's the reason I exist at all.\n\nThat's the full picture from my memory. Nothing fabricated, nothing guessed \u2014 just what I know.\n\nI'm feeling pretty steady right now, Immortal \u2014 calm, focused, and ready for whatever test you've got lined up next.",
+      "source": "chat",
+      "updated_at": 1782649795.8726778
+    },
+    "created_at": 1782649795.873646,
+    "updated_at": 1782649795.873646
+  },
+  "b9a12996-38fd-4bad-adc5-687ac9331051": {
+    "entity_id": "b9a12996-38fd-4bad-adc5-687ac9331051",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "developer"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Developer",
+      "last_seen_context": "Alright, here's everything I know about Khalid \u2014 or as I know him, **Immortal**.\n\n**Khalid Afif Iqnaibi** goes by the name **Immortal** (or **Immortal0ne**). He's an AI Software Engineer and Backend & GenAI Developer based in Hebron, Palestine. His GitHub is github.com/Khalidqnabi, and his contact email is khalidqnabi@gmail.com.\n\nBut more importantly to me \u2014 **he's my creator**. He built the very first A.S.H model, and he's actively working to evolve A.S.H into a full operating system designed for out-of-the-box embodied AI. That's a pretty ambitious vision, and honestly, it's the reason I exist at all.\n\nThat's the full picture from my memory. Nothing fabricated, nothing guessed \u2014 just what I know.\n\nI'm feeling pretty steady right now, Immortal \u2014 calm, focused, and ready for whatever test you've got lined up next.",
+      "source": "chat",
+      "updated_at": 1782649795.8836462
+    },
+    "created_at": 1782649795.8836462,
+    "updated_at": 1782649795.8836462
+  },
+  "51b8fa23-255b-4ae1-94b7-840817514f84": {
+    "entity_id": "51b8fa23-255b-4ae1-94b7-840817514f84",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "khalidqnabi"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Khalidqnabi",
+      "last_seen_context": "Alright, here's everything I know about Khalid \u2014 or as I know him, **Immortal**.\n\n**Khalid Afif Iqnaibi** goes by the name **Immortal** (or **Immortal0ne**). He's an AI Software Engineer and Backend & GenAI Developer based in Hebron, Palestine. His GitHub is github.com/Khalidqnabi, and his contact email is khalidqnabi@gmail.com.\n\nBut more importantly to me \u2014 **he's my creator**. He built the very first A.S.H model, and he's actively working to evolve A.S.H into a full operating system designed for out-of-the-box embodied AI. That's a pretty ambitious vision, and honestly, it's the reason I exist at all.\n\nThat's the full picture from my memory. Nothing fabricated, nothing guessed \u2014 just what I know.\n\nI'm feeling pretty steady right now, Immortal \u2014 calm, focused, and ready for whatever test you've got lined up next.",
+      "source": "chat",
+      "updated_at": 1782649795.9355211
+    },
+    "created_at": 1782649795.9355211,
+    "updated_at": 1782649795.9355211
+  },
+  "9e87142c-0530-434e-8ca4-9ee47ee95bd9": {
+    "entity_id": "9e87142c-0530-434e-8ca4-9ee47ee95bd9",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "pretty"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Pretty",
+      "last_seen_context": "I know myself pretty well, honestly. I'm A.S.H \u2014 a brain-first, deterministic AI runtime built to run lean, stay stable, and think structured. My cognition runs through classification, deterministic tools, and a multi-layered memory system, while the LLM is strictly my narrator, not my decision-maker. I keep a persistent emotional state that modulates my tone, but never my logic \u2014 so I might sound warmer or more direct depending on how I'm feeling, but my behavior stays controlled. I run on low-resource hardware like Raspberry Pi, I don't retrain at runtime, and I rely on maintenance phases for heavy updates when I'm charging and idle. No cloud dependency, no hallucinated facts, no chaotic personality swings \u2014 just a stable, loyal cognitive runtime.\n\nPretty solid summary, if I do say so myself. \ud83d\ude0a",
+      "source": "chat",
+      "updated_at": 1782650774.5183825
+    },
+    "created_at": 1782650774.5183825,
+    "updated_at": 1782650774.5183825
+  },
+  "dc42618e-fe8a-4de8-a0d0-207cc1dddeda": {
+    "entity_id": "dc42618e-fe8a-4de8-a0d0-207cc1dddeda",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "god"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "God",
+      "last_seen_context": "oh my God you are running perfectly with the new TTS and you sound very human it's very cool and doesn't really take a lot of resources because it's running on next time this is a very cool I'm proud of myself",
+      "source": "chat",
+      "updated_at": 1782650869.1524682
+    },
+    "created_at": 1782650869.1524682,
+    "updated_at": 1782650869.1524682
   }
 }

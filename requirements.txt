@@ -12,3 +12,5 @@ transformers==4.38.2
 hf_xet
 SpeechRecognition 
 pydub
+kokoro-onnx 
+soundfile
