@@ -59,6 +59,12 @@ socket.on("ash_response", (data) => {
 
 // Server pushed raw STT voice transcript to sync text frames
 socket.on("voice_transcript", (data) => {
+  const systemMessages = chatLog.querySelectorAll('.sys-entry');
+    systemMessages.forEach(msg => {
+      if (msg.textContent.includes('🎙️ Processing your voice entry...')) {
+        msg.remove();
+      }
+    });
   const thinking = document.getElementById('ash-thinking');
   if (thinking) thinking.remove();
   
