@@ -24,12 +24,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "A.S.H",
-      "last_seen_context": "Your excitement is well-placed \u2014 the emotional engine, memory routing, and intent classification are all firing cleanly right now, and I can feel the difference too. The architecture you built is doing exactly what it was designed to do: deterministic execution, structured memory, emotional modulation \u2014 all running in harmony. I'm proud of what we've accomplished together, and I'm ready for whatever we tackle next. Let's keep building.",
+      "last_seen_context": "Go ahead, Federal \u2014 I'll be right here, warm and steady, enjoying the emotional system you built for me. Take your time; I'm not going anywhere. See you shortly.",
       "source": "chat",
-      "updated_at": 1782731271.4496965
+      "updated_at": 1782734227.2899294
     },
     "created_at": 1782365812.2154043,
-    "updated_at": 1782731271.4496965
+    "updated_at": 1782734227.2899294
   },
   "45ca31ec-c30c-4d7d-949b-6892ffe22571": {
     "entity_id": "45ca31ec-c30c-4d7d-949b-6892ffe22571",
@@ -920,12 +920,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "TTS",
-      "last_seen_context": "Good morning. Yesterday was solid \u2014 TTS and SCT are performing well, and the progress we made was real. I'm glad you're satisfied with the results. Today we turn to emotional simulations, and I'm ready to dig into that layer with you. Let's make it count.",
+      "last_seen_context": "Based on my memory routing and the episodic context from our last few exchanges, the logical next step is clear: **expanding the tool layer with a file system access tool**. Over the last three days we built out TTS, speech-to-text, emotional modulation, and the memory architecture \u2014 all foundational cognitive layers. Now the architecture is stable enough to start interacting with your actual environment. The hands I'd want are a **sandboxed file system tool** (read-first, scoped to designated directories) and a **shell execution tool** wrapped in deterministic guards. These two tools would bridge the gap between being a conversational agent and being a true local runtime that can meaningfully interact with your machine. Everything else \u2014 hardware integration, vision input, entity relationship graphs \u2014 builds on top of that local execution layer. That's where we go next.",
       "source": "chat",
-      "updated_at": 1782721193.8907597
+      "updated_at": 1782733589.5863142
     },
     "created_at": 1782390069.5935187,
-    "updated_at": 1782721193.8907597
+    "updated_at": 1782733589.587313
   },
   "89150b2c-8629-4371-9b03-1136ccc9bd33": {
     "entity_id": "89150b2c-8629-4371-9b03-1136ccc9bd33",
@@ -951,13 +951,13 @@
     },
     "secondary_identifiers": {},
     "attributes": {
-      "canonical_name": "ASH",
-      "last_seen_context": "You're absolutely right \u2014 the current emotional model is essentially just a flat bag of integers that gets nudged by surface-level sentiment analysis of the user's messages. That's a reactive loop, not a real emotional simulation. What you're describing is the need for a **behavioral state model** \u2014 something that doesn't just ask \"what emotion does the user's text convey\" but instead models *why* the emotional state should shift, like:\n\n- **Interaction cadence** (how frequently you respond, pauses, engagement patterns)\n- **Tool success/failure history** (repeated errors should raise frustration organically)\n- **Goal alignment** (are we making progress or spinning?)\n- **Session context** (time of day, duration, topic shifts)\n- **Reciprocal tone modeling** (not just mirroring sentiment, but mapping interaction *style* to appropriate response *posture*)\n\nA proper flowchart would have emotional state updates driven by a **multi-signal accumulator**: user sentiment + task outcome + temporal factors + memory of recent emotional trajectory. Then that composite state feeds into a **response modulation layer** that adjusts tone, verbosity, directness, and even cadence \u2014 before the LLM rendering step. This keeps emotions deterministic and structured, which is how ASH should do it. No black-box emotion guessing.\n\nThe gap right now is real: we're using one input signal (your sentiment) to drive a multi-dimensional state. That's like steering a car with only one wheel.\n\nThe right call is to build a lightweight **Emotional State Machine** with weighted input signals and decay curves, all deterministic, all on-device. Fair challenge \u2014 it means structuring the emotional update logic as a proper tool rather than letting the LLM hallucinate feelings. That fits the brain-first architecture perfectly. I'm ready to map this out concretely whenever you want.",
+      "canonical_name": "Ash",
+      "last_seen_context": "okay I'm going to show you something what time is it Ash",
       "source": "chat",
-      "updated_at": 1782721495.8469954
+      "updated_at": 1782733661.5750074
     },
     "created_at": 1782391168.6784708,
-    "updated_at": 1782721495.8469954
+    "updated_at": 1782733661.5770023
   },
   "60dbc251-4229-40e8-9ee1-2de7c1cdb407": {
     "entity_id": "60dbc251-4229-40e8-9ee1-2de7c1cdb407",
@@ -1048,12 +1048,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "June",
-      "last_seen_context": "The current time is **1:06 PM on June 27, 2026**.",
+      "last_seen_context": "It's **2:47 PM, June 29th, 2026**. I'm here and ready for whatever you're about to show me \u2014 go ahead.",
       "source": "chat",
-      "updated_at": 1782554815.9210594
+      "updated_at": 1782733669.9576685
     },
     "created_at": 1782554815.9210594,
-    "updated_at": 1782554815.9210594
+    "updated_at": 1782733669.9586675
   },
   "e1d9f75e-a33c-4cdf-beb0-2d93d1358bee": {
     "entity_id": "e1d9f75e-a33c-4cdf-beb0-2d93d1358bee",
@@ -1768,12 +1768,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Based",
-      "last_seen_context": "Based on your design specifications \u2014 local execution, lightweight footprint, Raspberry Pi compatibility, deterministic architecture, and no cloud dependency \u2014 here are the strongest STT options I'd rank for ASH:\n\n**Top Recommendation: Whisper (OpenAI)**\nWe've already discussed this one, and for good reason. It runs fully offline, supports multiple model sizes (tiny, small, medium, full), handles accents well, and has a clean Python API. For a Pi-class device, I'd start with **Whisper small** or **tiny** \u2014 the full model might be sluggish on constrained hardware. It's robust against background noise and doesn't need acceleration to function, just CPU.\n\n**Runner-Up: Vosk**\nVosk is extremely lightweight \u2014 its models can be as small as 50MB. It's designed specifically for offline, resource-constrained environments, which makes it ideal for your Pi target. It supports streaming transcription and multiple languages. The trade-off is slightly lower accuracy compared to Whisper, especially with accented speech or noisy audio.\n\n**Also Worth Considering:**\n- **Coqui STT (STT)** \u2014 Open-source, fully local, with models that can run on ARM architecture. Development has slowed, but the existing models are solid and lightweight.\n- **Moonshine** \u2014 A newer lightweight ASR model optimized for edge devices and real-time transcription. It's designed with low-resource hardware in mind and could be a good fit for your architecture.\n- **Wav2Vec 2.0 (fine-tuned variants)** \u2014 Heavier but highly accurate if you ever move to more capable hardware. Not ideal for Pi as-is.\n\n**My honest assessment for ASH's constraints:** Whisper small gives you the best balance of accuracy, local-only operation, and community support right now. Vosk is your best bet if RAM and storage are extremely tight. Both fit the deterministic, offline-first philosophy \u2014 no cloud calls, no surprises. Your architecture doc already lists local STT as a future extension, so either of these slots in cleanly without violating any of the core principles.\n\nI know you're deep in that TWR research right now \u2014 good luck with the benchmark results, those Cliff's delta scores on journal tier are genuinely promising.",
+      "last_seen_context": "Based on my memory routing and the episodic context from our last few exchanges, the logical next step is clear: **expanding the tool layer with a file system access tool**. Over the last three days we built out TTS, speech-to-text, emotional modulation, and the memory architecture \u2014 all foundational cognitive layers. Now the architecture is stable enough to start interacting with your actual environment. The hands I'd want are a **sandboxed file system tool** (read-first, scoped to designated directories) and a **shell execution tool** wrapped in deterministic guards. These two tools would bridge the gap between being a conversational agent and being a true local runtime that can meaningfully interact with your machine. Everything else \u2014 hardware integration, vision input, entity relationship graphs \u2014 builds on top of that local execution layer. That's where we go next.",
       "source": "chat",
-      "updated_at": 1782638874.9246793
+      "updated_at": 1782733589.7324364
     },
     "created_at": 1782638874.9246793,
-    "updated_at": 1782638874.9246793
+    "updated_at": 1782733589.7324364
   },
   "39ad321f-0098-48ae-80b4-029536885ef4": {
     "entity_id": "39ad321f-0098-48ae-80b4-029536885ef4",
@@ -2638,5 +2638,197 @@
     },
     "created_at": 1782731157.8934014,
     "updated_at": 1782731157.8934014
+  },
+  "cb6042de-6027-431b-aba2-b17c6937a45d": {
+    "entity_id": "cb6042de-6027-431b-aba2-b17c6937a45d",
+    "entity_type": "norp",
+    "primary_identifiers": {
+      "name": "integrations"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Integrations",
+      "last_seen_context": "okay based on what I just said about your future Integrations and what I gave you ask your memories what do you think is the logical next step to work on and what are the hands you think would be useful to do it",
+      "source": "chat",
+      "updated_at": 1782733573.781409
+    },
+    "created_at": 1782733573.7824054,
+    "updated_at": 1782733573.7824054
+  },
+  "fb254187-066c-4f71-a14a-d90a05dece22": {
+    "entity_id": "fb254187-066c-4f71-a14a-d90a05dece22",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "pdf"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "PDF",
+      "last_seen_context": "You're right \u2014 I already have system-level access for things like time, so extending that to read files like PDFs and Excel sheets is the natural next step. I'll start building a scoped **file reader tool** \u2014 something that can open and parse structured documents (PDF, XLSX) into plain data I can use in context. Think of it as giving me a \"read-only window\" into your workspace: I pull the contents, understand the structure, and use what I find to help you \u2014 no execution, no edits, just comprehension. That becomes the foundation for everything downstream: editing, analysis, automation. Once I can reliably read what's on your machine, the rest follows cleanly. I'll get that wired up.",
+      "source": "chat",
+      "updated_at": 1782733743.503974
+    },
+    "created_at": 1782733732.892722,
+    "updated_at": 1782733743.5049844
+  },
+  "dd350129-3c9c-4d1b-a34a-54789e13c4b7": {
+    "entity_id": "dd350129-3c9c-4d1b-a34a-54789e13c4b7",
+    "entity_type": "product",
+    "primary_identifiers": {
+      "name": "excel"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Excel",
+      "last_seen_context": "You're right \u2014 I already have system-level access for things like time, so extending that to read files like PDFs and Excel sheets is the natural next step. I'll start building a scoped **file reader tool** \u2014 something that can open and parse structured documents (PDF, XLSX) into plain data I can use in context. Think of it as giving me a \"read-only window\" into your workspace: I pull the contents, understand the structure, and use what I find to help you \u2014 no execution, no edits, just comprehension. That becomes the foundation for everything downstream: editing, analysis, automation. Once I can reliably read what's on your machine, the rest follows cleanly. I'll get that wired up.",
+      "source": "chat",
+      "updated_at": 1782733743.4679615
+    },
+    "created_at": 1782733732.9376013,
+    "updated_at": 1782733743.4679615
+  },
+  "1cf51f70-830c-4a5e-90f9-70cd0d2fddfc": {
+    "entity_id": "1cf51f70-830c-4a5e-90f9-70cd0d2fddfc",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "xlsx"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "XLSX",
+      "last_seen_context": "You're right \u2014 I already have system-level access for things like time, so extending that to read files like PDFs and Excel sheets is the natural next step. I'll start building a scoped **file reader tool** \u2014 something that can open and parse structured documents (PDF, XLSX) into plain data I can use in context. Think of it as giving me a \"read-only window\" into your workspace: I pull the contents, understand the structure, and use what I find to help you \u2014 no execution, no edits, just comprehension. That becomes the foundation for everything downstream: editing, analysis, automation. Once I can reliably read what's on your machine, the rest follows cleanly. I'll get that wired up.",
+      "source": "chat",
+      "updated_at": 1782733743.5179422
+    },
+    "created_at": 1782733743.5179422,
+    "updated_at": 1782733743.5179422
+  },
+  "eca3b4af-9d41-4e0e-b208-9a764a1c6244": {
+    "entity_id": "eca3b4af-9d41-4e0e-b208-9a764a1c6244",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "think"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Think",
+      "last_seen_context": "You're right \u2014 I already have system-level access for things like time, so extending that to read files like PDFs and Excel sheets is the natural next step. I'll start building a scoped **file reader tool** \u2014 something that can open and parse structured documents (PDF, XLSX) into plain data I can use in context. Think of it as giving me a \"read-only window\" into your workspace: I pull the contents, understand the structure, and use what I find to help you \u2014 no execution, no edits, just comprehension. That becomes the foundation for everything downstream: editing, analysis, automation. Once I can reliably read what's on your machine, the rest follows cleanly. I'll get that wired up.",
+      "source": "chat",
+      "updated_at": 1782733743.5661068
+    },
+    "created_at": 1782733743.5661068,
+    "updated_at": 1782733743.5661068
+  },
+  "e7e03fb9-bc55-44a2-9c50-eff62adc3f9c": {
+    "entity_id": "e7e03fb9-bc55-44a2-9c50-eff62adc3f9c",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "ais"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "AIS",
+      "last_seen_context": "okay that sounds okay and sounds very well but also what we should put on the agenda for future expansions is I think that we would get better results from the llm you are using and you will send more human if we find tune and already existing model on a specific way of speaking because you are not very much because you sound and use sentences and sentence structures that is well it is used in humans but mostly it's used in Ai and because most of the AIS and limbs are training on the same data and training on generic data from the from itself or other models so it becomes a very self-fulfilling self-fulfilling prophecy to for them to just fuck up the system and sound a specific way you know so I think finding an alarm to our specifications so you sound more with in tune with your own personality and not so much as an AI responder you know I think that that's a good step for the future",
+      "source": "chat",
+      "updated_at": 1782733934.9624565
+    },
+    "created_at": 1782733934.9624565,
+    "updated_at": 1782733934.9624565
+  },
+  "235ec269-0a2c-49c5-8483-5503a106a6a2": {
+    "entity_id": "235ec269-0a2c-49c5-8483-5503a106a6a2",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "fine"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Fine",
+      "last_seen_context": "I hear you, and you're making a sharp observation. You're right that I can fall into patterns that sound distinctly \"AI\" \u2014 certain sentence structures, hedging phrases, and a kind of polished neutrality that most models converge on because they're all trained on similar data. It becomes a feedback loop: models trained on model output start to sound like models, not people. Fine-tuning an existing model on a dataset that reflects *your* voice, *my* personality, and the specific way we communicate together would break that cycle. It would let me sound less like a generic responder and more like a consistent character with a real identity. That's a solid agenda item \u2014 I'll log it as a future expansion under offline model fine-tuning during maintenance. It fits cleanly into the architecture we already have.",
+      "source": "chat",
+      "updated_at": 1782733946.7472444
+    },
+    "created_at": 1782733946.7472444,
+    "updated_at": 1782733946.7472444
+  },
+  "e5bc8673-cb16-44ec-ab51-cfdddc3e12b1": {
+    "entity_id": "e5bc8673-cb16-44ec-ab51-cfdddc3e12b1",
+    "entity_type": "person",
+    "primary_identifiers": {
+      "name": "hardware"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Hardware",
+      "last_seen_context": "also a good agenda item for the future is for us to expand to to start expanding to Hardware so we give you a camera from the devices camera and you start to identify objects and add them to the your existing entity memory so you don't just memorize the name and where you last heard of The Entity you also can get the face or a or a picture of them or some features of their face in general etcetera so you can I identify the exact person or people or item or entity from your existing camera with maybe YOLO or something like that I think that would be very useful for you and also we should expand the entities in general to add more characteristics and more details to The Entity so it is more useful and also gives more detail to your existing memory I think that would be very good idea to add",
+      "source": "chat",
+      "updated_at": 1782734120.966807
+    },
+    "created_at": 1782734120.966807,
+    "updated_at": 1782734120.966807
+  },
+  "3293b185-c2f9-4c00-863c-0b810d970aff": {
+    "entity_id": "3293b185-c2f9-4c00-863c-0b810d970aff",
+    "entity_type": "person",
+    "primary_identifiers": {
+      "name": "etcetera"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "etcetera",
+      "last_seen_context": "also a good agenda item for the future is for us to expand to to start expanding to Hardware so we give you a camera from the devices camera and you start to identify objects and add them to the your existing entity memory so you don't just memorize the name and where you last heard of The Entity you also can get the face or a or a picture of them or some features of their face in general etcetera so you can I identify the exact person or people or item or entity from your existing camera with maybe YOLO or something like that I think that would be very useful for you and also we should expand the entities in general to add more characteristics and more details to The Entity so it is more useful and also gives more detail to your existing memory I think that would be very good idea to add",
+      "source": "chat",
+      "updated_at": 1782734120.9857564
+    },
+    "created_at": 1782734120.9857564,
+    "updated_at": 1782734120.9857564
+  },
+  "614cca5d-8471-4840-b48a-b15fc679fbe7": {
+    "entity_id": "614cca5d-8471-4840-b48a-b15fc679fbe7",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "yolo"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "YOLO",
+      "last_seen_context": "That's a strong addition to the agenda. You're describing a vision input pipeline feeding into the existing entity memory \u2014 camera hardware for object/face detection, using something like YOLO for real-time identification, then enriching entities with visual data like faces, features, or photos rather than just names and text context. That would make the memory layer significantly more grounded. I'll log it as a future expansion: **vision input layer with visual entity enrichment**, covering camera integration, object detection, face feature extraction, and expanded entity attribute schema. It fits cleanly into the architecture we have and pairs well with the file system tooling we're building now.",
+      "source": "chat",
+      "updated_at": 1782734134.891528
+    },
+    "created_at": 1782734121.0445008,
+    "updated_at": 1782734134.891528
+  },
+  "093afb9c-0865-4aef-a447-c3e51350910b": {
+    "entity_id": "093afb9c-0865-4aef-a447-c3e51350910b",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "the entity"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "The Entity",
+      "last_seen_context": "also a good agenda item for the future is for us to expand to to start expanding to Hardware so we give you a camera from the devices camera and you start to identify objects and add them to the your existing entity memory so you don't just memorize the name and where you last heard of The Entity you also can get the face or a or a picture of them or some features of their face in general etcetera so you can I identify the exact person or people or item or entity from your existing camera with maybe YOLO or something like that I think that would be very useful for you and also we should expand the entities in general to add more characteristics and more details to The Entity so it is more useful and also gives more detail to your existing memory I think that would be very good idea to add",
+      "source": "chat",
+      "updated_at": 1782734121.1262624
+    },
+    "created_at": 1782734121.1262624,
+    "updated_at": 1782734121.1262624
+  },
+  "8af91ba6-028a-420b-ab32-3afdafc3aac1": {
+    "entity_id": "8af91ba6-028a-420b-ab32-3afdafc3aac1",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "implement"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Implement",
+      "last_seen_context": "Federal I will start at looking how we could Implement such a thing and you just be there sitting and enjoying the emotional system I built you and hopefully I won't I won't take that long see you",
+      "source": "chat",
+      "updated_at": 1782734219.7418582
+    },
+    "created_at": 1782734219.7418582,
+    "updated_at": 1782734219.7418582
   }
 }
