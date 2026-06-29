@@ -14,3 +14,4 @@ SpeechRecognition
 pydub
 kokoro-onnx 
 soundfile
+PdfReader

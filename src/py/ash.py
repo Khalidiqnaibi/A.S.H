@@ -22,10 +22,18 @@ except Exception:
         def __init__(self, content): self.content = content
 
 # Import router & tools (make sure these modules exist at these paths)
-from tools.classification import classify_and_route, classify_intent, sentiment_tool ,_INTENT_CATALOG
-from tools.lesstools import date_time_tool, calculator_tool
-from tools.LLM import LLM  
-from tools.emo import EmotionEngine, TelemetrySignals, DEFAULT_MOOD
+from tools import (
+    classify_and_route,
+    classify_intent, 
+    sentiment_tool ,
+    _INTENT_CATALOG,
+    date_time_tool, 
+    calculator_tool, 
+    LLM, 
+    EmotionEngine, 
+    TelemetrySignals, 
+    DEFAULT_MOOD
+)
 
 # memory
 from src.memory.memory_router import MemoryRouter
