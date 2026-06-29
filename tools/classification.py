@@ -201,7 +201,7 @@ def sentiment_tool(text: str) -> Dict[str, Any]:
     except NameError:
         try:
             logger.info("Loading sentiment pipeline: %s", SENTIMENT_MODEL_NAME)
-            _SENT_PIPE = pipeline("sentiment-analysis", model=SENTIMENT_MODEL_NAME, device=-1)
+            _SENT_PIPE = pipeline("sentiment-analysis", model=SENTIMENT_MODEL_NAME, device=-1, framework="pt")
         except Exception as e:
             logger.exception("Failed to load sentiment model: %s", e)
             return {"sentiment": "unknown", "confidence": 0.0}

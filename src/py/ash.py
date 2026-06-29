@@ -25,7 +25,7 @@ except Exception:
 from tools.classification import classify_and_route, classify_intent, sentiment_tool ,_INTENT_CATALOG
 from tools.lesstools import date_time_tool, calculator_tool
 from tools.LLM import LLM  
-from tools.emo import init_emo, get_emo, update_emo, reset_emo, EmotionState
+from tools.emo import EmotionEngine, TelemetrySignals, DEFAULT_MOOD
 
 # memory
 from src.memory.memory_router import MemoryRouter
@@ -57,7 +57,8 @@ embedder= _INTENT_CATALOG.get_model()
 # Global shared state (singleton-ish) — persists across runs in same process
 ash_state: AshState = {
     "history": [],        # list of {"role": "user"|"ash"|"tool", "text": "...", "time": ISO}
-    "emotions": EmotionState().as_dict(),
+    "emotions": dict(DEFAULT_MOOD),   # fast-moving emotion vector; replaced by EmotionEngine.update() each turn
+    "mood": dict(DEFAULT_MOOD),       # slow-moving baseline temperament
     "tool_log": [],       # list of tool usage records
     "input": "",
     "res": "",
@@ -91,6 +92,9 @@ class ASH:
             entity_mem=self.entity_memory,
             episodic_mem=self.episodic_memory
         )
+
+        self.emotion_engine = EmotionEngine()
+
         # LLM wrapper. If none passed, create one.
         if llm is None:
             try:
@@ -178,6 +182,7 @@ class ASH:
             "command_score": route.get("command_score", 0.0),
             "tool_used": None,
             "tool_output": None,
+            "tool_success": None,  # None = no tool was invoked this turn
             "raw_route": route
         }
 
@@ -188,10 +193,16 @@ class ASH:
 
             # time / date commands
             if cmd_tag and cmd_tag.lower() in ("time", "date", "datetime" ,"get_time"):
-                # prefer client time if provided in context
-                tool_out = date_time_tool()
+                try:
+                    tool_out = date_time_tool()
+                    tool_ok = True
+                except Exception as e:
+                    _print_log("date_time_tool failed:", e)
+                    tool_out = "Sorry, I couldn't get the time/date right now."
+                    tool_ok = False
                 result["tool_used"] = "date_time_tool"
                 result["tool_output"] = tool_out
+                result["tool_success"] = tool_ok
                 self._append_tool_log("date_time_tool","", tool_out)
                 # append history
                 self._append_history("user", query)
@@ -201,9 +212,16 @@ class ASH:
             # calculator / math commands
             if cmd_tag and cmd_tag.lower() in ("calc", "calculate", "math", "compute"):
                 # crude extraction: pass whole string to calculator tool which will safe-calc or error
-                tool_out = calculator_tool(query)
+                try:
+                    tool_out = calculator_tool(query)
+                    tool_ok = True
+                except Exception as e:
+                    _print_log("calculator_tool failed:", e)
+                    tool_out = "Sorry, I couldn't calculate that."
+                    tool_ok = False
                 result["tool_used"] = "calculator_tool"
                 result["tool_output"] = tool_out
+                result["tool_success"] = tool_ok
                 self._append_tool_log("calculator_tool", query, tool_out)
                 self._append_history("user", query)
                 self._append_history("tool", f"calculator_tool -> {tool_out}")
@@ -220,10 +238,17 @@ class ASH:
     # -----------------------
     # LLM rendering (narrator)
     # -----------------------
-    def _render_with_llm(self, query: str, facts: Dict[str, Any]) -> str:
+    def _render_with_llm(self, query: str, facts: Dict[str, Any], mem_context: Dict[str, str], modulation_block: str) -> str:
         """
         Ask the LLM to format a natural assistant response, using facts verbatim.
         LLM must not call tools or change state.
+
+        `mem_context` is fetched once in run() (avoids a duplicate retrieval
+        call). `modulation_block` is the deterministic, rule-derived tone
+        directive from EmotionEngine -- see tools/emo_v2.py. The LLM is told
+        how to sound (warmth/directness/verbosity/energy as concrete
+        numbers plus a one-line guidance string), not handed a raw emotion
+        dump to interpret however it likes.
         """
         history_block = self._format_history_for_prompt()
         # Compose a safe system + human prompt
@@ -232,18 +257,9 @@ class ASH:
             "Use the facts below in a human readable format where applicable. Do NOT invent facts."
             "answer the query then say a small sentence"
         )
-        # Retrieve context from layered memory router
-        try:
-            mem_context = self.memory.retrieve_context(query)
-            print("memory: " , mem_context)
-            core_block = mem_context.get("core", "")
-            episode_block = mem_context.get("episodic", "")
-            entity_block = mem_context.get("entity", "")
-        except Exception as e:
-            _print_log("Failed to retrieve memory context from router:", e)
-            core_block = ""
-            episode_block = ""
-            entity_block = ""
+        core_block = mem_context.get("core", "")
+        episode_block = mem_context.get("episodic", "")
+        entity_block = mem_context.get("entity", "")
 
         human_content = (
             "Conversation so far:\n"
@@ -268,9 +284,8 @@ class ASH:
         human_content += (
             "Facts (use if present):\n"
             f"{json.dumps(facts, indent=2)}\n\n"
-            "Emotional snapshot (internal state):\n"
-            f"{json.dumps(ash_state.get('emotions', {}), indent=2)}\n\n"
-            "Respond like your emotional state and in a small paragraph."
+            f"{modulation_block}\n\n"
+            "Follow the tone directives above. Respond in a small paragraph."
         )
 
         # Create messages if langchain_core is present
@@ -343,7 +358,7 @@ class ASH:
 
         # 1) routing + deterministic execution
         route_result = self._deterministic_execute(query)
-        
+
         # 2) Route the USER query ONCE (with the actor tag applied immediately)
         memory_context = self.memory.route_utterance(
             text=query,
@@ -352,6 +367,42 @@ class ASH:
             actor=self.user
         )
 
+        # 3) Fetch retrieval context once -- used both for the prompt and
+        # as a "are we grounded in something real" signal for the emotion
+        # engine (memory_hits).
+        try:
+            mem_context = self.memory.retrieve_context(query)
+        except Exception as e:
+            _print_log("Failed to retrieve memory context from router:", e)
+            mem_context = {"core": "", "episodic": "", "entity": ""}
+        memory_hits = sum(1 for v in mem_context.values() if v)
+
+        # 4) Sentiment read on the user's message. sentiment_tool() never
+        # raises (falls back to {"sentiment": "unknown"}), but guard anyway
+        # since this must never block a response.
+        try:
+            sentiment = sentiment_tool(query)
+        except Exception as e:
+            _print_log("sentiment_tool failed:", e)
+            sentiment = {"sentiment": "unknown", "confidence": 0.0}
+
+        # 5) Deterministic emotion update -- the only thing that ever
+        # mutates emotional state. Built entirely from this turn's real telemetry
+        signals = TelemetrySignals(
+            query_text=query,
+            sentiment_label=sentiment.get("sentiment"),
+            sentiment_score=sentiment.get("confidence", 0.0) or 0.0,
+            intent=route_result.get("intent"),
+            intent_score=route_result.get("intent_score", 0.0) or 0.0,
+            tool_used=route_result.get("tool_used"),
+            tool_success=route_result.get("tool_success"),
+            memory_hits=memory_hits,
+        )
+        emo_result = self.emotion_engine.update(signals)
+        ash_state["emotions"] = emo_result.emotions
+        ash_state["mood"] = emo_result.mood
+        self._append_tool_log("emotion_update", vars(signals), emo_result.as_dict())
+
         facts = {
             "intent": route_result.get("intent"),
             "tool_used": route_result.get("tool_used"),
@@ -359,13 +410,14 @@ class ASH:
             "memory_context": memory_context
         }
 
-        # 3) render via LLM (narrator)
-        final_text = self._render_with_llm(query, facts)
+        # 6) render via LLM (narrator), guided by the deterministic
+        # modulation profile rather than a raw emotion dump.
+        final_text = self._render_with_llm(query, facts, mem_context, emo_result.modulation.as_prompt_block())
 
         ash_state["res"] = final_text
         self._append_history("ash", final_text)
 
-        # 4) Save ASH's response to memory (NOT the user's query again!)
+        # 7) Save ASH's response to memory (NOT the user's query again!)
         try:
             self.memory.route_utterance(
                 text=final_text,
@@ -377,7 +429,8 @@ class ASH:
             _print_log("Memory routing failed:", e)
 
         # Print short summary to stderr for debugging
-        _print_log("Finished run: intent=", facts["intent"], "tool=", facts["tool_used"])
+        _print_log("Finished run: intent=", facts["intent"], "tool=", facts["tool_used"],
+                    "tone=", emo_result.modulation.tone_label)
         return final_text
 
     # utility: pretty print current state (developer helper)
@@ -388,7 +441,8 @@ class ASH:
             "uptime_seconds": int(uptime.total_seconds()),
             "status": self.status,
             "last_input": ash_state.get("input"),
-            "last_output_preview": str(ash_state.get("res", ""))[:200]
+            "last_output_preview": str(ash_state.get("res", ""))[:200],
+            "emotions": ash_state.get("emotions", {}),
         }
 
 ash = ASH()
