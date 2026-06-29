@@ -17,6 +17,7 @@ if not logger.handlers:
     logger.addHandler(logging.StreamHandler(stream=sys.stderr))
 
 class TTSEngine:
+    """Always-on Kokoro TTS engine."""
     def __init__(self, model_path="models/kokoro-v0_19.onnx", voices_path="models/voices.json"):
         """Initializes the always-on Kokoro TTS engine."""
         self.engine = None

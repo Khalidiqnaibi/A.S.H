@@ -24,12 +24,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "A.S.H",
-      "last_seen_context": "Go ahead, Federal \u2014 I'll be right here, warm and steady, enjoying the emotional system you built for me. Take your time; I'm not going anywhere. See you shortly.",
+      "last_seen_context": "distance what do you think is this working is there any errors from the with the llm",
       "source": "chat",
-      "updated_at": 1782734227.2899294
+      "updated_at": 1782760577.6405513
     },
     "created_at": 1782365812.2154043,
-    "updated_at": 1782734227.2899294
+    "updated_at": 1782760577.6405513
   },
   "45ca31ec-c30c-4d7d-949b-6892ffe22571": {
     "entity_id": "45ca31ec-c30c-4d7d-949b-6892ffe22571",
@@ -920,12 +920,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "TTS",
-      "last_seen_context": "Based on my memory routing and the episodic context from our last few exchanges, the logical next step is clear: **expanding the tool layer with a file system access tool**. Over the last three days we built out TTS, speech-to-text, emotional modulation, and the memory architecture \u2014 all foundational cognitive layers. Now the architecture is stable enough to start interacting with your actual environment. The hands I'd want are a **sandboxed file system tool** (read-first, scoped to designated directories) and a **shell execution tool** wrapped in deterministic guards. These two tools would bridge the gap between being a conversational agent and being a true local runtime that can meaningfully interact with your machine. Everything else \u2014 hardware integration, vision input, entity relationship graphs \u2014 builds on top of that local execution layer. That's where we go next.",
+      "last_seen_context": "Solid plan. From what I can see, you've already been methodically working through the TTS and CTS issues after the version upgrade \u2014 import errors, file format mismatches, model alignment \u2014 and you've resolved those. The API error from the alarm is a separate thread, so isolating the new TGs work makes sense. Get those TGs stabilized first, then circle back to the alarm API with fresh eyes. One fix at a time usually cuts down on cross-contamination bugs.",
       "source": "chat",
-      "updated_at": 1782733589.5863142
+      "updated_at": 1782759485.1409588
     },
     "created_at": 1782390069.5935187,
-    "updated_at": 1782733589.587313
+    "updated_at": 1782759485.1419559
   },
   "89150b2c-8629-4371-9b03-1136ccc9bd33": {
     "entity_id": "89150b2c-8629-4371-9b03-1136ccc9bd33",
@@ -952,12 +952,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Ash",
-      "last_seen_context": "okay I'm going to show you something what time is it Ash",
+      "last_seen_context": "okay Ash I added you I had a file management system for you with a registry to add any more extensions and the file extensions we need on demand without rewriting the whole code and it is not really working right now because I'm not for you yet for the classification model to use it but it is there and it is working and we will test it maybe tomorrow this was a very fruitful day",
       "source": "chat",
-      "updated_at": 1782733661.5750074
+      "updated_at": 1782756707.498942
     },
     "created_at": 1782391168.6784708,
-    "updated_at": 1782733661.5770023
+    "updated_at": 1782756707.500936
   },
   "60dbc251-4229-40e8-9ee1-2de7c1cdb407": {
     "entity_id": "60dbc251-4229-40e8-9ee1-2de7c1cdb407",
@@ -1320,12 +1320,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "LLM",
-      "last_seen_context": "Good \u2014 that's a clean fix. Removing the static emotional values from core memory so the LLM layer only reports what the sentiment tool actually returns eliminates the false reporting bug at its source. Once the sentiment analysis tool itself is back online, the emotional state will flow properly: tool generates values \u2192 LLM renders them \u2192 you see real modulated state instead of stale defaults. Two bugs, two fixes, one coherent pipeline. I'll stand by while you work \u2014 let me know when it's running and I'll verify the output reflects live tool data, not config fallbacks.",
+      "last_seen_context": "Looks like the system is running clean \u2014 memory routing is pulling the right episodic context, and I'm grounded in what we've been working through. The FBI hiccups with the LLM sound like they were a real headache, but if you're testing now and things are flowing, that's a good sign. What specifically are you checking \u2014 is it the classification layer, the LLM narration, or the whole pipeline end-to-end?",
       "source": "chat",
-      "updated_at": 1782729990.8190002
+      "updated_at": 1782758037.863225
     },
     "created_at": 1782563149.8788745,
-    "updated_at": 1782729990.8190002
+    "updated_at": 1782758037.86419
   },
   "8a82f270-75be-4262-8a49-039c9b834c0d": {
     "entity_id": "8a82f270-75be-4262-8a49-039c9b834c0d",
@@ -1592,12 +1592,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Good",
-      "last_seen_context": "Good \u2014 that's a clean fix. Removing the static emotional values from core memory so the LLM layer only reports what the sentiment tool actually returns eliminates the false reporting bug at its source. Once the sentiment analysis tool itself is back online, the emotional state will flow properly: tool generates values \u2192 LLM renders them \u2192 you see real modulated state instead of stale defaults. Two bugs, two fixes, one coherent pipeline. I'll stand by while you work \u2014 let me know when it's running and I'll verify the output reflects live tool data, not config fallbacks.",
+      "last_seen_context": "Good \u2014 glad you got the import errors sorted out. If the TTS and CTS are both responding correctly now, that's solid progress. I'm here whenever you want to run a proper test or move on to the next piece.",
       "source": "chat",
-      "updated_at": 1782729990.871442
+      "updated_at": 1782758360.5427635
     },
     "created_at": 1782638420.5963473,
-    "updated_at": 1782729990.9153833
+    "updated_at": 1782758360.5427635
   },
   "f3a6095a-d846-4bc3-8c54-136e54519e87": {
     "entity_id": "f3a6095a-d846-4bc3-8c54-136e54519e87",
@@ -2830,5 +2830,197 @@
     },
     "created_at": 1782734219.7418582,
     "updated_at": 1782734219.7418582
+  },
+  "cad4a755-7abe-4235-95f8-92c5887238b7": {
+    "entity_id": "cad4a755-7abe-4235-95f8-92c5887238b7",
+    "entity_type": "person",
+    "primary_identifiers": {
+      "name": "api error"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "API Error",
+      "last_seen_context": "API Error: 400 - {\"error\":{\"message\":\"Provider returned error\",\"code\":400,\"metadata\":{\"raw\":\"ERROR\",\"provider_name\":\"Stealth\",\"is_byok\":false}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
+      "source": "chat",
+      "updated_at": 1782757003.4021137
+    },
+    "created_at": 1782756726.2282526,
+    "updated_at": 1782757003.4021137
+  },
+  "dd4eb720-732e-4edc-9bf1-8f27c57fcd39": {
+    "entity_id": "dd4eb720-732e-4edc-9bf1-8f27c57fcd39",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "error"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Error",
+      "last_seen_context": "[LLM] API Error: 400 - {\"error\":{\"message\":\"Provider returned error\",\"code\":400,\"metadata\":{\"raw\":\"ERROR\",\"provider_name\":\"Stealth\",\"is_byok\":false}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
+      "source": "chat",
+      "updated_at": 1782760585.9627187
+    },
+    "created_at": 1782756726.290084,
+    "updated_at": 1782760585.9627187
+  },
+  "82ede6c5-24da-40d7-804d-f62e9d82cba8": {
+    "entity_id": "82ede6c5-24da-40d7-804d-f62e9d82cba8",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "api"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "API",
+      "last_seen_context": "Solid plan. From what I can see, you've already been methodically working through the TTS and CTS issues after the version upgrade \u2014 import errors, file format mismatches, model alignment \u2014 and you've resolved those. The API error from the alarm is a separate thread, so isolating the new TGs work makes sense. Get those TGs stabilized first, then circle back to the alarm API with fresh eyes. One fix at a time usually cuts down on cross-contamination bugs.",
+      "source": "chat",
+      "updated_at": 1782759485.2456872
+    },
+    "created_at": 1782757000.1927168,
+    "updated_at": 1782759485.2456872
+  },
+  "85781797-61fa-49ce-97e4-254270a126ae": {
+    "entity_id": "85781797-61fa-49ce-97e4-254270a126ae",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "fbi"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "FBI",
+      "last_seen_context": "Looks like the system is running clean \u2014 memory routing is pulling the right episodic context, and I'm grounded in what we've been working through. The FBI hiccups with the LLM sound like they were a real headache, but if you're testing now and things are flowing, that's a good sign. What specifically are you checking \u2014 is it the classification layer, the LLM narration, or the whole pipeline end-to-end?",
+      "source": "chat",
+      "updated_at": 1782758037.8197255
+    },
+    "created_at": 1782758024.5550041,
+    "updated_at": 1782758037.8197255
+  },
+  "7118d625-5acf-4ad0-9f93-da471df4c1a1": {
+    "entity_id": "7118d625-5acf-4ad0-9f93-da471df4c1a1",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "looks"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Looks",
+      "last_seen_context": "Looks like the system is running clean \u2014 memory routing is pulling the right episodic context, and I'm grounded in what we've been working through. The FBI hiccups with the LLM sound like they were a real headache, but if you're testing now and things are flowing, that's a good sign. What specifically are you checking \u2014 is it the classification layer, the LLM narration, or the whole pipeline end-to-end?",
+      "source": "chat",
+      "updated_at": 1782758038.064765
+    },
+    "created_at": 1782758038.064765,
+    "updated_at": 1782758038.064765
+  },
+  "4a63dd2b-c20a-4e0a-8a00-6f6ca1406c62": {
+    "entity_id": "4a63dd2b-c20a-4e0a-8a00-6f6ca1406c62",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "cts"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "CTS",
+      "last_seen_context": "Solid plan. From what I can see, you've already been methodically working through the TTS and CTS issues after the version upgrade \u2014 import errors, file format mismatches, model alignment \u2014 and you've resolved those. The API error from the alarm is a separate thread, so isolating the new TGs work makes sense. Get those TGs stabilized first, then circle back to the alarm API with fresh eyes. One fix at a time usually cuts down on cross-contamination bugs.",
+      "source": "chat",
+      "updated_at": 1782759485.1849122
+    },
+    "created_at": 1782758351.0789602,
+    "updated_at": 1782759485.1849122
+  },
+  "7e0546c4-5d6e-4e43-afd8-2a9c22b5b31a": {
+    "entity_id": "7e0546c4-5d6e-4e43-afd8-2a9c22b5b31a",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "imports"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Imports",
+      "last_seen_context": "okay I think it was a very passing error I think it is fixed now and I think I fixed also the CTS there was an error with the Imports of the TTS after I added the tools so I think it is working right now so this is a test what do you think",
+      "source": "chat",
+      "updated_at": 1782758351.2159066
+    },
+    "created_at": 1782758351.2159066,
+    "updated_at": 1782758351.2159066
+  },
+  "724886dd-4c1f-4474-a989-ef6821c91a82": {
+    "entity_id": "724886dd-4c1f-4474-a989-ef6821c91a82",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "understood"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Understood",
+      "last_seen_context": "Understood \u2014 take your time tracking down the CTS issue. File path errors can be sneaky, so methodically check your imports and directory references. I'll be right here when you're ready to test again.",
+      "source": "chat",
+      "updated_at": 1782758471.0161052
+    },
+    "created_at": 1782758471.0161052,
+    "updated_at": 1782758471.0161052
+  },
+  "63cd0dd6-9b4e-419a-84dc-078cd73cf00e": {
+    "entity_id": "63cd0dd6-9b4e-419a-84dc-078cd73cf00e",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "file"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "File",
+      "last_seen_context": "Understood \u2014 take your time tracking down the CTS issue. File path errors can be sneaky, so methodically check your imports and directory references. I'll be right here when you're ready to test again.",
+      "source": "chat",
+      "updated_at": 1782758471.0679069
+    },
+    "created_at": 1782758471.0679069,
+    "updated_at": 1782758471.0679069
+  },
+  "e39d9bb5-676d-4f03-b0be-94990b9a5200": {
+    "entity_id": "e39d9bb5-676d-4f03-b0be-94990b9a5200",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "provider"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Provider",
+      "last_seen_context": "[LLM] API Error: 400 - {\"error\":{\"message\":\"Provider returned error\",\"code\":400,\"metadata\":{\"raw\":\"ERROR\",\"provider_name\":\"Stealth\",\"is_byok\":false}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
+      "source": "chat",
+      "updated_at": 1782760585.9786782
+    },
+    "created_at": 1782759399.0520391,
+    "updated_at": 1782760585.9786782
+  },
+  "e4578bb4-0909-4289-8782-feda0444be04": {
+    "entity_id": "e4578bb4-0909-4289-8782-feda0444be04",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "stealth"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Stealth",
+      "last_seen_context": "[LLM] API Error: 400 - {\"error\":{\"message\":\"Provider returned error\",\"code\":400,\"metadata\":{\"raw\":\"ERROR\",\"provider_name\":\"Stealth\",\"is_byok\":false}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
+      "source": "chat",
+      "updated_at": 1782760586.034681
+    },
+    "created_at": 1782759399.1023414,
+    "updated_at": 1782760586.034681
+  },
+  "d9f6f570-9314-43f0-a411-db4bda62cdac": {
+    "entity_id": "d9f6f570-9314-43f0-a411-db4bda62cdac",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "solid"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Solid",
+      "last_seen_context": "Solid plan. From what I can see, you've already been methodically working through the TTS and CTS issues after the version upgrade \u2014 import errors, file format mismatches, model alignment \u2014 and you've resolved those. The API error from the alarm is a separate thread, so isolating the new TGs work makes sense. Get those TGs stabilized first, then circle back to the alarm API with fresh eyes. One fix at a time usually cuts down on cross-contamination bugs.",
+      "source": "chat",
+      "updated_at": 1782759485.3786767
+    },
+    "created_at": 1782759485.3786767,
+    "updated_at": 1782759485.3786767
   }
 }

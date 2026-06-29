@@ -20,8 +20,10 @@ from typing import Dict
 from datetime import datetime
 import speech_recognition as sr
 from pydub import AudioSegment
+import os
+os.environ["PYTHONUTF8"] = "1"
 
-from tools.tts import TTSEngine
+from tools import TTSEngine
 
 try:
     from src.py.ash import ash  # preferred: import the instantiated object

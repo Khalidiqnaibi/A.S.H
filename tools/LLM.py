@@ -87,23 +87,21 @@ class LLM(BaseChatModel):
         self._bound_tools = tools
         return self
 
-    def _messages_to_prompt(self, messages: Sequence[BaseMessage]) -> str:
-        """
-        Convert chat messages into a single prompt string.
-        """
-        parts: List[str] = []
-
+    def _messages_to_dicts(self, messages: Sequence[BaseMessage]) -> List[dict]:
+        """Converts LangChain messages to native API dictionaries, sanitizing bad characters."""
+        api_messages = []
         for msg in messages:
+            # Clean non-breaking spaces (\xa0) that crash strict tokenizers
+            clean_content = msg.content.replace("\xa0", " ").strip()
+            
             if isinstance(msg, SystemMessage):
-                parts.append(f"[SYSTEM]\n{msg.content}")
-            elif isinstance(msg, HumanMessage):
-                parts.append(f"[USER]\n{msg.content}")
+                api_messages.append({"role": "system", "content": clean_content})
             elif isinstance(msg, AIMessage):
-                parts.append(f"[ASSISTANT]\n{msg.content}")
+                api_messages.append({"role": "assistant", "content": clean_content})
             else:
-                parts.append(msg.content)
-
-        return "\n\n".join(parts)
+                api_messages.append({"role": "user", "content": clean_content})
+                
+        return api_messages
 
     def _call_hf(self, prompt: str) -> str:
         url = f"{DEFAULT_HF_URL}/{self._hf_model}"
@@ -119,6 +117,7 @@ class LLM(BaseChatModel):
             r = requests.post(url, headers=headers, json=payload, timeout=self._timeout)
             if r.status_code != 200:
                 print(f"[LLM ERROR] HF API returned status {r.status_code}: {r.text}")
+                print(f"[LLM] request shape: requests.post({url}, headers={headers}, json={payload}, timeout={self._timeout})")
                 return f"API Error: {r.status_code} - {r.text}"
             
             data = r.json()
@@ -129,44 +128,40 @@ class LLM(BaseChatModel):
             print(f"[LLM ERROR] HF request failed: {e}")
             return f"Error calling HF API: {e}"
 
-    def _call_openrouter(self, prompt: str) -> str:
+    def _call_openrouter(self, messages: List[dict]) -> str:
         headers = {
             "Authorization": f"Bearer {self._openrouter_key}",
             "Content-Type": "application/json",
         }
         payload = {
             "model": self._openrouter_model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
             "max_tokens": int(self._max_tokens),
             "temperature": float(self._temperature),
         }
         try:
             r = requests.post(DEFAULT_OPENROUTER_URL, headers=headers, json=payload, timeout=self._timeout)
             
-            # Catch bad API keys, out of credits, or model errors safely
             if r.status_code != 200:
                 print(f"[LLM ERROR] OpenRouter returned status {r.status_code}: {r.text}")
-                return f"API Error: {r.status_code} - {r.text}"
+                print(f"[LLM] request shape: requests.post({DEFAULT_OPENROUTER_URL}, headers={headers}, json={payload}, timeout={self._timeout})")
+                return f"[LLM] API Error: {r.status_code} - {r.text}"
             
             data = r.json()
-            
-            # Safely extract 'choices' without throwing a KeyError
             if "choices" in data and len(data["choices"]) > 0:
                 return data["choices"][0]["message"]["content"]
             elif "error" in data:
-                print(f"[LLM ERROR] OpenRouter API Error Payload: {data['error']}")
                 return f"Error from LLM provider: {data['error'].get('message', str(data['error']))}"
             else:
-                print(f"[LLM ERROR] Unexpected response format: {data}")
                 return f"Error: Unexpected response format from LLM."
         except Exception as e:
             print(f"[LLM ERROR] OpenRouter request failed: {e}")
             return f"Error calling OpenRouter API: {e}"
 
-    def _call_local(self, prompt: str) -> str:
+    def _call_local(self, messages: List[dict]) -> str:
         payload = {
             "model": self._openrouter_model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages, # ✅ Now passing proper role arrays
             "max_tokens": int(self._max_tokens),
             "temperature": float(self._temperature),
         }
@@ -175,10 +170,10 @@ class LLM(BaseChatModel):
             
             if r.status_code != 200:
                 print(f"[LLM ERROR] Local API returned status {r.status_code}: {r.text}")
-                return f"Local API Error: {r.status_code} - {r.text}"
+                print(f"[LLM] request shape: requests.post({self._local_url}, json={payload}, timeout={self._timeout})")
+                return f"[LLM] Local API Error: {r.status_code} - {r.text}"
                 
             data = r.json()
-            
             if "choices" in data and len(data["choices"]) > 0:
                 return data["choices"][0]["message"].get("content", str(data))
             else:
@@ -202,7 +197,8 @@ class LLM(BaseChatModel):
             
             if r.status_code != 200:
                 print(f"[LLM ERROR] Ollama API returned status {r.status_code}: {r.text}")
-                return f"Ollama API Error: {r.status_code} - {r.text}"
+                print(f"[LLM] request shape: requests.post({self._ollama_url}, json={payload}, timeout={self._timeout})")
+                return f"[LLM] Ollama API Error: {r.status_code} - {r.text}"
 
             response_text = ""
             for line in r.text.splitlines():
@@ -216,7 +212,7 @@ class LLM(BaseChatModel):
             return response_text.strip()
         except Exception as e:
             print(f"[LLM ERROR] Ollama request failed: {e}")
-            return f"Error calling Ollama API: {e}"
+            return f"[LLM] Error calling Ollama API: {e}"
 
     def _call(self, prompt: str) -> str:
         if self._mode == "hf":

@@ -2021,5 +2021,251 @@
     ],
     "importance": 0.5,
     "created_at": 1782734227.3578253
+  },
+  "12fa9243-7ac6-4eb9-88b1-ef1984bf0a3c": {
+    "episode_id": "12fa9243-7ac6-4eb9-88b1-ef1984bf0a3c",
+    "timestamp": 1782756707.611633,
+    "summary": "Immortal: okay Ash I added you I had a file management system for you with a registry to add any more extensions and the file extensions we need on demand without rewriting the whole code and it is not really working right now because I'm not for you yet for the classification model to use it but it is there and it is working and we will test it maybe tomorrow this was a very fruitful day [mentions: A.S.H, Ash]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "780ef730-3e38-441d-abba-936a38989922"
+    ],
+    "importance": 0.5,
+    "created_at": 1782756707.611633
+  },
+  "de1dd435-c17d-4e74-9830-e4724c845151": {
+    "episode_id": "de1dd435-c17d-4e74-9830-e4724c845151",
+    "timestamp": 1782756726.427169,
+    "summary": "A.S.H: API Error: 400 - {\"error\":{\"message\":\"Provider returned error\",\"code\":400,\"metadata\":{\"raw\":\"ERROR\",\"provider_name\":\"Stealth\",\"is_byok\":false}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"} [mentions: API Error, Error, Provider, Stealth]",
+    "event_type": "interaction",
+    "related_entities": [
+      "cad4a755-7abe-4235-95f8-92c5887238b7",
+      "dd4eb720-732e-4edc-9bf1-8f27c57fcd39"
+    ],
+    "importance": 0.5,
+    "created_at": 1782756726.427169
+  },
+  "6467f16d-7953-418e-9ca4-02a175c821c4": {
+    "episode_id": "6467f16d-7953-418e-9ca4-02a175c821c4",
+    "timestamp": 1782756790.804786,
+    "summary": "Immortal: what happened is there any errors in Denham or from what is this error message [mentions: Denham]",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782756790.804786
+  },
+  "d7a830ae-a670-43f9-afe2-138efd601e6e": {
+    "episode_id": "d7a830ae-a670-43f9-afe2-138efd601e6e",
+    "timestamp": 1782756807.2483363,
+    "summary": "A.S.H: There's no direct error tied to Denham in your system. The error message shows an API 400 from the LLM provider \"Stealth\" \u2014 the provider rejected the request with a generic error and didn't give usable details. It's not a Denham-specific problem; it's a provider-side rejection. If you're not actively using the \"Stealth\" provider in your config, this could be a fallback route hitting a broken endpo [mentions: Denham, LLM, the \"Stealth, A.S.H, Stealth]",
+    "event_type": "interaction",
+    "related_entities": [
+      "7c754673-e353-4bd1-b69c-324344c11ceb",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782756807.2483363
+  },
+  "536e16c3-c894-4682-b4f9-8b9564026730": {
+    "episode_id": "536e16c3-c894-4682-b4f9-8b9564026730",
+    "timestamp": 1782757000.2226362,
+    "summary": "Immortal: okay there's something weird you are giving me an API error then you are giving me no sound on the GPS there is something there's something wrong for sure [mentions: API, A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "82ede6c5-24da-40d7-804d-f62e9d82cba8",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782757000.2226362
+  },
+  "c91391e6-bf79-4c87-b517-4ea948484999": {
+    "episode_id": "c91391e6-bf79-4c87-b517-4ea948484999",
+    "timestamp": 1782757003.7193408,
+    "summary": "A.S.H: API Error: 400 - {\"error\":{\"message\":\"Provider returned error\",\"code\":400,\"metadata\":{\"raw\":\"ERROR\",\"provider_name\":\"Stealth\",\"is_byok\":false}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"} [mentions: API Error, Error, Provider, Stealth]",
+    "event_type": "interaction",
+    "related_entities": [
+      "cad4a755-7abe-4235-95f8-92c5887238b7",
+      "dd4eb720-732e-4edc-9bf1-8f27c57fcd39"
+    ],
+    "importance": 0.5,
+    "created_at": 1782757003.7193408
+  },
+  "244ee2cf-25bb-42d7-b4db-d50f7e39cea5": {
+    "episode_id": "244ee2cf-25bb-42d7-b4db-d50f7e39cea5",
+    "timestamp": 1782758024.6787024,
+    "summary": "Immortal: so there was a few hiccups with the FBI for the llm let's see if this is working what do you think [mentions: FBI, A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "85781797-61fa-49ce-97e4-254270a126ae",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782758024.6787024
+  },
+  "6eb07a2e-4d01-4a97-b70c-b6dfff6e3441": {
+    "episode_id": "6eb07a2e-4d01-4a97-b70c-b6dfff6e3441",
+    "timestamp": 1782758038.130619,
+    "summary": "A.S.H: Looks like the system is running clean \u2014 memory routing is pulling the right episodic context, and I'm grounded in what we've been working through. The FBI hiccups with the LLM sound like they were a real headache, but if you're testing now and things are flowing, that's a good sign. What specifically are you checking \u2014 is it the classification layer, the LLM narration, or the whole pipeline end-t [mentions: FBI, LLM, A.S.H, Looks]",
+    "event_type": "interaction",
+    "related_entities": [
+      "85781797-61fa-49ce-97e4-254270a126ae",
+      "7c754673-e353-4bd1-b69c-324344c11ceb",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "7118d625-5acf-4ad0-9f93-da471df4c1a1"
+    ],
+    "importance": 0.5,
+    "created_at": 1782758038.130619
+  },
+  "863b5a05-b5b2-413b-82a2-e0337476aacb": {
+    "episode_id": "863b5a05-b5b2-413b-82a2-e0337476aacb",
+    "timestamp": 1782758351.3255076,
+    "summary": "Immortal: okay I think it was a very passing error I think it is fixed now and I think I fixed also the CTS there was an error with the Imports of the TTS after I added the tools so I think it is working right now so this is a test what do you think [mentions: CTS, TTS, A.S.H, Imports]",
+    "event_type": "interaction",
+    "related_entities": [
+      "4a63dd2b-c20a-4e0a-8a00-6f6ca1406c62",
+      "92699fd5-2079-46a6-9f55-94971a3da9aa",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "7e0546c4-5d6e-4e43-afd8-2a9c22b5b31a"
+    ],
+    "importance": 0.5,
+    "created_at": 1782758351.3255076
+  },
+  "a883eb3c-6f2f-4609-a208-2ec8ea3f1049": {
+    "episode_id": "a883eb3c-6f2f-4609-a208-2ec8ea3f1049",
+    "timestamp": 1782758360.556727,
+    "summary": "A.S.H: Good \u2014 glad you got the import errors sorted out. If the TTS and CTS are both responding correctly now, that's solid progress. I'm here whenever you want to run a proper test or move on to the next piece. [mentions: TTS, CTS, A.S.H, Good]",
+    "event_type": "interaction",
+    "related_entities": [
+      "92699fd5-2079-46a6-9f55-94971a3da9aa",
+      "4a63dd2b-c20a-4e0a-8a00-6f6ca1406c62",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "c4f48874-da75-4017-9973-6052528616d0"
+    ],
+    "importance": 0.5,
+    "created_at": 1782758360.556727
+  },
+  "a376a8fd-b9c8-483c-8d90-ecd679b45ed9": {
+    "episode_id": "a376a8fd-b9c8-483c-8d90-ecd679b45ed9",
+    "timestamp": 1782758462.6804283,
+    "summary": "Immortal: okay I don't know why but the CTS seems to not be working I think there's an error somewhere or in the file paths or something so I will fix that and come for you [mentions: CTS, A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "4a63dd2b-c20a-4e0a-8a00-6f6ca1406c62",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782758462.6804283
+  },
+  "9d6dda21-88f4-4611-a626-3cfb66e9e6dd": {
+    "episode_id": "9d6dda21-88f4-4611-a626-3cfb66e9e6dd",
+    "timestamp": 1782758471.0823734,
+    "summary": "A.S.H: Understood \u2014 take your time tracking down the CTS issue. File path errors can be sneaky, so methodically check your imports and directory references. I'll be right here when you're ready to test again. [mentions: CTS, A.S.H, Understood, File]",
+    "event_type": "interaction",
+    "related_entities": [
+      "4a63dd2b-c20a-4e0a-8a00-6f6ca1406c62",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "724886dd-4c1f-4474-a989-ef6821c91a82",
+      "63cd0dd6-9b4e-419a-84dc-078cd73cf00e"
+    ],
+    "importance": 0.5,
+    "created_at": 1782758471.0823734
+  },
+  "f15b9c1f-c114-429c-a0a5-1e2bdf1b5b19": {
+    "episode_id": "f15b9c1f-c114-429c-a0a5-1e2bdf1b5b19",
+    "timestamp": 1782759386.6951602,
+    "summary": "Immortal: okay okay I'll fix the TTS now it is working because there was just me not updating the TTS to the actual right version that uses the new file format that pin so when I upgraded the model it is actually working now that's fine [mentions: TTS]",
+    "event_type": "interaction",
+    "related_entities": [
+      "92699fd5-2079-46a6-9f55-94971a3da9aa"
+    ],
+    "importance": 0.5,
+    "created_at": 1782759386.6951602
+  },
+  "656d718c-9a72-4a29-af28-963947e6e375": {
+    "episode_id": "656d718c-9a72-4a29-af28-963947e6e375",
+    "timestamp": 1782759399.1202908,
+    "summary": "A.S.H: [LLM] API Error: 400 - {\"error\":{\"message\":\"Provider returned error\",\"code\":400,\"metadata\":{\"raw\":\"ERROR\",\"provider_name\":\"Stealth\",\"is_byok\":false}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"} [mentions: Error, Provider, Stealth]",
+    "event_type": "interaction",
+    "related_entities": [
+      "dd4eb720-732e-4edc-9bf1-8f27c57fcd39",
+      "e39d9bb5-676d-4f03-b0be-94990b9a5200",
+      "e4578bb4-0909-4289-8782-feda0444be04"
+    ],
+    "importance": 0.5,
+    "created_at": 1782759399.1202908
+  },
+  "8c79fc69-c605-4fc0-8525-1675d918674d": {
+    "episode_id": "8c79fc69-c605-4fc0-8525-1675d918674d",
+    "timestamp": 1782759474.5090027,
+    "summary": "Immortal: okay so I think the API error from the alarm is still there I don't know why so I'm tracking it let's see what you can say what do you think of me fixing the new TGs to to be working finally after upgrading the version [mentions: API, A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "82ede6c5-24da-40d7-804d-f62e9d82cba8",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782759474.5090027
+  },
+  "7a857e51-4063-4929-af2f-f6d32700b901": {
+    "episode_id": "7a857e51-4063-4929-af2f-f6d32700b901",
+    "timestamp": 1782759485.4355268,
+    "summary": "A.S.H: Solid plan. From what I can see, you've already been methodically working through the TTS and CTS issues after the version upgrade \u2014 import errors, file format mismatches, model alignment \u2014 and you've resolved those. The API error from the alarm is a separate thread, so isolating the new TGs work makes sense. Get those TGs stabilized first, then circle back to the alarm API with fresh eyes. One fi [mentions: TTS, CTS, API, A.S.H, Solid]",
+    "event_type": "interaction",
+    "related_entities": [
+      "92699fd5-2079-46a6-9f55-94971a3da9aa",
+      "4a63dd2b-c20a-4e0a-8a00-6f6ca1406c62",
+      "82ede6c5-24da-40d7-804d-f62e9d82cba8",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "d9f6f570-9314-43f0-a411-db4bda62cdac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782759485.4355268
+  },
+  "2a3f2544-7c42-4a93-8170-0c5f1f485e34": {
+    "episode_id": "2a3f2544-7c42-4a93-8170-0c5f1f485e34",
+    "timestamp": 1782760188.9759145,
+    "summary": "Immortal: so now we can see if the error comes back once again and we have more verbosity for the errors and exceptions so I can catch the arrows and see why they are actually happened and see what what can I fix",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782760188.9759145
+  },
+  "f461bac3-d947-42d2-a74d-d005d44735a3": {
+    "episode_id": "f461bac3-d947-42d2-a74d-d005d44735a3",
+    "timestamp": 1782760198.7059288,
+    "summary": "A.S.H: [LLM] API Error: 400 - {\"error\":{\"message\":\"Provider returned error\",\"code\":400,\"metadata\":{\"raw\":\"ERROR\",\"provider_name\":\"Stealth\",\"is_byok\":false}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"} [mentions: Error, Provider, Stealth]",
+    "event_type": "interaction",
+    "related_entities": [
+      "dd4eb720-732e-4edc-9bf1-8f27c57fcd39",
+      "e39d9bb5-676d-4f03-b0be-94990b9a5200",
+      "e4578bb4-0909-4289-8782-feda0444be04"
+    ],
+    "importance": 0.5,
+    "created_at": 1782760198.7059288
+  },
+  "151c385f-0dc6-40a4-852e-f6694c028b6b": {
+    "episode_id": "151c385f-0dc6-40a4-852e-f6694c028b6b",
+    "timestamp": 1782760577.7010949,
+    "summary": "Immortal: distance what do you think is this working is there any errors from the with the llm [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782760577.7010949
+  },
+  "4fbc9e30-cee3-4615-abf4-c80a3b603ff2": {
+    "episode_id": "4fbc9e30-cee3-4615-abf4-c80a3b603ff2",
+    "timestamp": 1782760586.0942292,
+    "summary": "A.S.H: [LLM] API Error: 400 - {\"error\":{\"message\":\"Provider returned error\",\"code\":400,\"metadata\":{\"raw\":\"ERROR\",\"provider_name\":\"Stealth\",\"is_byok\":false}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"} [mentions: Error, Provider, Stealth]",
+    "event_type": "interaction",
+    "related_entities": [
+      "dd4eb720-732e-4edc-9bf1-8f27c57fcd39",
+      "e39d9bb5-676d-4f03-b0be-94990b9a5200",
+      "e4578bb4-0909-4289-8782-feda0444be04"
+    ],
+    "importance": 0.5,
+    "created_at": 1782760586.0942292
   }
 }
