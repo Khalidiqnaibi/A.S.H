@@ -103,6 +103,15 @@ class LLM(BaseChatModel):
                 
         return api_messages
 
+    def _messages_to_prompt(self, messages: Sequence[BaseMessage]) -> str:
+        """Fallback string compiler for HuggingFace pipeline requirements."""
+        prompt = ""
+        for msg in messages:
+            clean_content = msg.content.replace("\xa0", " ").strip()
+            role = "SYSTEM" if isinstance(msg, SystemMessage) else "ASH" if isinstance(msg, AIMessage) else "USER"
+            prompt += f"[{role}]\n{clean_content}\n\n"
+        return prompt.strip()
+
     def _call_hf(self, prompt: str) -> str:
         url = f"{DEFAULT_HF_URL}/{self._hf_model}"
         headers = {"Authorization": f"Bearer {self._hf_token}"}
@@ -161,7 +170,7 @@ class LLM(BaseChatModel):
     def _call_local(self, messages: List[dict]) -> str:
         payload = {
             "model": self._openrouter_model,
-            "messages": messages, # ✅ Now passing proper role arrays
+            "messages": messages,
             "max_tokens": int(self._max_tokens),
             "temperature": float(self._temperature),
         }
@@ -182,16 +191,15 @@ class LLM(BaseChatModel):
             print(f"[LLM ERROR] Local request failed: {e}")
             return f"Error calling Local API: {e}"
 
-    def _call_ollama(self, prompt: str) -> str:
+    def _call_ollama(self, messages: List[dict]) -> str:
         payload = {
             "model": self._ollama_model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
             "options": {
                 "temperature": float(self._temperature),
                 "num_predict": int(self._max_tokens),
             },
         }
-
         try:
             r = requests.post(self._ollama_url, json=payload, timeout=self._timeout)
             
@@ -214,15 +222,20 @@ class LLM(BaseChatModel):
             print(f"[LLM ERROR] Ollama request failed: {e}")
             return f"[LLM] Error calling Ollama API: {e}"
 
-    def _call(self, prompt: str) -> str:
+    def _call(self, messages: Sequence[BaseMessage]) -> str:
         if self._mode == "hf":
+            prompt = self._messages_to_prompt(messages)
             return self._call_hf(prompt)
-        elif self._mode == "openrouter":
-            return self._call_openrouter(prompt)
+        
+        # OpenRouter, Local, and Ollama all consume structural dictionary lists natively
+        api_messages = self._messages_to_dicts(messages)
+        
+        if self._mode == "openrouter":
+            return self._call_openrouter(api_messages)
         elif self._mode == "local":
-            return self._call_local(prompt)
+            return self._call_local(api_messages)
         elif self._mode == "ollama":
-            return self._call_ollama(prompt)
+            return self._call_ollama(api_messages)
         else:
             raise ValueError(f"Unknown mode: {self._mode}")
 
@@ -232,8 +245,8 @@ class LLM(BaseChatModel):
         stop: Optional[List[str]] = None,
         **kwargs,
     ) -> ChatResult:
-        prompt = self._messages_to_prompt(messages)
-        text = self._call(prompt)
+        # Pass the full message sequence down directly
+        text = self._call(messages)
 
         return ChatResult(
             generations=[
@@ -246,7 +259,7 @@ class LLM(BaseChatModel):
 
 if __name__ == "__main__":
     print("Running MistralLLM ChatModel self-test...\n")
-    mode = os.environ.get("MISTRAL_TEST_MODE", "ollama")
+    mode = os.environ.get("MISTRAL_TEST_MODE", "openrouter")
 
     llm = LLM(mode=mode, temperature=0.7, max_tokens=64)
 
