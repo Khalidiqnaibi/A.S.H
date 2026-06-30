@@ -23,6 +23,11 @@ except Exception:
 
 # Import router & tools (make sure these modules exist at these paths)
 from tools import (
+    file_info_tool,
+    read_file_tool,
+    write_file_tool,
+    list_directory_tool,
+    search_files_tool,
     classify_and_route,
     classify_intent, 
     sentiment_tool ,
@@ -233,6 +238,90 @@ class ASH:
                 self._append_tool_log("calculator_tool", query, tool_out)
                 self._append_history("user", query)
                 self._append_history("tool", f"calculator_tool -> {tool_out}")
+                return result
+
+            # file metadata (size / type / timestamps) for a single path
+            if cmd_tag and cmd_tag.lower() in ("file_info", "file_metadata", "file_details"):
+                try:
+                    tool_out = file_info_tool(query)
+                    tool_ok = bool(tool_out.get("ok"))
+                except Exception as e:
+                    _print_log("file_info_tool failed:", e)
+                    tool_out = {"ok": False, "error": str(e)}
+                    tool_ok = False
+                result["tool_used"] = "file_info_tool"
+                result["tool_output"] = tool_out
+                result["tool_success"] = tool_ok
+                self._append_tool_log("file_info_tool", query, tool_out)
+                self._append_history("user", query)
+                self._append_history("tool", f"file_info_tool -> {tool_out}")
+                return result
+
+            # directory listings
+            if cmd_tag and cmd_tag.lower() in ("list_directory", "list_files", "ls"):
+                try:
+                    tool_out = list_directory_tool(query)
+                    tool_ok = bool(tool_out.get("ok"))
+                except Exception as e:
+                    _print_log("list_directory_tool failed:", e)
+                    tool_out = {"ok": False, "error": str(e)}
+                    tool_ok = False
+                result["tool_used"] = "list_directory_tool"
+                result["tool_output"] = tool_out
+                result["tool_success"] = tool_ok
+                self._append_tool_log("list_directory_tool", query, tool_out)
+                self._append_history("user", query)
+                self._append_history("tool", f"list_directory_tool -> {tool_out}")
+                return result
+
+            # reading file contents (text / json / csv / pdf / image metadata)
+            if cmd_tag and cmd_tag.lower() in ("read_file", "open_file", "show_file"):
+                try:
+                    tool_out = read_file_tool(query)
+                    tool_ok = bool(tool_out.get("ok"))
+                except Exception as e:
+                    _print_log("read_file_tool failed:", e)
+                    tool_out = {"ok": False, "error": str(e)}
+                    tool_ok = False
+                result["tool_used"] = "read_file_tool"
+                result["tool_output"] = tool_out
+                result["tool_success"] = tool_ok
+                self._append_tool_log("read_file_tool", query, tool_out)
+                self._append_history("user", query)
+                self._append_history("tool", f"read_file_tool -> {tool_out}")
+                return result
+
+            # searching for text inside local files
+            if cmd_tag and cmd_tag.lower() in ("search_files", "find_in_files", "grep"):
+                try:
+                    tool_out = search_files_tool(query)
+                    tool_ok = bool(tool_out.get("ok"))
+                except Exception as e:
+                    _print_log("search_files_tool failed:", e)
+                    tool_out = {"ok": False, "error": str(e)}
+                    tool_ok = False
+                result["tool_used"] = "search_files_tool"
+                result["tool_output"] = tool_out
+                result["tool_success"] = tool_ok
+                self._append_tool_log("search_files_tool", query, tool_out)
+                self._append_history("user", query)
+                self._append_history("tool", f"search_files_tool -> {tool_out}")
+                return result
+
+            if cmd_tag and cmd_tag.lower() in ("sentiment_analysis", "sentiment", "mood_check", "emotion_check"):
+                try:
+                    tool_out = sentiment_tool(query)
+                    tool_ok = tool_out.get("sentiment") not in (None, "unknown")
+                except Exception as e:
+                    _print_log("sentiment_tool failed:", e)
+                    tool_out = {"sentiment": "unknown", "confidence": 0.0}
+                    tool_ok = False
+                result["tool_used"] = "sentiment_tool"
+                result["tool_output"] = tool_out
+                result["tool_success"] = tool_ok
+                self._append_tool_log("sentiment_tool", query, tool_out)
+                self._append_history("user", query)
+                self._append_history("tool", f"sentiment_tool -> {tool_out}")
                 return result
 
             # Add more command→tool mappings here as needed

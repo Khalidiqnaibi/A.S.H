@@ -49,4 +49,4 @@ class JSONHandler(BaseHandler):
         return FileHandlerResult(kind=self.kind, preview=pretty[:max_chars], structure=structure, truncated=truncated)
     
 
-REGISTRY.register(JSONHandler)
+REGISTRY.register(JSONHandler())

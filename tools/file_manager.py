@@ -76,7 +76,7 @@ class BaseHandler:
         (row counts, JSON keys, image dimensions, page counts, ...)."""
         return {}
 
-    def read(self, path: str, max_chars: int) -> FileHandlerResult:
+    def read(self, path: str, max_chars: int = MAX_PREVIEW_CHARS) -> FileHandlerResult:
         text = self._extract_text(path)
         structure = self._structure(path, text)
         if text is None:
@@ -84,7 +84,7 @@ class BaseHandler:
         truncated = len(text) > max_chars
         return FileHandlerResult(kind=self.kind, preview=text[:max_chars], structure=structure, truncated=truncated)
 
-    def search(self, path: str, query: str, max_chars: int) -> List[Dict[str, Any]]:
+    def search(self, path: str, query: str, max_chars: int = MAX_PREVIEW_CHARS) -> List[Dict[str, Any]]:
         """Default: line-based substring search over extracted text.
         Handlers with no text (images) should return [] -- the base
         implementation already does, since _extract_text returns None."""

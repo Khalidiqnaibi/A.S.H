@@ -43,4 +43,4 @@ class CSVHandler(BaseHandler):
         return FileHandlerResult(kind=self.kind, preview=preview[:max_chars], structure=structure, truncated=truncated)
     
 
-REGISTRY.register(CSVHandler)
+REGISTRY.register(CSVHandler())

@@ -8,3 +8,4 @@ tst.json
 tst.py
 /output_md_dict
 /models
+data/embeddings_intents.pkl

@@ -39,7 +39,7 @@ INTENT_EMB_FNAME = os.path.join(BASE_PATH, "embeddings_intents.pkl")
 EMBEDDING_MODEL_NAME = os.environ.get("ASH_EMBED_MODEL", "all-MiniLM-L6-v2")
 SENTIMENT_MODEL_NAME = os.environ.get("ASH_SENTIMENT_MODEL", "distilbert-base-uncased-finetuned-sst-2-english")
 
-INTENT_THRESHOLD = 0.3
+INTENT_THRESHOLD = 0.21
 
 logger = logging.getLogger("ash.classify")
 logger.setLevel(logging.INFO)

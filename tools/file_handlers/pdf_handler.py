@@ -24,4 +24,4 @@ class PDFHandler(BaseHandler):
             info["page_count"] = self._page_count
         return info
 
-REGISTRY.register(PDFHandler)
+REGISTRY.register(PDFHandler())

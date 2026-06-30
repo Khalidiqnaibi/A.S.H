@@ -28,4 +28,4 @@ class ImageHandler(BaseHandler):
         return []
 
 
-REGISTRY.register(ImageHandler)
+REGISTRY.register(ImageHandler())
