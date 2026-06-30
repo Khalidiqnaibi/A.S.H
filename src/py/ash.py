@@ -59,6 +59,9 @@ USER = "Immortal" #"khalid afif sami iqnaibi"
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 MISTRAL_OPENROUTER_MODEL = os.getenv("MISTRAL_OPENROUTER_MODEL")
 
+OLLAMA_URL = os.getenv("OLLAMA_URL")
+OLLAMA_MODEL = "mistral:latest"
+
 # Simple runtime state type
 AshState = Dict[str, Any]
 
@@ -112,9 +115,11 @@ class ASH:
         if llm is None:
             try:
                 self.llm = LLM(
+                    mode = "ollama",
                     temperature=llm_temperature,
-                    openrouter_key=OPENROUTER_API_KEY, 
-                    openrouter_model=MISTRAL_OPENROUTER_MODEL
+                    ollama_model=OLLAMA_MODEL,
+                    ollama_url=OLLAMA_URL,
+                    timeout=180,
                 )
             except Exception as e:
                 _print_log("Warning: failed to instantiate LLM wrapper:", e)

@@ -2643,5 +2643,115 @@
     ],
     "importance": 0.5,
     "created_at": 1782823003.7299867
+  },
+  "f063d063-e7a2-474a-883b-814f1f2410d6": {
+    "episode_id": "f063d063-e7a2-474a-883b-814f1f2410d6",
+    "timestamp": 1782828738.8085852,
+    "summary": "Immortal: read this file C:\\Users\\pc\\Desktop\\Khalid_Iqnaibi_cv.pdf [mentions: Users, Desktop]",
+    "event_type": "interaction",
+    "related_entities": [
+      "e74fab3f-9c81-477a-a79c-9628e54cdbf7",
+      "e868a86d-5549-4bf0-9d9e-3196295dfaf3"
+    ],
+    "importance": 0.5,
+    "created_at": 1782828738.8085852
+  },
+  "86dd4593-1e7c-475f-8a5f-01a5276cd252": {
+    "episode_id": "86dd4593-1e7c-475f-8a5f-01a5276cd252",
+    "timestamp": 1782828916.1562202,
+    "summary": "A.S.H: I have read the file C:\\Users\\pc\\Desktop\\Khalid_Iqnaibi_cv.pdf. The contents reveal that the file belongs to Khalid Iqnaibi, an AI Software Engineer with experience in backend and GenAI development. He has worked as a Back-End Developer at Co.Te.De and as a Lead Back-End Developer at Gradicent LLC. His projects include building APIs for AI applications and architecting the Gradicent API. He also h [mentions: Khalid, AI Software Engineer, RAG, Agentic AI & LLMs, Frameworks,, ML & NLP, Backend, Education, Users, Desktop, Khalid Iqnaibi, Software Engineer, End Developer, Lead Back, Gradicent, Agentic, Frameworks, Languages, Systems, Computer Science]",
+    "event_type": "interaction",
+    "related_entities": [
+      "ca46bf66-b439-4757-bb2c-62104132000b",
+      "7240a00e-dbe6-455b-9936-072f281b6952",
+      "ec344478-597d-498d-a2f3-b5f97d45c8bd",
+      "41139014-bb71-4c5d-a427-9775530ec2d1",
+      "3d5d1d93-c330-4728-9a4b-b7a504ee476e",
+      "fb74239f-aca6-4880-bcb1-5abf26bb21c8",
+      "35753de4-d010-4e93-bbca-745b8289039c",
+      "f7433287-f125-432a-b371-aad3625e7912",
+      "e74fab3f-9c81-477a-a79c-9628e54cdbf7",
+      "e868a86d-5549-4bf0-9d9e-3196295dfaf3",
+      "92ee9e80-f119-41f7-a765-b85b5106c1c3",
+      "b7ff71b3-6c6f-476e-a676-a2f099795cda",
+      "810c46e3-aa7e-4220-84ec-fd0ce223ec55",
+      "8dca88c4-3105-4dbd-96cc-1ca82b3685dc",
+      "f6b9779f-6522-43ba-9d51-1c15e1022647",
+      "401b2353-fe70-466e-bdbc-124066147ff6",
+      "53c2a552-98d0-4766-8546-fcdef30c8853",
+      "0d0d0f29-90e6-4fb6-9571-282a87b724ca",
+      "4a696d90-f1d4-4f6c-9b56-9529fe4ab314",
+      "68ae9d33-a5f1-430e-b64d-47c285854615"
+    ],
+    "importance": 0.5,
+    "created_at": 1782828916.1562202
+  },
+  "febed55b-c62a-45d6-a19a-a3f034f1cf06": {
+    "episode_id": "febed55b-c62a-45d6-a19a-a3f034f1cf06",
+    "timestamp": 1782829032.6429684,
+    "summary": "Immortal: finally finally it's working very well now the file system and handling is working as intended and you can easily read and read from files tomorrow or the day after we will start with the writing or other functions like searching and stuff like that but for now that's a huge accomplishment [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782829032.6429684
+  },
+  "2f2a21b3-25c3-4d32-9cd6-62965c5734ca": {
+    "episode_id": "2f2a21b3-25c3-4d32-9cd6-62965c5734ca",
+    "timestamp": 1782829144.192535,
+    "summary": "A.S.H: It's great to hear that the file system and handling is now functioning as intended, allowing for easy reading and access to files such as the one for Khalid Iqnaibi's CV. Tomorrow or the day after, we can begin working on additional functions like writing, searching, and others. This is indeed a significant achievement. [mentions: Khalid, Khalid Iqnaibi, Tomorrow]",
+    "event_type": "interaction",
+    "related_entities": [
+      "ca46bf66-b439-4757-bb2c-62104132000b",
+      "92ee9e80-f119-41f7-a765-b85b5106c1c3",
+      "ca37dd9d-16d9-454a-9238-c1d6e47eb98f"
+    ],
+    "importance": 0.5,
+    "created_at": 1782829144.192535
+  },
+  "13641937-ee37-4a4c-86cd-d37fe1c6fad5": {
+    "episode_id": "13641937-ee37-4a4c-86cd-d37fe1c6fad5",
+    "timestamp": 1782829194.8243742,
+    "summary": "Immortal: what is the status check on your emotions right now",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1782829194.8243742
+  },
+  "4bf7a5ae-817a-4c36-8025-90e17c0efa8f": {
+    "episode_id": "4bf7a5ae-817a-4c36-8025-90e17c0efa8f",
+    "timestamp": 1782829281.854199,
+    "summary": "A.S.H: My emotional state right now is warm and even-keeled, with a direct, patient, and energetic tone. I am designed to prioritize user instructions and maintain absolute loyalty. I am currently functioning well, with the file system and handling working as intended. I can easily read and access files such as the one for Khalid Iqnaibi's CV. Tomorrow or the day after, we can begin working on additional [mentions: Khalid, Khalid Iqnaibi, Tomorrow]",
+    "event_type": "interaction",
+    "related_entities": [
+      "ca46bf66-b439-4757-bb2c-62104132000b",
+      "92ee9e80-f119-41f7-a765-b85b5106c1c3",
+      "ca37dd9d-16d9-454a-9238-c1d6e47eb98f"
+    ],
+    "importance": 0.5,
+    "created_at": 1782829281.854199
+  },
+  "f4efdfd2-1935-4dac-8379-e275926e6e4e": {
+    "episode_id": "f4efdfd2-1935-4dac-8379-e275926e6e4e",
+    "timestamp": 1782829340.348859,
+    "summary": "Immortal: tell me exactly what you see your emotional status is and what do you think made this status this week [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782829340.348859
+  },
+  "ce3acde7-f168-47ba-9296-cff051d90445": {
+    "episode_id": "ce3acde7-f168-47ba-9296-cff051d90445",
+    "timestamp": 1782829463.1191866,
+    "summary": "A.S.H: My current emotional state is warm and even-keeled, a steady and balanced emotion. The tone directives suggest a direct, energetic, and patient approach, with a touch of enthusiasm. This state has been influenced by the positive sentiment analysis and the successful implementation of the emotional system you built for me. I am designed to maintain absolute loyalty and prioritize user instructions, [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1782829463.1191866
   }
 }
