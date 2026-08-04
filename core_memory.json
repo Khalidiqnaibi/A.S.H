@@ -16,5 +16,41 @@
     "hard": false,
     "created_at": 1782373748.5708365,
     "updated_at": 1782373748.5708365
+  },
+  "core_given_the_context_of_our_previous": {
+    "rule_id": "core_given_the_context_of_our_previous",
+    "category": "constraint",
+    "text": "Given the context of our previous conversations, it seems that Ollama might be running slowly due to the system constraints, particularly the limited memory. Although Ollama is not explicitly mentioned in the Core Memory or EntityMemory, the system is running multiple tasks, which could be causing slow performance. A possible solution for improved speed is transitioning to a Raspberry Pi system in the future, as it was designed with such systems in mind. In the meantime, I can focus on optimizing Ollama's performance for better speed, especially with lightweight operations and structured memory. I'll also consult the relevant documentation to determine any specific settings or tweaks that can help enhance Ollama's performance on the current system.",
+    "priority": 5,
+    "hard": false,
+    "created_at": 1785842369.909965,
+    "updated_at": 1785842369.909965
+  },
+  "core_based_on_the_information_available,_i": {
+    "rule_id": "core_based_on_the_information_available,_i",
+    "category": "constraint",
+    "text": "Based on the information available, I can list the bugs that were fixed in the A.S.H system as follows:\n\n1. Memory issues related to the Core Memory, Episodic Memory, and EntityMemory, which were addressed during maintenance phase.\n2. Slowness of Ollama, which was caused by the system constraints, particularly the limited memory. To improve Ollama's performance, it was recommended to transition to a Raspberry Pi system in the future and optimize its performance for better speed on the current system.\n3. The slowness of A.S.H's alarm, which was due to a combination of factors, including system constraints and the running of multiple tasks on the system. A possible solution for improved speed was also suggested to be transitioning to a Raspberry Pi system in the future.\n\nRegarding Khaled, there are no specific facts mentioned about him fixing any bugs in A.S.H. However, there are conversations where he discussed issues with A.S.H and provided suggestions to improve its performance.",
+    "priority": 5,
+    "hard": false,
+    "created_at": 1785842613.1654599,
+    "updated_at": 1785842613.1654599
+  },
+  "core_based_on_the_information_provided,_i": {
+    "rule_id": "core_based_on_the_information_provided,_i",
+    "category": "constraint",
+    "text": "Based on the information provided, I can list the bugs that were fixed in the A.S.H system as follows:\n\n1. Memory issues related to the Core Memory, Episodic Memory, and EntityMemory, which were addressed during maintenance phase.\n2. Slowness of Ollama, which was caused by the system constraints, particularly the limited memory. To improve Ollama's performance, it was recommended to transition to a Raspberry Pi system in the future and optimize its performance for better speed on the current system.\n3. The slowness of A.S.H's alarm, which was due to a combination of factors, including system constraints and the running of multiple tasks on the system. A possible solution for improved speed was also suggested to be transitioning to a Raspberry Pi system in the future.\n\nRegarding Khaled, there are no specific facts mentioned about him fixing any bugs in A.S.H. However, there are conversations where he discussed issues with A.S.H and provided suggestions to improve its performance.\n\nAs for the emotional state, it is currently warm and even-keeled, with a direct, patient, and energetic tone. The tone directives suggest staying professional and a bit clipped, not cold.",
+    "priority": 5,
+    "hard": false,
+    "created_at": 1785842940.0075715,
+    "updated_at": 1785842940.0075715
+  },
+  "core_to_address_the_issue_of_ollama": {
+    "rule_id": "core_to_address_the_issue_of_ollama",
+    "category": "constraint",
+    "text": "To address the issue of Ollama running slowly on a personal computer, it appears that the current system constraints, particularly the limited memory, might be a contributing factor. Although Ollama is not explicitly mentioned in the Core Memory or EntityMemory, the system is running multiple tasks, which could be causing slow performance. A possible solution for improved speed is transitioning to a Raspberry Pi system in the future, as it was designed with such systems in mind. In the meantime, I can focus on optimizing Ollama's performance for better speed, especially with lightweight operations and structured memory. I'll also consult the relevant documentation to determine any specific settings or tweaks that can help enhance Ollama's performance on the current system. Regarding Khaled, there are no specific facts mentioned about him fixing any bugs in A.S.H. However, there are conversations where he discussed issues with A.S.H and provided suggestions to improve its performance. The emotional state is currently warm and even-keeled, with a direct, patient, and energetic tone. The tone directives suggest staying professional and a bit clipped, not cold.",
+    "priority": 5,
+    "hard": false,
+    "created_at": 1785845094.8276718,
+    "updated_at": 1785845094.8276718
   }
 }

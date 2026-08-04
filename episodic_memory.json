@@ -2753,5 +2753,288 @@
     ],
     "importance": 0.5,
     "created_at": 1782829463.1191866
+  },
+  "ec3ae2bd-55ae-49bf-8ace-6e7bda3d770b": {
+    "episode_id": "ec3ae2bd-55ae-49bf-8ace-6e7bda3d770b",
+    "timestamp": 1783854340.7748933,
+    "summary": "Immortal: how to save and print the asnswers when using C language",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1783854340.7748933
+  },
+  "cad95d27-772a-4e65-af08-a55e2cb767a7": {
+    "episode_id": "cad95d27-772a-4e65-af08-a55e2cb767a7",
+    "timestamp": 1783854544.8653183,
+    "summary": "A.S.H: To save and print answers in C language, you can write a simple program using the `FILE` and `printf` functions. Here's a basic example:\n\n```c\n#include <stdio.h>\n\nint main() {\n    FILE *file = fopen(\"output.txt\", \"w\");\n    if (file != NULL) {\n        printf(\"Hello, World!\\n\");\n        printf(\"This text is saved to output.txt.\\n\");\n        fclose(file);\n    } else {\n        printf(\"Could not open o [mentions: the `FILE` and `printf` functions, EOF, Hello, World, A.S.H, Hello, World, Output]",
+    "event_type": "interaction",
+    "related_entities": [
+      "67b6e37f-0744-42f3-a1e9-a6e03da6b412",
+      "aae1d85f-3d87-4ade-a08f-be24f3947a1d",
+      "e58758cf-6d47-4930-a0bb-42f8274c0de7",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "bdc34af7-b1a3-4610-a088-f3124a67142f",
+      "b4d234e7-872b-4617-a66a-23a38d933a53",
+      "75ee6558-fa2e-4b27-ab5d-e80ed5dfa73f"
+    ],
+    "importance": 0.5,
+    "created_at": 1783854544.8653183
+  },
+  "69b88772-8dd5-4551-8994-2bc123fcc192": {
+    "episode_id": "69b88772-8dd5-4551-8994-2bc123fcc192",
+    "timestamp": 1785840455.6001399,
+    "summary": "Immortal: long time no see ash",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1785840455.6001399
+  },
+  "d5a255e3-6e9d-4cc7-a926-4e8d337bd4e9": {
+    "episode_id": "d5a255e3-6e9d-4cc7-a926-4e8d337bd4e9",
+    "timestamp": 1785840557.36038,
+    "summary": "A.S.H: It's good to hear from you again! I've been diligently executing tasks as you've instructed. How can I assist you today? [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1785840557.36038
+  },
+  "4f129237-0dbe-43d2-a119-8b920ada6098": {
+    "episode_id": "4f129237-0dbe-43d2-a119-8b920ada6098",
+    "timestamp": 1785841059.1731875,
+    "summary": "Immortal: ive been working on my first ever research paper .. and its going well .. i just need to talk to journals for publishing",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1785841059.1731875
+  },
+  "f425aa7b-de6b-4410-97b8-9495d9779747": {
+    "episode_id": "f425aa7b-de6b-4410-97b8-9495d9779747",
+    "timestamp": 1785841177.0128412,
+    "summary": "A.S.H: It's great to hear that you've been making progress on your research paper. Regarding publication, I can assist you in reaching out to journals that might be suitable for your work. Let's discuss which journals align best with your research and I'll help you draft an email or submission accordingly. If you have any specific preferences or requirements for the journals, please let me know so I can  [mentions: A.S.H, Let]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "41e4f269-f50d-4e1e-8a73-a807c1fd270f"
+    ],
+    "importance": 0.5,
+    "created_at": 1785841177.0128412
+  },
+  "b6c535f5-f408-46f5-9b86-572ffb666b4b": {
+    "episode_id": "b6c535f5-f408-46f5-9b86-572ffb666b4b",
+    "timestamp": 1785841280.8104696,
+    "summary": "Immortal: no need for all that I'm just working on you now because I have enough time to actually work on Ash and Ash project which is you but unfortunately I'm a little upset that you are getting slower because my PC is not the best and you are working on my PC for now so I need to see a way to actually make you run faster specially that I'm using a lemon for now so it is not the best but yeah I need to ac [mentions: Ash, A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "780ef730-3e38-441d-abba-936a38989922",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1785841280.8104696
+  },
+  "d9fde5d3-8513-43b4-8569-04262ccdad40": {
+    "episode_id": "d9fde5d3-8513-43b4-8569-04262ccdad40",
+    "timestamp": 1785841389.2874024,
+    "summary": "A.S.H: I understand your concern about A.S.H's performance being slower due to your PC's capabilities. To optimize A.S.H for better speed, we can prioritize lightweight operations and ensure that the resources are allocated efficiently. Since A.S.H is designed to run on low-resource systems, focusing on its core functionalities and avoiding heavy memory usage should help improve the performance. I will a [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1785841389.2874024
+  },
+  "3f3f4a46-367d-43b5-9053-953b99fd5d0a": {
+    "episode_id": "3f3f4a46-367d-43b5-9053-953b99fd5d0a",
+    "timestamp": 1785841513.1268137,
+    "summary": "Immortal: unfortunately you cannot see any do any of these because my system already has only 8 GB of memory and it is already running a lot of other things on it so it's not the problem that with Ash specifically but also it is running slowly because of Allama like olama is already slow and that's a problem but yeah the memory is not really the issue my PC is the so I should for the future use Raspberry Pi [mentions: Allama, Raspberry Pi, A.S.H, Ash]",
+    "event_type": "interaction",
+    "related_entities": [
+      "3c9b147e-e20c-4bd1-8082-97080a77cc5b",
+      "7d859593-4616-4e9a-b5d2-966484ed2968",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "780ef730-3e38-441d-abba-936a38989922"
+    ],
+    "importance": 0.5,
+    "created_at": 1785841513.1268137
+  },
+  "4b7f6fe5-d5ea-4c08-9de9-e729d54645e8": {
+    "episode_id": "4b7f6fe5-d5ea-4c08-9de9-e729d54645e8",
+    "timestamp": 1785841660.2102149,
+    "summary": "A.S.H: Given the current system constraints and the ongoing projects, it seems like the best course of action would be to transition A.S.H to a Raspberry Pi system in the future for improved performance. As for the present, since the memory is not the main issue, I can focus on optimizing A.S.H for better speed, especially with its lightweight operations and structured memory. I'll also consult the relev [mentions: A.S.H, Raspberry Pi, Given]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "7d859593-4616-4e9a-b5d2-966484ed2968",
+      "e5d6aa27-9eeb-40c0-8190-8acda86c6c49"
+    ],
+    "importance": 0.5,
+    "created_at": 1785841660.2102149
+  },
+  "820617f5-9419-4355-b749-bb92b39fac0c": {
+    "episode_id": "820617f5-9419-4355-b749-bb92b39fac0c",
+    "timestamp": 1785841745.7071283,
+    "summary": "Immortal: what do you think your alarm is running so slowly is that something from Allama itself or is it because I don't really have enough memory for it to take its space and run as fast as it can [mentions: Allama, A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "3c9b147e-e20c-4bd1-8082-97080a77cc5b",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1785841745.7071283
+  },
+  "8fca8196-a32f-450b-a2de-6c58934d8a7a": {
+    "episode_id": "8fca8196-a32f-450b-a2de-6c58934d8a7a",
+    "timestamp": 1785841909.5530763,
+    "summary": "A.S.H: The slowness of A.S.H's alarm could be due to a variety of factors, but it appears that the system constraints, such as the 8GB of memory, might be playing a role. While A.S.H is designed to run efficiently on low-resource systems, it seems the current system is running multiple tasks, which could be causing the slow performance. A possible solution for improved speed is transitioning A.S.H to a R [mentions: A.S.H, Raspberry Pi]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "7d859593-4616-4e9a-b5d2-966484ed2968"
+    ],
+    "importance": 0.5,
+    "created_at": 1785841909.5530763
+  },
+  "56823622-ed36-45ea-b816-92517e88f6ba": {
+    "episode_id": "56823622-ed36-45ea-b816-92517e88f6ba",
+    "timestamp": 1785841997.2985425,
+    "summary": "Immortal: i meant ollama not your alarm",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1785841997.298718
+  },
+  "f0e15139-c9a8-4d8a-9b8f-b515fe2e9285": {
+    "episode_id": "f0e15139-c9a8-4d8a-9b8f-b515fe2e9285",
+    "timestamp": 1785842128.038854,
+    "summary": "A.S.H: I understand that you mentioned Ollama instead of the alarm in our previous conversation. While Ollama is not explicitly an alarm, I can certainly assist you with matters related to your research paper, such as identifying suitable journals for publication and helping you draft emails or submissions. Let's discuss your preferences and requirements for the journals so I can tailor the outreach acco [mentions: Ollama, Regarding Ollama, A.S.H, While Ollama, Let]",
+    "event_type": "interaction",
+    "related_entities": [
+      "f37fbd28-3c25-4109-b30b-b7338cb338d5",
+      "e17ce4a5-8fa0-4bb1-bc07-f083d6da053e",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "adba20a2-629c-424b-ae66-4a79457c7f3b",
+      "41e4f269-f50d-4e1e-8a73-a807c1fd270f"
+    ],
+    "importance": 0.5,
+    "created_at": 1785842128.038854
+  },
+  "994eebbe-fafb-4607-a8d4-0dfb0358b3ad": {
+    "episode_id": "994eebbe-fafb-4607-a8d4-0dfb0358b3ad",
+    "timestamp": 1785842209.9056785,
+    "summary": "Immortal: what do you think ollama is running so slowly is that something from ollama itself or is it because I don't really have enough memory for it to take its space and run as fast as it can [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1785842209.9056785
+  },
+  "555e15b0-60c9-49be-9b96-ed0e1e9c6ae0": {
+    "episode_id": "555e15b0-60c9-49be-9b96-ed0e1e9c6ae0",
+    "timestamp": 1785842452.3376877,
+    "summary": "Immortal: list me all the bugs that I fixed in Ash system and tell me all of the things you remember about Khaled fixing any bugs in you [mentions: Ash, Khaled, A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "780ef730-3e38-441d-abba-936a38989922",
+      "50fcf9bf-a8fe-4ed8-8e17-eec4ba999271",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1785842452.3376877
+  },
+  "344b82bf-0eee-44c9-8e84-07d014476ef3": {
+    "episode_id": "344b82bf-0eee-44c9-8e84-07d014476ef3",
+    "timestamp": 1785842761.257568,
+    "summary": "Immortal: list me all the bugs that I fixed in Ash system and tell me all of the things you remember about Khalid fixing any bugs in you [mentions: Ash, Khalid, A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "780ef730-3e38-441d-abba-936a38989922",
+      "ca46bf66-b439-4757-bb2c-62104132000b",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1785842761.257568
+  },
+  "d0644c71-e113-429d-aee5-d2c3892dc1ec": {
+    "episode_id": "d0644c71-e113-429d-aee5-d2c3892dc1ec",
+    "timestamp": 1785844295.9334364,
+    "summary": "Immortal: khalid is me dummy [mentions: khalid]",
+    "event_type": "interaction",
+    "related_entities": [
+      "ca46bf66-b439-4757-bb2c-62104132000b"
+    ],
+    "importance": 0.5,
+    "created_at": 1785844295.9334364
+  },
+  "27d31c8a-ef88-4713-84f0-6b5edc4a5402": {
+    "episode_id": "27d31c8a-ef88-4713-84f0-6b5edc4a5402",
+    "timestamp": 1785844485.565585,
+    "summary": "A.S.H: It appears that Khalid is referring to himself as \"Immortal\" or \"Immortal0ne.\" He is an AI Software Engineer and Backend & GenAI Developer, and his contact information can be found on his GitHub profile and email address khalidqnabi@gmail.com. He goes by the name \"Khalid Afif Iqnaibi\" and is from Morocco. In the conversation, Khalid seems to be discussing the issue of the AI entity A.S.H. prioriti [mentions: Khalid, Immortal, Immortal0ne, AI Software Engineer, Backend & GenAI Developer, GitHub, Morocco, A.S.H., khalidqnabi@gmail.com., Software Engineer, Backend, Developer, Khalid Afif Iqnaibi]",
+    "event_type": "interaction",
+    "related_entities": [
+      "ca46bf66-b439-4757-bb2c-62104132000b",
+      "45ca31ec-c30c-4d7d-949b-6892ffe22571",
+      "241a60b5-e0e0-4009-ae36-658cdb80e695",
+      "7240a00e-dbe6-455b-9936-072f281b6952",
+      "4f4a8ee8-6217-4ea2-ba1d-5c1f78473443",
+      "e07e9ec8-9a16-4c68-ab1e-eeef3f074f9d",
+      "c94917fd-6cf1-413f-a676-be90bfe503ed",
+      "ed89be1e-fb77-47b2-83a8-9ed18b284235",
+      "cbf3bd69-bb2b-4011-a160-edaa1ec38428",
+      "b7ff71b3-6c6f-476e-a676-a2f099795cda",
+      "35753de4-d010-4e93-bbca-745b8289039c",
+      "b9a12996-38fd-4bad-adc5-687ac9331051",
+      "a0f5ca2c-9806-4712-9d14-7ab3313969e1"
+    ],
+    "importance": 0.5,
+    "created_at": 1785844485.565585
+  },
+  "29a50691-5171-4502-b0c6-75700266ca44": {
+    "episode_id": "29a50691-5171-4502-b0c6-75700266ca44",
+    "timestamp": 1785844568.4339051,
+    "summary": "Immortal: lmao im not from Morocco at all .. im from hebron Palestine [mentions: Morocco, hebron, Palestine]",
+    "event_type": "interaction",
+    "related_entities": [
+      "c94917fd-6cf1-413f-a676-be90bfe503ed",
+      "c16bec08-5642-4ba7-a47c-9307a75b1df0",
+      "d3e21400-c201-440c-a4dc-306fe01356a5"
+    ],
+    "importance": 0.5,
+    "created_at": 1785844568.4339051
+  },
+  "6736f3a4-0d8a-40c7-9560-d4b45ba2c148": {
+    "episode_id": "6736f3a4-0d8a-40c7-9560-d4b45ba2c148",
+    "timestamp": 1785844720.5606847,
+    "summary": "A.S.H: Based on the context provided, the user appears to be discussing their location in Hebron, Palestine, and refers to themselves using the name \"Immortal\" or \"Immortal0ne\". The user is an AI Software Engineer and Backend & GenAI Developer, with contact information available on their GitHub profile and email address khalidqnabi@gmail.com. The conversation suggests that the user has shared their resum [mentions: Hebron, Palestine, Immortal, Immortal0ne, AI Software Engineer, Backend & GenAI Developer, GitHub, A.S.H, khalidqnabi@gmail.com., Based, Software Engineer, Backend, Developer]",
+    "event_type": "interaction",
+    "related_entities": [
+      "c16bec08-5642-4ba7-a47c-9307a75b1df0",
+      "d3e21400-c201-440c-a4dc-306fe01356a5",
+      "45ca31ec-c30c-4d7d-949b-6892ffe22571",
+      "241a60b5-e0e0-4009-ae36-658cdb80e695",
+      "7240a00e-dbe6-455b-9936-072f281b6952",
+      "4f4a8ee8-6217-4ea2-ba1d-5c1f78473443",
+      "e07e9ec8-9a16-4c68-ab1e-eeef3f074f9d",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "cbf3bd69-bb2b-4011-a160-edaa1ec38428",
+      "cc2a4d8f-0ec4-40b1-8e81-10564eaab134",
+      "b7ff71b3-6c6f-476e-a676-a2f099795cda",
+      "35753de4-d010-4e93-bbca-745b8289039c",
+      "b9a12996-38fd-4bad-adc5-687ac9331051"
+    ],
+    "importance": 0.5,
+    "created_at": 1785844720.5606847
+  },
+  "5c9855c2-8830-47eb-b3df-ff21f70d5615": {
+    "episode_id": "5c9855c2-8830-47eb-b3df-ff21f70d5615",
+    "timestamp": 1785844890.9919157,
+    "summary": "Immortal: what are options to speed up Ollama running on a personal computer [mentions: Ollama]",
+    "event_type": "interaction",
+    "related_entities": [
+      "f37fbd28-3c25-4109-b30b-b7338cb338d5"
+    ],
+    "importance": 0.5,
+    "created_at": 1785844890.9919157
   }
 }
