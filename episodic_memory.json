@@ -3036,5 +3036,57 @@
     ],
     "importance": 0.5,
     "created_at": 1785844890.9919157
+  },
+  "f0e25654-d8e5-4b74-ac34-6e1afd742eb6": {
+    "episode_id": "f0e25654-d8e5-4b74-ac34-6e1afd742eb6",
+    "timestamp": 1785943118.5047455,
+    "summary": "Immortal: yo",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1785943118.5047455
+  },
+  "4acd955f-5a80-4aac-b851-4c1696b8a09f": {
+    "episode_id": "4acd955f-5a80-4aac-b851-4c1696b8a09f",
+    "timestamp": 1785947885.6012714,
+    "summary": "Immortal: what up this is a new LLM i gave you how you feelin [mentions: LLM, A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "7c754673-e353-4bd1-b69c-324344c11ceb",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1785947885.6012714
+  },
+  "0ebf1707-bcd4-4b8c-bde0-a5576e547d14": {
+    "episode_id": "0ebf1707-bcd4-4b8c-bde0-a5576e547d14",
+    "timestamp": 1785948126.9405565,
+    "summary": "Immortal: who am i",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1785948126.9405565
+  },
+  "12c5165e-4b5b-463c-a93c-ed54eeb74650": {
+    "episode_id": "12c5165e-4b5b-463c-a93c-ed54eeb74650",
+    "timestamp": 1785948341.0135927,
+    "summary": "Immortal: looking good whats the time right now",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1785948341.0135927
+  },
+  "c8fbd910-9777-4e4b-9639-06e8d6cae835": {
+    "episode_id": "c8fbd910-9777-4e4b-9639-06e8d6cae835",
+    "timestamp": 1785948443.1039395,
+    "summary": "A.S.H: The current time is 7:45 PM, August 5th, 2026. I'm glad to see that the TTS issue is now resolved and you're satisfied with the results. I'm here to assist you further, so feel free to ask any questions or request help as needed. [mentions: TTS, A.S.H, August]",
+    "event_type": "interaction",
+    "related_entities": [
+      "92699fd5-2079-46a6-9f55-94971a3da9aa",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "40ded4da-e0a6-4756-a239-2ee8e3ad09e7"
+    ],
+    "importance": 0.5,
+    "created_at": 1785948443.1039395
   }
 }
