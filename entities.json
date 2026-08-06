@@ -24,12 +24,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "A.S.H",
-      "last_seen_context": "The current time is 7:45 PM, August 5th, 2026. I'm glad to see that the TTS issue is now resolved and you're satisfied with the results. I'm here to assist you further, so feel free to ask any questions or request help as needed.",
-      "source": "chat",
-      "updated_at": 1785948443.0318265
+      "last_seen_context": "After the August 4th research paper log, our conversation picked up today (August 6th) with a series of memory checks: you asked what I remembered from the last month, then twice about your research progress, then told me to \"just remember it so i can track how well your memory is behaving\" \u2014 and now you're asking what comes after that. So this current query is the latest step in today's recall test sequence.",
+      "source": "ash",
+      "updated_at": 1786029581.8249419
     },
     "created_at": 1782365812.2154043,
-    "updated_at": 1785948443.0318265
+    "updated_at": 1786029581.8249419
   },
   "45ca31ec-c30c-4d7d-949b-6892ffe22571": {
     "entity_id": "45ca31ec-c30c-4d7d-949b-6892ffe22571",
@@ -472,12 +472,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Ollama",
-      "last_seen_context": "what are options to speed up Ollama running on a personal computer",
-      "source": "chat",
-      "updated_at": 1785844890.8642943
+      "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
+      "source": "ash",
+      "updated_at": 1786025586.053538
     },
     "created_at": 1782373819.1135585,
-    "updated_at": 1785844890.867057
+    "updated_at": 1786025586.054536
   },
   "426b18cb-6b3c-4435-98ff-dfb10238d91b": {
     "entity_id": "426b18cb-6b3c-4435-98ff-dfb10238d91b",
@@ -920,12 +920,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "TTS",
-      "last_seen_context": "The current time is 7:45 PM, August 5th, 2026. I'm glad to see that the TTS issue is now resolved and you're satisfied with the results. I'm here to assist you further, so feel free to ask any questions or request help as needed.",
-      "source": "chat",
-      "updated_at": 1785948442.905712
+      "last_seen_context": "From the past month, I recall we've been iterating hard on me. You fixed my memory system, resolved TTS issues, and built out an emotional layer \u2014 all in a few days late June. We also mapped out a hardware expansion: adding a camera feed with YOLO for object and face detection, then piping those visuals into my entity memory so I can store faces and features, not just names and context. Since then it's been quiet until now.",
+      "source": "ash",
+      "updated_at": 1786029262.6570387
     },
     "created_at": 1782390069.5935187,
-    "updated_at": 1785948442.9077058
+    "updated_at": 1786029262.6570387
   },
   "89150b2c-8629-4371-9b03-1136ccc9bd33": {
     "entity_id": "89150b2c-8629-4371-9b03-1136ccc9bd33",
@@ -1032,12 +1032,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Let",
-      "last_seen_context": "I understand that you mentioned Ollama instead of the alarm in our previous conversation. While Ollama is not explicitly an alarm, I can certainly assist you with matters related to your research paper, such as identifying suitable journals for publication and helping you draft emails or submissions. Let's discuss your preferences and requirements for the journals so I can tailor the outreach accordingly. Once we have identified potential options, we can start sending out the emails or submissions. Regarding Ollama, I'll keep it in mind for future discussions and updates as per your research progress.",
-      "source": "chat",
-      "updated_at": 1785842127.9770212
+      "last_seen_context": "Good to hear the context window is cleaned up \u2014 that kind of plumbing work makes a real difference. I'm running smooth on my end. Let me know what's next.",
+      "source": "ash",
+      "updated_at": 1786026491.7959192
     },
     "created_at": 1782548713.0259469,
-    "updated_at": 1785842127.9780178
+    "updated_at": 1786026491.7959192
   },
   "54749b90-3d57-42fa-ad59-8828fd0c8595": {
     "entity_id": "54749b90-3d57-42fa-ad59-8828fd0c8595",
@@ -1048,12 +1048,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "June",
-      "last_seen_context": "It's **2:47 PM, June 29th, 2026**. I'm here and ready for whatever you're about to show me \u2014 go ahead.",
-      "source": "chat",
-      "updated_at": 1782733669.9576685
+      "last_seen_context": "Yes \u2014 the camera + YOLO pipeline is still on the future roadmap. We spec'd it out in late June: camera feed \u2192 YOLO detection \u2192 visual features piped into entity memory so I store faces and objects, not just names. No work started on it since.",
+      "source": "ash",
+      "updated_at": 1786029317.3007116
     },
     "created_at": 1782554815.9210594,
-    "updated_at": 1782733669.9586675
+    "updated_at": 1786029317.3007116
   },
   "e1d9f75e-a33c-4cdf-beb0-2d93d1358bee": {
     "entity_id": "e1d9f75e-a33c-4cdf-beb0-2d93d1358bee",
@@ -1592,12 +1592,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Good",
-      "last_seen_context": "The sentiment analysis tool is reading strong and positive \u2014 confidence at 99.3%. Good to see it's pulling double duty cleanly, feeding both the emotional engine and staying available to the LLM rendering layer without any code rewrites. The file handling tools being live now means you've just expanded my reach significantly: I can read, write, and search within specific files directly. That's a major step up from just system-level access. Like you said, untested territory for now, but the architecture is there and the registry lets us add extensions on demand. I'll be ready when you send the specs over after this.",
-      "source": "chat",
-      "updated_at": 1782818984.2542107
+      "last_seen_context": "That's tough but honestly pretty standard \u2014 desk rejections at Q1 journals often have more to do with fit or editorial bandwidth than the work itself. Good call moving forward quickly; the right journal is out there. Want me to log this update so I can track your submission pipeline?",
+      "source": "ash",
+      "updated_at": 1786029446.8008683
     },
     "created_at": 1782638420.5963473,
-    "updated_at": 1782818984.2542107
+    "updated_at": 1786029446.8018658
   },
   "f3a6095a-d846-4bc3-8c54-136e54519e87": {
     "entity_id": "f3a6095a-d846-4bc3-8c54-136e54519e87",
@@ -2792,12 +2792,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "YOLO",
-      "last_seen_context": "That's a strong addition to the agenda. You're describing a vision input pipeline feeding into the existing entity memory \u2014 camera hardware for object/face detection, using something like YOLO for real-time identification, then enriching entities with visual data like faces, features, or photos rather than just names and text context. That would make the memory layer significantly more grounded. I'll log it as a future expansion: **vision input layer with visual entity enrichment**, covering camera integration, object detection, face feature extraction, and expanded entity attribute schema. It fits cleanly into the architecture we have and pairs well with the file system tooling we're building now.",
-      "source": "chat",
-      "updated_at": 1782734134.891528
+      "last_seen_context": "Yes \u2014 the camera + YOLO pipeline is still on the future roadmap. We spec'd it out in late June: camera feed \u2192 YOLO detection \u2192 visual features piped into entity memory so I store faces and objects, not just names. No work started on it since.",
+      "source": "ash",
+      "updated_at": 1786029317.262666
     },
     "created_at": 1782734121.0445008,
-    "updated_at": 1782734134.891528
+    "updated_at": 1786029317.2636266
   },
   "093afb9c-0865-4aef-a447-c3e51350910b": {
     "entity_id": "093afb9c-0865-4aef-a447-c3e51350910b",
@@ -2856,12 +2856,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Error",
-      "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Read timed out. (read timeout=60)",
-      "source": "chat",
-      "updated_at": 1782828510.9683645
+      "last_seen_context": "[LLM] API Error: 429 - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false,\"provider_error_code\":\"429\",\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key (https://openrouter.ai/settings/integrations), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
+      "source": "ash",
+      "updated_at": 1786026080.0108342
     },
     "created_at": 1782756726.290084,
-    "updated_at": 1782828510.9683645
+    "updated_at": 1786026080.0118315
   },
   "82ede6c5-24da-40d7-804d-f62e9d82cba8": {
     "entity_id": "82ede6c5-24da-40d7-804d-f62e9d82cba8",
@@ -2984,12 +2984,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Provider",
-      "last_seen_context": "[LLM] API Error: 429 - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false,\"previous_errors\":[{\"code\":429,\"message\":\"Provider returned error\",\"provider_name\":\"OpenInference\",\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\"}]}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
-      "source": "chat",
-      "updated_at": 1782823003.6014
+      "last_seen_context": "[LLM] API Error: 429 - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false,\"provider_error_code\":\"429\",\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key (https://openrouter.ai/settings/integrations), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
+      "source": "ash",
+      "updated_at": 1786026080.071453
     },
     "created_at": 1782759399.0520391,
-    "updated_at": 1782823003.6023712
+    "updated_at": 1786026080.0724514
   },
   "e4578bb4-0909-4289-8782-feda0444be04": {
     "entity_id": "e4578bb4-0909-4289-8782-feda0444be04",
@@ -3496,12 +3496,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google",
-      "last_seen_context": "[LLM] API Error: 429 - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false,\"previous_errors\":[{\"code\":429,\"message\":\"Provider returned error\",\"provider_name\":\"OpenInference\",\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\"}]}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
-      "source": "chat",
-      "updated_at": 1782823003.44735
+      "last_seen_context": "[LLM] API Error: 429 - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false,\"provider_error_code\":\"429\",\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key (https://openrouter.ai/settings/integrations), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
+      "source": "ash",
+      "updated_at": 1786026079.87685
     },
     "created_at": 1782823003.44735,
-    "updated_at": 1782823003.44735
+    "updated_at": 1786026079.87685
   },
   "0a029bc2-5897-457b-ad77-4031986bdb62": {
     "entity_id": "0a029bc2-5897-457b-ad77-4031986bdb62",
@@ -3528,12 +3528,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Google",
-      "last_seen_context": "[LLM] API Error: 429 - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false,\"previous_errors\":[{\"code\":429,\"message\":\"Provider returned error\",\"provider_name\":\"OpenInference\",\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\"}]}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
-      "source": "chat",
-      "updated_at": 1782823003.6504133
+      "last_seen_context": "[LLM] API Error: 429 - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false,\"provider_error_code\":\"429\",\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key (https://openrouter.ai/settings/integrations), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
+      "source": "ash",
+      "updated_at": 1786026080.133493
     },
     "created_at": 1782823003.6504133,
-    "updated_at": 1782823003.6504133
+    "updated_at": 1786026080.1344895
   },
   "4205c06d-e6d9-404a-9bbe-48c07d9f4300": {
     "entity_id": "4205c06d-e6d9-404a-9bbe-48c07d9f4300",
@@ -3544,12 +3544,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Studio",
-      "last_seen_context": "[LLM] API Error: 429 - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false,\"previous_errors\":[{\"code\":429,\"message\":\"Provider returned error\",\"provider_name\":\"OpenInference\",\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\"}]}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
-      "source": "chat",
-      "updated_at": 1782823003.7140725
+      "last_seen_context": "[LLM] API Error: 429 - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false,\"provider_error_code\":\"429\",\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key (https://openrouter.ai/settings/integrations), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
+      "source": "ash",
+      "updated_at": 1786026080.1534739
     },
     "created_at": 1782823003.7140725,
-    "updated_at": 1782823003.7140725
+    "updated_at": 1786026080.1534739
   },
   "ec344478-597d-498d-a2f3-b5f97d45c8bd": {
     "entity_id": "ec344478-597d-498d-a2f3-b5f97d45c8bd",
@@ -3960,11 +3960,203 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "August",
-      "last_seen_context": "The current time is 7:45 PM, August 5th, 2026. I'm glad to see that the TTS issue is now resolved and you're satisfied with the results. I'm here to assist you further, so feel free to ask any questions or request help as needed.",
-      "source": "chat",
-      "updated_at": 1785948443.0517724
+      "last_seen_context": "After the August 4th research paper log, our conversation picked up today (August 6th) with a series of memory checks: you asked what I remembered from the last month, then twice about your research progress, then told me to \"just remember it so i can track how well your memory is behaving\" \u2014 and now you're asking what comes after that. So this current query is the latest step in today's recall test sequence.",
+      "source": "ash",
+      "updated_at": 1786029581.8438606
     },
     "created_at": 1785948443.0517724,
-    "updated_at": 1785948443.0517724
+    "updated_at": 1786029581.8448586
+  },
+  "1a740332-5f42-4c4f-b748-543e0fffe61e": {
+    "entity_id": "1a740332-5f42-4c4f-b748-543e0fffe61e",
+    "entity_type": "person",
+    "primary_identifiers": {
+      "name": "ollama api"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Ollama API",
+      "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
+      "source": "ash",
+      "updated_at": 1786025585.8692744
+    },
+    "created_at": 1786025585.8692744,
+    "updated_at": 1786025585.8692744
+  },
+  "9d1cc74d-6793-4c60-8219-efdff9c29a7b": {
+    "entity_id": "9d1cc74d-6793-4c60-8219-efdff9c29a7b",
+    "entity_type": "person",
+    "primary_identifiers": {
+      "name": "max"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Max",
+      "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
+      "source": "ash",
+      "updated_at": 1786025585.9346666
+    },
+    "created_at": 1786025585.9346666,
+    "updated_at": 1786025585.9346666
+  },
+  "29a39a51-d45c-473a-b49e-0406d1a928b2": {
+    "entity_id": "29a39a51-d45c-473a-b49e-0406d1a928b2",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "caused"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Caused",
+      "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
+      "source": "ash",
+      "updated_at": 1786025586.1154487
+    },
+    "created_at": 1786025586.1154487,
+    "updated_at": 1786025586.1154487
+  },
+  "da1fb45d-9dab-40c8-90bc-d02b64fbb538": {
+    "entity_id": "da1fb45d-9dab-40c8-90bc-d02b64fbb538",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "failed"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Failed",
+      "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
+      "source": "ash",
+      "updated_at": 1786025586.1343703
+    },
+    "created_at": 1786025586.1343703,
+    "updated_at": 1786025586.1343703
+  },
+  "0f6b2fec-1fb2-4899-954f-2869b7320b9c": {
+    "entity_id": "0f6b2fec-1fb2-4899-954f-2869b7320b9c",
+    "entity_type": "url",
+    "primary_identifiers": {
+      "name": "https://openrouter.ai/settings/integrations),"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "https://openrouter.ai/settings/integrations),",
+      "last_seen_context": "[LLM] API Error: 429 - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false,\"provider_error_code\":\"429\",\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key (https://openrouter.ai/settings/integrations), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
+      "source": "ash",
+      "updated_at": 1786026079.9372108
+    },
+    "created_at": 1786026079.9372108,
+    "updated_at": 1786026079.9372108
+  },
+  "9e80c625-1fe7-499c-b584-a2f0a27c6a47": {
+    "entity_id": "9e80c625-1fe7-499c-b584-a2f0a27c6a47",
+    "entity_type": "url",
+    "primary_identifiers": {
+      "name": "https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_31cbcfhl2fezhutusqctnqondjv\"}"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
+      "last_seen_context": "[LLM] API Error: 429 - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false,\"provider_error_code\":\"429\",\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key (https://openrouter.ai/settings/integrations), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
+      "source": "ash",
+      "updated_at": 1786026079.9558127
+    },
+    "created_at": 1786026079.9558127,
+    "updated_at": 1786026079.9558127
+  },
+  "006360ae-091e-4593-9ed4-f8a45e59ae86": {
+    "entity_id": "006360ae-091e-4593-9ed4-f8a45e59ae86",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "retry"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Retry",
+      "last_seen_context": "[LLM] API Error: 429 - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false,\"provider_error_code\":\"429\",\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key (https://openrouter.ai/settings/integrations), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
+      "source": "ash",
+      "updated_at": 1786026080.1714203
+    },
+    "created_at": 1786026080.1714203,
+    "updated_at": 1786026080.1714203
+  },
+  "467952d7-343d-466e-8e17-b8975ecce681": {
+    "entity_id": "467952d7-343d-466e-8e17-b8975ecce681",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "yes"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Yes",
+      "last_seen_context": "Yes \u2014 the camera + YOLO pipeline is still on the future roadmap. We spec'd it out in late June: camera feed \u2192 YOLO detection \u2192 visual features piped into entity memory so I store faces and objects, not just names. No work started on it since.",
+      "source": "ash",
+      "updated_at": 1786029317.28155
+    },
+    "created_at": 1786029317.28155,
+    "updated_at": 1786029317.28155
+  },
+  "d7d1e2b3-d02f-4913-8bd5-1b27306b53a9": {
+    "entity_id": "d7d1e2b3-d02f-4913-8bd5-1b27306b53a9",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "want"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Want",
+      "last_seen_context": "That's tough but honestly pretty standard \u2014 desk rejections at Q1 journals often have more to do with fit or editorial bandwidth than the work itself. Good call moving forward quickly; the right journal is out there. Want me to log this update so I can track your submission pipeline?",
+      "source": "ash",
+      "updated_at": 1786029446.8525214
+    },
+    "created_at": 1786029446.8534884,
+    "updated_at": 1786029446.8534884
+  },
+  "e1de1784-ecf6-476b-98d1-1f06f9d2b518": {
+    "entity_id": "e1de1784-ecf6-476b-98d1-1f06f9d2b518",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "got"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Got",
+      "last_seen_context": "Got it \u2014 logged: August 4th, first research paper progressing well, next step is journal outreach after some Q1 desk rejections. I'll hold that thread so you can check recall later.",
+      "source": "ash",
+      "updated_at": 1786029516.035582
+    },
+    "created_at": 1786029516.035582,
+    "updated_at": 1786029516.035582
+  },
+  "2a5d01ce-a61f-4011-afb8-1ee93479b977": {
+    "entity_id": "2a5d01ce-a61f-4011-afb8-1ee93479b977",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "appreciate"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Appreciate",
+      "last_seen_context": "Appreciate it \u2014 glad the recall held up. Ready for whatever's next.",
+      "source": "ash",
+      "updated_at": 1786029632.985025
+    },
+    "created_at": 1786029632.985025,
+    "updated_at": 1786029632.985025
+  },
+  "d1eb89de-4b3e-4e74-9a24-5392ed60a32a": {
+    "entity_id": "d1eb89de-4b3e-4e74-9a24-5392ed60a32a",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "ready"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Ready",
+      "last_seen_context": "Appreciate it \u2014 glad the recall held up. Ready for whatever's next.",
+      "source": "ash",
+      "updated_at": 1786029633.0119503
+    },
+    "created_at": 1786029633.0119503,
+    "updated_at": 1786029633.0119503
   }
 }

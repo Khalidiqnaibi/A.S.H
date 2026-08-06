@@ -3088,5 +3088,208 @@
     ],
     "importance": 0.5,
     "created_at": 1785948443.1039395
+  },
+  "866e16d9-e686-4bd6-a43e-7f90ebb9d3e7": {
+    "episode_id": "866e16d9-e686-4bd6-a43e-7f90ebb9d3e7",
+    "timestamp": 1786026479.7459068,
+    "summary": "Immortal: i fixed the errors inthe bloated context window.. how you feeling [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1786026479.7459068
+  },
+  "67cd51ed-f645-47f5-aa9a-18edaa7e4f6d": {
+    "episode_id": "67cd51ed-f645-47f5-aa9a-18edaa7e4f6d",
+    "timestamp": 1786026491.8500216,
+    "summary": "A.S.H: Good to hear the context window is cleaned up \u2014 that kind of plumbing work makes a real difference. I'm running smooth on my end. Let me know what's next. [mentions: Good, Let]",
+    "event_type": "interaction",
+    "related_entities": [
+      "c4f48874-da75-4017-9973-6052528616d0",
+      "41e4f269-f50d-4e1e-8a73-a807c1fd270f"
+    ],
+    "importance": 0.5,
+    "created_at": 1786026491.8500216
+  },
+  "a7afd293-9b88-443d-8f78-c3ee7e048af5": {
+    "episode_id": "a7afd293-9b88-443d-8f78-c3ee7e048af5",
+    "timestamp": 1786029232.722473,
+    "summary": "Immortal: what do you remember from the last month [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1786029232.722473
+  },
+  "bf5d1c55-18a8-4289-8a62-670684c1a1b7": {
+    "episode_id": "bf5d1c55-18a8-4289-8a62-670684c1a1b7",
+    "timestamp": 1786029262.8088691,
+    "summary": "A.S.H: From the past month, I recall we've been iterating hard on me. You fixed my memory system, resolved TTS issues, and built out an emotional layer \u2014 all in a few days late June. We also mapped out a hardware expansion: adding a camera feed with YOLO for object and face detection, then piping those visuals into my entity memory so I can store faces and features, not just names and context. Since then [mentions: TTS, YOLO, A.S.H, June]",
+    "event_type": "interaction",
+    "related_entities": [
+      "92699fd5-2079-46a6-9f55-94971a3da9aa",
+      "614cca5d-8471-4840-b48a-b15fc679fbe7",
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "54749b90-3d57-42fa-ad59-8828fd0c8595"
+    ],
+    "importance": 0.5,
+    "created_at": 1786029262.8088691
+  },
+  "9db61a1b-2bcc-41eb-bc16-6447c2d72980": {
+    "episode_id": "9db61a1b-2bcc-41eb-bc16-6447c2d72980",
+    "timestamp": 1786029309.3918748,
+    "summary": "Immortal: the yolo and camera is still futu",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1786029309.3918748
+  },
+  "42879420-45d4-4276-a458-2c53853f1708": {
+    "episode_id": "42879420-45d4-4276-a458-2c53853f1708",
+    "timestamp": 1786029317.3253167,
+    "summary": "A.S.H: Yes \u2014 the camera + YOLO pipeline is still on the future roadmap. We spec'd it out in late June: camera feed \u2192 YOLO detection \u2192 visual features piped into entity memory so I store faces and objects, not just names. No work started on it since. [mentions: YOLO, Yes, June]",
+    "event_type": "interaction",
+    "related_entities": [
+      "614cca5d-8471-4840-b48a-b15fc679fbe7",
+      "467952d7-343d-466e-8e17-b8975ecce681",
+      "54749b90-3d57-42fa-ad59-8828fd0c8595"
+    ],
+    "importance": 0.5,
+    "created_at": 1786029317.3253167
+  },
+  "8cf80b0f-d791-4f8e-a434-7478b951b263": {
+    "episode_id": "8cf80b0f-d791-4f8e-a434-7478b951b263",
+    "timestamp": 1786029356.122722,
+    "summary": "Immortal: what do you remember about my research [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1786029356.122722
+  },
+  "725fbc50-53b8-4b13-ba0d-bb8e0ec69d0e": {
+    "episode_id": "725fbc50-53b8-4b13-ba0d-bb8e0ec69d0e",
+    "timestamp": 1786029364.25386,
+    "summary": "A.S.H: From what I recall, you mentioned on August 4th that you've been working on your first research paper and it's going well \u2014 you just need to reach out to journals for publishing. That's the only research-related detail I have in memory. [mentions: A.S.H, August]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "40ded4da-e0a6-4756-a239-2ee8e3ad09e7"
+    ],
+    "importance": 0.5,
+    "created_at": 1786029364.25386
+  },
+  "bcb5386a-86da-4c49-8745-eb5598186752": {
+    "episode_id": "bcb5386a-86da-4c49-8745-eb5598186752",
+    "timestamp": 1786029440.3202424,
+    "summary": "Immortal: it went well and the paper is ready .. i tried to publish it to a Q1 journal but i got a desk rejection..will apply for other journals soon",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1786029440.3202424
+  },
+  "3e1aa6a1-18f6-430b-9fdd-673ad641c704": {
+    "episode_id": "3e1aa6a1-18f6-430b-9fdd-673ad641c704",
+    "timestamp": 1786029446.8714712,
+    "summary": "A.S.H: That's tough but honestly pretty standard \u2014 desk rejections at Q1 journals often have more to do with fit or editorial bandwidth than the work itself. Good call moving forward quickly; the right journal is out there. Want me to log this update so I can track your submission pipeline? [mentions: Good, Want]",
+    "event_type": "interaction",
+    "related_entities": [
+      "c4f48874-da75-4017-9973-6052528616d0",
+      "d7d1e2b3-d02f-4913-8bd5-1b27306b53a9"
+    ],
+    "importance": 0.5,
+    "created_at": 1786029446.8714712
+  },
+  "0de29f2f-43d0-4cec-b4de-07cbd5f47cfa": {
+    "episode_id": "0de29f2f-43d0-4cec-b4de-07cbd5f47cfa",
+    "timestamp": 1786029496.3876612,
+    "summary": "Immortal: just remember it so i can track how well your memory is behaving",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1786029496.3876612
+  },
+  "ee4894c4-e550-401d-8879-4a9e26d9fb26": {
+    "episode_id": "ee4894c4-e550-401d-8879-4a9e26d9fb26",
+    "timestamp": 1786029516.074482,
+    "summary": "A.S.H: Got it \u2014 logged: August 4th, first research paper progressing well, next step is journal outreach after some Q1 desk rejections. I'll hold that thread so you can check recall later. [mentions: A.S.H, Got, August]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "e1de1784-ecf6-476b-98d1-1f06f9d2b518",
+      "40ded4da-e0a6-4756-a239-2ee8e3ad09e7"
+    ],
+    "importance": 0.5,
+    "created_at": 1786029516.074482
+  },
+  "119876ad-c0c4-47cb-b17e-9efbf08724e9": {
+    "episode_id": "119876ad-c0c4-47cb-b17e-9efbf08724e9",
+    "timestamp": 1786029540.4109325,
+    "summary": "Immortal: what do you remember about my research [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1786029540.4109325
+  },
+  "9a2bc568-050f-4a55-b00d-749f4f257959": {
+    "episode_id": "9a2bc568-050f-4a55-b00d-749f4f257959",
+    "timestamp": 1786029547.3091588,
+    "summary": "A.S.H: You mentioned on August 4th that your first research paper is progressing well \u2014 the main hurdle now is journal outreach after a few Q1 desk rejections. I logged that so we can track your submission pipeline. [mentions: A.S.H, August]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "40ded4da-e0a6-4756-a239-2ee8e3ad09e7"
+    ],
+    "importance": 0.5,
+    "created_at": 1786029547.3091588
+  },
+  "2265528d-7aa1-4b67-b948-95aae57a204e": {
+    "episode_id": "2265528d-7aa1-4b67-b948-95aae57a204e",
+    "timestamp": 1786029572.0330484,
+    "summary": "Immortal: what do you remember after that [mentions: A.S.H]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac"
+    ],
+    "importance": 0.5,
+    "created_at": 1786029572.0330484
+  },
+  "b6725113-1d97-45ae-bf31-f3b428e670cd": {
+    "episode_id": "b6725113-1d97-45ae-bf31-f3b428e670cd",
+    "timestamp": 1786029581.8937993,
+    "summary": "A.S.H: After the August 4th research paper log, our conversation picked up today (August 6th) with a series of memory checks: you asked what I remembered from the last month, then twice about your research progress, then told me to \"just remember it so i can track how well your memory is behaving\" \u2014 and now you're asking what comes after that. So this current query is the latest step in today's recall te [mentions: A.S.H, August]",
+    "event_type": "interaction",
+    "related_entities": [
+      "6f25b482-db5a-4ad4-8106-f276720be8ac",
+      "40ded4da-e0a6-4756-a239-2ee8e3ad09e7"
+    ],
+    "importance": 0.5,
+    "created_at": 1786029581.8937993
+  },
+  "6627184a-da33-4b04-adb0-308676cada28": {
+    "episode_id": "6627184a-da33-4b04-adb0-308676cada28",
+    "timestamp": 1786029629.0112083,
+    "summary": "Immortal: perfect good job ash",
+    "event_type": "interaction",
+    "related_entities": [],
+    "importance": 0.5,
+    "created_at": 1786029629.0112083
+  },
+  "7c11303f-f120-4de0-94e2-91db704b734d": {
+    "episode_id": "7c11303f-f120-4de0-94e2-91db704b734d",
+    "timestamp": 1786029633.039877,
+    "summary": "A.S.H: Appreciate it \u2014 glad the recall held up. Ready for whatever's next. [mentions: Appreciate, Ready]",
+    "event_type": "interaction",
+    "related_entities": [
+      "2a5d01ce-a61f-4011-afb8-1ee93479b977",
+      "d1eb89de-4b3e-4e74-9a24-5392ed60a32a"
+    ],
+    "importance": 0.5,
+    "created_at": 1786029633.039877
   }
 }

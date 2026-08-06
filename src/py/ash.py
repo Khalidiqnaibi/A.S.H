@@ -57,7 +57,7 @@ USER = "Immortal" #"khalid afif sami iqnaibi"
 # kparser=Sen()
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-MISTRAL_OPENROUTER_MODEL = os.getenv("MISTRAL_OPENROUTER_MODEL")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL")
 
 OLLAMA_URL = os.getenv("OLLAMA_URL")
 OLLAMA_MODEL = "mistral:latest"
@@ -549,7 +549,14 @@ class ASH:
             "emotions": ash_state.get("emotions", {}),
         }
 
-ash = ASH()
+llm = LLM(
+    temperature=DEFAULT_LLM_TEMPERATURE,
+    openrouter_key=OPENROUTER_API_KEY,
+    openrouter_model=OPENROUTER_MODEL,
+    timeout=180,
+)
+
+ash = ASH(llm=llm)
 
 # quick local test when run directly
 if __name__ == "__main__":
