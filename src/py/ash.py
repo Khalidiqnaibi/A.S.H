@@ -519,13 +519,15 @@ class ASH:
         ash_state["res"] = final_text
         self._append_history("ash", final_text)
 
-        # 7) Save ASH's response to memory (NOT the user's query again!)
+        # 7) Save ASH's response to episodic memory only (NOT the user's
+        # query again). source="ash" so it can never be misclassified as
+        # a new core rule -- see the guard in route_utterance().
         try:
             self.memory.route_utterance(
                 text=final_text,
-                source="chat",
+                source="ash",
                 importance=0.5,
-                actor=self.name  # Use ASH's name here
+                actor=self.name
             )
         except Exception as e:
             _print_log("Memory routing failed:", e)

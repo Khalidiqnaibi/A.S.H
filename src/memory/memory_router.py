@@ -18,19 +18,6 @@ if not logger.handlers:
     import sys as _sys
     logger.addHandler(logging.StreamHandler(stream=_sys.stderr))
 
-# ----------------------------------------------------------------------
-# Lightweight relevance scoring helpers.
-#
-# Neither CoreMemoryEngine.retrieve() nor EpisodicMemory.retrieve() hands
-# back the similarity score it computed internally -- they each do their own
-# embedding search, re-rank (hard/priority for core; the EpisodeRanker for
-# episodic), and return bare CoreRule / Episode objects with the score
-# already thrown away. So once those objects reach the router, the only
-# relevance signal we can compute ourselves is lexical overlap against the
-# query. `_extract_native_score` is kept as a defensive no-op in case a
-# future version of either index starts attaching a score to what it
-# returns -- today it will always return None and we fall back to lexical.
-# ----------------------------------------------------------------------
 _TOKEN_RE = re.compile(r"[a-zA-Z0-9']+")
 _STOPWORDS = {
     "the", "a", "an", "is", "are", "was", "were", "be", "been", "to", "of",
@@ -43,23 +30,6 @@ _STOPWORDS = {
     "today", "tomorrow", "yesterday", "now", "currently", "still", "right",
 }
 
-# ----------------------------------------------------------------------
-# Core-memory ingestion classification.
-#
-# Merely *mentioning* a core-memory-ish word ("what's our goal for the
-# rule changes?") is not the same as *asserting* one ("from now on,
-# always prioritize user instructions"). A flat keyword counter can't
-# tell those apart -- it would happily store the question. The classifier
-# below requires either:
-#   - an explicit author-tagged prefix ("Policy: ..."), the strongest
-#     possible signal, since someone is deliberately authoring an entry, or
-#   - a directive marker ("always", "never", "must", "from now on", ...)
-#     plus at least one matching category keyword, or
-#   - enough same-category keyword density on its own, as long as the
-#     sentence isn't phrased as a question.
-# Questions are excluded unless they also carry a directive, since asking
-# about a rule is not the same as stating one.
-# ----------------------------------------------------------------------
 _CORE_CATEGORY_KEYWORDS = {
     "identity": {"identity", "you are", "i am", "your name", "you're called", "i'm called", "call you"},
     "goal": {"goal", "mission", "objective", "purpose", "aim"},
@@ -196,8 +166,20 @@ class MemoryRouter:
         # Real core-memory classification: declarative directive/identity/
         # goal/standard statement, not just a sentence that happens to
         # contain one of those words (see _classify_core_candidate).
-        classification = self._classify_core_candidate(text)
-        force_core = importance >= self.config["core_force_importance"]
+        # NOTE: only user-originated text is eligible to become a core
+        # rule. ASH's own generated replies frequently discuss its own
+        # constraints/policies while explaining itself, which previously
+        # tripped this classifier and caused ASH to silently write new
+        # "core rules" from its own hedging language -- a feedback loop
+        # that grew core memory (and therefore per-turn context) over
+        # time with junk entries. Restrict classification to source=="chat"
+        # (i.e. the user's utterance), never source=="ash".
+        if source == "ash":
+            classification = None
+            force_core = False
+        else:
+            classification = self._classify_core_candidate(text)
+            force_core = importance >= self.config["core_force_importance"]
 
         result = {"routed_as": None, "details": {}, "time": 0.0}
 
