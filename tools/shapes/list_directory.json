@@ -1,0 +1,12 @@
+{
+  "tag": "list_directory",
+  "description": "User wants a listing of files/folders in a directory.",
+  "patterns": [
+    "list files in this folder",
+    "what's in this directory",
+    "show me the contents of this folder",
+    "ls this directory",
+    "what files are in downloads"
+  ],
+  "tool": { "module": "tools.file_manager", "function": "list_directory_tool" }
+}

@@ -1,0 +1,11 @@
+{
+  "tag": "search_files",
+  "description": "User wants to find text or a pattern inside local files.",
+  "patterns": [
+    "search for TODO in my files",
+    "find files containing this text",
+    "grep for this string in the project",
+    "look for any file mentioning error"
+  ],
+  "tool": { "module": "tools.file_manager", "function": "search_files_tool" }
+}

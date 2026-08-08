@@ -1,0 +1,14 @@
+{
+  "servers": [
+    {
+      "name": "filesystem",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/pi/shared"],
+      "intent_overrides": {
+        "read_file": ["mcp_read_file"],
+        "list_directory": ["mcp_list_directory"]
+      }
+    }
+  ]
+}

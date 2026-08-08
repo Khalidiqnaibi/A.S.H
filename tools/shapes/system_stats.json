@@ -1,0 +1,15 @@
+{
+  "tag": "system_stats",
+  "description": "User wants to check ASH's host machine health -- CPU load, RAM usage, temperature, uptime. Especially relevant on Pi-class hardware.",
+  "patterns": [
+    "how's your system doing",
+    "check cpu and ram usage",
+    "what's your uptime",
+    "how hot is the pi running",
+    "show system stats",
+    "are you overheating",
+    "how much memory are you using",
+    "give me a health check"
+  ],
+  "tool": { "module": "tools.extra_tools", "function": "system_stats_tool" }
+}

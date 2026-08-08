@@ -1,0 +1,12 @@
+{
+  "tag": "read_file",
+  "description": "User wants the contents of a specific file read or shown.",
+  "patterns": [
+    "read this file",
+    "open this file and show me what's inside",
+    "show me the contents of notes.txt",
+    "what does this file say",
+    "print out this file"
+  ],
+  "tool": { "module": "tools.file_manager", "function": "read_file_tool" }
+}

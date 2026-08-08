@@ -1,0 +1,14 @@
+{
+  "tag": "calculate",
+  "description": "User wants a math expression evaluated -- arithmetic, percentages, simple equations.",
+  "patterns": [
+    "what is 12 times 7",
+    "calculate 45 / 3",
+    "solve 2 + 2 * 3",
+    "how much is 15 percent of 200",
+    "what's the square root of 144",
+    "compute (5 + 3) * 2",
+    "do this math for me: 99 - 47"
+  ],
+  "tool": { "module": "tools.lesstools", "function": "calculator_tool" }
+}

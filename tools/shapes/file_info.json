@@ -1,0 +1,12 @@
+{
+  "tag": "file_info",
+  "description": "User wants metadata about a specific file -- size, type, timestamps.",
+  "patterns": [
+    "how big is this file",
+    "when was this file last modified",
+    "what type of file is this",
+    "give me info about this file",
+    "show file details for report.pdf"
+  ],
+  "tool": { "module": "tools.file_manager", "function": "file_info_tool" }
+}

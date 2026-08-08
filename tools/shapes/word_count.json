@@ -1,0 +1,12 @@
+{
+  "tag": "word_count",
+  "description": "User wants word/character counts or a reading-time estimate for a piece of text.",
+  "patterns": [
+    "how many words is this",
+    "count the words in this paragraph",
+    "how long would this take to read",
+    "give me a word count for this text",
+    "how many characters is that"
+  ],
+  "tool": { "module": "tools.extra_tools", "function": "word_count_tool" }
+}

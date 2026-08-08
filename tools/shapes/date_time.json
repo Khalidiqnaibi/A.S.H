@@ -1,0 +1,15 @@
+{
+  "tag": "get_time",
+  "description": "User wants to know the current date and/or time.",
+  "patterns": [
+    "what time is it",
+    "what's the date today",
+    "current time",
+    "tell me the time",
+    "what day is it",
+    "what's today's date",
+    "give me the current date and time",
+    "do you know what time it is"
+  ],
+  "tool": { "module": "tools.lesstools", "function": "date_time_tool" }
+}

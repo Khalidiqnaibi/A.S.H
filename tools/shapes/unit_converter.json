@@ -1,0 +1,13 @@
+{
+  "tag": "unit_convert",
+  "description": "User wants to convert a value between units of length, weight, or temperature.",
+  "patterns": [
+    "convert 10 km to miles",
+    "how many pounds is 5 kg",
+    "what's 30 celsius in fahrenheit",
+    "convert 100 f to c",
+    "how many feet is 2 meters",
+    "convert 12 oz to grams"
+  ],
+  "tool": { "module": "tools.extra_tools", "function": "unit_converter_tool" }
+}

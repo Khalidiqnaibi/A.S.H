@@ -1,0 +1,12 @@
+{
+  "tag": "sentiment_analysis",
+  "description": "User wants their mood or the emotional tone of a piece of text analyzed.",
+  "patterns": [
+    "how do I sound right now",
+    "analyze the sentiment of this message",
+    "am I coming across as upset",
+    "check the mood of this text",
+    "does this sound negative to you"
+  ],
+  "tool": { "module": "tools.classification", "function": "sentiment_tool" }
+}

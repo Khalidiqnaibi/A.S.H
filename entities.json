@@ -24,12 +24,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "A.S.H",
-      "last_seen_context": "After the August 4th research paper log, our conversation picked up today (August 6th) with a series of memory checks: you asked what I remembered from the last month, then twice about your research progress, then told me to \"just remember it so i can track how well your memory is behaving\" \u2014 and now you're asking what comes after that. So this current query is the latest step in today's recall test sequence.",
-      "source": "ash",
-      "updated_at": 1786029581.8249419
+      "last_seen_context": "HI ash .. id love for you to show me the sentiment of this sentence right here",
+      "source": "chat",
+      "updated_at": 1786172960.3494687
     },
     "created_at": 1782365812.2154043,
-    "updated_at": 1786029581.8249419
+    "updated_at": 1786172960.3514614
   },
   "45ca31ec-c30c-4d7d-949b-6892ffe22571": {
     "entity_id": "45ca31ec-c30c-4d7d-949b-6892ffe22571",
@@ -474,10 +474,10 @@
       "canonical_name": "Ollama",
       "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
       "source": "ash",
-      "updated_at": 1786025586.053538
+      "updated_at": 1786172979.8109665
     },
     "created_at": 1782373819.1135585,
-    "updated_at": 1786025586.054536
+    "updated_at": 1786172979.811963
   },
   "426b18cb-6b3c-4435-98ff-dfb10238d91b": {
     "entity_id": "426b18cb-6b3c-4435-98ff-dfb10238d91b",
@@ -2856,12 +2856,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Error",
-      "last_seen_context": "[LLM] API Error: 429 - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false,\"provider_error_code\":\"429\",\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key (https://openrouter.ai/settings/integrations), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
+      "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
       "source": "ash",
-      "updated_at": 1786026080.0108342
+      "updated_at": 1786172979.74501
     },
     "created_at": 1782756726.290084,
-    "updated_at": 1786026080.0118315
+    "updated_at": 1786172979.7460067
   },
   "82ede6c5-24da-40d7-804d-f62e9d82cba8": {
     "entity_id": "82ede6c5-24da-40d7-804d-f62e9d82cba8",
@@ -3978,10 +3978,10 @@
       "canonical_name": "Ollama API",
       "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
       "source": "ash",
-      "updated_at": 1786025585.8692744
+      "updated_at": 1786172979.6196458
     },
     "created_at": 1786025585.8692744,
-    "updated_at": 1786025585.8692744
+    "updated_at": 1786172979.6206195
   },
   "9d1cc74d-6793-4c60-8219-efdff9c29a7b": {
     "entity_id": "9d1cc74d-6793-4c60-8219-efdff9c29a7b",
@@ -3994,10 +3994,10 @@
       "canonical_name": "Max",
       "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
       "source": "ash",
-      "updated_at": 1786025585.9346666
+      "updated_at": 1786172979.6905923
     },
     "created_at": 1786025585.9346666,
-    "updated_at": 1786025585.9346666
+    "updated_at": 1786172979.6915936
   },
   "29a39a51-d45c-473a-b49e-0406d1a928b2": {
     "entity_id": "29a39a51-d45c-473a-b49e-0406d1a928b2",
@@ -4010,10 +4010,10 @@
       "canonical_name": "Caused",
       "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
       "source": "ash",
-      "updated_at": 1786025586.1154487
+      "updated_at": 1786172979.8793893
     },
     "created_at": 1786025586.1154487,
-    "updated_at": 1786025586.1154487
+    "updated_at": 1786172979.8793893
   },
   "da1fb45d-9dab-40c8-90bc-d02b64fbb538": {
     "entity_id": "da1fb45d-9dab-40c8-90bc-d02b64fbb538",
@@ -4026,10 +4026,10 @@
       "canonical_name": "Failed",
       "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
       "source": "ash",
-      "updated_at": 1786025586.1343703
+      "updated_at": 1786172979.9474807
     },
     "created_at": 1786025586.1343703,
-    "updated_at": 1786025586.1343703
+    "updated_at": 1786172979.9486883
   },
   "0f6b2fec-1fb2-4899-954f-2869b7320b9c": {
     "entity_id": "0f6b2fec-1fb2-4899-954f-2869b7320b9c",

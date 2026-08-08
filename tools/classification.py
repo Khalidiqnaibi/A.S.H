@@ -146,13 +146,30 @@ _INTENT_CATALOG = EmbeddingCatalog()
 
 def _ensure_catalogs_loaded(force: bool = False):
     intents_json = _load_json(INTENTS_FILE) or {}
-
     intents_blocks = intents_json.get("intents", [])
+
+    # Merge in per-tool shape files (tools/shapes/*.json) -- this is
+    # what lets classify_and_route() recognize new tools without
+    # anyone hand-editing intents.json. See tools/shape_loader.py.
+    try:
+        from tools.shapes.shape_loader import load_all_shapes, shapes_to_intent_blocks, shapes_max_mtime
+        shape_blocks = shapes_to_intent_blocks(load_all_shapes())
+        existing_tags = {b.get("tag") for b in intents_blocks}
+        for b in shape_blocks:
+            if b["tag"] in existing_tags:
+                logger.warning("Shape tag '%s' collides with an intents.json tag -- shape wins", b["tag"])
+                intents_blocks = [x for x in intents_blocks if x.get("tag") != b["tag"]]
+            intents_blocks.append(b)
+        shapes_mtime = shapes_max_mtime()
+    except Exception:
+        logger.exception("Failed to load tool shapes -- continuing with intents.json only")
+        shapes_mtime = 0
 
     try:
         intents_mtime = os.path.getmtime(INTENTS_FILE) if os.path.exists(INTENTS_FILE) else 0
     except Exception:
         intents_mtime = 0
+    intents_mtime = max(intents_mtime, shapes_mtime)
 
     if ( _INTENT_CATALOG.embeddings is None) or force:
         loaded = _INTENT_CATALOG.load_cache(INTENT_EMB_FNAME)

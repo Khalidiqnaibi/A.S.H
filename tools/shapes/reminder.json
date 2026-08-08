@@ -1,0 +1,12 @@
+{
+  "tag": "set_reminder",
+  "description": "User wants to be reminded of something after a delay.",
+  "patterns": [
+    "remind me to check the oven in 20 minutes",
+    "set a reminder for in 1 hour",
+    "remind me in 5 minutes to call mom",
+    "can you remind me tomorrow",
+    "set a timer to remind me in 2 hours"
+  ],
+  "tool": { "module": "tools.extra_tools", "function": "reminder_tool" }
+}

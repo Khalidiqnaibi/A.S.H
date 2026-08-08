@@ -40,6 +40,21 @@ from tools import (
     DEFAULT_MOOD
 )
 
+# New generic tool system: registry + MCP client + shape-file tools.
+# Every native tool now has one JSON file in tools/shapes/ describing
+# both its classifier intent (tag/description/patterns) and which
+# function implements it. Add a tool by adding a shape file --
+# nothing here or in _deterministic_execute() needs to change.
+from tools.registry import REGISTRY as TOOL_REGISTRY, ToolEntry
+from tools.MCP_client import load_mcp_servers
+from tools.shapes.shape_loader import load_all_shapes, register_shape_tools
+
+register_shape_tools(load_all_shapes())
+
+# Connect any MCP servers listed in mcp_servers.json (no-op if the file
+# or the `mcp` package isn't present -- ASH runs fine without either).
+load_mcp_servers("mcp_servers.json")
+
 # memory
 from src.memory.memory_router import MemoryRouter
 from src.memory.core.core_manager import CoreMemoryEngine
@@ -180,12 +195,14 @@ class ASH:
     # -----------------------
     def _deterministic_execute(self, query: str) -> Dict[str, Any]:
         """
-        Use classify_and_route (embedding router) to decide what to run.
-        Execute tools in code (no LLM decision).
-        Returns a dict: { intent, intent_score, command, command_score, tool_used, tool_output }
+        Use classify_and_route (embedding router) to decide what to run,
+        then look the resulting intent up in the shared tool registry
+        (tools/registry.py). This covers native Python tools AND any
+        MCP server's tools transparently -- adding a new tool never
+        requires editing this function again; see tools/registry.py
+        and tools/mcp_client.py.
         """
         _print_log("Routing query:", query)
-        # classify_and_route returns a dict: intent, intent_score, command, command_score
         try:
             route = classify_and_route(query)
         except Exception as e:
@@ -204,137 +221,26 @@ class ASH:
             "raw_route": route
         }
 
-        # Handle commands deterministically
-        if intent:
-            cmd_tag = intent
-            _print_log("Command intent detected:", cmd_tag, "score:", result["command_score"])
-
-            # time / date commands
-            if cmd_tag and cmd_tag.lower() in ("time", "date", "datetime" ,"get_time"):
-                try:
-                    tool_out = date_time_tool()
-                    tool_ok = True
-                except Exception as e:
-                    _print_log("date_time_tool failed:", e)
-                    tool_out = "Sorry, I couldn't get the time/date right now."
-                    tool_ok = False
-                result["tool_used"] = "date_time_tool"
-                result["tool_output"] = tool_out
-                result["tool_success"] = tool_ok
-                self._append_tool_log("date_time_tool","", tool_out)
-                # append history
-                self._append_history("user", query)
-                self._append_history("tool", f"date_time_tool -> {tool_out}")
-                return result
-
-            # calculator / math commands
-            if cmd_tag and cmd_tag.lower() in ("calc", "calculate", "math", "compute"):
-                # crude extraction: pass whole string to calculator tool which will safe-calc or error
-                try:
-                    tool_out = calculator_tool(query)
-                    tool_ok = True
-                except Exception as e:
-                    _print_log("calculator_tool failed:", e)
-                    tool_out = "Sorry, I couldn't calculate that."
-                    tool_ok = False
-                result["tool_used"] = "calculator_tool"
-                result["tool_output"] = tool_out
-                result["tool_success"] = tool_ok
-                self._append_tool_log("calculator_tool", query, tool_out)
-                self._append_history("user", query)
-                self._append_history("tool", f"calculator_tool -> {tool_out}")
-                return result
-
-            # file metadata (size / type / timestamps) for a single path
-            if cmd_tag and cmd_tag.lower() in ("file_info", "file_metadata", "file_details"):
-                try:
-                    tool_out = file_info_tool(query)
-                    tool_ok = bool(tool_out.get("ok"))
-                except Exception as e:
-                    _print_log("file_info_tool failed:", e)
-                    tool_out = {"ok": False, "error": str(e)}
-                    tool_ok = False
-                result["tool_used"] = "file_info_tool"
-                result["tool_output"] = tool_out
-                result["tool_success"] = tool_ok
-                self._append_tool_log("file_info_tool", query, tool_out)
-                self._append_history("user", query)
-                self._append_history("tool", f"file_info_tool -> {tool_out}")
-                return result
-
-            # directory listings
-            if cmd_tag and cmd_tag.lower() in ("list_directory", "list_files", "ls"):
-                try:
-                    tool_out = list_directory_tool(query)
-                    tool_ok = bool(tool_out.get("ok"))
-                except Exception as e:
-                    _print_log("list_directory_tool failed:", e)
-                    tool_out = {"ok": False, "error": str(e)}
-                    tool_ok = False
-                result["tool_used"] = "list_directory_tool"
-                result["tool_output"] = tool_out
-                result["tool_success"] = tool_ok
-                self._append_tool_log("list_directory_tool", query, tool_out)
-                self._append_history("user", query)
-                self._append_history("tool", f"list_directory_tool -> {tool_out}")
-                return result
-
-            # reading file contents (text / json / csv / pdf / image metadata)
-            if cmd_tag and cmd_tag.lower() in ("read_file", "open_file", "show_file"):
-                try:
-                    tool_out = read_file_tool(query)
-                    tool_ok = bool(tool_out.get("ok"))
-                except Exception as e:
-                    _print_log("read_file_tool failed:", e)
-                    tool_out = {"ok": False, "error": str(e)}
-                    tool_ok = False
-                result["tool_used"] = "read_file_tool"
-                result["tool_output"] = tool_out
-                result["tool_success"] = tool_ok
-                self._append_tool_log("read_file_tool", query, tool_out)
-                self._append_history("user", query)
-                self._append_history("tool", f"read_file_tool -> {tool_out}")
-                return result
-
-            # searching for text inside local files
-            if cmd_tag and cmd_tag.lower() in ("search_files", "find_in_files", "grep"):
-                try:
-                    tool_out = search_files_tool(query)
-                    tool_ok = bool(tool_out.get("ok"))
-                except Exception as e:
-                    _print_log("search_files_tool failed:", e)
-                    tool_out = {"ok": False, "error": str(e)}
-                    tool_ok = False
-                result["tool_used"] = "search_files_tool"
-                result["tool_output"] = tool_out
-                result["tool_success"] = tool_ok
-                self._append_tool_log("search_files_tool", query, tool_out)
-                self._append_history("user", query)
-                self._append_history("tool", f"search_files_tool -> {tool_out}")
-                return result
-
-            if cmd_tag and cmd_tag.lower() in ("sentiment_analysis", "sentiment", "mood_check", "emotion_check"):
-                try:
-                    tool_out = sentiment_tool(query)
-                    tool_ok = tool_out.get("sentiment") not in (None, "unknown")
-                except Exception as e:
-                    _print_log("sentiment_tool failed:", e)
-                    tool_out = {"sentiment": "unknown", "confidence": 0.0}
-                    tool_ok = False
-                result["tool_used"] = "sentiment_tool"
-                result["tool_output"] = tool_out
-                result["tool_success"] = tool_ok
-                self._append_tool_log("sentiment_tool", query, tool_out)
-                self._append_history("user", query)
-                self._append_history("tool", f"sentiment_tool -> {tool_out}")
-                return result
-
-            # Add more command→tool mappings here as needed
-            # _print_log("No deterministic tool mapped for command tag:", cmd_tag)
-            # return result
-
+        if not intent:
+            _print_log("No intent detected; no tools executed.")
             return result
-        _print_log("No intent detected; no tools executed.")
+
+        entry = TOOL_REGISTRY.match(intent)
+        if entry is None:
+            _print_log("No tool registered for intent:", intent)
+            return result
+
+        _print_log("Dispatching intent", intent, "-> tool", entry.name, "(", entry.kind, ")")
+        tool_out = entry.run(query)
+        tool_ok = bool(tool_out.get("ok"))
+
+        result["tool_used"] = entry.name
+        result["tool_output"] = tool_out
+        result["tool_success"] = tool_ok
+
+        self._append_tool_log(entry.name, query, tool_out)
+        self._append_history("user", query)
+        self._append_history("tool", f"{entry.name} -> {tool_out}")
         return result
 
     # -----------------------
@@ -527,7 +433,7 @@ class ASH:
                 text=final_text,
                 source="ash",
                 importance=0.5,
-                actor=self.name
+                actor=self.name  # Use ASH's name here
             )
         except Exception as e:
             _print_log("Memory routing failed:", e)
@@ -550,13 +456,12 @@ class ASH:
         }
 
 llm = LLM(
-    temperature=DEFAULT_LLM_TEMPERATURE,
-    openrouter_key=OPENROUTER_API_KEY,
-    openrouter_model=OPENROUTER_MODEL,
-    timeout=180,
-)
-
-ash = ASH(llm=llm)
+        temperature=DEFAULT_LLM_TEMPERATURE,
+        openrouter_key=OPENROUTER_API_KEY,
+        openrouter_model=OPENROUTER_MODEL,
+        timeout=180,
+    )
+ash = ASH()
 
 # quick local test when run directly
 if __name__ == "__main__":
