@@ -14,8 +14,6 @@ import pickle
 import logging
 import dotenv
 
-import numpy as np
-from langchain.tools import tool
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -32,7 +30,7 @@ except Exception as e:
 # config
 dotenv.load_dotenv()
 
-BASE_PATH = os.environ.get("ASH_AI_BASE", os.path.join(os.getcwd(), r"C:\Users\khaaf\Documents\GitHub\A.S.H\data"))
+BASE_PATH = os.environ.get("ASH_AI_BASE", os.path.join(os.getcwd(), ".\data"))
 INTENTS_FILE = os.path.join(BASE_PATH, "intents.json")
 INTENT_EMB_FNAME = os.path.join(BASE_PATH, "embeddings_intents.pkl")
 
