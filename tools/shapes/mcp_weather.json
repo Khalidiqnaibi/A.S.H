@@ -1,0 +1,12 @@
+{
+  "_comment": "Tool-less shape: classifier-teaching only. The executable entry for this exact tag is registered by mcp_client.py once the 'weather-mcp' server (see mcp_servers.json) connects and its intent_overrides map its real tool name to this tag.",
+  "tag": "get_weather",
+  "description": "User wants the current weather or forecast for a location.",
+  "patterns": [
+    "what's the weather like today",
+    "is it going to rain tomorrow",
+    "what's the forecast for tokyo",
+    "how hot is it outside",
+    "will it snow this weekend"
+  ]
+}

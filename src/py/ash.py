@@ -40,19 +40,14 @@ from tools import (
     DEFAULT_MOOD
 )
 
-# New generic tool system: registry + MCP client + shape-file tools.
-# Every native tool now has one JSON file in tools/shapes/ describing
-# both its classifier intent (tag/description/patterns) and which
-# function implements it. Add a tool by adding a shape file --
-# nothing here or in _deterministic_execute() needs to change.
 from tools.registry import REGISTRY as TOOL_REGISTRY, ToolEntry
 from tools.MCP_client import load_mcp_servers
 from tools.shapes.shape_loader import load_all_shapes, register_shape_tools
 
 register_shape_tools(load_all_shapes())
 
-# Connect any MCP servers listed in mcp_servers.json (no-op if the file
-# or the `mcp` package isn't present -- ASH runs fine without either).
+# MUST run after register_shape_tools() ensuring the MCP-provided executable
+# entry is the one that survives
 load_mcp_servers("mcp_servers.json")
 
 # memory

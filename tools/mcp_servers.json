@@ -1,13 +1,11 @@
 {
   "servers": [
     {
-      "name": "filesystem",
-      "transport": "stdio",
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/pi/shared"],
+      "name": "weather-mcp",
+      "transport": "sse",
+      "url": "http://localhost:8931/sse",
       "intent_overrides": {
-        "read_file": ["mcp_read_file"],
-        "list_directory": ["mcp_list_directory"]
+        "get_forecast": ["get_weather"]
       }
     }
   ]

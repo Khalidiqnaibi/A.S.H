@@ -91,16 +91,28 @@ def shapes_to_intent_blocks(shapes: List[Dict[str, Any]]) -> List[Dict[str, Any]
 
 def register_shape_tools(shapes: List[Dict[str, Any]]):
     """Import each shape's target function and register it into the
-    shared tool registry under its own tag as the sole intent (the
-    classifier already narrows the query down to exactly this tag,
-    so no separate intent list is needed here)."""
+    shared tool registry under its own tag as the sole intent.
+
+    A shape file's "tool" block is OPTIONAL: omit it entirely when the
+    tag is provided by an MCP server instead of a native function (see
+    tools/MCP_client.py). In that case this shape contributes ONLY the
+    classifier intent (tag/description/patterns) -- mcp_client.py is
+    what actually registers the executable ToolEntry for that tag, and
+    load_mcp_servers() must run AFTER register_shape_tools() so its
+    registration is the one that survives. This is how an MCP tool
+    becomes reachable by the classifier at all: without a matching
+    shape file (tool-less or not), classify_and_route() never learns
+    to recognize its tag, and it can only ever be called directly.
+    """
     from tools.registry import REGISTRY, ToolEntry
 
     for s in shapes:
         tag = s["tag"]
         tool_ref = s.get("tool")
         if not tool_ref:
-            logger.warning("Shape '%s' has no 'tool' block -- nothing to register", tag)
+            logger.info("Shape '%s' has no 'tool' block -- classifier-only entry, "
+                        "expecting an MCP server (or other external registrant) "
+                        "to provide the executable ToolEntry for this tag.", tag)
             continue
         try:
             module = importlib.import_module(tool_ref["module"])
