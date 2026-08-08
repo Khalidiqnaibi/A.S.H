@@ -38,7 +38,7 @@ from typing import Any, Dict, List
 
 logger = logging.getLogger("ash.tools.shape_loader")
 
-DEFAULT_SHAPES_DIR = Path(__file__).parent / "shapes"
+DEFAULT_SHAPES_DIR = Path(__file__).parent
 
 
 def load_all_shapes(shapes_dir: str | Path = DEFAULT_SHAPES_DIR) -> List[Dict[str, Any]]:

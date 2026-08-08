@@ -49,6 +49,27 @@ def system_stats_tool(query: str) -> dict:
 def unit_converter_tool(query: str) -> dict:
     q = query.lower().strip()
 
+    # Normalize common full-word unit names to the abbreviations the
+    # regexes below match -- "convert 10 km to miles" was failing
+    # before because the parser only recognized "mi", not "miles".
+    _ALIASES = {
+        "kilometers": "km", "kilometer": "km", "kms": "km",
+        "meters": "m", "meter": "m",
+        "centimeters": "cm", "centimeter": "cm",
+        "millimeters": "mm", "millimeter": "mm",
+        "miles": "mi", "mile": "mi",
+        "yards": "yd", "yard": "yd",
+        "feet": "ft", "foot": "ft",
+        "inches": "in", "inch": "in",
+        "kilograms": "kg", "kilogram": "kg",
+        "grams": "g", "gram": "g",
+        "pounds": "lb", "pound": "lb",
+        "ounces": "oz", "ounce": "oz",
+        "celsius": "c", "fahrenheit": "f",
+    }
+    for word, abbr in sorted(_ALIASES.items(), key=lambda kv: -len(kv[0])):
+        q = re.sub(rf"\b{word}\b", abbr, q)
+
     m = re.search(r"([-+]?\d*\.?\d+)\s*(c|celsius|f|fahrenheit)\s*(?:to|in|->)\s*(c|celsius|f|fahrenheit)", q)
     if m:
         val, frm, to = float(m.group(1)), m.group(2)[0], m.group(3)[0]

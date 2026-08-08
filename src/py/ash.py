@@ -456,12 +456,12 @@ class ASH:
         }
 
 llm = LLM(
-        temperature=DEFAULT_LLM_TEMPERATURE,
-        openrouter_key=OPENROUTER_API_KEY,
-        openrouter_model=OPENROUTER_MODEL,
-        timeout=180,
-    )
-ash = ASH()
+    temperature=DEFAULT_LLM_TEMPERATURE,
+    openrouter_key=OPENROUTER_API_KEY,
+    openrouter_model=OPENROUTER_MODEL,
+    timeout=180,
+)
+ash = ASH(llm=llm)
 
 # quick local test when run directly
 if __name__ == "__main__":

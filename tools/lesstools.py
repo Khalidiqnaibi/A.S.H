@@ -42,7 +42,7 @@ def calculator_tool(expression: str) -> str:
         print(f"[TOOL] calculator_tool error: {e}", flush=True, file=sys.stderr)
         return f"Error in calculation: {str(e)}"
 
-def date_time_tool() -> str:
+def date_time_tool(_query: str = "") -> str:
     """Returns the current date and time now."""
     logging.info('Function date_time_tool called')
     print("date_time_tool called", flush=True , file=sys.stderr)
@@ -56,4 +56,3 @@ if __name__ == "__main__":
     # print(retrieve_tool("What is observer pattern?"))
     print(calculator_tool("12 / (2.3 + 0.7) * 4 - 3"))
     print(date_time_tool())
-    

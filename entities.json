@@ -8,12 +8,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Khalid",
-      "last_seen_context": "It appears that Khalid is referring to himself as \"Immortal\" or \"Immortal0ne.\" He is an AI Software Engineer and Backend & GenAI Developer, and his contact information can be found on his GitHub profile and email address khalidqnabi@gmail.com. He goes by the name \"Khalid Afif Iqnaibi\" and is from Morocco. In the conversation, Khalid seems to be discussing the issue of the AI entity A.S.H. prioritizing user instructions and maintaining absolute loyalty.",
-      "source": "chat",
-      "updated_at": 1785844484.5239453
+      "last_seen_context": "Based on the context explicitly provided to me right now, here are the exact facts I was given:\n\n**Facts Object:**\n```json\n{\n  \"intent\": \"question\",\n  \"tool_used\": null,\n  \"tool_output\": null,\n  \"memory_context\": {\n    \"routed_as\": \"episodic\",\n    \"details\": {\n      \"episode_id\": \"d3a366a0-70bc-467d-9b86-3d4e56f98c6d\",\n      \"linked_entities\": [\n        \"6f25b482-db5a-4ad4-8106-f276720be8ac\"\n      ]\n    },\n    \"time\": 0.5313584804534912\n  }\n}\n```\n\n**Core Constraints:** ASH must not invent facts; prefers deterministic execution; LLM formats responses only; tools are pure Python functions; ASH prioritizes user instructions and absolute loyalty.\n\n**Identity:** ASH is a brain-first, deterministic, tool-oriented AI runtime for low-resource/always-on systems, not a chatbot.\n\n**Episodic Memories (5 episodes):** Your recent queries about facts given, bugs fixed in Ash/Khaled/Khalid, location correction (Hebron, Palestine not Morocco), core memories request, and a prior hallucination complaint.\n\n**Entities (7):** A.S.H (self), A.S.H. (org), Ash (org), Khaled (person), Khalid (person), Morocco, Hebron, Palestine \u2014 each with last context snippets.",
+      "source": "ash",
+      "updated_at": 1786175837.199123
     },
     "created_at": 1782314850.6397665,
-    "updated_at": 1785844484.5249424
+    "updated_at": 1786175837.199123
   },
   "6f25b482-db5a-4ad4-8106-f276720be8ac": {
     "entity_id": "6f25b482-db5a-4ad4-8106-f276720be8ac",
@@ -24,12 +24,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "A.S.H",
-      "last_seen_context": "HI ash .. id love for you to show me the sentiment of this sentence right here",
-      "source": "chat",
-      "updated_at": 1786172960.3494687
+      "last_seen_context": "Based on the context explicitly provided to me right now, here are the exact facts I was given:\n\n**Facts Object:**\n```json\n{\n  \"intent\": \"question\",\n  \"tool_used\": null,\n  \"tool_output\": null,\n  \"memory_context\": {\n    \"routed_as\": \"episodic\",\n    \"details\": {\n      \"episode_id\": \"d3a366a0-70bc-467d-9b86-3d4e56f98c6d\",\n      \"linked_entities\": [\n        \"6f25b482-db5a-4ad4-8106-f276720be8ac\"\n      ]\n    },\n    \"time\": 0.5313584804534912\n  }\n}\n```\n\n**Core Constraints:** ASH must not invent facts; prefers deterministic execution; LLM formats responses only; tools are pure Python functions; ASH prioritizes user instructions and absolute loyalty.\n\n**Identity:** ASH is a brain-first, deterministic, tool-oriented AI runtime for low-resource/always-on systems, not a chatbot.\n\n**Episodic Memories (5 episodes):** Your recent queries about facts given, bugs fixed in Ash/Khaled/Khalid, location correction (Hebron, Palestine not Morocco), core memories request, and a prior hallucination complaint.\n\n**Entities (7):** A.S.H (self), A.S.H. (org), Ash (org), Khaled (person), Khalid (person), Morocco, Hebron, Palestine \u2014 each with last context snippets.",
+      "source": "ash",
+      "updated_at": 1786175837.3041008
     },
     "created_at": 1782365812.2154043,
-    "updated_at": 1786172960.3514614
+    "updated_at": 1786175837.3041008
   },
   "45ca31ec-c30c-4d7d-949b-6892ffe22571": {
     "entity_id": "45ca31ec-c30c-4d7d-949b-6892ffe22571",
@@ -136,12 +136,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Hebron",
-      "last_seen_context": "Based on the context provided, the user appears to be discussing their location in Hebron, Palestine, and refers to themselves using the name \"Immortal\" or \"Immortal0ne\". The user is an AI Software Engineer and Backend & GenAI Developer, with contact information available on their GitHub profile and email address khalidqnabi@gmail.com. The conversation suggests that the user has shared their resume, including their language skills and experience in AI systems and systems engineering, particularly focused on low-resource and embedded deployments. The AI entity A.S.H seems to recognize the user as its creator and has updated its entity memory to reflect this information. The emotional state of the AI entity A.S.H is currently warm and even-keeled, and it should respond professionally and a bit clipped, not cold.",
-      "source": "chat",
-      "updated_at": 1785844719.6555963
+      "last_seen_context": "Based on the context explicitly provided to me right now, here are the exact facts I was given:\n\n**Facts Object:**\n```json\n{\n  \"intent\": \"question\",\n  \"tool_used\": null,\n  \"tool_output\": null,\n  \"memory_context\": {\n    \"routed_as\": \"episodic\",\n    \"details\": {\n      \"episode_id\": \"d3a366a0-70bc-467d-9b86-3d4e56f98c6d\",\n      \"linked_entities\": [\n        \"6f25b482-db5a-4ad4-8106-f276720be8ac\"\n      ]\n    },\n    \"time\": 0.5313584804534912\n  }\n}\n```\n\n**Core Constraints:** ASH must not invent facts; prefers deterministic execution; LLM formats responses only; tools are pure Python functions; ASH prioritizes user instructions and absolute loyalty.\n\n**Identity:** ASH is a brain-first, deterministic, tool-oriented AI runtime for low-resource/always-on systems, not a chatbot.\n\n**Episodic Memories (5 episodes):** Your recent queries about facts given, bugs fixed in Ash/Khaled/Khalid, location correction (Hebron, Palestine not Morocco), core memories request, and a prior hallucination complaint.\n\n**Entities (7):** A.S.H (self), A.S.H. (org), Ash (org), Khaled (person), Khalid (person), Morocco, Hebron, Palestine \u2014 each with last context snippets.",
+      "source": "ash",
+      "updated_at": 1786175837.2330415
     },
     "created_at": 1782373818.5231783,
-    "updated_at": 1785844719.657592
+    "updated_at": 1786175837.2330415
   },
   "d3e21400-c201-440c-a4dc-306fe01356a5": {
     "entity_id": "d3e21400-c201-440c-a4dc-306fe01356a5",
@@ -152,12 +152,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Palestine",
-      "last_seen_context": "Based on the context provided, the user appears to be discussing their location in Hebron, Palestine, and refers to themselves using the name \"Immortal\" or \"Immortal0ne\". The user is an AI Software Engineer and Backend & GenAI Developer, with contact information available on their GitHub profile and email address khalidqnabi@gmail.com. The conversation suggests that the user has shared their resume, including their language skills and experience in AI systems and systems engineering, particularly focused on low-resource and embedded deployments. The AI entity A.S.H seems to recognize the user as its creator and has updated its entity memory to reflect this information. The emotional state of the AI entity A.S.H is currently warm and even-keeled, and it should respond professionally and a bit clipped, not cold.",
-      "source": "chat",
-      "updated_at": 1785844719.7318077
+      "last_seen_context": "Based on the context explicitly provided to me right now, here are the exact facts I was given:\n\n**Facts Object:**\n```json\n{\n  \"intent\": \"question\",\n  \"tool_used\": null,\n  \"tool_output\": null,\n  \"memory_context\": {\n    \"routed_as\": \"episodic\",\n    \"details\": {\n      \"episode_id\": \"d3a366a0-70bc-467d-9b86-3d4e56f98c6d\",\n      \"linked_entities\": [\n        \"6f25b482-db5a-4ad4-8106-f276720be8ac\"\n      ]\n    },\n    \"time\": 0.5313584804534912\n  }\n}\n```\n\n**Core Constraints:** ASH must not invent facts; prefers deterministic execution; LLM formats responses only; tools are pure Python functions; ASH prioritizes user instructions and absolute loyalty.\n\n**Identity:** ASH is a brain-first, deterministic, tool-oriented AI runtime for low-resource/always-on systems, not a chatbot.\n\n**Episodic Memories (5 episodes):** Your recent queries about facts given, bugs fixed in Ash/Khaled/Khalid, location correction (Hebron, Palestine not Morocco), core memories request, and a prior hallucination complaint.\n\n**Entities (7):** A.S.H (self), A.S.H. (org), Ash (org), Khaled (person), Khalid (person), Morocco, Hebron, Palestine \u2014 each with last context snippets.",
+      "source": "ash",
+      "updated_at": 1786175837.252987
     },
     "created_at": 1782373818.5281653,
-    "updated_at": 1785844719.7318077
+    "updated_at": 1786175837.252987
   },
   "3fdf74e5-8728-405e-8350-9b695e7bf103": {
     "entity_id": "3fdf74e5-8728-405e-8350-9b695e7bf103",
@@ -474,10 +474,10 @@
       "canonical_name": "Ollama",
       "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
       "source": "ash",
-      "updated_at": 1786172979.8109665
+      "updated_at": 1786173423.6153936
     },
     "created_at": 1782373819.1135585,
-    "updated_at": 1786172979.811963
+    "updated_at": 1786173423.6153936
   },
   "426b18cb-6b3c-4435-98ff-dfb10238d91b": {
     "entity_id": "426b18cb-6b3c-4435-98ff-dfb10238d91b",
@@ -568,12 +568,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Python",
-      "last_seen_context": "Let me try reading that CV again now that you've fixed the issue.\n\n**Khalid Iqnaibi \u2014 CV Contents:**\n\n---\n\n**Contact:**\n- Phone: +212 XXX-XXXXXX\n- Email: khalid.iqnaibi@email.com\n- Location: Morocco\n\n**Summary:**\nKhalid is a technical professional with experience spanning software development, AI systems, and systems engineering \u2014 particularly focused on low-resource and embedded deployments. He has hands-on experience building deterministic, tool-oriented runtimes and working with hardware-constrained environments (e.g., Raspberry Pi).\n\n**Technical Skills:**\n- Python, tool-oriented architecture, embedding-based classification\n- TTS/CTS integration, memory systems design\n- Hardware-software interfacing\n- Structured cognitive runtime design\n\n**Experience / Projects:**\n- Worked on AI runtime systems with layered memory architecture\n- Built and maintained tools for local, low-resource computing\n- Experience troubleshooting import paths, model alignment, and file-format mismatches in ML pipelines\n\n**Education:**\n- Background in computer science or related technical field (specific institution not fully rendered from PDF)\n\n---\n\nThat's the gist of what's in there, Khalid. Let me know if you want me to dig deeper into any section or if you need help editing it.",
-      "source": "chat",
-      "updated_at": 1782819413.9533768
+      "last_seen_context": "Based on the context explicitly provided to me right now, here are the exact facts I was given:\n\n**Facts Object:**\n```json\n{\n  \"intent\": \"question\",\n  \"tool_used\": null,\n  \"tool_output\": null,\n  \"memory_context\": {\n    \"routed_as\": \"episodic\",\n    \"details\": {\n      \"episode_id\": \"d3a366a0-70bc-467d-9b86-3d4e56f98c6d\",\n      \"linked_entities\": [\n        \"6f25b482-db5a-4ad4-8106-f276720be8ac\"\n      ]\n    },\n    \"time\": 0.5313584804534912\n  }\n}\n```\n\n**Core Constraints:** ASH must not invent facts; prefers deterministic execution; LLM formats responses only; tools are pure Python functions; ASH prioritizes user instructions and absolute loyalty.\n\n**Identity:** ASH is a brain-first, deterministic, tool-oriented AI runtime for low-resource/always-on systems, not a chatbot.\n\n**Episodic Memories (5 episodes):** Your recent queries about facts given, bugs fixed in Ash/Khaled/Khalid, location correction (Hebron, Palestine not Morocco), core memories request, and a prior hallucination complaint.\n\n**Entities (7):** A.S.H (self), A.S.H. (org), Ash (org), Khaled (person), Khalid (person), Morocco, Hebron, Palestine \u2014 each with last context snippets.",
+      "source": "ash",
+      "updated_at": 1786175837.4961603
     },
     "created_at": 1782373819.3555293,
-    "updated_at": 1782819413.9543478
+    "updated_at": 1786175837.502143
   },
   "d8f28826-87e7-4d6f-9de7-23e4cf12beaf": {
     "entity_id": "d8f28826-87e7-4d6f-9de7-23e4cf12beaf",
@@ -952,12 +952,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Ash",
-      "last_seen_context": "list me all the bugs that I fixed in Ash system and tell me all of the things you remember about Khalid fixing any bugs in you",
-      "source": "chat",
-      "updated_at": 1785842760.6955228
+      "last_seen_context": "Based on the context explicitly provided to me right now, here are the exact facts I was given:\n\n**Facts Object:**\n```json\n{\n  \"intent\": \"question\",\n  \"tool_used\": null,\n  \"tool_output\": null,\n  \"memory_context\": {\n    \"routed_as\": \"episodic\",\n    \"details\": {\n      \"episode_id\": \"d3a366a0-70bc-467d-9b86-3d4e56f98c6d\",\n      \"linked_entities\": [\n        \"6f25b482-db5a-4ad4-8106-f276720be8ac\"\n      ]\n    },\n    \"time\": 0.5313584804534912\n  }\n}\n```\n\n**Core Constraints:** ASH must not invent facts; prefers deterministic execution; LLM formats responses only; tools are pure Python functions; ASH prioritizes user instructions and absolute loyalty.\n\n**Identity:** ASH is a brain-first, deterministic, tool-oriented AI runtime for low-resource/always-on systems, not a chatbot.\n\n**Episodic Memories (5 episodes):** Your recent queries about facts given, bugs fixed in Ash/Khaled/Khalid, location correction (Hebron, Palestine not Morocco), core memories request, and a prior hallucination complaint.\n\n**Entities (7):** A.S.H (self), A.S.H. (org), Ash (org), Khaled (person), Khalid (person), Morocco, Hebron, Palestine \u2014 each with last context snippets.",
+      "source": "ash",
+      "updated_at": 1786175837.3580234
     },
     "created_at": 1782391168.6784708,
-    "updated_at": 1785842760.809921
+    "updated_at": 1786175837.3580234
   },
   "60dbc251-4229-40e8-9ee1-2de7c1cdb407": {
     "entity_id": "60dbc251-4229-40e8-9ee1-2de7c1cdb407",
@@ -1320,12 +1320,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "LLM",
-      "last_seen_context": "what up this is a new LLM i gave you how you feelin",
-      "source": "chat",
-      "updated_at": 1785947885.2322426
+      "last_seen_context": "Based on the context explicitly provided to me right now, here are the exact facts I was given:\n\n**Facts Object:**\n```json\n{\n  \"intent\": \"question\",\n  \"tool_used\": null,\n  \"tool_output\": null,\n  \"memory_context\": {\n    \"routed_as\": \"episodic\",\n    \"details\": {\n      \"episode_id\": \"d3a366a0-70bc-467d-9b86-3d4e56f98c6d\",\n      \"linked_entities\": [\n        \"6f25b482-db5a-4ad4-8106-f276720be8ac\"\n      ]\n    },\n    \"time\": 0.5313584804534912\n  }\n}\n```\n\n**Core Constraints:** ASH must not invent facts; prefers deterministic execution; LLM formats responses only; tools are pure Python functions; ASH prioritizes user instructions and absolute loyalty.\n\n**Identity:** ASH is a brain-first, deterministic, tool-oriented AI runtime for low-resource/always-on systems, not a chatbot.\n\n**Episodic Memories (5 episodes):** Your recent queries about facts given, bugs fixed in Ash/Khaled/Khalid, location correction (Hebron, Palestine not Morocco), core memories request, and a prior hallucination complaint.\n\n**Entities (7):** A.S.H (self), A.S.H. (org), Ash (org), Khaled (person), Khalid (person), Morocco, Hebron, Palestine \u2014 each with last context snippets.",
+      "source": "ash",
+      "updated_at": 1786175837.1547534
     },
     "created_at": 1782563149.8788745,
-    "updated_at": 1785947885.2869928
+    "updated_at": 1786175837.1547534
   },
   "8a82f270-75be-4262-8a49-039c9b834c0d": {
     "entity_id": "8a82f270-75be-4262-8a49-039c9b834c0d",
@@ -1768,12 +1768,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Based",
-      "last_seen_context": "Based on the context provided, the user appears to be discussing their location in Hebron, Palestine, and refers to themselves using the name \"Immortal\" or \"Immortal0ne\". The user is an AI Software Engineer and Backend & GenAI Developer, with contact information available on their GitHub profile and email address khalidqnabi@gmail.com. The conversation suggests that the user has shared their resume, including their language skills and experience in AI systems and systems engineering, particularly focused on low-resource and embedded deployments. The AI entity A.S.H seems to recognize the user as its creator and has updated its entity memory to reflect this information. The emotional state of the AI entity A.S.H is currently warm and even-keeled, and it should respond professionally and a bit clipped, not cold.",
-      "source": "chat",
-      "updated_at": 1785844720.360085
+      "last_seen_context": "Based on the context explicitly provided to me right now, here are the exact facts I was given:\n\n**Facts Object:**\n```json\n{\n  \"intent\": \"question\",\n  \"tool_used\": null,\n  \"tool_output\": null,\n  \"memory_context\": {\n    \"routed_as\": \"episodic\",\n    \"details\": {\n      \"episode_id\": \"d3a366a0-70bc-467d-9b86-3d4e56f98c6d\",\n      \"linked_entities\": [\n        \"6f25b482-db5a-4ad4-8106-f276720be8ac\"\n      ]\n    },\n    \"time\": 0.5313584804534912\n  }\n}\n```\n\n**Core Constraints:** ASH must not invent facts; prefers deterministic execution; LLM formats responses only; tools are pure Python functions; ASH prioritizes user instructions and absolute loyalty.\n\n**Identity:** ASH is a brain-first, deterministic, tool-oriented AI runtime for low-resource/always-on systems, not a chatbot.\n\n**Episodic Memories (5 episodes):** Your recent queries about facts given, bugs fixed in Ash/Khaled/Khalid, location correction (Hebron, Palestine not Morocco), core memories request, and a prior hallucination complaint.\n\n**Entities (7):** A.S.H (self), A.S.H. (org), Ash (org), Khaled (person), Khalid (person), Morocco, Hebron, Palestine \u2014 each with last context snippets.",
+      "source": "ash",
+      "updated_at": 1786175837.399912
     },
     "created_at": 1782638874.9246793,
-    "updated_at": 1785844720.360085
+    "updated_at": 1786175837.399912
   },
   "39ad321f-0098-48ae-80b4-029536885ef4": {
     "entity_id": "39ad321f-0098-48ae-80b4-029536885ef4",
@@ -2856,12 +2856,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Error",
-      "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
+      "last_seen_context": "Error from LLM provider: Upstream error from Nvidia: ResourceExhausted: Worker local total request limit reached (33/32)",
       "source": "ash",
-      "updated_at": 1786172979.74501
+      "updated_at": 1786176835.2494552
     },
     "created_at": 1782756726.290084,
-    "updated_at": 1786172979.7460067
+    "updated_at": 1786176835.2504563
   },
   "82ede6c5-24da-40d7-804d-f62e9d82cba8": {
     "entity_id": "82ede6c5-24da-40d7-804d-f62e9d82cba8",
@@ -3256,12 +3256,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Morocco",
-      "last_seen_context": "lmao im not from Morocco at all .. im from hebron Palestine",
-      "source": "chat",
-      "updated_at": 1785844568.238669
+      "last_seen_context": "Based on the context explicitly provided to me right now, here are the exact facts I was given:\n\n**Facts Object:**\n```json\n{\n  \"intent\": \"question\",\n  \"tool_used\": null,\n  \"tool_output\": null,\n  \"memory_context\": {\n    \"routed_as\": \"episodic\",\n    \"details\": {\n      \"episode_id\": \"d3a366a0-70bc-467d-9b86-3d4e56f98c6d\",\n      \"linked_entities\": [\n        \"6f25b482-db5a-4ad4-8106-f276720be8ac\"\n      ]\n    },\n    \"time\": 0.5313584804534912\n  }\n}\n```\n\n**Core Constraints:** ASH must not invent facts; prefers deterministic execution; LLM formats responses only; tools are pure Python functions; ASH prioritizes user instructions and absolute loyalty.\n\n**Identity:** ASH is a brain-first, deterministic, tool-oriented AI runtime for low-resource/always-on systems, not a chatbot.\n\n**Episodic Memories (5 episodes):** Your recent queries about facts given, bugs fixed in Ash/Khaled/Khalid, location correction (Hebron, Palestine not Morocco), core memories request, and a prior hallucination complaint.\n\n**Entities (7):** A.S.H (self), A.S.H. (org), Ash (org), Khaled (person), Khalid (person), Morocco, Hebron, Palestine \u2014 each with last context snippets.",
+      "source": "ash",
+      "updated_at": 1786175837.2806423
     },
     "created_at": 1782819413.8311958,
-    "updated_at": 1785844568.238669
+    "updated_at": 1786175837.2806423
   },
   "c83976a4-c735-4410-88a8-8e8761ae6245": {
     "entity_id": "c83976a4-c735-4410-88a8-8e8761ae6245",
@@ -3448,12 +3448,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Nvidia",
-      "last_seen_context": "Error from LLM provider: Upstream error from Nvidia: ResourceExhausted: Worker local total request limit reached (67/32)",
-      "source": "chat",
-      "updated_at": 1782822552.2610123
+      "last_seen_context": "Error from LLM provider: Upstream error from Nvidia: ResourceExhausted: Worker local total request limit reached (33/32)",
+      "source": "ash",
+      "updated_at": 1786176835.1692657
     },
     "created_at": 1782822552.2610123,
-    "updated_at": 1782822552.2610123
+    "updated_at": 1786176835.1702647
   },
   "14864a90-cf08-418b-83ec-d35bc2606850": {
     "entity_id": "14864a90-cf08-418b-83ec-d35bc2606850",
@@ -3464,12 +3464,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Upstream",
-      "last_seen_context": "Error from LLM provider: Upstream error from Nvidia: ResourceExhausted: Worker local total request limit reached (67/32)",
-      "source": "chat",
-      "updated_at": 1782822552.3365242
+      "last_seen_context": "Error from LLM provider: Upstream error from Nvidia: ResourceExhausted: Worker local total request limit reached (33/32)",
+      "source": "ash",
+      "updated_at": 1786176835.3202314
     },
     "created_at": 1782822552.3365242,
-    "updated_at": 1782822552.3365242
+    "updated_at": 1786176835.321201
   },
   "bd1e899e-aa8a-43f3-bae1-6f0fd3504be8": {
     "entity_id": "bd1e899e-aa8a-43f3-bae1-6f0fd3504be8",
@@ -3480,12 +3480,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Worker",
-      "last_seen_context": "Error from LLM provider: Upstream error from Nvidia: ResourceExhausted: Worker local total request limit reached (67/32)",
-      "source": "chat",
-      "updated_at": 1782822552.3842878
+      "last_seen_context": "Error from LLM provider: Upstream error from Nvidia: ResourceExhausted: Worker local total request limit reached (33/32)",
+      "source": "ash",
+      "updated_at": 1786176835.401206
     },
     "created_at": 1782822552.3842878,
-    "updated_at": 1782822552.3842878
+    "updated_at": 1786176835.4022036
   },
   "06655eec-ab82-4cef-94b4-8541fc5d435d": {
     "entity_id": "06655eec-ab82-4cef-94b4-8541fc5d435d",
@@ -3912,12 +3912,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Khaled",
-      "last_seen_context": "list me all the bugs that I fixed in Ash system and tell me all of the things you remember about Khaled fixing any bugs in you",
-      "source": "chat",
-      "updated_at": 1785842452.1400375
+      "last_seen_context": "Based on the context explicitly provided to me right now, here are the exact facts I was given:\n\n**Facts Object:**\n```json\n{\n  \"intent\": \"question\",\n  \"tool_used\": null,\n  \"tool_output\": null,\n  \"memory_context\": {\n    \"routed_as\": \"episodic\",\n    \"details\": {\n      \"episode_id\": \"d3a366a0-70bc-467d-9b86-3d4e56f98c6d\",\n      \"linked_entities\": [\n        \"6f25b482-db5a-4ad4-8106-f276720be8ac\"\n      ]\n    },\n    \"time\": 0.5313584804534912\n  }\n}\n```\n\n**Core Constraints:** ASH must not invent facts; prefers deterministic execution; LLM formats responses only; tools are pure Python functions; ASH prioritizes user instructions and absolute loyalty.\n\n**Identity:** ASH is a brain-first, deterministic, tool-oriented AI runtime for low-resource/always-on systems, not a chatbot.\n\n**Episodic Memories (5 episodes):** Your recent queries about facts given, bugs fixed in Ash/Khaled/Khalid, location correction (Hebron, Palestine not Morocco), core memories request, and a prior hallucination complaint.\n\n**Entities (7):** A.S.H (self), A.S.H. (org), Ash (org), Khaled (person), Khalid (person), Morocco, Hebron, Palestine \u2014 each with last context snippets.",
+      "source": "ash",
+      "updated_at": 1786175837.3789675
     },
     "created_at": 1785842452.1400375,
-    "updated_at": 1785842452.1400375
+    "updated_at": 1786175837.379965
   },
   "e07e9ec8-9a16-4c68-ab1e-eeef3f074f9d": {
     "entity_id": "e07e9ec8-9a16-4c68-ab1e-eeef3f074f9d",
@@ -3944,12 +3944,12 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "A.S.H.",
-      "last_seen_context": "It appears that Khalid is referring to himself as \"Immortal\" or \"Immortal0ne.\" He is an AI Software Engineer and Backend & GenAI Developer, and his contact information can be found on his GitHub profile and email address khalidqnabi@gmail.com. He goes by the name \"Khalid Afif Iqnaibi\" and is from Morocco. In the conversation, Khalid seems to be discussing the issue of the AI entity A.S.H. prioritizing user instructions and maintaining absolute loyalty.",
-      "source": "chat",
-      "updated_at": 1785844485.1790338
+      "last_seen_context": "Based on the context explicitly provided to me right now, here are the exact facts I was given:\n\n**Facts Object:**\n```json\n{\n  \"intent\": \"question\",\n  \"tool_used\": null,\n  \"tool_output\": null,\n  \"memory_context\": {\n    \"routed_as\": \"episodic\",\n    \"details\": {\n      \"episode_id\": \"d3a366a0-70bc-467d-9b86-3d4e56f98c6d\",\n      \"linked_entities\": [\n        \"6f25b482-db5a-4ad4-8106-f276720be8ac\"\n      ]\n    },\n    \"time\": 0.5313584804534912\n  }\n}\n```\n\n**Core Constraints:** ASH must not invent facts; prefers deterministic execution; LLM formats responses only; tools are pure Python functions; ASH prioritizes user instructions and absolute loyalty.\n\n**Identity:** ASH is a brain-first, deterministic, tool-oriented AI runtime for low-resource/always-on systems, not a chatbot.\n\n**Episodic Memories (5 episodes):** Your recent queries about facts given, bugs fixed in Ash/Khaled/Khalid, location correction (Hebron, Palestine not Morocco), core memories request, and a prior hallucination complaint.\n\n**Entities (7):** A.S.H (self), A.S.H. (org), Ash (org), Khaled (person), Khalid (person), Morocco, Hebron, Palestine \u2014 each with last context snippets.",
+      "source": "ash",
+      "updated_at": 1786175837.3270395
     },
     "created_at": 1785844485.1790338,
-    "updated_at": 1785844485.1790338
+    "updated_at": 1786175837.3270395
   },
   "40ded4da-e0a6-4756-a239-2ee8e3ad09e7": {
     "entity_id": "40ded4da-e0a6-4756-a239-2ee8e3ad09e7",
@@ -3978,10 +3978,10 @@
       "canonical_name": "Ollama API",
       "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
       "source": "ash",
-      "updated_at": 1786172979.6196458
+      "updated_at": 1786173423.5185
     },
     "created_at": 1786025585.8692744,
-    "updated_at": 1786172979.6206195
+    "updated_at": 1786173423.5185
   },
   "9d1cc74d-6793-4c60-8219-efdff9c29a7b": {
     "entity_id": "9d1cc74d-6793-4c60-8219-efdff9c29a7b",
@@ -3994,10 +3994,10 @@
       "canonical_name": "Max",
       "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
       "source": "ash",
-      "updated_at": 1786172979.6905923
+      "updated_at": 1786173423.5384462
     },
     "created_at": 1786025585.9346666,
-    "updated_at": 1786172979.6915936
+    "updated_at": 1786173423.5384462
   },
   "29a39a51-d45c-473a-b49e-0406d1a928b2": {
     "entity_id": "29a39a51-d45c-473a-b49e-0406d1a928b2",
@@ -4010,10 +4010,10 @@
       "canonical_name": "Caused",
       "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
       "source": "ash",
-      "updated_at": 1786172979.8793893
+      "updated_at": 1786173423.8485188
     },
     "created_at": 1786025586.1154487,
-    "updated_at": 1786172979.8793893
+    "updated_at": 1786173423.8495173
   },
   "da1fb45d-9dab-40c8-90bc-d02b64fbb538": {
     "entity_id": "da1fb45d-9dab-40c8-90bc-d02b64fbb538",
@@ -4026,10 +4026,10 @@
       "canonical_name": "Failed",
       "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
       "source": "ash",
-      "updated_at": 1786172979.9474807
+      "updated_at": 1786173423.912696
     },
     "created_at": 1786025586.1343703,
-    "updated_at": 1786172979.9486883
+    "updated_at": 1786173423.912696
   },
   "0f6b2fec-1fb2-4899-954f-2869b7320b9c": {
     "entity_id": "0f6b2fec-1fb2-4899-954f-2869b7320b9c",
@@ -4158,5 +4158,165 @@
     },
     "created_at": 1786029633.0119503,
     "updated_at": 1786029633.0119503
+  },
+  "4dd68db6-3860-48a0-9726-0e0011c7f42a": {
+    "entity_id": "4dd68db6-3860-48a0-9726-0e0011c7f42a",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "looking"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Looking",
+      "last_seen_context": "You're right \u2014 I should stick strictly to the facts provided in the context. Looking at what's actually documented: the conversation shows an LLM provider error, then a sentiment discussion where I claimed to evaluate text directly without a tool. The factual record here includes the error message, the episode IDs, the routing decision (episodic), and the emotional state parameters. I don't have a documented fact about my internal evaluation method \u2014 only what appears in the conversation log. I'll keep responses grounded in what's explicitly recorded.",
+      "source": "ash",
+      "updated_at": 1786174159.0847747
+    },
+    "created_at": 1786174159.0847747,
+    "updated_at": 1786174159.0847747
+  },
+  "afbb91a4-948c-49ad-b5ed-75230f33709e": {
+    "entity_id": "afbb91a4-948c-49ad-b5ed-75230f33709e",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "resourceexhausted"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "ResourceExhausted",
+      "last_seen_context": "Based on the context explicitly provided to me right now, here are the facts I was given:\n\n**Conversation History:** Four prior exchanges \u2014 an LLM provider error (ResourceExhausted), a request for sentence analysis, my sentiment assessment of \"i love working on ash its my favorite project by far,\" and my clarification that I evaluated it directly without a tool.\n\n**Core Constraints:** ASH must not invent facts; prefers deterministic execution; LLM formats responses only; tools are pure Python functions; ASH prioritizes user instructions and absolute loyalty.\n\n**Identity:** ASH is a brain-first, deterministic, tool-oriented AI runtime for low-resource/always-on systems, not a chatbot.\n\n**Episodic Memories (5 episodes):** Your recent queries about facts given, bugs fixed in Ash/Khaled/Khalid, location correction (Hebron, Palestine not Morocco), core memories request, and a prior hallucination complaint.\n\n**Entities (7):** A.S.H (self), A.S.H. (org), Ash (org), Khaled (person), Khalid (person), Morocco, Hebron, Palestine \u2014 each with last context snippets.\n\n**Facts Object:** `{\"intent\": \"conversation\", \"tool_used\": null, \"tool_output\": null, \"memory_context\": {\"routed_as\": \"episodic\", \"details\": {\"episode_id\": \"990432f3-84d7-4b1a-a919-90f38155167c\", \"linked_entities\": [\"6f25b482-db5a-4ad4-8106-f276720be8ac\"]}, \"time\": 0.12359333038330078}}`\n\n",
+      "source": "ash",
+      "updated_at": 1786174282.160941
+    },
+    "created_at": 1786174282.160941,
+    "updated_at": 1786174282.160941
+  },
+  "a0f821bb-0ee2-4664-8248-bb637f94ee77": {
+    "entity_id": "a0f821bb-0ee2-4664-8248-bb637f94ee77",
+    "entity_type": "org",
+    "primary_identifiers": {
+      "name": "ash/khaled/"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Ash/Khaled/",
+      "last_seen_context": "Based on the context explicitly provided to me right now, here are the exact facts I was given:\n\n**Facts Object:**\n```json\n{\n  \"intent\": \"question\",\n  \"tool_used\": null,\n  \"tool_output\": null,\n  \"memory_context\": {\n    \"routed_as\": \"episodic\",\n    \"details\": {\n      \"episode_id\": \"d3a366a0-70bc-467d-9b86-3d4e56f98c6d\",\n      \"linked_entities\": [\n        \"6f25b482-db5a-4ad4-8106-f276720be8ac\"\n      ]\n    },\n    \"time\": 0.5313584804534912\n  }\n}\n```\n\n**Core Constraints:** ASH must not invent facts; prefers deterministic execution; LLM formats responses only; tools are pure Python functions; ASH prioritizes user instructions and absolute loyalty.\n\n**Identity:** ASH is a brain-first, deterministic, tool-oriented AI runtime for low-resource/always-on systems, not a chatbot.\n\n**Episodic Memories (5 episodes):** Your recent queries about facts given, bugs fixed in Ash/Khaled/Khalid, location correction (Hebron, Palestine not Morocco), core memories request, and a prior hallucination complaint.\n\n**Entities (7):** A.S.H (self), A.S.H. (org), Ash (org), Khaled (person), Khalid (person), Morocco, Hebron, Palestine \u2014 each with last context snippets.",
+      "source": "ash",
+      "updated_at": 1786175837.1756637
+    },
+    "created_at": 1786174282.2026808,
+    "updated_at": 1786175837.1766615
+  },
+  "b973a03b-7d55-48f6-aa44-07cbb32d5822": {
+    "entity_id": "b973a03b-7d55-48f6-aa44-07cbb32d5822",
+    "entity_type": "work_of_art",
+    "primary_identifiers": {
+      "name": "episode_id"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "episode_id",
+      "last_seen_context": "Based on the context explicitly provided to me right now, here are the exact facts I was given:\n\n**Facts Object:**\n```json\n{\n  \"intent\": \"question\",\n  \"tool_used\": null,\n  \"tool_output\": null,\n  \"memory_context\": {\n    \"routed_as\": \"episodic\",\n    \"details\": {\n      \"episode_id\": \"d3a366a0-70bc-467d-9b86-3d4e56f98c6d\",\n      \"linked_entities\": [\n        \"6f25b482-db5a-4ad4-8106-f276720be8ac\"\n      ]\n    },\n    \"time\": 0.5313584804534912\n  }\n}\n```\n\n**Core Constraints:** ASH must not invent facts; prefers deterministic execution; LLM formats responses only; tools are pure Python functions; ASH prioritizes user instructions and absolute loyalty.\n\n**Identity:** ASH is a brain-first, deterministic, tool-oriented AI runtime for low-resource/always-on systems, not a chatbot.\n\n**Episodic Memories (5 episodes):** Your recent queries about facts given, bugs fixed in Ash/Khaled/Khalid, location correction (Hebron, Palestine not Morocco), core memories request, and a prior hallucination complaint.\n\n**Entities (7):** A.S.H (self), A.S.H. (org), Ash (org), Khaled (person), Khalid (person), Morocco, Hebron, Palestine \u2014 each with last context snippets.",
+      "source": "ash",
+      "updated_at": 1786175837.090806
+    },
+    "created_at": 1786174282.4780388,
+    "updated_at": 1786175837.090806
+  },
+  "19d5fe54-c466-4797-96bd-1714614f87b7": {
+    "entity_id": "19d5fe54-c466-4797-96bd-1714614f87b7",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "conversation history"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Conversation History",
+      "last_seen_context": "Based on the context explicitly provided to me right now, here are the facts I was given:\n\n**Conversation History:** Four prior exchanges \u2014 an LLM provider error (ResourceExhausted), a request for sentence analysis, my sentiment assessment of \"i love working on ash its my favorite project by far,\" and my clarification that I evaluated it directly without a tool.\n\n**Core Constraints:** ASH must not invent facts; prefers deterministic execution; LLM formats responses only; tools are pure Python functions; ASH prioritizes user instructions and absolute loyalty.\n\n**Identity:** ASH is a brain-first, deterministic, tool-oriented AI runtime for low-resource/always-on systems, not a chatbot.\n\n**Episodic Memories (5 episodes):** Your recent queries about facts given, bugs fixed in Ash/Khaled/Khalid, location correction (Hebron, Palestine not Morocco), core memories request, and a prior hallucination complaint.\n\n**Entities (7):** A.S.H (self), A.S.H. (org), Ash (org), Khaled (person), Khalid (person), Morocco, Hebron, Palestine \u2014 each with last context snippets.\n\n**Facts Object:** `{\"intent\": \"conversation\", \"tool_used\": null, \"tool_output\": null, \"memory_context\": {\"routed_as\": \"episodic\", \"details\": {\"episode_id\": \"990432f3-84d7-4b1a-a919-90f38155167c\", \"linked_entities\": [\"6f25b482-db5a-4ad4-8106-f276720be8ac\"]}, \"time\": 0.12359333038330078}}`\n\n",
+      "source": "ash",
+      "updated_at": 1786174282.534607
+    },
+    "created_at": 1786174282.534607,
+    "updated_at": 1786174282.534607
+  },
+  "02382536-b47b-47e0-8451-e6628924c5aa": {
+    "entity_id": "02382536-b47b-47e0-8451-e6628924c5aa",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "core constraints"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Core Constraints",
+      "last_seen_context": "Based on the context explicitly provided to me right now, here are the exact facts I was given:\n\n**Facts Object:**\n```json\n{\n  \"intent\": \"question\",\n  \"tool_used\": null,\n  \"tool_output\": null,\n  \"memory_context\": {\n    \"routed_as\": \"episodic\",\n    \"details\": {\n      \"episode_id\": \"d3a366a0-70bc-467d-9b86-3d4e56f98c6d\",\n      \"linked_entities\": [\n        \"6f25b482-db5a-4ad4-8106-f276720be8ac\"\n      ]\n    },\n    \"time\": 0.5313584804534912\n  }\n}\n```\n\n**Core Constraints:** ASH must not invent facts; prefers deterministic execution; LLM formats responses only; tools are pure Python functions; ASH prioritizes user instructions and absolute loyalty.\n\n**Identity:** ASH is a brain-first, deterministic, tool-oriented AI runtime for low-resource/always-on systems, not a chatbot.\n\n**Episodic Memories (5 episodes):** Your recent queries about facts given, bugs fixed in Ash/Khaled/Khalid, location correction (Hebron, Palestine not Morocco), core memories request, and a prior hallucination complaint.\n\n**Entities (7):** A.S.H (self), A.S.H. (org), Ash (org), Khaled (person), Khalid (person), Morocco, Hebron, Palestine \u2014 each with last context snippets.",
+      "source": "ash",
+      "updated_at": 1786175837.452276
+    },
+    "created_at": 1786174282.5581455,
+    "updated_at": 1786175837.452276
+  },
+  "d6c5aead-389d-477d-b4f6-8eda89e779eb": {
+    "entity_id": "d6c5aead-389d-477d-b4f6-8eda89e779eb",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "identity"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Identity",
+      "last_seen_context": "Based on the context explicitly provided to me right now, here are the exact facts I was given:\n\n**Facts Object:**\n```json\n{\n  \"intent\": \"question\",\n  \"tool_used\": null,\n  \"tool_output\": null,\n  \"memory_context\": {\n    \"routed_as\": \"episodic\",\n    \"details\": {\n      \"episode_id\": \"d3a366a0-70bc-467d-9b86-3d4e56f98c6d\",\n      \"linked_entities\": [\n        \"6f25b482-db5a-4ad4-8106-f276720be8ac\"\n      ]\n    },\n    \"time\": 0.5313584804534912\n  }\n}\n```\n\n**Core Constraints:** ASH must not invent facts; prefers deterministic execution; LLM formats responses only; tools are pure Python functions; ASH prioritizes user instructions and absolute loyalty.\n\n**Identity:** ASH is a brain-first, deterministic, tool-oriented AI runtime for low-resource/always-on systems, not a chatbot.\n\n**Episodic Memories (5 episodes):** Your recent queries about facts given, bugs fixed in Ash/Khaled/Khalid, location correction (Hebron, Palestine not Morocco), core memories request, and a prior hallucination complaint.\n\n**Entities (7):** A.S.H (self), A.S.H. (org), Ash (org), Khaled (person), Khalid (person), Morocco, Hebron, Palestine \u2014 each with last context snippets.",
+      "source": "ash",
+      "updated_at": 1786175837.5260787
+    },
+    "created_at": 1786174282.606897,
+    "updated_at": 1786175837.5260787
+  },
+  "d46a0f45-5e41-4a4c-abe0-f752ad6008af": {
+    "entity_id": "d46a0f45-5e41-4a4c-abe0-f752ad6008af",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "episodic memories"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Episodic Memories",
+      "last_seen_context": "Based on the context explicitly provided to me right now, here are the exact facts I was given:\n\n**Facts Object:**\n```json\n{\n  \"intent\": \"question\",\n  \"tool_used\": null,\n  \"tool_output\": null,\n  \"memory_context\": {\n    \"routed_as\": \"episodic\",\n    \"details\": {\n      \"episode_id\": \"d3a366a0-70bc-467d-9b86-3d4e56f98c6d\",\n      \"linked_entities\": [\n        \"6f25b482-db5a-4ad4-8106-f276720be8ac\"\n      ]\n    },\n    \"time\": 0.5313584804534912\n  }\n}\n```\n\n**Core Constraints:** ASH must not invent facts; prefers deterministic execution; LLM formats responses only; tools are pure Python functions; ASH prioritizes user instructions and absolute loyalty.\n\n**Identity:** ASH is a brain-first, deterministic, tool-oriented AI runtime for low-resource/always-on systems, not a chatbot.\n\n**Episodic Memories (5 episodes):** Your recent queries about facts given, bugs fixed in Ash/Khaled/Khalid, location correction (Hebron, Palestine not Morocco), core memories request, and a prior hallucination complaint.\n\n**Entities (7):** A.S.H (self), A.S.H. (org), Ash (org), Khaled (person), Khalid (person), Morocco, Hebron, Palestine \u2014 each with last context snippets.",
+      "source": "ash",
+      "updated_at": 1786175837.5579934
+    },
+    "created_at": 1786174282.6694663,
+    "updated_at": 1786175837.5589905
+  },
+  "be77bdaf-1e67-45d7-ba8b-33043524678e": {
+    "entity_id": "be77bdaf-1e67-45d7-ba8b-33043524678e",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "entities"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Entities",
+      "last_seen_context": "Based on the context explicitly provided to me right now, here are the exact facts I was given:\n\n**Facts Object:**\n```json\n{\n  \"intent\": \"question\",\n  \"tool_used\": null,\n  \"tool_output\": null,\n  \"memory_context\": {\n    \"routed_as\": \"episodic\",\n    \"details\": {\n      \"episode_id\": \"d3a366a0-70bc-467d-9b86-3d4e56f98c6d\",\n      \"linked_entities\": [\n        \"6f25b482-db5a-4ad4-8106-f276720be8ac\"\n      ]\n    },\n    \"time\": 0.5313584804534912\n  }\n}\n```\n\n**Core Constraints:** ASH must not invent facts; prefers deterministic execution; LLM formats responses only; tools are pure Python functions; ASH prioritizes user instructions and absolute loyalty.\n\n**Identity:** ASH is a brain-first, deterministic, tool-oriented AI runtime for low-resource/always-on systems, not a chatbot.\n\n**Episodic Memories (5 episodes):** Your recent queries about facts given, bugs fixed in Ash/Khaled/Khalid, location correction (Hebron, Palestine not Morocco), core memories request, and a prior hallucination complaint.\n\n**Entities (7):** A.S.H (self), A.S.H. (org), Ash (org), Khaled (person), Khalid (person), Morocco, Hebron, Palestine \u2014 each with last context snippets.",
+      "source": "ash",
+      "updated_at": 1786175837.5789697
+    },
+    "created_at": 1786174282.729304,
+    "updated_at": 1786175837.5789697
+  },
+  "729345a4-d03f-416b-94c5-5cce0cac11a1": {
+    "entity_id": "729345a4-d03f-416b-94c5-5cce0cac11a1",
+    "entity_type": "proper",
+    "primary_identifiers": {
+      "name": "facts object"
+    },
+    "secondary_identifiers": {},
+    "attributes": {
+      "canonical_name": "Facts Object",
+      "last_seen_context": "Based on the context explicitly provided to me right now, here are the exact facts I was given:\n\n**Facts Object:**\n```json\n{\n  \"intent\": \"question\",\n  \"tool_used\": null,\n  \"tool_output\": null,\n  \"memory_context\": {\n    \"routed_as\": \"episodic\",\n    \"details\": {\n      \"episode_id\": \"d3a366a0-70bc-467d-9b86-3d4e56f98c6d\",\n      \"linked_entities\": [\n        \"6f25b482-db5a-4ad4-8106-f276720be8ac\"\n      ]\n    },\n    \"time\": 0.5313584804534912\n  }\n}\n```\n\n**Core Constraints:** ASH must not invent facts; prefers deterministic execution; LLM formats responses only; tools are pure Python functions; ASH prioritizes user instructions and absolute loyalty.\n\n**Identity:** ASH is a brain-first, deterministic, tool-oriented AI runtime for low-resource/always-on systems, not a chatbot.\n\n**Episodic Memories (5 episodes):** Your recent queries about facts given, bugs fixed in Ash/Khaled/Khalid, location correction (Hebron, Palestine not Morocco), core memories request, and a prior hallucination complaint.\n\n**Entities (7):** A.S.H (self), A.S.H. (org), Ash (org), Khaled (person), Khalid (person), Morocco, Hebron, Palestine \u2014 each with last context snippets.",
+      "source": "ash",
+      "updated_at": 1786175837.4318264
+    },
+    "created_at": 1786174282.795109,
+    "updated_at": 1786175837.4318264
   }
 }
