@@ -290,6 +290,7 @@ def read_file_tool(raw_query: str, max_chars: int = MAX_PREVIEW_CHARS) -> Dict[s
 def search_files_tool(raw_query: str) -> Dict[str, Any]:
     query, root = _extract_search_query_and_path(raw_query)
     if not query:
+        print(f"[search_files_tool] no query extracted from: {raw_query} , query: {query}, root: {root}", file=sys.stderr, flush=True)
         return _error("search_files", raw_query, "I couldn't tell what you want to search for.")
     root = os.path.expanduser(root or ".")
 
@@ -305,6 +306,7 @@ def search_files_tool(raw_query: str) -> Dict[str, Any]:
             if len(files) >= MAX_SEARCH_FILES_SCANNED:
                 break
     else:
+        print(f"[search_files_tool] path does not exist: {root} (raw_query: {raw_query})", file=sys.stderr, flush=True)
         return _error("search_files", root, "That path doesn't exist.")
 
     matches = []

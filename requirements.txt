@@ -6,13 +6,13 @@ eventlet
 keras
 spacy
 tensorflow
-numpy==1.26.4
+numpy
 sentence-transformers==2.6.1
 transformers==4.38.2
 hf_xet
 SpeechRecognition 
 pydub
-kokoro-onnx 
+kokoro-onnx == 0.5.0 
 soundfile
 PyPDF2
 mcp
