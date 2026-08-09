@@ -358,6 +358,8 @@ class ASH:
     # -----------------------
     def run(self, query: str) -> str:
         ash_state["input"] = query
+        if _maintenance_scheduler is not None:
+            _maintenance_scheduler.note_activity()
 
         # 1) routing + deterministic execution
         route_result = self._deterministic_execute(query)
@@ -457,6 +459,20 @@ llm = LLM(
     timeout=180,
 )
 ash = ASH(llm=llm)
+
+# Start the maintenance-phase scheduler (episodic pruning on idle --
+# see src/memory/maintenance.py for why idle-time is the current
+# proxy for "charging/WiFi/idle"). Kept optional/best-effort: a
+# scheduler failure to start should never prevent ASH itself from
+# running.
+_maintenance_scheduler = None
+try:
+    from src.memory.maintenance import MaintenanceScheduler
+    _maintenance_scheduler = MaintenanceScheduler(ash, idle_seconds=30 * 60)
+    _maintenance_scheduler.start()
+except Exception:
+    import logging as _logging
+    _logging.getLogger("ash.py").exception("Failed to start maintenance scheduler")
 
 # quick local test when run directly
 if __name__ == "__main__":
