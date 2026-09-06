@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "name": "happy",
+  "duration": 1.6,
+  "loop": false,
+  "priority": 50,
+  "interruptible": true,
+  "blink_suppress": false,
+  "hold_last": true,
+  "tags": [
+    "positive"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in_out",
+      "both": {
+        "lid_bottom": 0.0,
+        "h": 36,
+        "radius": 10
+      }
+    },
+    {
+      "t": 0.22,
+      "ease": "out",
+      "both": {
+        "lid_bottom": 0.34,
+        "h": 38,
+        "radius": 16
+      }
+    },
+    {
+      "t": 1.6,
+      "ease": "linear",
+      "both": {
+        "lid_bottom": 0.34
+      }
+    }
+  ]
+}

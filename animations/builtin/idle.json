@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "name": "idle",
+  "duration": 9.0,
+  "loop": true,
+  "priority": 10,
+  "interruptible": true,
+  "blink_suppress": false,
+  "hold_last": true,
+  "tags": [
+    "idle"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in_out",
+      "both": {
+        "w": 36,
+        "h": 36
+      },
+      "face": {
+        "look_x": 0.0,
+        "look_y": 0.0
+      }
+    },
+    {
+      "t": 2.2,
+      "ease": "in_out",
+      "face": {
+        "look_x": 1.2,
+        "look_y": -0.8
+      }
+    },
+    {
+      "t": 4.6,
+      "ease": "in_out",
+      "face": {
+        "look_x": -1.0,
+        "look_y": 0.6
+      }
+    },
+    {
+      "t": 6.8,
+      "ease": "in_out",
+      "face": {
+        "look_x": 0.4,
+        "look_y": 0.9
+      }
+    },
+    {
+      "t": 9.0,
+      "ease": "in_out",
+      "face": {
+        "look_x": 0.0,
+        "look_y": 0.0
+      }
+    }
+  ]
+}

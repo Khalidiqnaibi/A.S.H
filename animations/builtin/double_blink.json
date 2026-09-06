@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "name": "double_blink",
+  "duration": 0.46,
+  "loop": false,
+  "priority": 15,
+  "interruptible": false,
+  "blink_suppress": false,
+  "hold_last": false,
+  "tags": [
+    "reflex"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in",
+      "both": {
+        "open": 1.0
+      }
+    },
+    {
+      "t": 0.08,
+      "ease": "in_out",
+      "both": {
+        "open": 0.06
+      }
+    },
+    {
+      "t": 0.2,
+      "ease": "out",
+      "both": {
+        "open": 1.0
+      }
+    },
+    {
+      "t": 0.3,
+      "ease": "in",
+      "both": {
+        "open": 0.06
+      }
+    },
+    {
+      "t": 0.46,
+      "ease": "out",
+      "both": {
+        "open": 1.0
+      }
+    }
+  ]
+}

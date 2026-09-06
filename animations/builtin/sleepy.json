@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "name": "sleepy",
+  "duration": 6.0,
+  "loop": true,
+  "priority": 12,
+  "interruptible": true,
+  "blink_suppress": false,
+  "hold_last": true,
+  "tags": [
+    "idle",
+    "tired"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in_out",
+      "both": {
+        "lid_top": 0.15,
+        "h": 34
+      }
+    },
+    {
+      "t": 1.6,
+      "ease": "in_out",
+      "both": {
+        "lid_top": 0.45,
+        "h": 30
+      },
+      "face": {
+        "look_y": 2
+      }
+    },
+    {
+      "t": 3.0,
+      "ease": "in_out",
+      "both": {
+        "lid_top": 0.22,
+        "h": 34
+      },
+      "face": {
+        "look_y": 0
+      }
+    },
+    {
+      "t": 4.4,
+      "ease": "in_out",
+      "both": {
+        "lid_top": 0.52,
+        "h": 28
+      },
+      "face": {
+        "look_y": 3
+      }
+    },
+    {
+      "t": 6.0,
+      "ease": "in_out",
+      "both": {
+        "lid_top": 0.28,
+        "h": 33
+      },
+      "face": {
+        "look_y": 1
+      }
+    }
+  ]
+}

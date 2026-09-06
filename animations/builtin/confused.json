@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "name": "confused",
+  "duration": 1.6,
+  "loop": false,
+  "priority": 50,
+  "interruptible": true,
+  "blink_suppress": false,
+  "hold_last": true,
+  "tags": [
+    "uncertain"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in_out",
+      "left": {
+        "h": 36
+      },
+      "right": {
+        "h": 36
+      },
+      "face": {
+        "tilt": 0
+      }
+    },
+    {
+      "t": 0.35,
+      "ease": "out",
+      "left": {
+        "h": 28,
+        "lid_top": 0.22
+      },
+      "right": {
+        "h": 40
+      },
+      "face": {
+        "tilt": -7
+      }
+    },
+    {
+      "t": 1.6,
+      "ease": "in_out",
+      "face": {
+        "tilt": -7
+      }
+    }
+  ]
+}

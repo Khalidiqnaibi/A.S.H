@@ -85,3 +85,17 @@ class MaintenanceScheduler:
                 logger.warning("Maintenance sweep: ash_instance has no episodic_memory -- skipping prune")
         except Exception:
             logger.exception("Maintenance sweep failed")
+
+        # Brain consolidation ("sleep"): replay-train the predictive forward
+        # model, repay homeostatic fatigue, flush critic weights to disk.
+        # Deliberately runs after pruning and is fully isolated -- a failure
+        # here must never take down the maintenance thread. See
+        # src/brain/consolidation.py.
+        try:
+            brain = getattr(self.ash, "brain", None)
+            if brain is not None:
+                idle_for = time.time() - self._last_activity
+                report = brain.sleep(seconds_idle=idle_for)
+                logger.info("Maintenance sweep: brain consolidation -> %s", report.get("replay"))
+        except Exception:
+            logger.exception("Brain consolidation failed during maintenance sweep")

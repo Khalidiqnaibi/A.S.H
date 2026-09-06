@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "name": "annoyed",
+  "duration": 2.0,
+  "loop": false,
+  "priority": 50,
+  "interruptible": true,
+  "blink_suppress": false,
+  "hold_last": true,
+  "tags": [
+    "negative",
+    "dry"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in_out",
+      "both": {
+        "lid_top": 0.0
+      }
+    },
+    {
+      "t": 0.25,
+      "ease": "out",
+      "both": {
+        "lid_top": 0.3,
+        "lid_angle": 10
+      },
+      "face": {
+        "look_x": 6
+      }
+    },
+    {
+      "t": 0.75,
+      "ease": "in_out",
+      "face": {
+        "look_x": 6
+      }
+    },
+    {
+      "t": 1.05,
+      "ease": "in_out",
+      "face": {
+        "look_x": 0
+      }
+    },
+    {
+      "t": 2.0,
+      "ease": "in_out",
+      "both": {
+        "lid_top": 0.24
+      }
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "name": "blink",
+  "duration": 0.3,
+  "loop": false,
+  "priority": 15,
+  "interruptible": false,
+  "blink_suppress": false,
+  "hold_last": false,
+  "tags": [
+    "reflex"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in",
+      "both": {
+        "open": 1.0
+      }
+    },
+    {
+      "t": 0.09,
+      "ease": "in",
+      "both": {
+        "open": 0.06
+      }
+    },
+    {
+      "t": 0.13,
+      "ease": "linear",
+      "both": {
+        "open": 0.06
+      }
+    },
+    {
+      "t": 0.3,
+      "ease": "out",
+      "both": {
+        "open": 1.0
+      }
+    }
+  ]
+}

@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<!--
+  face_editor.html -- A.S.H robot face animation editor.
+
+  Single file, zero dependencies, opens with a double click. Exports the same
+  JSON that src/face/model.py reads.
+
+  THE ONE RULE FOR MAINTAINING THIS FILE: the renderer and interpolator below
+  must stay behaviourally identical to render.py and model.py. If they drift,
+  animations look right here and wrong on the robot, which is the worst
+  possible failure for an authoring tool. Both sides are deliberately small so
+  that staying in sync is tractable; the porting notes are inline where the
+  two implementations had to differ.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>A.S.H Face Editor</title>
+<style>
+  :root {
+    --bg:#0d1117; --panel:#161b22; --line:#30363d; --ink:#e6edf3;
+    --dim:#8b949e; --accent:#00c8ff; --warn:#f78166; --ok:#3fb950;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--ink);
+    font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    display:grid; grid-template-columns:1fr 300px; grid-template-rows:auto 1fr auto;
+    height:100vh; gap:1px;
+  }
+  header {
+    grid-column:1/-1; background:var(--panel); padding:8px 14px;
+    border-bottom:1px solid var(--line); display:flex; gap:8px; align-items:center;
+    flex-wrap:wrap;
+  }
+  header h1 { font-size:13px; margin:0 12px 0 0; letter-spacing:.08em; color:var(--accent); }
+  button, select, input[type=text], input[type=number] {
+    background:#21262d; color:var(--ink); border:1px solid var(--line);
+    border-radius:5px; padding:4px 9px; font:inherit; cursor:pointer;
+  }
+  button:hover { border-color:var(--accent); }
+  button.primary { background:var(--accent); color:#04121a; font-weight:600; border-color:var(--accent); }
+  button.danger:hover { border-color:var(--warn); color:var(--warn); }
+  #stage { background:#000; display:flex; align-items:center; justify-content:center;
+           position:relative; overflow:hidden; }
+  #face { image-rendering:pixelated; }
+  #stageinfo { position:absolute; top:8px; left:10px; color:var(--dim); font-size:11px; }
+  #side { background:var(--panel); overflow-y:auto; padding:10px; border-left:1px solid var(--line); }
+  #timeline { grid-column:1/-1; background:var(--panel); border-top:1px solid var(--line);
+              padding:8px 12px; height:150px; overflow-x:auto; }
+  .row { display:flex; align-items:center; gap:6px; margin:3px 0; }
+  .row label { width:78px; color:var(--dim); font-size:11px; flex:none; }
+  .row input[type=range] { flex:1; accent-color:var(--accent); }
+  .row .val { width:46px; text-align:right; font-size:11px; color:var(--accent); }
+  h3 { font-size:11px; text-transform:uppercase; letter-spacing:.1em;
+       color:var(--dim); margin:14px 0 6px; border-bottom:1px solid var(--line);
+       padding-bottom:3px; }
+  #track { position:relative; height:46px; background:#0d1117; border:1px solid var(--line);
+           border-radius:5px; margin-top:6px; }
+  .kf { position:absolute; top:6px; width:12px; height:32px; margin-left:-6px;
+        background:var(--accent); border-radius:3px; cursor:grab; opacity:.75; }
+  .kf.sel { opacity:1; outline:2px solid #fff; }
+  #playhead { position:absolute; top:0; width:2px; height:100%; background:var(--warn);
+              pointer-events:none; }
+  #kflist { display:flex; gap:5px; flex-wrap:wrap; margin-top:7px; }
+  .chip { background:#21262d; border:1px solid var(--line); border-radius:4px;
+          padding:2px 7px; font-size:11px; cursor:pointer; }
+  .chip.sel { border-color:var(--accent); color:var(--accent); }
+  .hint { color:var(--dim); font-size:11px; margin:4px 0; }
+  .split { display:flex; gap:5px; }
+  .split button { flex:1; }
+  #status { color:var(--ok); font-size:11px; margin-left:auto; }
+  textarea { width:100%; height:120px; background:#0d1117; color:var(--ink);
+             border:1px solid var(--line); border-radius:5px; font:11px monospace; padding:6px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>A.S.H FACE</h1>
+  <select id="libsel" title="Load a built-in animation"></select>
+  <button onclick="loadBuiltin()">Load</button>
+  <input type="text" id="animname" value="untitled" size="14" title="Animation name">
+  <button class="primary" onclick="togglePlay()" id="playbtn">▶ Play</button>
+  <label class="hint"><input type="checkbox" id="loop"> loop</label>
+  <label class="hint"><input type="checkbox" id="blinker" checked> auto-blink</label>
+  <button onclick="addKey()">+ Key</button>
+  <button class="danger" onclick="delKey()">− Key</button>
+  <button onclick="exportJSON()">Export</button>
+  <button onclick="document.getElementById('file').click()">Import</button>
+  <input type="file" id="file" accept=".json" style="display:none" onchange="importJSON(event)">
+  <span id="status"></span>
+</header>
+
+<div id="stage">
+  <canvas id="face" width="128" height="64" style="width:640px;height:320px"></canvas>
+  <div id="stageinfo"></div>
+</div>
+
+<div id="side">
+  <h3>Keyframe</h3>
+  <div class="row"><label>time (s)</label>
+    <input type="number" id="kftime" step="0.01" min="0" style="width:70px" onchange="setKeyTime()">
+    <select id="kfease" onchange="setKeyEase()" style="flex:1"></select>
+  </div>
+  <div class="split">
+    <button onclick="setTarget('both')" id="tb-both" class="chip sel">both</button>
+    <button onclick="setTarget('left')" id="tb-left" class="chip">left</button>
+    <button onclick="setTarget('right')" id="tb-right" class="chip">right</button>
+  </div>
+  <p class="hint">Sliders write to the selected eye(s). Only changed values are
+  stored in the keyframe; everything else carries forward.</p>
+
+  <h3>Eye</h3>
+  <div id="eyectl"></div>
+
+  <h3>Face</h3>
+  <div id="facectl"></div>
+
+  <h3>Export</h3>
+  <div class="split">
+    <button onclick="copyJSON()">Copy JSON</button>
+    <button onclick="recordGIF()">Frames→PNG</button>
+  </div>
+  <textarea id="json" spellcheck="false"></textarea>
+</div>
+
+<div id="timeline">
+  <div class="row">
+    <label>duration</label>
+    <input type="number" id="duration" step="0.1" min="0.1" value="1.0" style="width:70px"
+           onchange="render()">
+    <label style="width:auto">scrub</label>
+    <input type="range" id="scrub" min="0" max="1000" value="0" oninput="scrubTo()">
+    <span class="val" id="tlabel">0.00</span>
+  </div>
+  <div id="track" onclick="trackClick(event)"><div id="playhead"></div></div>
+  <div id="kflist"></div>
+</div>
+
+<script>
+/* ====================================================================
+   MODEL -- must match src/face/model.py
+   ==================================================================== */
+const REF_W = 128, REF_H = 64;
+
+const EASINGS = {
+  linear: t => t,
+  in:     t => t*t,
+  out:    t => 1-(1-t)**2,
+  in_out: t => t<0.5 ? 2*t*t : 1-(-2*t+2)**2/2,
+  in_cubic:  t => t**3,
+  out_cubic: t => 1-(1-t)**3,
+  back:   t => 1 + 2.70158*(t-1)**3 + 1.70158*(t-1)**2,
+  elastic:t => t===0?0:t===1?1:-(2**(10*t-10))*Math.sin((t*10-10.75)*2.0944),
+  bounce: t => { const n=7.5625,d=2.75;
+    if(t<1/d) return n*t*t;
+    if(t<2/d){t-=1.5/d; return n*t*t+0.75;}
+    if(t<2.5/d){t-=2.25/d; return n*t*t+0.9375;}
+    t-=2.625/d; return n*t*t+0.984375; },
+  step:   t => t<1?0:1,
+};
+
+const EYE_DEFAULTS = {
+  x:0, y:0, w:36, h:36, radius:10,
+  radius_tl:null, radius_tr:null, radius_br:null, radius_bl:null,
+  lid_top:0, lid_bottom:0, lid_angle:0, open:1, rotation:0,
+};
+const FACE_DEFAULTS = { look_x:0, look_y:0, gap:20, scale:1, brightness:1, tilt:0 };
+
+// Slider ranges. Kept here rather than in the Python so the runtime has no
+// opinion about UI; the model clamps where it matters (radius, lids).
+const EYE_CTL = [
+  ["w",4,64,1],["h",4,64,1],["radius",0,32,1],
+  ["lid_top",0,1,0.01],["lid_bottom",0,1,0.01],["lid_angle",-40,40,1],
+  ["open",0,1,0.01],["x",-30,30,1],["y",-20,20,1],["rotation",-30,30,1],
+];
+const FACE_CTL = [
+  ["look_x",-24,24,1],["look_y",-16,16,1],["gap",0,60,1],
+  ["scale",0.4,1.6,0.01],["brightness",0,1,0.01],["tilt",-20,20,1],
+];
+
+function restPose(){
+  return { left:{...EYE_DEFAULTS}, right:{...EYE_DEFAULTS}, ...FACE_DEFAULTS };
+}
+
+/* Interpolation. Mirrors Animation.sample() including the mirrored
+   lid_angle on the right eye -- that asymmetry is load-bearing and the two
+   implementations disagreeing on it would be very confusing to debug. */
+/* No mirroring here. lid_angle is anatomical -- one value, both eyes -- and
+   the renderer below is the single place that knows which screen-space edge
+   of each eye faces the nose. Mirroring in both places cancels out, which is
+   a bug the Python side shipped with briefly. */
+function resolved(kf, side){
+  return {...(kf.both||{}), ...(kf[side]||{})};
+}
+
+function sample(anim, t){
+  const pose = restPose();
+  const kfs = (anim.keyframes||[]).slice().sort((a,b)=>a.t-b.t);
+  if(!kfs.length) return pose;
+
+  const dur = anim.duration || kfs[kfs.length-1].t || 1e-9;
+  if(anim.loop && dur>0) t = ((t % dur) + dur) % dur;
+
+  let pl={}, pr={}, pf={}, pt=0, nxt=null;
+  for(const kf of kfs){
+    if(kf.t <= t){
+      Object.assign(pl, resolved(kf,"left"));
+      Object.assign(pr, resolved(kf,"right"));
+      Object.assign(pf, kf.face||{});
+      pt = kf.t;
+    } else { nxt = kf; break; }
+  }
+
+  const apply = (l,r,f)=>{
+    Object.assign(pose.left, l); Object.assign(pose.right, r); Object.assign(pose, f);
+  };
+
+  if(!nxt){ if(anim.hold_last !== false) apply(pl,pr,pf); return pose; }
+
+  const span = Math.max(1e-9, nxt.t - pt);
+  const u = (EASINGS[nxt.ease]||EASINGS.linear)(Math.min(1,Math.max(0,(t-pt)/span)));
+  const lerp=(a,b,u)=>a+(b-a)*u;
+
+  const cl={...pl}, cr={...pr}, cf={...pf};
+  const tl=resolved(nxt,"left"), tr=resolved(nxt,"right"), tf=nxt.face||{};
+  for(const k in tl) cl[k]=lerp(pl[k]!==undefined?pl[k]:(EYE_DEFAULTS[k]||0), tl[k], u);
+  for(const k in tr) cr[k]=lerp(pr[k]!==undefined?pr[k]:(EYE_DEFAULTS[k]||0), tr[k], u);
+  for(const k in tf) cf[k]=lerp(pf[k]!==undefined?pf[k]:(FACE_DEFAULTS[k]||0), tf[k], u);
+  apply(cl,cr,cf);
+  return pose;
+}
+
+/* ====================================================================
+   RENDERER -- must match src/face/render.py
+   Canvas gives us real clipping, so lids are drawn as covering rects
+   exactly as the Python does (rather than as clip paths) to keep the
+   visual result identical, including the angled top lid.
+   ==================================================================== */
+const cv = document.getElementById("face"), ctx = cv.getContext("2d");
+
+function roundRect(c,x,y,w,h,r){
+  const rr = Math.max(0, Math.min(r, Math.min(w,h)/2));
+  c.beginPath();
+  c.moveTo(x+rr,y);
+  c.lineTo(x+w-rr,y); c.quadraticCurveTo(x+w,y,x+w,y+rr);
+  c.lineTo(x+w,y+h-rr); c.quadraticCurveTo(x+w,y+h,x+w-rr,y+h);
+  c.lineTo(x+rr,y+h); c.quadraticCurveTo(x,y+h,x,y+h-rr);
+  c.lineTo(x,y+rr); c.quadraticCurveTo(x,y,x+rr,y);
+  c.closePath();
+}
+
+function drawFace(pose){
+  const W=cv.width, H=cv.height;
+  ctx.save();
+  ctx.fillStyle="#000"; ctx.fillRect(0,0,W,H);
+
+  if(pose.tilt){ ctx.translate(W/2,H/2); ctx.rotate(-pose.tilt*Math.PI/180); ctx.translate(-W/2,-H/2); }
+
+  const b = Math.max(0,Math.min(1,pose.brightness));
+  const fg = `rgb(0,${Math.round(200*b)},${Math.round(255*b)})`;
+  const gap = pose.gap * pose.scale;
+
+  for(const [side,sign] of [["left",-1],["right",1]]){
+    const e = pose[side];
+    const ew = e.w*pose.scale, eh = e.h*pose.scale*Math.max(0,e.open);
+    const ecx = W/2 + sign*(gap/2+ew/2) + (e.x + pose.look_x);
+    const ecy = H/2 + (e.y + pose.look_y);
+
+    if(e.open<=0.001 || e.w<=0){
+      ctx.fillStyle=fg;
+      roundRect(ctx, ecx-ew/2, ecy-1.5, ew, 3, 1.5); ctx.fill();
+      continue;
+    }
+
+    const x0=ecx-ew/2, y0=ecy-eh/2;
+    ctx.save();
+    ctx.translate(ecx,ecy); ctx.rotate(e.rotation*Math.PI/180); ctx.translate(-ecx,-ecy);
+
+    ctx.fillStyle=fg;
+    roundRect(ctx,x0,y0,ew,eh,e.radius*pose.scale); ctx.fill();
+
+    ctx.fillStyle="#000";
+    if(e.lid_top>0.001 || Math.abs(e.lid_angle)>0.01){
+      const base = eh*Math.min(1,Math.max(0,e.lid_top));
+      const drop = Math.tan(e.lid_angle*Math.PI/180)*ew/2;
+      const innerY = y0+base+drop;   // toward the nose: positive angle lowers it
+      const outerY = y0+base-drop;   // toward the temple
+      const [lY,rY] = sign<0 ? [outerY,innerY] : [innerY,outerY];
+      ctx.beginPath();
+      ctx.moveTo(x0-2,y0-2); ctx.lineTo(x0+ew+2,y0-2);
+      ctx.lineTo(x0+ew+2,rY); ctx.lineTo(x0-2,lY);
+      ctx.closePath(); ctx.fill();
+    }
+    if(e.lid_bottom>0.001){
+      const cut = eh*Math.min(1,e.lid_bottom);
+      ctx.fillRect(x0-2, y0+eh-cut, ew+4, cut+2);
+    }
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+/* ====================================================================
+   EDITOR STATE
+   ==================================================================== */
+let anim = { name:"untitled", duration:1.0, loop:false, hold_last:true,
+             priority:50, keyframes:[ {t:0, both:{}, left:{}, right:{}, face:{}, ease:"in_out"} ] };
+let sel = 0, target = "both", playing = false, playT = 0, lastFrame = 0;
+let blinkPhase = 0, nextBlink = 2;
+
+const BUILTIN_NAMES = ["blink","double_blink","wink","idle","look_around","sleepy",
+  "sleeping","happy","very_happy","sad","angry","annoyed","surprised","confused",
+  "skeptical","curious","love","thinking","listening","speaking","processing",
+  "acknowledge","refuse","alert","error","boot","shutdown"];
+
+/* A few builtins inlined so the editor is genuinely standalone -- you can
+   open this file with no ASH checkout and still have something to edit.
+   The full set lives in src/face/library.py; `python -m src.face export`
+   writes them all to animations/builtin/ for importing here. */
+const INLINE = {
+  blink:{name:"blink",duration:0.30,keyframes:[
+    {t:0,both:{open:1},ease:"in"},{t:0.09,both:{open:0.06},ease:"in"},
+    {t:0.13,both:{open:0.06},ease:"linear"},{t:0.30,both:{open:1},ease:"out"}]},
+  happy:{name:"happy",duration:1.6,keyframes:[
+    {t:0,both:{lid_bottom:0,h:36,radius:10}},
+    {t:0.22,both:{lid_bottom:0.34,h:38,radius:16},ease:"out"},
+    {t:1.6,both:{lid_bottom:0.34},ease:"linear"}]},
+  angry:{name:"angry",duration:1.4,keyframes:[
+    {t:0,both:{lid_top:0,lid_angle:0}},
+    {t:0.16,both:{lid_top:0.34,lid_angle:22,radius:5,h:34},ease:"in"},
+    {t:1.4,both:{lid_top:0.34,lid_angle:22}}]},
+  sad:{name:"sad",duration:2.2,keyframes:[
+    {t:0,both:{lid_top:0,lid_angle:0}},
+    {t:0.45,both:{lid_top:0.30,lid_angle:-16,h:32},face:{look_y:3},ease:"out"},
+    {t:2.2,both:{lid_top:0.30}}]},
+  surprised:{name:"surprised",duration:1.3,keyframes:[
+    {t:0,both:{w:36,h:36}},
+    {t:0.11,both:{w:44,h:46,radius:20,lid_top:0},ease:"back"},
+    {t:0.70,both:{w:42,h:44}},{t:1.30,both:{w:38,h:38},ease:"out"}]},
+  thinking:{name:"thinking",duration:3.4,loop:true,keyframes:[
+    {t:0,face:{look_x:0,look_y:0}},
+    {t:0.4,face:{look_x:7,look_y:-5},both:{lid_top:0.12},ease:"out"},
+    {t:1.5,face:{look_x:9,look_y:-6}},{t:2.4,face:{look_x:5,look_y:-4}},
+    {t:3.4,face:{look_x:8,look_y:-6}}]},
+  confused:{name:"confused",duration:1.6,keyframes:[
+    {t:0,left:{h:36},right:{h:36},face:{tilt:0}},
+    {t:0.35,left:{h:28,lid_top:0.22},right:{h:40},face:{tilt:-7},ease:"out"},
+    {t:1.6,face:{tilt:-7}}]},
+};
+
+function init(){
+  const ls = document.getElementById("libsel");
+  BUILTIN_NAMES.forEach(n=>{
+    const o=document.createElement("option");
+    o.value=n; o.textContent=n + (INLINE[n]?"":"  (import)"); ls.appendChild(o);
+  });
+  const es = document.getElementById("kfease");
+  Object.keys(EASINGS).forEach(n=>{
+    const o=document.createElement("option"); o.value=n; o.textContent=n; es.appendChild(o);
+  });
+  buildControls();
+  render();
+  requestAnimationFrame(tick);
+}
+
+function buildControls(){
+  const mk = (list, host, isFace) => {
+    host.innerHTML = "";
+    list.forEach(([k,min,max,step])=>{
+      const row = document.createElement("div"); row.className="row";
+      row.innerHTML = `<label>${k}</label>
+        <input type="range" min="${min}" max="${max}" step="${step}" id="ctl-${k}">
+        <span class="val" id="val-${k}">0</span>`;
+      host.appendChild(row);
+      row.querySelector("input").addEventListener("input", e=>{
+        setParam(k, parseFloat(e.target.value), isFace);
+      });
+    });
+  };
+  mk(EYE_CTL, document.getElementById("eyectl"), false);
+  mk(FACE_CTL, document.getElementById("facectl"), true);
+}
+
+function kf(){ return anim.keyframes[sel]; }
+
+function setParam(k, v, isFace){
+  const f = kf();
+  if(isFace){ f.face = f.face||{}; f.face[k]=v; }
+  else if(target==="both"){ f.both=f.both||{}; f.both[k]=v; delete (f.left||{})[k]; delete (f.right||{})[k]; }
+  else { f[target]=f[target]||{}; f[target][k]=v; }
+  playT = f.t;
+  render();
+}
+
+function syncControls(){
+  const pose = sample(anim, playT);
+  const eye = pose[target==="right"?"right":"left"];
+  EYE_CTL.forEach(([k])=>{
+    const el=document.getElementById("ctl-"+k); if(!el) return;
+    el.value = eye[k] ?? EYE_DEFAULTS[k] ?? 0;
+    document.getElementById("val-"+k).textContent = (+el.value).toFixed(2);
+  });
+  FACE_CTL.forEach(([k])=>{
+    const el=document.getElementById("ctl-"+k); if(!el) return;
+    el.value = pose[k] ?? FACE_DEFAULTS[k] ?? 0;
+    document.getElementById("val-"+k).textContent = (+el.value).toFixed(2);
+  });
+  document.getElementById("kftime").value = kf().t.toFixed(2);
+  document.getElementById("kfease").value = kf().ease || "in_out";
+}
+
+function render(){
+  anim.duration = parseFloat(document.getElementById("duration").value)||1;
+  anim.loop = document.getElementById("loop").checked;
+  anim.name = document.getElementById("animname").value || "untitled";
+
+  let pose = sample(anim, playT);
+
+  // Preview the auto-blink layer exactly as FacePlayer applies it: a
+  // multiplier on `open`, not part of the animation.
+  if(document.getElementById("blinker").checked && playing){
+    if(playT >= nextBlink){
+      blinkPhase = playT;
+      nextBlink = playT + 2 + Math.random()*4;
+    }
+    const bt = playT - blinkPhase;
+    if(bt >= 0 && bt < 0.30){
+      const f = sample(INLINE.blink, bt).left.open;
+      pose.left.open *= f; pose.right.open *= f;
+    }
+  }
+
+  drawFace(pose);
+  drawTrack();
+  syncControls();
+  document.getElementById("tlabel").textContent = playT.toFixed(2);
+  document.getElementById("scrub").value = Math.round(1000*playT/(anim.duration||1));
+  document.getElementById("stageinfo").textContent =
+    `${anim.name}  ·  ${anim.keyframes.length} keys  ·  ${anim.duration.toFixed(2)}s` +
+    (anim.loop?"  ·  loop":"");
+  document.getElementById("json").value = JSON.stringify(serialise(), null, 2);
+}
+
+function drawTrack(){
+  const track = document.getElementById("track");
+  [...track.querySelectorAll(".kf")].forEach(n=>n.remove());
+  const w = track.clientWidth;
+  anim.keyframes.forEach((k,i)=>{
+    const d = document.createElement("div");
+    d.className = "kf" + (i===sel?" sel":"");
+    d.style.left = (w * k.t/(anim.duration||1)) + "px";
+    d.title = `t=${k.t.toFixed(2)} ${k.ease}`;
+    d.onclick = ev => { ev.stopPropagation(); sel=i; playT=k.t; render(); };
+    track.appendChild(d);
+  });
+  document.getElementById("playhead").style.left =
+    (w * playT/(anim.duration||1)) + "px";
+
+  const list = document.getElementById("kflist");
+  list.innerHTML = "";
+  anim.keyframes.forEach((k,i)=>{
+    const c = document.createElement("span");
+    c.className = "chip" + (i===sel?" sel":"");
+    c.textContent = k.t.toFixed(2)+"s";
+    c.onclick = ()=>{ sel=i; playT=k.t; render(); };
+    list.appendChild(c);
+  });
+}
+
+/* -------------------------------------------------------------- */
+function togglePlay(){
+  playing = !playing;
+  document.getElementById("playbtn").textContent = playing ? "❚❚ Pause" : "▶ Play";
+  lastFrame = performance.now();
+  if(playing){ playT = 0; blinkPhase = -99; nextBlink = 1.5; }
+}
+
+function tick(now){
+  if(playing){
+    const dt = (now - lastFrame)/1000; lastFrame = now;
+    playT += dt;
+    if(playT > anim.duration){
+      if(anim.loop){ playT = 0; nextBlink = 1.5; }
+      else { playT = anim.duration; playing = false;
+             document.getElementById("playbtn").textContent = "▶ Play"; }
+    }
+    render();
+  }
+  requestAnimationFrame(tick);
+}
+
+function scrubTo(){
+  playing = false;
+  document.getElementById("playbtn").textContent = "▶ Play";
+  playT = (document.getElementById("scrub").value/1000)*(anim.duration||1);
+  render();
+}
+
+function trackClick(ev){
+  if(ev.target.classList.contains("kf")) return;
+  const r = ev.currentTarget.getBoundingClientRect();
+  playT = ((ev.clientX-r.left)/r.width)*(anim.duration||1);
+  playing = false; render();
+}
+
+function addKey(){
+  const t = Math.round(playT*100)/100;
+  const existing = anim.keyframes.findIndex(k=>Math.abs(k.t-t)<0.005);
+  if(existing >= 0){ sel = existing; render(); return; }
+  anim.keyframes.push({t, both:{}, left:{}, right:{}, face:{}, ease:"in_out"});
+  anim.keyframes.sort((a,b)=>a.t-b.t);
+  sel = anim.keyframes.findIndex(k=>k.t===t);
+  flash("keyframe added"); render();
+}
+
+function delKey(){
+  if(anim.keyframes.length<=1){ flash("need at least one keyframe","warn"); return; }
+  anim.keyframes.splice(sel,1);
+  sel = Math.max(0, sel-1);
+  flash("keyframe removed"); render();
+}
+
+function setKeyTime(){
+  kf().t = Math.max(0, parseFloat(document.getElementById("kftime").value)||0);
+  anim.keyframes.sort((a,b)=>a.t-b.t);
+  sel = anim.keyframes.indexOf(kf());
+  render();
+}
+function setKeyEase(){ kf().ease = document.getElementById("kfease").value; render(); }
+
+function setTarget(t){
+  target = t;
+  ["both","left","right"].forEach(x=>
+    document.getElementById("tb-"+x).classList.toggle("sel", x===t));
+  render();
+}
+
+/* -------------------------------------------------------------- */
+function serialise(){
+  return {
+    schema:1, name:anim.name, duration:anim.duration, loop:anim.loop,
+    priority:anim.priority||50, interruptible:anim.interruptible!==false,
+    blink_suppress:!!anim.blink_suppress, hold_last:anim.hold_last!==false,
+    tags:anim.tags||[],
+    keyframes:anim.keyframes.map(k=>{
+      const o={t:+k.t.toFixed(3), ease:k.ease||"in_out"};
+      for(const f of ["both","left","right","face"])
+        if(k[f] && Object.keys(k[f]).length) o[f]=k[f];
+      return o;
+    })
+  };
+}
+
+function exportJSON(){
+  const blob = new Blob([JSON.stringify(serialise(),null,2)],{type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = (anim.name||"animation")+".json";
+  a.click();
+  flash("exported "+a.download);
+}
+
+function copyJSON(){
+  navigator.clipboard.writeText(JSON.stringify(serialise(),null,2))
+    .then(()=>flash("copied to clipboard"))
+    .catch(()=>flash("clipboard blocked — select the textarea","warn"));
+}
+
+function importJSON(ev){
+  const f = ev.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = e => {
+    try {
+      const d = JSON.parse(e.target.result);
+      anim = { name:d.name||"imported", duration:d.duration||1, loop:!!d.loop,
+               priority:d.priority??50, interruptible:d.interruptible!==false,
+               blink_suppress:!!d.blink_suppress, hold_last:d.hold_last!==false,
+               tags:d.tags||[],
+               keyframes:(d.keyframes||[]).map(k=>({
+                 t:k.t||0, both:k.both||{}, left:k.left||{}, right:k.right||{},
+                 face:k.face||{}, ease:k.ease||"in_out"})) };
+      if(!anim.keyframes.length) anim.keyframes=[{t:0,both:{},left:{},right:{},face:{},ease:"in_out"}];
+      sel=0; playT=0;
+      document.getElementById("animname").value = anim.name;
+      document.getElementById("duration").value = anim.duration;
+      document.getElementById("loop").checked = anim.loop;
+      flash("imported "+anim.name); render();
+    } catch(err){ flash("bad JSON: "+err.message,"warn"); }
+  };
+  r.readAsText(f);
+}
+
+function loadBuiltin(){
+  const n = document.getElementById("libsel").value;
+  const d = INLINE[n];
+  if(!d){ flash(`'${n}' is not inlined — run: python -m src.face export`,"warn"); return; }
+  anim = { name:d.name, duration:d.duration, loop:!!d.loop, hold_last:true,
+           priority:50, keyframes:d.keyframes.map(k=>({
+             t:k.t, both:k.both||{}, left:k.left||{}, right:k.right||{},
+             face:k.face||{}, ease:k.ease||"in_out"})) };
+  sel=0; playT=0;
+  document.getElementById("animname").value = anim.name;
+  document.getElementById("duration").value = anim.duration;
+  document.getElementById("loop").checked = anim.loop;
+  flash("loaded "+n); render();
+}
+
+function recordGIF(){
+  // Browsers cannot write a GIF without a library, and bundling one would
+  // break the single-file promise. PNG frames import into any GIF tool.
+  const n = 24, step = anim.duration/n;
+  for(let i=0;i<n;i++){
+    drawFace(sample(anim, i*step));
+    const a=document.createElement("a");
+    a.href=cv.toDataURL("image/png");
+    a.download=`${anim.name}_${String(i).padStart(3,"0")}.png`;
+    a.click();
+  }
+  flash(`${n} frames downloaded`);
+  render();
+}
+
+let flashTimer=null;
+function flash(msg, kind){
+  const el=document.getElementById("status");
+  el.textContent=msg;
+  el.style.color = kind==="warn" ? "var(--warn)" : "var(--ok)";
+  clearTimeout(flashTimer);
+  flashTimer=setTimeout(()=>{el.textContent="";},2600);
+}
+
+document.addEventListener("keydown", e=>{
+  if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA") return;
+  if(e.code==="Space"){ e.preventDefault(); togglePlay(); }
+  if(e.key==="k") addKey();
+  if(e.key==="Delete"||e.key==="Backspace") delKey();
+  if(e.key==="ArrowRight"){ sel=Math.min(anim.keyframes.length-1,sel+1); playT=kf().t; render(); }
+  if(e.key==="ArrowLeft"){ sel=Math.max(0,sel-1); playT=kf().t; render(); }
+});
+
+init();
+</script>
+</body>
+</html>

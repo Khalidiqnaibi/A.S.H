@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "name": "shutdown",
+  "duration": 1.0,
+  "loop": false,
+  "priority": 100,
+  "interruptible": false,
+  "blink_suppress": true,
+  "hold_last": true,
+  "tags": [
+    "system"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in_out",
+      "both": {
+        "open": 1.0,
+        "w": 36
+      },
+      "face": {
+        "brightness": 1.0
+      }
+    },
+    {
+      "t": 0.4,
+      "ease": "in",
+      "both": {
+        "open": 0.04,
+        "w": 42
+      }
+    },
+    {
+      "t": 0.75,
+      "ease": "in",
+      "both": {
+        "w": 3
+      },
+      "face": {
+        "brightness": 0.6
+      }
+    },
+    {
+      "t": 1.0,
+      "ease": "in_out",
+      "both": {
+        "w": 0
+      },
+      "face": {
+        "brightness": 0.0
+      }
+    }
+  ]
+}

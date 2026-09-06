@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "name": "boot",
+  "duration": 1.3,
+  "loop": false,
+  "priority": 100,
+  "interruptible": false,
+  "blink_suppress": true,
+  "hold_last": true,
+  "tags": [
+    "system"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in_out",
+      "both": {
+        "open": 0.0,
+        "w": 4
+      },
+      "face": {
+        "brightness": 0.0
+      }
+    },
+    {
+      "t": 0.25,
+      "ease": "out",
+      "both": {
+        "open": 0.03,
+        "w": 44
+      },
+      "face": {
+        "brightness": 1.0
+      }
+    },
+    {
+      "t": 0.55,
+      "ease": "in_out",
+      "both": {
+        "open": 0.03,
+        "w": 44
+      }
+    },
+    {
+      "t": 0.95,
+      "ease": "out",
+      "both": {
+        "open": 1.0,
+        "w": 36
+      }
+    },
+    {
+      "t": 1.3,
+      "ease": "in_out",
+      "both": {
+        "open": 1.0
+      }
+    }
+  ]
+}

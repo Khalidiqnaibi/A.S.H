@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "name": "acknowledge",
+  "duration": 0.32,
+  "loop": false,
+  "priority": 65,
+  "interruptible": true,
+  "blink_suppress": false,
+  "hold_last": false,
+  "tags": [
+    "reaction"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in_out",
+      "face": {
+        "look_y": 0
+      }
+    },
+    {
+      "t": 0.14,
+      "ease": "in",
+      "both": {
+        "lid_top": 0.2
+      },
+      "face": {
+        "look_y": 5
+      }
+    },
+    {
+      "t": 0.32,
+      "ease": "out",
+      "both": {
+        "lid_top": 0.0
+      },
+      "face": {
+        "look_y": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "name": "thinking",
+  "duration": 3.4,
+  "loop": true,
+  "priority": 70,
+  "interruptible": true,
+  "blink_suppress": true,
+  "hold_last": true,
+  "tags": [
+    "cognitive"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in_out",
+      "face": {
+        "look_x": 0,
+        "look_y": 0
+      }
+    },
+    {
+      "t": 0.4,
+      "ease": "out",
+      "both": {
+        "lid_top": 0.12
+      },
+      "face": {
+        "look_x": 7,
+        "look_y": -5
+      }
+    },
+    {
+      "t": 1.5,
+      "ease": "in_out",
+      "face": {
+        "look_x": 9,
+        "look_y": -6
+      }
+    },
+    {
+      "t": 2.4,
+      "ease": "in_out",
+      "face": {
+        "look_x": 5,
+        "look_y": -4
+      }
+    },
+    {
+      "t": 3.4,
+      "ease": "in_out",
+      "face": {
+        "look_x": 8,
+        "look_y": -6
+      }
+    }
+  ]
+}

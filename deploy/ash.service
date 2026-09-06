@@ -1,0 +1,35 @@
+# systemd user unit. Install:
+#   mkdir -p ~/.config/systemd/user
+#   cp deploy/ash.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now ash
+#   journalctl --user -u ash -f
+#
+# User unit rather than system unit on purpose: ASH needs the user's session
+# to see their windows, screen and audio devices, and it should not run as
+# root. Enable lingering if you want it up before you log in:
+#   sudo loginctl enable-linger $USER
+
+[Unit]
+Description=A.S.H always-on assistant
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/A.S.H
+ExecStart=%h/A.S.H/.venv/bin/python %h/A.S.H/ashd.py
+Restart=always
+RestartSec=10
+# Give it time to load models before the watchdog gets impatient.
+TimeoutStartSec=180
+KillSignal=SIGTERM
+TimeoutStopSec=30
+Environment=PYTHONUNBUFFERED=1
+
+# Modest hardening. Not a sandbox -- ASH legitimately needs to see your
+# session -- but enough to catch accidents.
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=graphical-session.target

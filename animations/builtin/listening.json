@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "name": "listening",
+  "duration": 2.0,
+  "loop": true,
+  "priority": 70,
+  "interruptible": true,
+  "blink_suppress": false,
+  "hold_last": true,
+  "tags": [
+    "cognitive"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in_out",
+      "both": {
+        "w": 36,
+        "h": 36
+      }
+    },
+    {
+      "t": 0.2,
+      "ease": "out",
+      "both": {
+        "w": 38,
+        "h": 40,
+        "lid_top": 0
+      },
+      "face": {
+        "look_x": 0,
+        "look_y": 0
+      }
+    },
+    {
+      "t": 2.0,
+      "ease": "in_out",
+      "both": {
+        "h": 39
+      }
+    }
+  ]
+}

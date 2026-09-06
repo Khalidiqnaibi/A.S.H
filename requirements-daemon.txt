@@ -1,0 +1,31 @@
+# Optional extras for the always-on daemon. Everything here degrades
+# gracefully -- ASH runs without any of it, it just perceives less. Run
+# `python ashd.py --check` to see exactly what each one buys you.
+
+# --- always worth installing ---
+psutil                  # system sensor, pid liveness, process names
+Pillow                  # screenshot capture + perceptual dedup
+
+# --- screen / window ---
+mss                     # much faster screenshots than PIL.ImageGrab
+# Linux only, install via your package manager, not pip:
+#   sudo apt install xdotool xprintidle   (active window + idle time)
+# Windows and macOS need nothing extra for these.
+
+# --- microphone ---
+sounddevice             # audio capture (preferred)
+webrtcvad               # voice activity detection; big accuracy win
+faster-whisper          # LOCAL transcription -- keeps audio off the network
+#   without faster-whisper, transcription falls back to Google's recognizer,
+#   which uploads audio. PrivacyPolicy.require_local_asr blocks that by
+#   default, so install this or the mic stays effectively text-less.
+
+# --- camera ---
+opencv-python           # webcam capture + motion gating
+
+# --- PC actions (all dry-run by default) ---
+pyautogui               # synthetic keyboard/mouse
+pyperclip               # clipboard
+
+# --- hardware / sensors / motors ---
+pyserial                # serial sensors and motor control

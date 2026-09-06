@@ -1,0 +1,65 @@
+{
+  "schema": 1,
+  "name": "alert",
+  "duration": 0.7,
+  "loop": false,
+  "priority": 90,
+  "interruptible": false,
+  "blink_suppress": true,
+  "hold_last": true,
+  "tags": [
+    "alert"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in_out",
+      "both": {
+        "w": 36,
+        "h": 36
+      },
+      "face": {
+        "brightness": 1.0
+      }
+    },
+    {
+      "t": 0.1,
+      "ease": "back",
+      "both": {
+        "w": 42,
+        "h": 46
+      },
+      "face": {
+        "brightness": 1.0
+      }
+    },
+    {
+      "t": 0.25,
+      "ease": "in_out",
+      "face": {
+        "brightness": 0.35
+      }
+    },
+    {
+      "t": 0.4,
+      "ease": "in_out",
+      "face": {
+        "brightness": 1.0
+      }
+    },
+    {
+      "t": 0.55,
+      "ease": "in_out",
+      "face": {
+        "brightness": 0.35
+      }
+    },
+    {
+      "t": 0.7,
+      "ease": "in_out",
+      "face": {
+        "brightness": 1.0
+      }
+    }
+  ]
+}

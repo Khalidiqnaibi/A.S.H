@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "name": "curious",
+  "duration": 1.6,
+  "loop": false,
+  "priority": 50,
+  "interruptible": true,
+  "blink_suppress": false,
+  "hold_last": true,
+  "tags": [
+    "positive",
+    "curious"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in_out",
+      "both": {
+        "w": 36,
+        "h": 36
+      },
+      "face": {
+        "tilt": 0
+      }
+    },
+    {
+      "t": 0.3,
+      "ease": "out",
+      "both": {
+        "w": 39,
+        "h": 41
+      },
+      "face": {
+        "tilt": 6,
+        "look_y": -2
+      }
+    },
+    {
+      "t": 1.1,
+      "ease": "in_out",
+      "face": {
+        "tilt": 6
+      }
+    },
+    {
+      "t": 1.6,
+      "ease": "in_out",
+      "face": {
+        "tilt": 4
+      }
+    }
+  ]
+}

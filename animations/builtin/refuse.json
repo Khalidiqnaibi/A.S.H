@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "name": "refuse",
+  "duration": 0.58,
+  "loop": false,
+  "priority": 70,
+  "interruptible": false,
+  "blink_suppress": false,
+  "hold_last": true,
+  "tags": [
+    "reaction",
+    "negative"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in_out",
+      "both": {
+        "lid_top": 0.25,
+        "lid_angle": 10
+      },
+      "face": {
+        "look_x": 0
+      }
+    },
+    {
+      "t": 0.13,
+      "ease": "in_out",
+      "face": {
+        "look_x": -7
+      }
+    },
+    {
+      "t": 0.28,
+      "ease": "in_out",
+      "face": {
+        "look_x": 7
+      }
+    },
+    {
+      "t": 0.43,
+      "ease": "in_out",
+      "face": {
+        "look_x": -5
+      }
+    },
+    {
+      "t": 0.58,
+      "ease": "out",
+      "face": {
+        "look_x": 0
+      }
+    }
+  ]
+}

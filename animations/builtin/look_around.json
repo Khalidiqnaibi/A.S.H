@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "name": "look_around",
+  "duration": 2.1,
+  "loop": false,
+  "priority": 30,
+  "interruptible": true,
+  "blink_suppress": false,
+  "hold_last": true,
+  "tags": [
+    "idle",
+    "curious"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in_out",
+      "face": {
+        "look_x": 0
+      }
+    },
+    {
+      "t": 0.18,
+      "ease": "back",
+      "face": {
+        "look_x": -9
+      }
+    },
+    {
+      "t": 0.9,
+      "ease": "linear",
+      "face": {
+        "look_x": -9
+      }
+    },
+    {
+      "t": 1.1,
+      "ease": "back",
+      "face": {
+        "look_x": 9
+      }
+    },
+    {
+      "t": 1.85,
+      "ease": "linear",
+      "face": {
+        "look_x": 9
+      }
+    },
+    {
+      "t": 2.1,
+      "ease": "out",
+      "face": {
+        "look_x": 0
+      }
+    }
+  ]
+}

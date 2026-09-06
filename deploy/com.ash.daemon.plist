@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  launchd agent. Install:
+    cp deploy/com.ash.daemon.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.ash.daemon.plist
+
+  macOS will prompt for Screen Recording, Microphone, Camera and
+  Accessibility permissions the first time each is used. Accessibility is
+  required for the input actuator; without it pyautogui silently does
+  nothing, which looks exactly like a bug.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.ash.daemon</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/YOU/A.S.H/.venv/bin/python</string>
+    <string>/Users/YOU/A.S.H/ashd.py</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/YOU/A.S.H</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardErrorPath</key><string>/Users/YOU/A.S.H/logs/ashd.err</string>
+  <key>StandardOutPath</key><string>/Users/YOU/A.S.H/logs/ashd.out</string>
+</dict>
+</plist>

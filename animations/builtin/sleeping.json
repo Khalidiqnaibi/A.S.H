@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "name": "sleeping",
+  "duration": 4.0,
+  "loop": true,
+  "priority": 13,
+  "interruptible": true,
+  "blink_suppress": true,
+  "hold_last": true,
+  "tags": [
+    "sleep"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in_out",
+      "both": {
+        "open": 0.05,
+        "w": 34
+      },
+      "face": {
+        "brightness": 0.35
+      }
+    },
+    {
+      "t": 2.0,
+      "ease": "in_out",
+      "both": {
+        "w": 30
+      },
+      "face": {
+        "brightness": 0.22
+      }
+    },
+    {
+      "t": 4.0,
+      "ease": "in_out",
+      "both": {
+        "w": 34
+      },
+      "face": {
+        "brightness": 0.35
+      }
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "name": "skeptical",
+  "duration": 1.8,
+  "loop": false,
+  "priority": 50,
+  "interruptible": true,
+  "blink_suppress": false,
+  "hold_last": true,
+  "tags": [
+    "uncertain",
+    "dry"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in_out",
+      "left": {
+        "lid_top": 0.0
+      },
+      "right": {
+        "lid_top": 0.0
+      }
+    },
+    {
+      "t": 0.3,
+      "ease": "out",
+      "left": {
+        "lid_top": 0.38,
+        "lid_angle": 12
+      },
+      "right": {
+        "lid_top": 0.08
+      },
+      "face": {
+        "look_x": -4
+      }
+    },
+    {
+      "t": 1.8,
+      "ease": "in_out",
+      "left": {
+        "lid_top": 0.38
+      }
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "name": "speaking",
+  "duration": 0.48,
+  "loop": true,
+  "priority": 70,
+  "interruptible": true,
+  "blink_suppress": false,
+  "hold_last": true,
+  "tags": [
+    "cognitive"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in_out",
+      "both": {
+        "h": 36
+      }
+    },
+    {
+      "t": 0.16,
+      "ease": "in_out",
+      "both": {
+        "h": 33,
+        "lid_bottom": 0.12
+      }
+    },
+    {
+      "t": 0.32,
+      "ease": "in_out",
+      "both": {
+        "h": 37,
+        "lid_bottom": 0.04
+      }
+    },
+    {
+      "t": 0.48,
+      "ease": "in_out",
+      "both": {
+        "h": 34,
+        "lid_bottom": 0.1
+      }
+    }
+  ]
+}

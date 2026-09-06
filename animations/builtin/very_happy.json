@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "name": "very_happy",
+  "duration": 1.8,
+  "loop": false,
+  "priority": 55,
+  "interruptible": true,
+  "blink_suppress": false,
+  "hold_last": true,
+  "tags": [
+    "positive"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in_out",
+      "both": {
+        "lid_bottom": 0.0,
+        "h": 36
+      }
+    },
+    {
+      "t": 0.18,
+      "ease": "back",
+      "both": {
+        "lid_bottom": 0.45,
+        "h": 40,
+        "radius": 18
+      }
+    },
+    {
+      "t": 0.34,
+      "ease": "out",
+      "both": {
+        "y": -2
+      }
+    },
+    {
+      "t": 0.5,
+      "ease": "bounce",
+      "both": {
+        "y": 0
+      }
+    },
+    {
+      "t": 1.8,
+      "ease": "in_out",
+      "both": {
+        "lid_bottom": 0.42
+      }
+    }
+  ]
+}

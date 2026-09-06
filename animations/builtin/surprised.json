@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "name": "surprised",
+  "duration": 1.3,
+  "loop": false,
+  "priority": 65,
+  "interruptible": true,
+  "blink_suppress": true,
+  "hold_last": true,
+  "tags": [
+    "reaction"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in_out",
+      "both": {
+        "w": 36,
+        "h": 36
+      }
+    },
+    {
+      "t": 0.11,
+      "ease": "back",
+      "both": {
+        "w": 44,
+        "h": 46,
+        "radius": 20,
+        "lid_top": 0
+      }
+    },
+    {
+      "t": 0.7,
+      "ease": "in_out",
+      "both": {
+        "w": 42,
+        "h": 44
+      }
+    },
+    {
+      "t": 1.3,
+      "ease": "out",
+      "both": {
+        "w": 38,
+        "h": 38
+      }
+    }
+  ]
+}

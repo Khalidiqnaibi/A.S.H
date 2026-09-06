@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "name": "wink",
+  "duration": 0.5,
+  "loop": false,
+  "priority": 65,
+  "interruptible": true,
+  "blink_suppress": false,
+  "hold_last": true,
+  "tags": [
+    "playful"
+  ],
+  "keyframes": [
+    {
+      "t": 0.0,
+      "ease": "in_out",
+      "left": {
+        "open": 1.0
+      }
+    },
+    {
+      "t": 0.1,
+      "ease": "in_out",
+      "left": {
+        "open": 0.05
+      },
+      "right": {
+        "lid_bottom": 0.18
+      }
+    },
+    {
+      "t": 0.34,
+      "ease": "in_out",
+      "left": {
+        "open": 0.05
+      }
+    },
+    {
+      "t": 0.5,
+      "ease": "out",
+      "left": {
+        "open": 1.0
+      },
+      "right": {
+        "lid_bottom": 0.0
+      }
+    }
+  ]
+}
