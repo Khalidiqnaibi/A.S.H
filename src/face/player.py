@@ -281,13 +281,23 @@ class FacePlayer:
 
     def _loop(self):
         period = 1.0 / max(1, self.fps)
-        while not self._stop.is_set():
-            t0 = time.perf_counter()
-            try:
-                self.render_frame()
-            except Exception:
-                logger.exception("Face frame failed")
-            self._stop.wait(max(0.0, period - (time.perf_counter() - t0)))
+        try:
+            while not self._stop.is_set():
+                t0 = time.perf_counter()
+                try:
+                    self.render_frame()
+                except Exception:
+                    logger.exception("Face frame failed")
+                self._stop.wait(max(0.0, period - (time.perf_counter() - t0)))
+        finally:
+            # Close on this same thread, not whichever thread calls
+            # shutdown() -- some drivers (WindowDriver) hold a Tk/Tcl
+            # interpreter that only the thread which drove show() may touch.
+            if self.driver is not None:
+                try:
+                    self.driver.close()
+                except Exception:
+                    logger.exception("Driver close failed")
 
     def shutdown(self, play_outro: bool = True, timeout: float = 2.0):
         if play_outro and "shutdown" in self.library:
@@ -295,8 +305,13 @@ class FacePlayer:
             time.sleep(min(timeout, (self.library["shutdown"].duration or 1.0) + 0.1))
         self._stop.set()
         if self._thread:
+            # _loop()'s finally block closes the driver on its own thread
+            # once it observes _stop; join just waits for that to happen.
             self._thread.join(timeout=2.0)
-        if self.driver is not None:
+        elif self.driver is not None:
+            # No render thread was ever started (e.g. the CLI drives
+            # render_frame() directly on the calling thread) -- safe to
+            # close directly here since no other thread touched the driver.
             try:
                 self.driver.close()
             except Exception:

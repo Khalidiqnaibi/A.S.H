@@ -98,27 +98,42 @@ class WindowDriver(BaseDriver):
 
     def __init__(self, scale: int = 4, title: str = "A.S.H"):
         self.scale = scale
+        self.title = title
         self.available = False
         self._root = None
+        self._label = None
         try:
-            import tkinter as tk
+            import tkinter as tk  # noqa: F401
             from PIL import ImageTk  # noqa: F401
-
-            self._tk = tk
-            self._root = tk.Tk()
-            self._root.title(title)
-            self._root.configure(bg="black")
-            self._label = tk.Label(self._root, bd=0, bg="black")
-            self._label.pack()
-            self.available = True
         except Exception as e:
             logger.info("Window driver unavailable: %s", e)
+            return
+        # Tk/Tcl requires every call into an interpreter to come from the
+        # thread that created it, but FacePlayer drives show()/close() from
+        # its own dedicated render thread (started later, after this driver
+        # is constructed on the caller's thread) -- see FacePlayer._loop().
+        # So the root/label are created lazily on first show(), on whichever
+        # thread actually calls it, instead of here.
+        self.available = True
+
+    def _ensure_root(self):
+        if self._root is not None:
+            return
+        import tkinter as tk
+
+        self._tk = tk
+        self._root = tk.Tk()
+        self._root.title(self.title)
+        self._root.configure(bg="black")
+        self._label = tk.Label(self._root, bd=0, bg="black")
+        self._label.pack()
 
     def show(self, img, pose=None):
         if not self.available:
             return
         from PIL import Image, ImageTk
 
+        self._ensure_root()
         w, h = img.size
         big = img.resize((w * self.scale, h * self.scale), Image.NEAREST)
         photo = ImageTk.PhotoImage(big)
@@ -133,6 +148,24 @@ class WindowDriver(BaseDriver):
                 self._root.destroy()
             except Exception:
                 pass
+            # tkinter keeps this root in a module-level global; left set, the
+            # interpreter's own atexit teardown can still poke at it from the
+            # main thread after this (non-main) thread destroyed it, printing
+            # "Tcl_AsyncDelete: async handler deleted by the wrong thread".
+            if getattr(self._tk, "_default_root", None) is self._root:
+                self._tk._default_root = None
+            root = self._root
+            self._root = None
+            # self._label.master (and the photo image kept alive via
+            # `_label.image`) still reference the interpreter, so it would
+            # otherwise not actually get garbage-collected -- and its C-level
+            # teardown run -- until some later point, possibly after this
+            # thread has already exited. Drop those and force it to happen
+            # now, still on the thread that owns this interpreter.
+            self._label = None
+            del root
+            import gc
+            gc.collect()
 
 
 class OLEDDriver(BaseDriver):
