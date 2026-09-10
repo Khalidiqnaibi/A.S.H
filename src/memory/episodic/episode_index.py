@@ -1,8 +1,12 @@
 # episode_index.py
 
+import logging
+
 import numpy as np
 from typing import List
 from .episode_model import Episode
+
+logger = logging.getLogger("ash.memory.episode_index")
 
 
 class EpisodeIndex:
@@ -11,12 +15,20 @@ class EpisodeIndex:
         self.embedder = embedder
         self.episodes: List[Episode] = []
         self.vectors = None
+        if embedder is None:
+            logger.warning(
+                "EpisodeIndex: no embedding model available -- semantic search over "
+                "episodic memory is disabled for this run (falls back to exact/keyword "
+                "matching upstream in MemoryRouter). Check earlier logs for why the "
+                "embedder failed to load (e.g. no internet on first run, model not "
+                "cached locally)."
+            )
 
     def rebuild(self, episodes: List[Episode]):
         self.episodes = episodes
         
         # Guard clause: If there are no episodes, do not invoke the embedder
-        if not episodes:
+        if not episodes or self.embedder is None:
             self.vectors = None
             return
 
@@ -28,6 +40,8 @@ class EpisodeIndex:
 
     def append_single(self, episode):
         self.episodes.append(episode)
+        if self.embedder is None:
+            return
         # Encode only the *one* new sentence
         new_vec = self.embedder.encode([episode.summary]) 
         
@@ -38,7 +52,7 @@ class EpisodeIndex:
             self.vectors = np.vstack([self.vectors, new_vec]) 
 
     def search(self, query: str, top_k=5):
-        if self.vectors is None:
+        if self.vectors is None or self.embedder is None:
             return []
 
         q = self.embedder.encode(query)

@@ -46,6 +46,21 @@ import os
 import sys
 import time
 
+# Windows' default console codepage (e.g. cp1256, cp1252 -- whatever the
+# system locale is) can't encode plenty of ordinary text this daemon prints:
+# an em dash in a narrated response, the narrow no-break space
+# date_time_tool puts before AM/PM, etc. Unguarded, every such print() raises
+# UnicodeEncodeError. The ambient loop already catches that around the
+# response sink (see AmbientRuntime._respond), so it doesn't crash the
+# daemon -- but it does mean ASH silently never actually says anything,
+# every single time, which looks indistinguishable from "stopped working."
+# Reconfigure early, before any print() call has a chance to run.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except AttributeError:
+        pass
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from src.daemon import (  # noqa: E402
@@ -96,10 +111,16 @@ def main() -> int:
     ap.add_argument("--dry", action="store_true", help="force every actuator to dry-run")
     ap.add_argument("--check", action="store_true", help="report capabilities and exit")
     ap.add_argument("--no-control", action="store_true", help="disable the control socket")
+    ap.add_argument("--verbose", "-v", action="store_true",
+                    help="log at DEBUG and print every degrade-gracefully failure "
+                         "(model load, TTS, face, etc.) with its full traceback")
     args = ap.parse_args()
 
     cfg = load_config(args.config) if args.config else load_config()
-    setup_logging(cfg.get("log", {}))
+    log_cfg = dict(cfg.get("log", {}))
+    if args.verbose:
+        log_cfg["level"] = "DEBUG"
+    setup_logging(log_cfg)
 
     logger.info("=" * 62)
     logger.info("ASH daemon starting (pid %d)", os.getpid())
@@ -121,129 +142,142 @@ def main() -> int:
     print(privacy.banner(), flush=True)
 
     # ---- the brain -----------------------------------------------------
-    logger.info("Loading ASH (models, memory, tools) ...")
-    t0 = time.time()
-    from src.py.ash import ash  # noqa: E402  (slow import: model loads)
-    logger.info("ASH loaded in %.1fs", time.time() - t0)
-
-    # ---- periphery ------------------------------------------------------
-    from src.senses import build_periphery  # noqa: E402
-
-    tts = None
+    # Everything from here through periphery/runtime wiring is wrapped so a
+    # startup failure anywhere in it -- a bad import, a missing model file,
+    # a memory-store init error -- is always logged with its full traceback
+    # (via logger.critical(..., exc_info=True)) to BOTH the console and
+    # logs/ashd.log, rather than relying on an uncaught exception's raw
+    # stderr traceback, which never reaches the log file and can be lost.
     try:
-        from tools import TTSEngine
-        tts = TTSEngine(model_path="models/kokoro-v1.0.onnx",
-                        voices_path="models/voices-v1.0.bin")
-    except Exception:
-        logger.info("TTS unavailable; speech actuator will be inert")
+        logger.info("Loading ASH (models, memory, tools) ...")
+        t0 = time.time()
+        from src.py.ash import ash  # noqa: E402  (slow import: model loads)
+        logger.info("ASH loaded in %.1fs", time.time() - t0)
 
-    periphery = build_periphery(cfg, tts_engine=tts)
+        # ---- periphery ------------------------------------------------------
+        from src.senses import build_periphery  # noqa: E402
 
-    if args.dry:
-        for a in periphery.actuators.values():
-            a.dry_run = True
-        logger.warning("--dry: every actuator forced to dry-run")
-
-    # Hardware inherits the brain's safety model here. Both bindings matter:
-    # the VLA binding is the veto path, the registry binding is the routing
-    # path. See ashd.py's module docstring.
-    from tools.registry import REGISTRY as TOOL_REGISTRY, ToolEntry  # noqa: E402
-    from src.brain import ActionClass  # noqa: E402
-
-    periphery.bind_to_vla(ash.brain.vla, ActionClass)
-    n = periphery.bind_to_registry(TOOL_REGISTRY, ToolEntry)
-    logger.info("Exposed %d actuator(s) to the classifier", n)
-
-    print(periphery.report(), flush=True)
-
-    if args.check:
-        logger.info("--check: exiting after capability report")
-        lock.release()
-        return 0
-
-    # ---- runtime ---------------------------------------------------------
-    acfg = cfg.get("attention", {})
-    qh = acfg.get("quiet_hours")
-    gate = AttentionGate(
-        base_threshold=acfg.get("base_threshold", 0.62),
-        refractory_seconds=acfg.get("refractory_seconds", 180),
-        max_unsolicited_per_hour=acfg.get("max_unsolicited_per_hour", 6),
-        quiet_hours=(tuple(qh) if qh else None),
-    )
-
-    rcfg = cfg.get("runtime", {})
-    runtime = AmbientRuntime(
-        ash=ash,
-        periphery=periphery,
-        journal=Journal(),
-        gate=gate,
-        privacy=privacy,
-        config=AmbientConfig(
-            tick_seconds=rcfg.get("tick_seconds", 1.0),
-            sleep_after_idle_s=rcfg.get("sleep_after_idle_s", 1500),
-        ),
-        response_sink=build_response_sink(periphery,
-                                          prefer_speech=rcfg.get("speak_unprompted", False)),
-    )
-
-    # ---- face -----------------------------------------------------------
-    # Attached by wrapping the runtime's hooks, so the ambient loop has no
-    # knowledge of the face and a display failure cannot take it down.
-    fcfg = cfg.get("face", {})
-    if fcfg.get("enabled", True):
+        tts = None
         try:
-            from src.face import attach_to_daemon, build_face
+            from tools import TTSEngine
+            tts = TTSEngine(model_path="models/kokoro-v1.0.onnx",
+                            voices_path="models/voices-v1.0.bin")
+        except Exception as e:
+            logger.warning("TTS unavailable; speech actuator will be inert -- %s: %s",
+                          type(e).__name__, e, exc_info=args.verbose)
 
-            player = build_face(
-                width=int(fcfg.get("width", 128)),
-                height=int(fcfg.get("height", 64)),
-                driver=fcfg.get("driver"),
-                fps=int(fcfg.get("fps", 30)),
-                animations_dir=fcfg.get("animations_dir", "animations"),
-            )
-            player.start()
-            runtime.face = attach_to_daemon(runtime, player)
-            logger.info("Face: %d animation(s) on %s",
-                        len(player.library), type(player.driver).__name__)
-        except Exception:
-            logger.exception("Face subsystem failed to start -- continuing without it")
+        periphery = build_periphery(cfg, tts_engine=tts)
 
-    control = None
-    ccfg = cfg.get("control", {})
-    if ccfg.get("enabled", True) and not args.no_control:
-        control = ControlServer(runtime, ccfg.get("host", "127.0.0.1"),
-                                int(ccfg.get("port", 8787)))
+        if args.dry:
+            for a in periphery.actuators.values():
+                a.dry_run = True
+            logger.warning("--dry: every actuator forced to dry-run")
 
-    watchdog = Watchdog(runtime)
+        # Hardware inherits the brain's safety model here. Both bindings matter:
+        # the VLA binding is the veto path, the registry binding is the routing
+        # path. See ashd.py's module docstring.
+        from tools.registry import REGISTRY as TOOL_REGISTRY, ToolEntry  # noqa: E402
+        from src.brain import ActionClass  # noqa: E402
 
-    def shutdown():
-        try:
-            face = getattr(runtime, "face", None)
-            if face is not None:
-                face.on_shutdown()
-                face.player.shutdown(play_outro=True)
-        except Exception:
-            pass
-        try:
-            watchdog.stop()
-            if control:
-                control.stop()
-            runtime.stop()
-        finally:
+        periphery.bind_to_vla(ash.brain.vla, ActionClass)
+        n = periphery.bind_to_registry(TOOL_REGISTRY, ToolEntry)
+        logger.info("Exposed %d actuator(s) to the classifier", n)
+
+        print(periphery.report(), flush=True)
+
+        if args.check:
+            logger.info("--check: exiting after capability report")
             lock.release()
+            return 0
 
-    install_signal_handlers(shutdown)
+        # ---- runtime ---------------------------------------------------------
+        acfg = cfg.get("attention", {})
+        qh = acfg.get("quiet_hours")
+        gate = AttentionGate(
+            base_threshold=acfg.get("base_threshold", 0.62),
+            refractory_seconds=acfg.get("refractory_seconds", 180),
+            max_unsolicited_per_hour=acfg.get("max_unsolicited_per_hour", 6),
+            quiet_hours=(tuple(qh) if qh else None),
+        )
 
-    runtime.start()
-    if control:
-        control.start()
-    watchdog.start()
+        rcfg = cfg.get("runtime", {})
+        runtime = AmbientRuntime(
+            ash=ash,
+            periphery=periphery,
+            journal=Journal(),
+            gate=gate,
+            privacy=privacy,
+            config=AmbientConfig(
+                tick_seconds=rcfg.get("tick_seconds", 1.0),
+                sleep_after_idle_s=rcfg.get("sleep_after_idle_s", 1500),
+            ),
+            response_sink=build_response_sink(periphery,
+                                              prefer_speech=rcfg.get("speak_unprompted", False)),
+        )
 
-    if privacy.announce_on_start:
-        active = [s.name for s in periphery.active_sensors()]
-        logger.warning("ASH is now listening/observing via: %s", ", ".join(active) or "nothing")
+        # ---- face -----------------------------------------------------------
+        # Attached by wrapping the runtime's hooks, so the ambient loop has no
+        # knowledge of the face and a display failure cannot take it down.
+        fcfg = cfg.get("face", {})
+        if fcfg.get("enabled", True):
+            try:
+                from src.face import attach_to_daemon, build_face
 
-    logger.info("Daemon up. Ctrl-C to stop. Control: ashctl.py status")
+                player = build_face(
+                    width=int(fcfg.get("width", 128)),
+                    height=int(fcfg.get("height", 64)),
+                    driver=fcfg.get("driver"),
+                    fps=int(fcfg.get("fps", 30)),
+                    animations_dir=fcfg.get("animations_dir", "animations"),
+                )
+                player.start()
+                runtime.face = attach_to_daemon(runtime, player)
+                logger.info("Face: %d animation(s) on %s",
+                            len(player.library), type(player.driver).__name__)
+            except Exception:
+                logger.exception("Face subsystem failed to start -- continuing without it")
+
+        control = None
+        ccfg = cfg.get("control", {})
+        if ccfg.get("enabled", True) and not args.no_control:
+            control = ControlServer(runtime, ccfg.get("host", "127.0.0.1"),
+                                    int(ccfg.get("port", 8787)))
+
+        watchdog = Watchdog(runtime)
+
+        def shutdown():
+            try:
+                face = getattr(runtime, "face", None)
+                if face is not None:
+                    face.on_shutdown()
+                    face.player.shutdown(play_outro=True)
+            except Exception:
+                pass
+            try:
+                watchdog.stop()
+                if control:
+                    control.stop()
+                runtime.stop()
+            finally:
+                lock.release()
+
+        install_signal_handlers(shutdown)
+
+        runtime.start()
+        if control:
+            control.start()
+        watchdog.start()
+
+        if privacy.announce_on_start:
+            active = [s.name for s in periphery.active_sensors()]
+            logger.warning("ASH is now listening/observing via: %s", ", ".join(active) or "nothing")
+
+        logger.info("Daemon up. Ctrl-C to stop. Control: ashctl.py status")
+    except Exception:
+        logger.critical("ASH daemon failed to start -- see traceback below for "
+                        "exactly where and why", exc_info=True)
+        lock.release()
+        return 1
 
     try:
         while runtime.alive():

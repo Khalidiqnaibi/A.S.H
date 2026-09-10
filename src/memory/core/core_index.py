@@ -1,8 +1,12 @@
 # core_index.py
 
+import logging
+
 import numpy as np
 from typing import List
 from .core_model import CoreRule
+
+logger = logging.getLogger("ash.memory.core_index")
 
 
 class CoreIndex:
@@ -11,10 +15,21 @@ class CoreIndex:
         self.embedder = embedder
         self.vectors = []
         self.rules = []
+        if embedder is None:
+            logger.warning(
+                "CoreIndex: no embedding model available -- semantic search over "
+                "core memory is disabled for this run (falls back to exact/keyword "
+                "matching upstream in MemoryRouter). Check earlier logs for why the "
+                "embedder failed to load (e.g. no internet on first run, model not "
+                "cached locally)."
+            )
 
     def rebuild(self, rules: List[CoreRule]):
         self.rules = rules
         self.vectors = []
+
+        if self.embedder is None:
+            return
 
         for rule in rules:
             vec = self.embedder.encode(rule.text)
@@ -24,7 +39,7 @@ class CoreIndex:
             self.vectors = np.vstack(self.vectors)
 
     def search(self, query: str, top_k: int = 5):
-        if not self.rules:
+        if not self.rules or self.embedder is None:
             return []
 
         q_vec = self.embedder.encode(query)

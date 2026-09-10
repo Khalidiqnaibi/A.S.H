@@ -23,6 +23,15 @@ concentrating you usually want mute.
 import json
 import sys
 
+# Same rationale as ashd.py: a response containing an em dash or a narrow
+# no-break space (e.g. from date_time_tool) would otherwise raise
+# UnicodeEncodeError on a non-UTF-8 Windows console codepage.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except AttributeError:
+        pass
+
 sys.path.insert(0, __file__.rsplit("/", 1)[0] if "/" in __file__ else ".")
 
 from src.daemon.service import control_client  # noqa: E402
