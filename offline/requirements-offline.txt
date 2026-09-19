@@ -1,0 +1,51 @@
+# A.S.H -- offline (air-gapped) runtime requirements.
+#
+# This is requirements.txt minus everything that is never imported by the
+# runtime, and minus everything that only exists to reach the network.
+# Dropped vs requirements.txt:
+#   tensorflow, keras   -- not imported anywhere in the tree (~600 MB saved)
+#   pymongo             -- not imported anywhere
+#   eventlet            -- app.py runs socketio with async_mode='threading'
+#   hf_xet              -- accelerates Hub *downloads*; useless air-gapped
+#   pyttsx3, bs4        -- only used by utils/kio.py + utils/google.py, which
+#                          nothing in the runtime imports (bs4 is also a
+#                          web-scraping path that cannot work offline)
+#
+# torch is NOT listed here on purpose: the build script fetches the CPU-only
+# build from the PyTorch CPU index, which is ~200 MB instead of the ~2.4 GB
+# CUDA wheel that plain PyPI would hand you.
+#
+# kokoro-onnx is NOT listed here either -- see requirements-offline-nodeps.txt.
+
+# --- core runtime ---
+numpy==1.26.4
+requests
+python-dotenv
+langchain_core
+
+# --- embeddings / classification / NER ---
+sentence-transformers==2.6.1
+transformers==4.38.2
+spacy==3.8.11
+
+# --- web UI ---
+flask
+flask-socketio
+
+# --- audio in (app.py imports these at module scope -- not optional) ---
+SpeechRecognition
+pydub
+
+# --- local TTS: kokoro-onnx's own dependencies, listed explicitly ---
+# kokoro-onnx itself is installed with --no-deps; see the nodeps file.
+espeakng-loader>=0.2.4
+onnxruntime>=1.20.1
+phonemizer-fork>=3.3.2
+soundfile
+
+# --- file handlers ---
+PyPDF2
+Pillow
+
+# --- tool protocol ---
+mcp
