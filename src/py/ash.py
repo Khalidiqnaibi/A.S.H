@@ -39,6 +39,19 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+# A CUDA-enabled torch build (`+cuXXX`) probes the NVIDIA driver the moment
+# torch.cuda.is_available() is called -- which sentence-transformers and
+# transformers' pipeline() both do automatically to auto-pick a device. On a
+# machine with no GPU, or a driver that doesn't match the CUDA toolkit
+# version torch was built against, that probe can crash natively (Windows
+# STATUS_ACCESS_VIOLATION / 0xC0000005) -- a hardware-level fault no Python
+# try/except can catch, because it never reaches Python's exception
+# machinery. Telling CUDA there are zero visible devices skips the driver
+# probe entirely; ASH's models are small enough that CPU inference is fine.
+# Set ASH_USE_GPU=1 to opt back in on a machine with a known-good CUDA setup.
+if os.environ.get("ASH_USE_GPU", "0") != "1":
+    os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
+
 from tools import (
     file_info_tool,
     read_file_tool,

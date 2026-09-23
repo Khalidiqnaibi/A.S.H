@@ -82,7 +82,17 @@ class EmbeddingCatalog:
             return
         try:
             logger.info("Loading embedding model: %s", self.model_name)
-            self.model = SentenceTransformer(self.model_name)
+            # Explicit device= skips sentence-transformers' own
+            # torch.cuda.is_available() auto-detect entirely (see
+            # sentence_transformers.util.get_device_name -- it's only
+            # called when device is None). That auto-detect is what
+            # probes the NVIDIA driver, which can crash natively
+            # (STATUS_ACCESS_VIOLATION) on a machine with no GPU or a
+            # mismatched driver -- a hardware fault no try/except can
+            # catch. Passing "cpu" up front avoids the probe altogether;
+            # set ASH_USE_GPU=1 to opt back into auto-detection.
+            device = None if os.environ.get("ASH_USE_GPU", "0") == "1" else "cpu"
+            self.model = SentenceTransformer(self.model_name, device=device)
         except Exception as e:
             logger.exception("Failed to load embedding model: %s", e)
             self.model = None
