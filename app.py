@@ -23,6 +23,15 @@ from pydub import AudioSegment
 import os
 os.environ["PYTHONUTF8"] = "1"
 
+# os.environ["PYTHONUTF8"] only affects a re-exec, not this already-running
+# interpreter — reconfigure the streams directly so non-ASCII text (emoji,
+# em dashes, etc.) doesn't get mangled on Windows' default console codepage.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except AttributeError:
+        pass
+
 from tools import TTSEngine
 
 try:
