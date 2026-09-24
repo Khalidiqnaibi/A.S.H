@@ -18,7 +18,9 @@ if not logger.handlers:
 
 class TTSEngine:
     """Always-on Kokoro TTS engine."""
-    def __init__(self, model_path="models/kokoro-v0_19.onnx", voices_path="models/voices.json"):
+    # Defaults match what README setup downloads and what app.py passes; the
+    # old v0_19/voices.json pair was never fetched by any documented step.
+    def __init__(self, model_path="models/kokoro-v1.0.onnx", voices_path="models/voices-v1.0.bin"):
         """Initializes the always-on Kokoro TTS engine."""
         self.engine = None
         if not KOKORO_AVAILABLE:

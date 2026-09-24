@@ -1,0 +1,17 @@
+# Installed with --no-deps, deliberately.
+#
+# kokoro-onnx 0.5.0 declares `numpy>=2.0.2`, which makes pip's resolver reject
+# the whole requirement set, because the rest of the stack is pinned to the
+# numpy 1.26.4 that transformers 4.38.2 and sentence-transformers 2.6.1 are
+# known-good against. That declared floor is stricter than what the package
+# actually needs: kokoro-onnx 0.5.0 runs fine on numpy 1.26.4, which is the
+# combination the build machine has been running.
+#
+# So: install it without letting its metadata drag numpy 2 in. Its real runtime
+# dependencies (espeakng-loader, onnxruntime, phonemizer-fork) are listed
+# explicitly in requirements-offline.txt instead, so nothing is missing.
+#
+# If you later move the whole stack to numpy 2, delete this file and put
+# kokoro-onnx back in the main requirements.
+
+kokoro-onnx==0.5.0

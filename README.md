@@ -10,6 +10,46 @@ mkdir -p models
 curl -L -o models/kokoro-v1.0.onnx https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
 curl -L -o models/voices-v1.0.bin https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
 ```
+
+## LLM backend
+
+ASH picks its chat backend from `ASH_LLM_MODE`, and the default is **`ollama`** --
+fully local, nothing leaves the machine.
+
+| `ASH_LLM_MODE` | Needs network | Config |
+|---|---|---|
+| `ollama` (default) | no | `OLLAMA_URL` (default `http://127.0.0.1:11434/api/chat`), `OLLAMA_MODEL` (default `mistral:latest`) |
+| `openrouter` | yes | `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` |
+| `local` | to whatever you point it at | `MISTRAL_LOCAL_URL` |
+
+If the backend cannot be built -- no key, bad endpoint -- ASH logs a warning and
+runs without an LLM rather than refusing to import. The brain still routes,
+remembers and acts; it just stops narrating.
+
+Prefer a **non-reasoning** model. With `qwen3`/`deepseek-r1`, ASH's long system
+prompt plus chain-of-thought can consume the entire token budget and return
+empty content. `tools/LLM.py` detects that case, warns, and falls back to the
+reasoning text -- but `mistral:latest` simply works.
+
+## Air-gapped install
+
+`offline/` builds a flash drive that installs ASH on a machine with no network
+at all -- Python, Ollama, wheels, the LLM, the HuggingFace cache and the spaCy
+and TTS models, all bundled.
+
+``` powershell
+# on an ONLINE machine
+powershell -ExecutionPolicy Bypass -File offlineuild_usb.ps1 -Out D:\ASH_OFFLINE_KIT
+
+# rehearse it here first, with the network blocked
+powershell -ExecutionPolicy Bypass -File offline\simulate_airgap.ps1
+
+# copy the folder to the drive, then on the OFFLINE machine
+powershell -ExecutionPolicy Bypass -File E:\ASH_OFFLINE_KIT\scripts\install_offline.ps1
+```
+
+Full instructions, sizes and troubleshooting: [offline/OFFLINE_README.md](offline/OFFLINE_README.md).
+
 ---
 
 # Identity

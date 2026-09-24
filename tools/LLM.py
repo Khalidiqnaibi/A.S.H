@@ -1,5 +1,6 @@
 # LLM.py
 import os
+import re
 import json
 import requests
 from dotenv import load_dotenv
@@ -13,6 +14,15 @@ from langchain_core.messages import (
     SystemMessage,
 )
 from langchain_core.outputs import ChatGeneration, ChatResult
+
+_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+
+
+def _strip_think(text: str) -> str:
+    """Drop inline <think>...</think> blocks emitted by reasoning models."""
+    if not text:
+        return ""
+    return _THINK_RE.sub("", text)
 
 # Load env
 load_dotenv(override=False)
@@ -28,7 +38,7 @@ DEFAULT_LOCAL_URL = os.environ.get("MISTRAL_LOCAL_URL", "http://localhost:5005/c
 
 # Ollama defaults
 DEFAULT_OLLAMA_MODEL = os.environ.get("MISTRAL_OLLAMA_MODEL", "mistral:instruct")
-DEFAULT_OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:4444/api/chat")
+DEFAULT_OLLAMA_URL = os.environ.get("OLLAMA_URL") or "http://127.0.0.1:11434/api/chat"
 
 
 class LLM(BaseChatModel):
@@ -195,6 +205,9 @@ class LLM(BaseChatModel):
         payload = {
             "model": self._ollama_model,
             "messages": messages,
+            # Non-streaming: one JSON object back instead of an NDJSON stream.
+            # The line loop below still handles a stream if a proxy forces one.
+            "stream": False,
             "options": {
                 "temperature": float(self._temperature),
                 "num_predict": int(self._max_tokens),
@@ -202,22 +215,41 @@ class LLM(BaseChatModel):
         }
         try:
             r = requests.post(self._ollama_url, json=payload, timeout=self._timeout)
-            
+
             if r.status_code != 200:
                 print(f"[LLM ERROR] Ollama API returned status {r.status_code}: {r.text}")
                 print(f"[LLM] request shape: requests.post({self._ollama_url}, json={payload}, timeout={self._timeout})")
                 return f"[LLM] Ollama API Error: {r.status_code} - {r.text}"
 
             response_text = ""
+            thinking_text = ""
             for line in r.text.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
                 try:
                     data = json.loads(line)
-                    if "message" in data and "content" in data["message"]:
-                        response_text += data["message"]["content"]
                 except json.JSONDecodeError:
                     continue
+                msg = data.get("message") or {}
+                response_text += msg.get("content") or ""
+                # Reasoning models (qwen3, deepseek-r1, ...) put chain-of-thought
+                # in a separate field, or inline in <think> tags.
+                thinking_text += msg.get("thinking") or ""
 
-            return response_text.strip()
+            response_text = _strip_think(response_text).strip()
+
+            # A reasoning model that burned its whole num_predict budget on
+            # thinking returns empty content. Salvage the tail of the reasoning
+            # rather than handing the brain an empty string.
+            if not response_text and thinking_text:
+                print(
+                    "[LLM WARN] Ollama returned only reasoning tokens -- raise max_tokens "
+                    f"(currently {self._max_tokens}) or use a non-reasoning model."
+                )
+                response_text = _strip_think(thinking_text).strip()
+
+            return response_text
         except Exception as e:
             print(f"[LLM ERROR] Ollama request failed: {e}")
             return f"[LLM] Error calling Ollama API: {e}"

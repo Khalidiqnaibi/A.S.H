@@ -107,10 +107,47 @@ USER = "Immortal"
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL")
 
-OLLAMA_URL = os.getenv("OLLAMA_URL")
-OLLAMA_MODEL = "mistral:latest"
+# Offline-first defaults. ASH_LLM_MODE picks the backend; "ollama" means every
+# token is generated on this box and nothing leaves it. Set ASH_LLM_MODE=openrouter
+# only on a machine that actually has outbound network and a key.
+ASH_LLM_MODE = (os.getenv("ASH_LLM_MODE") or "ollama").strip().lower()
+
+OLLAMA_URL = (os.getenv("OLLAMA_URL") or "http://127.0.0.1:11434/api/chat").strip()
+OLLAMA_MODEL = (os.getenv("OLLAMA_MODEL") or "mistral:latest").strip()
 
 DEFAULT_LLM_TEMPERATURE = 0.9
+
+
+def build_llm(temperature: float = None, timeout: int = 180):
+    """Construct the chat backend named by ASH_LLM_MODE.
+
+    Never raises: a missing key or an unreachable endpoint degrades to None so
+    that importing this module still works on an air-gapped machine. The brain
+    runs without an LLM -- it just stops narrating.
+    """
+    temp = DEFAULT_LLM_TEMPERATURE if temperature is None else temperature
+    try:
+        if ASH_LLM_MODE == "openrouter":
+            return LLM(
+                mode="openrouter",
+                temperature=temp,
+                openrouter_key=OPENROUTER_API_KEY,
+                openrouter_model=OPENROUTER_MODEL,
+                timeout=timeout,
+            )
+        if ASH_LLM_MODE == "local":
+            return LLM(mode="local", temperature=temp, timeout=timeout)
+        # default: ollama
+        return LLM(
+            mode="ollama",
+            temperature=temp,
+            ollama_model=OLLAMA_MODEL,
+            ollama_url=OLLAMA_URL,
+            timeout=timeout,
+        )
+    except Exception as e:
+        _print_log(f"Warning: failed to instantiate LLM wrapper (mode={ASH_LLM_MODE}):", e)
+        return None
 
 # Vision is off by default -- flip ASH_ENABLE_VISION=1 to load the ViT
 # extractor and give the VLA channel real grounding.
@@ -176,20 +213,7 @@ class ASH:
 
         self.emotion_engine = EmotionEngine()
 
-        if llm is None:
-            try:
-                self.llm = LLM(
-                    mode="ollama",
-                    temperature=llm_temperature,
-                    ollama_model=OLLAMA_MODEL,
-                    ollama_url=OLLAMA_URL,
-                    timeout=180,
-                )
-            except Exception as e:
-                _print_log("Warning: failed to instantiate LLM wrapper:", e)
-                self.llm = None
-        else:
-            self.llm = llm
+        self.llm = build_llm(llm_temperature) if llm is None else llm
 
         # Determine the latent dimensionality from the actual encoder rather
         # than hardcoding 384 -- swapping ASH_EMBED_MODEL shouldn't break the
@@ -329,12 +353,7 @@ class ASH:
         return t.as_dict() if t is not None else {}
 
 
-llm = LLM(
-    temperature=DEFAULT_LLM_TEMPERATURE,
-    openrouter_key=OPENROUTER_API_KEY,
-    openrouter_model=OPENROUTER_MODEL,
-    timeout=180,
-)
+llm = build_llm()
 ash = ASH(llm=llm)
 
 # Maintenance / sleep phase. Now also drives brain consolidation: replay
