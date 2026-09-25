@@ -14,6 +14,15 @@ import pickle
 import logging
 import dotenv
 
+# MUST run before importing sentence_transformers/transformers below.
+# huggingface_hub reads HF_HUB_OFFLINE/TRANSFORMERS_OFFLINE into a frozen
+# module-level constant (see huggingface_hub/constants.py) the instant it's
+# first imported -- and sentence_transformers imports it transitively. A
+# .env setting HF_HUB_OFFLINE=1 loaded AFTER that point is silently too
+# late: os.environ gets updated, but huggingface_hub already locked in
+# False, so it retries the network (and hangs for ~60s doing 5 backoff
+# retries) on an air-gapped machine regardless of what .env says.
+dotenv.load_dotenv()
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -28,7 +37,6 @@ except Exception as e:
     print("[CLASSIFY] transformers pipeline not available:", e, file=sys.stderr, flush=True)
 
 # config
-dotenv.load_dotenv()
 
 BASE_PATH = os.environ.get("ASH_AI_BASE", os.path.join(os.getcwd(), ".\data"))
 INTENTS_FILE = os.path.join(BASE_PATH, "intents.json")
