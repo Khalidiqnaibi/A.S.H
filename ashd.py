@@ -49,17 +49,21 @@ import time
 # Windows' default console codepage (e.g. cp1256, cp1252 -- whatever the
 # system locale is) can't encode plenty of ordinary text this daemon prints:
 # an em dash in a narrated response, the narrow no-break space
-# date_time_tool puts before AM/PM, etc. Unguarded, every such print() raises
-# UnicodeEncodeError. The ambient loop already catches that around the
-# response sink (see AmbientRuntime._respond), so it doesn't crash the
-# daemon -- but it does mean ASH silently never actually says anything,
-# every single time, which looks indistinguishable from "stopped working."
-# Reconfigure early, before any print() call has a chance to run.
-for _stream in (sys.stdout, sys.stderr):
+# date_time_tool puts before AM/PM, etc. A naive sys.stdout.reconfigure(
+# encoding="utf-8") "fixes" that but was found (on a real air-gapped
+# machine) to crash sentence-transformers' import outright -- some native
+# extension in that chain (huggingface_hub's download progress code, or
+# hf_xet) touches the reconfigured stream in a way it doesn't handle. So
+# instead of touching the stream globally, _safe_print() below catches the
+# UnicodeEncodeError at the one or two print() call sites that actually
+# need it, leaving sys.stdout/stderr completely untouched for everything
+# else that imports during startup.
+def _safe_print(text: str, **kwargs):
     try:
-        _stream.reconfigure(encoding="utf-8", errors="replace")
-    except AttributeError:
-        pass
+        print(text, **kwargs)
+    except UnicodeEncodeError:
+        enc = getattr(sys.stdout, "encoding", None) or "ascii"
+        print(text.encode(enc, errors="replace").decode(enc, errors="replace"), **kwargs)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -100,7 +104,7 @@ def build_response_sink(periphery, prefer_speech: bool = True):
 
         tag = "ANSWER" if addressed else "REMARK"
         logger.info("[%s via %s] %s", tag, ",".join(delivered) or "log", text[:300])
-        print(f"\nASH ({tag.lower()}): {text}\n", flush=True)
+        _safe_print(f"\nASH ({tag.lower()}): {text}\n", flush=True)
 
     return sink
 

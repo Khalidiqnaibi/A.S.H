@@ -23,14 +23,19 @@ concentrating you usually want mute.
 import json
 import sys
 
-# Same rationale as ashd.py: a response containing an em dash or a narrow
-# no-break space (e.g. from date_time_tool) would otherwise raise
-# UnicodeEncodeError on a non-UTF-8 Windows console codepage.
-for _stream in (sys.stdout, sys.stderr):
+# A response containing an em dash or a narrow no-break space (e.g. from
+# date_time_tool) can raise UnicodeEncodeError on a non-UTF-8 Windows
+# console codepage. A global sys.stdout.reconfigure() "fixed" that but was
+# found (on a real air-gapped machine, in ashd.py's own process) to crash
+# an unrelated native library's import outright -- so instead of touching
+# the stream globally, _safe_print() below catches it only where printed
+# text is actually shown, at these two call sites.
+def _safe_print(text: str, **kwargs):
     try:
-        _stream.reconfigure(encoding="utf-8", errors="replace")
-    except AttributeError:
-        pass
+        print(text, **kwargs)
+    except UnicodeEncodeError:
+        enc = getattr(sys.stdout, "encoding", None) or "ascii"
+        print(text.encode(enc, errors="replace").decode(enc, errors="replace"), **kwargs)
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0] if "/" in __file__ else ".")
 
@@ -53,9 +58,9 @@ def main() -> int:
         return 1
 
     if "report" in reply and isinstance(reply["report"], str):
-        print(reply["report"])
+        _safe_print(reply["report"])
     elif "text" in reply:
-        print(reply["text"])
+        _safe_print(reply["text"])
     else:
         print(json.dumps(reply, indent=2, default=str))
     return 0 if reply.get("ok") else 1
