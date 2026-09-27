@@ -13,8 +13,9 @@ with whether the cognition is still running on day 40:
     the camera, close serial ports. A killed daemon that leaves a locked
     /dev/ttyUSB0 behind is a daemon you stop trusting.
   * CONTROL SOCKET. A loopback-only line protocol on 127.0.0.1 for `status`,
-    `pause`, `mute`, `say`, `sleep`. This is how you talk to a headless
-    always-on process without wiring a whole UI, and how `ashctl` works.
+    `pause`, `mute`, `say`, `sleep`, `simulate`. This is how you talk to a
+    headless always-on process without wiring a whole UI, and how `ashctl`
+    works.
   * WATCHDOG. If the ambient loop stalls past its threshold, restart it in
     place rather than sitting silently dead.
   * CONFIG. One JSON file, hot-reloadable, with every peripheral off by
@@ -255,6 +256,8 @@ class ControlServer:
         if cmd == "say":
             resp = rt.ash.think(arg)
             return {"ok": True, "text": resp.text, "pathway": resp.pathway.value}
+        if cmd == "simulate":
+            return self._simulate(arg)
         if cmd == "why":
             return {"ok": True, "trace": rt.ash.explain_last()}
         if cmd == "sleep":
@@ -284,7 +287,96 @@ class ControlServer:
         return {"ok": False, "error": f"unknown command {cmd!r}",
                 "commands": ["status", "pause", "resume", "mute", "unmute", "say",
                              "why", "sleep", "rollup", "sensors", "face",
-                             "enable", "disable", "shutdown"]}
+                             "enable", "disable", "simulate", "shutdown"]}
+
+    # ------------------------------------------------------------------
+    def _simulate(self, arg: str) -> Dict[str, Any]:
+        """Inject a synthetic SensorEvent as if a real sensor produced it,
+        through the exact same AttentionGate/journal/response path real
+        events take -- rt.submit() is the one entry point every real sensor
+        also uses. This exercises routing (addressed detection, salience,
+        urgency, observe-vs-respond) without needing real hardware or a
+        quiet room. Presets below mirror each real sensor's own numbers
+        (see src/senses/mic.py, devices.py) so a simulated event scores the
+        same way a real one from that sensor would.
+
+        Syntax: simulate <type> <text...>
+          mic <text>             -- addressed detection via the same
+                                     is_addressed() real mic.py uses
+          active_window <text>   -- ambient text observation
+          idle <seconds>         -- idle-duration telemetry
+          battery_low / battery_critical / cpu_high -- canned system alerts,
+                                     for testing urgency-driven escalation
+                                     without draining a real battery
+          <anything else> <text> -- generic ambient default
+
+        Result is submitted async (queued, processed on the next tick, same
+        as a real sensor) -- follow up with `why` or `status` a moment
+        later to see the attention decision and (if it escalated) the
+        response.
+        """
+        from src.senses.base import Modality, SensorEvent
+
+        parts = arg.split(" ", 1)
+        kind = (parts[0] if parts else "").strip().lower()
+        text = parts[1] if len(parts) > 1 else ""
+        if not kind:
+            return {"ok": False, "error": "usage: simulate <type> <text...>"}
+
+        if kind == "mic":
+            from src.senses.mic import MicrophoneSensor
+            addressed = MicrophoneSensor.is_addressed(text)
+            ev = SensorEvent(
+                source="sim:mic", modality=Modality.TEXT, text=text,
+                salience=0.85 if addressed else 0.55,
+                urgency=0.6 if addressed else 0.0,
+                addressed=addressed,
+                meta={"simulated": True},
+            )
+        elif kind == "active_window":
+            ev = SensorEvent(
+                source="sim:active_window", modality=Modality.TEXT, text=text,
+                salience=0.35, urgency=0.0, meta={"simulated": True},
+            )
+        elif kind == "idle":
+            try:
+                seconds = float(text or "0")
+            except ValueError:
+                seconds = 0.0
+            ev = SensorEvent(
+                source="sim:idle", modality=Modality.TELEMETRY,
+                text=f"idle for {seconds:.0f}s",
+                salience=0.2, urgency=0.0,
+                meta={"simulated": True, "seconds": seconds},
+            )
+        elif kind in ("battery_low", "battery_critical", "cpu_high"):
+            presets = {
+                # (salience, urgency, text) -- matches devices.py's own
+                # SystemSensor numbers for the same conditions.
+                "battery_low": (0.6, 0.55, text or "battery low"),
+                "battery_critical": (0.9, 0.95, text or "battery critical"),
+                "cpu_high": (0.5, 0.25, text or "high cpu usage"),
+            }
+            sal, urg, msg = presets[kind]
+            ev = SensorEvent(
+                source="sim:system", modality=Modality.TELEMETRY, text=msg,
+                salience=sal, urgency=urg, meta={"simulated": True, "kind": kind},
+            )
+        else:
+            ev = SensorEvent(
+                source=f"sim:{kind}", modality=Modality.TEXT, text=text,
+                salience=0.3, urgency=0.0, meta={"simulated": True},
+            )
+
+        self.runtime.submit(ev)
+        return {
+            "ok": True,
+            "submitted": {
+                "source": ev.source, "text": ev.text, "addressed": ev.addressed,
+                "salience": ev.salience, "urgency": ev.urgency,
+            },
+            "note": "queued -- run `why` or `status` in a moment to see the outcome",
+        }
 
 
 def control_client(cmd: str, host: str = "127.0.0.1", port: int = 8787,

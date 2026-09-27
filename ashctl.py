@@ -14,10 +14,26 @@ ashctl.py -- talk to a running ASH daemon.
     python ashctl.py rollup                # force journal -> episodic memory
     python ashctl.py shutdown
 
+    python ashctl.py simulate mic hey ash what time is it
+    python ashctl.py simulate active_window switched to Notepad
+    python ashctl.py simulate idle 120
+    python ashctl.py simulate battery_critical
+    python ashctl.py simulate battery_low
+    python ashctl.py simulate cpu_high
+
 `pause` and `mute` are different on purpose: pause stops *perceiving*
 (microphone, camera, screen), mute stops *speaking* while continuing to
 observe and remember. In a meeting you usually want pause; while
 concentrating you usually want mute.
+
+`simulate` injects a synthetic sensor event through the exact same
+AttentionGate/journal/response path a real sensor's event takes -- no
+hardware, no quiet room, no draining a real battery required. `mic` runs
+through the same addressed-detection heuristic real speech does; the
+system presets (battery_low/battery_critical/cpu_high) match the real
+salience/urgency numbers src/senses/devices.py uses for those conditions.
+It's injected async (queued for the next tick, same as real sensors) --
+follow up with `why` or `status` a moment later to see what happened.
 """
 
 import json
