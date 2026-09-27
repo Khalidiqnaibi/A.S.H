@@ -65,7 +65,23 @@ class NotifyActuator(Actuator):
         if backend == "win":
             try:
                 import ctypes
-                ctypes.windll.user32.MessageBoxW(0, text[:500], title, 0x40 | 0x1000)
+                import threading
+                # MessageBoxW is a *blocking* call -- it does not return
+                # until a human clicks OK. Calling it synchronously here
+                # would freeze whichever thread called notify(), which for
+                # the daemon is the ambient loop's own thread (no thread is
+                # spawned per response -- see AmbientRuntime._respond). Text
+                # mistaken for a legitimate reply (e.g. a raw LLM provider
+                # error string that slipped past the guard in
+                # src/brain/system2.py) would then hang the *entire* daemon
+                # until someone happened to be there to click OK, which on
+                # an unattended box can be indefinitely. Fire it on its own
+                # daemon thread so notify() always returns immediately.
+                threading.Thread(
+                    target=lambda: ctypes.windll.user32.MessageBoxW(
+                        0, text[:500], title, 0x40 | 0x1000),
+                    daemon=True,
+                ).start()
                 return {"ok": True, "result": "notification shown"}
             except Exception as e:
                 return {"ok": False, "error": str(e)}

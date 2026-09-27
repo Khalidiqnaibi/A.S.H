@@ -207,6 +207,25 @@ class System2Deliberator:
 
         return self._call_llm("\n".join(parts), system=system_content)
 
+    # tools/LLM.py never raises on a provider/network failure -- it catches
+    # the exception itself and returns the error as plain string content
+    # (e.g. "[LLM] Error calling Ollama API: ...timed out..."), so a failed
+    # call is indistinguishable from a real reply unless checked for by
+    # prefix. Left unchecked, that string becomes `narrate()`'s return
+    # value, then response.text, then gets handed to notify()/speak() as
+    # if ASH had genuinely said it -- on Windows, notify's MessageBoxW is a
+    # BLOCKING call, and _respond() runs on the ambient loop's own thread
+    # (no thread spawned per response), so this froze the entire daemon
+    # until a human clicked OK, over and over, once per timed-out call.
+    _LLM_ERROR_PREFIXES = (
+        "[LLM]", "Error calling", "Error from LLM provider:",
+        "API Error:", "Error:",
+    )
+
+    @classmethod
+    def _is_llm_error(cls, text: str) -> bool:
+        return isinstance(text, str) and text.strip().startswith(cls._LLM_ERROR_PREFIXES)
+
     # ------------------------------------------------------------------
     def _call_llm(self, human: str, system: str = "") -> str:
         """Tolerant invocation across the wrapper shapes ASH's LLM class and
@@ -227,14 +246,22 @@ class System2Deliberator:
             try:
                 resp = fn(messages)
                 if isinstance(resp, tuple):
-                    return str(resp[0])
-                return getattr(resp, "content", None) or str(resp)
+                    text = str(resp[0])
+                else:
+                    text = getattr(resp, "content", None) or str(resp)
+                if self._is_llm_error(text):
+                    logger.warning("LLM.%s returned a provider error, not a reply: %s", attr, text)
+                    continue
+                return text
             except Exception as e:
                 logger.debug("LLM.%s failed: %s", attr, e)
 
         try:
             if callable(self.llm):
-                return str(self.llm(human))
+                text = str(self.llm(human))
+                if not self._is_llm_error(text):
+                    return text
+                logger.warning("LLM callable returned a provider error, not a reply: %s", text)
         except Exception:
             logger.exception("LLM callable failed")
         return ""
