@@ -229,10 +229,18 @@ class MicrophoneSensor(Sensor):
         duration = len(audio) / SAMPLE_RATE
         text = self.transcribe(audio)
         if not text:
+            # Very frequent with the energy-VAD fallback (no webrtcvad) --
+            # noise/room tone clears the level gate but transcribes to
+            # nothing. debug, not info, or this drowns the log.
+            logger.debug("Mic: %.2fs clip transcribed empty (discarded)", duration)
             return
 
         addressed = self.is_addressed(text)
         self._speech_seen += 1
+        # The only place the actual words ASH heard are visible anywhere --
+        # without this, "did it hear me, and what did it think I said" is
+        # unanswerable from the logs alone.
+        logger.info("Mic transcript (%.2fs, addressed=%s): %r", duration, addressed, text)
 
         event = SensorEvent(
             source=self.name, modality=Modality.TEXT,
