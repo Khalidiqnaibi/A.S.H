@@ -258,7 +258,20 @@ class System2Deliberator:
 
         try:
             if callable(self.llm):
-                text = str(self.llm(human))
+                # Bug: this used to pass the raw `human` string instead of
+                # `messages` (built above). BaseChatModel.__call__ expects a
+                # list of BaseMessage -- handed a plain string, it iterates
+                # character by character, and each single-character "message"
+                # then fails message.content with AttributeError deep inside
+                # langchain's tracing code. Passing `messages` also means the
+                # response needs the same .content extraction the loop above
+                # already does -- str()'ing a BaseMessage directly gives its
+                # repr ("AIMessage(content='...')"), not the actual text.
+                resp = self.llm(messages)
+                if isinstance(resp, tuple):
+                    text = str(resp[0])
+                else:
+                    text = getattr(resp, "content", None) or str(resp)
                 if not self._is_llm_error(text):
                     return text
                 logger.warning("LLM callable returned a provider error, not a reply: %s", text)
