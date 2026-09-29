@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<!--
+  decision_explorer.html -- A.S.H decision path visualizer.
+
+  Single file, zero dependencies, opens with a double click (or drag a
+  history JSON onto it). Reads the JSON that `ashctl.py history-export`
+  writes, i.e. a list of BrainTrace.as_dict() records
+  (src/brain/signals.py). Purely a viewer -- it does not talk to the
+  daemon and does not need it running.
+
+  Get data into it:
+    python ashctl.py history-export decisions.json
+  then open this file and load decisions.json (drag it in, or use the
+  file picker). Data is local -- nothing here is uploaded anywhere.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>A.S.H Decision Explorer</title>
+<style>
+  :root {
+    --bg:#0d1117; --panel:#161b22; --line:#30363d; --ink:#e6edf3;
+    --dim:#8b949e; --accent:#00c8ff; --warn:#f78166; --ok:#3fb950;
+    --reflex:#3fb950; --fast:#58a6ff; --slow:#d29922; --observe:#8b949e;
+    --escalated:#f78166; --veto:#f85149;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--ink);
+    font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    display:grid; grid-template-columns:360px 1fr; grid-template-rows:auto 1fr;
+    height:100vh; gap:1px;
+  }
+  header {
+    grid-column:1/-1; background:var(--panel); padding:8px 14px;
+    border-bottom:1px solid var(--line); display:flex; gap:8px; align-items:center;
+    flex-wrap:wrap;
+  }
+  header h1 { font-size:13px; margin:0 12px 0 0; letter-spacing:.08em; color:var(--accent); }
+  button, select, input[type=text], input[type=file] {
+    background:#21262d; color:var(--ink); border:1px solid var(--line);
+    border-radius:5px; padding:4px 9px; font:inherit; cursor:pointer;
+  }
+  button:hover { border-color:var(--accent); }
+  button.primary { background:var(--accent); color:#04121a; font-weight:600; border-color:var(--accent); }
+  #stats { color:var(--dim); font-size:11px; margin-left:auto; }
+  #list { background:var(--panel); overflow-y:auto; border-right:1px solid var(--line); }
+  #detail { overflow-y:auto; padding:16px 20px; }
+  .row { padding:9px 12px; border-bottom:1px solid var(--line); cursor:pointer;
+         display:flex; flex-direction:column; gap:3px; }
+  .row:hover { background:#1c2129; }
+  .row.sel { background:#1c2733; border-left:3px solid var(--accent); padding-left:9px; }
+  .row .top { display:flex; align-items:center; gap:6px; }
+  .row .q { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .row .meta { color:var(--dim); font-size:11px; }
+  .badge { font-size:10px; text-transform:uppercase; letter-spacing:.05em;
+           padding:1px 6px; border-radius:3px; font-weight:600; flex:none; }
+  .badge.reflex { background:#0d2b13; color:var(--reflex); }
+  .badge.fast { background:#0d1f33; color:var(--fast); }
+  .badge.slow { background:#332707; color:var(--slow); }
+  .badge.observe { background:#1c2129; color:var(--observe); }
+  .badge.escalated { background:#331a10; color:var(--escalated); }
+  h2 { font-size:14px; margin:0 0 4px; color:var(--ink); }
+  h3 { font-size:11px; text-transform:uppercase; letter-spacing:.1em;
+       color:var(--dim); margin:18px 0 8px; border-bottom:1px solid var(--line);
+       padding-bottom:4px; }
+  h3:first-of-type { margin-top:4px; }
+  .hint { color:var(--dim); font-size:12px; }
+  .empty { padding:40px 20px; color:var(--dim); text-align:center; }
+  .empty.drag { border:2px dashed var(--line); margin:20px; border-radius:8px; }
+  table { border-collapse:collapse; width:100%; font-size:12px; }
+  td, th { padding:4px 8px; border-bottom:1px solid var(--line); text-align:left; }
+  th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase; }
+  .bar-wrap { position:relative; background:#0d1117; border-radius:3px; height:16px;
+              width:120px; overflow:hidden; border:1px solid var(--line); }
+  .bar { position:absolute; top:0; bottom:0; }
+  .bar.pos { background:var(--ok); left:50%; }
+  .bar.neg { background:var(--veto); right:50%; }
+  .num { font-variant-numeric:tabular-nums; text-align:right; }
+  .pill { display:inline-block; padding:1px 7px; border-radius:9px; font-size:11px;
+          background:#21262d; border:1px solid var(--line); margin:2px 4px 2px 0; }
+  .pill.veto { border-color:var(--veto); color:var(--veto); }
+  .pill.chosen { border-color:var(--ok); color:var(--ok); }
+  pre { background:#0d1117; border:1px solid var(--line); border-radius:5px;
+        padding:10px; font-size:11px; overflow-x:auto; white-space:pre-wrap; word-break:break-word; }
+  .notes li { margin:3px 0; color:var(--ink); }
+  .kv { display:grid; grid-template-columns:140px 1fr; gap:4px 10px; font-size:12px; }
+  .kv div.k { color:var(--dim); }
+  #timings { display:flex; gap:2px; height:22px; margin:6px 0; border-radius:3px; overflow:hidden; }
+  .tseg { background:var(--fast); position:relative; }
+  .tseg:nth-child(odd) { filter:brightness(1.25); }
+  .tseg .tip { position:absolute; inset:0; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>A.S.H DECISION EXPLORER</h1>
+  <input id="file" type="file" accept="application/json">
+  <button id="clear">Clear</button>
+  <select id="filter">
+    <option value="">All pathways</option>
+    <option value="reflex">reflex</option>
+    <option value="fast">fast</option>
+    <option value="slow">slow</option>
+    <option value="observe">observe</option>
+    <option value="escalated">escalated</option>
+  </select>
+  <div id="stats">no data loaded</div>
+</header>
+
+<div id="list"></div>
+<div id="detail"><div class="empty drag" id="dropzone">
+  Drag a <code>history-export</code> JSON file here, or use the file picker above.<br><br>
+  <span class="hint">python ashctl.py history-export decisions.json</span>
+</div></div>
+
+<script>
+let traces = [];
+let selected = -1;
+
+function pathwayClass(p) {
+  p = (p || "").toLowerCase();
+  if (["reflex","fast","slow","observe","escalated"].includes(p)) return p;
+  return "observe";
+}
+
+function fmtTime(ts) {
+  if (!ts) return "?";
+  const d = new Date(ts * 1000);
+  return d.toLocaleTimeString() + "." + String(d.getMilliseconds()).padStart(3,"0");
+}
+
+function loadTraces(data) {
+  if (!Array.isArray(data)) data = [data];
+  traces = data;
+  selected = traces.length ? traces.length - 1 : -1;
+  render();
+}
+
+document.getElementById("file").addEventListener("change", (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try { loadTraces(JSON.parse(reader.result)); }
+    catch (err) { alert("Could not parse JSON: " + err.message); }
+  };
+  reader.readAsText(f);
+});
+
+document.getElementById("clear").addEventListener("click", () => { loadTraces([]); });
+document.getElementById("filter").addEventListener("change", renderList);
+
+for (const ev of ["dragover", "drop"]) {
+  document.body.addEventListener(ev, (e) => e.preventDefault());
+}
+document.body.addEventListener("drop", (e) => {
+  const f = e.dataTransfer.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try { loadTraces(JSON.parse(reader.result)); }
+    catch (err) { alert("Could not parse JSON: " + err.message); }
+  };
+  reader.readAsText(f);
+});
+
+function render() {
+  renderList();
+  renderDetail();
+  const stats = document.getElementById("stats");
+  if (!traces.length) { stats.textContent = "no data loaded"; return; }
+  const counts = {};
+  for (const t of traces) counts[t.pathway] = (counts[t.pathway] || 0) + 1;
+  stats.textContent = `${traces.length} decisions — ` +
+    Object.entries(counts).map(([k,v]) => `${k}:${v}`).join(" ");
+}
+
+function renderList() {
+  const list = document.getElementById("list");
+  const filter = document.getElementById("filter").value;
+  list.innerHTML = "";
+  if (!traces.length) {
+    list.innerHTML = '<div class="empty">Nothing loaded yet.</div>';
+    return;
+  }
+  // Most recent first.
+  for (let i = traces.length - 1; i >= 0; i--) {
+    const t = traces[i];
+    if (filter && pathwayClass(t.pathway) !== filter) continue;
+    const row = document.createElement("div");
+    row.className = "row" + (i === selected ? " sel" : "");
+    const veto = (t.verdict && t.verdict.vetoed_by && t.verdict.vetoed_by.length) ? " ⛔" : "";
+    row.innerHTML = `
+      <div class="top">
+        <span class="badge ${pathwayClass(t.pathway)}">${t.pathway || "?"}</span>
+        <span class="q">${escapeHtml(t.query || "(no query)")}${veto}</span>
+      </div>
+      <div class="meta">${fmtTime(t.ts)} · ${(t.timings_ms && t.timings_ms.total ? t.timings_ms.total.toFixed(0) + "ms" : "?")}</div>
+    `;
+    row.addEventListener("click", () => { selected = i; render(); });
+    list.appendChild(row);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;",
+  }[c]));
+}
+
+function renderDetail() {
+  const detail = document.getElementById("detail");
+  if (selected < 0 || !traces[selected]) {
+    detail.innerHTML = `<div class="empty drag" id="dropzone">
+      Drag a <code>history-export</code> JSON file here, or use the file picker above.<br><br>
+      <span class="hint">python ashctl.py history-export decisions.json</span>
+    </div>`;
+    return;
+  }
+  const t = traces[selected];
+  const v = t.verdict || {};
+  const votes = v.votes || [];
+
+  let html = "";
+  html += `<h2>${escapeHtml(t.query || "(no query)")}</h2>`;
+  html += `<div class="hint">${fmtTime(t.ts)} — pathway `
+        + `<span class="badge ${pathwayClass(t.pathway)}">${t.pathway || "?"}</span>`
+        + (t.escalated_from ? ` (escalated from ${escapeHtml(t.escalated_from)})` : "")
+        + `</div>`;
+
+  html += `<h3>Timings</h3>`;
+  const timings = t.timings_ms || {};
+  const total = timings.total || Object.values(timings).reduce((a,b) => a + b, 0) || 1;
+  html += `<div id="timings">`;
+  const palette = ["#58a6ff","#d29922","#3fb950","#f78166","#a371f7","#00c8ff"];
+  let ci = 0;
+  for (const [k, ms] of Object.entries(timings)) {
+    if (k === "total") continue;
+    const pct = Math.max(1, (ms / total) * 100);
+    html += `<div class="tseg" style="width:${pct}%;background:${palette[ci++ % palette.length]}" title="${k}: ${ms.toFixed(1)}ms"></div>`;
+  }
+  html += `</div>`;
+  html += `<div class="kv">`;
+  for (const [k, ms] of Object.entries(timings)) {
+    html += `<div class="k">${k}</div><div class="num">${ms.toFixed(2)} ms</div>`;
+  }
+  html += `</div>`;
+
+  html += `<h3>Verdict</h3>`;
+  html += `<div class="kv">`;
+  html += `<div class="k">score</div><div>${v.score !== undefined ? v.score : "?"}</div>`;
+  html += `<div class="k">margin</div><div>${v.margin !== undefined ? v.margin : "?"} ${v.deadlocked ? "(deadlocked)" : ""}</div>`;
+  html += `</div>`;
+  if (v.vetoed_by && v.vetoed_by.length) {
+    html += `<div style="margin-top:8px">` + v.vetoed_by.map(m => `<span class="pill veto">vetoed by ${escapeHtml(m)}</span>`).join("") + `</div>`;
+  }
+  if (v.escalation_reasons && v.escalation_reasons.length) {
+    html += `<div style="margin-top:8px"><span class="hint">escalation reasons:</span> ` +
+            v.escalation_reasons.map(escapeHtml).join(", ") + `</div>`;
+  }
+  if (v.chosen) {
+    html += `<div style="margin-top:8px"><span class="pill chosen">chosen: ${escapeHtml(v.chosen.tool_name || v.chosen.intent || "conversation")}</span></div>`;
+  }
+
+  if (votes.length) {
+    html += `<h3>Board Vote</h3>`;
+    html += `<table><thead><tr><th>Member</th><th>Support</th><th>Confidence</th><th>Veto</th><th>Reason</th></tr></thead><tbody>`;
+    for (const vt of votes) {
+      const supPct = Math.abs(vt.support || 0) * 50;
+      const bar = vt.support >= 0
+        ? `<div class="bar pos" style="width:${supPct}%"></div>`
+        : `<div class="bar neg" style="width:${supPct}%"></div>`;
+      html += `<tr>
+        <td>${escapeHtml(vt.member)}</td>
+        <td><div class="bar-wrap">${bar}</div></td>
+        <td class="num">${(vt.confidence !== undefined ? vt.confidence : "")}</td>
+        <td>${vt.veto ? (vt.absolute ? "⛔ absolute" : "⛔") : ""}</td>
+        <td class="hint">${escapeHtml(vt.reason || "")}</td>
+      </tr>`;
+    }
+    html += `</tbody></table>`;
+  }
+
+  const proposals = t.proposals || [];
+  if (proposals.length) {
+    html += `<h3>Proposals Considered (${proposals.length})</h3>`;
+    html += `<table><thead><tr><th>Origin</th><th>Intent</th><th>Confidence</th><th>Value</th><th>Rationale</th></tr></thead><tbody>`;
+    for (const p of proposals) {
+      html += `<tr>
+        <td>${escapeHtml(p.origin || "")}</td>
+        <td>${escapeHtml(p.intent || p.tool_name || "(conversation)")}</td>
+        <td class="num">${p.confidence !== undefined ? p.confidence.toFixed(2) : ""}</td>
+        <td class="num">${p.value !== undefined ? p.value.toFixed(2) : ""}</td>
+        <td class="hint">${escapeHtml(p.rationale || "")}</td>
+      </tr>`;
+    }
+    html += `</tbody></table>`;
+  }
+
+  if (t.drives && Object.keys(t.drives).length) {
+    html += `<h3>Drives</h3><div class="kv">`;
+    for (const [k, val] of Object.entries(t.drives)) {
+      html += `<div class="k">${escapeHtml(k)}</div><div>${typeof val === "number" ? val.toFixed(3) : escapeHtml(String(val))}</div>`;
+    }
+    html += `</div>`;
+  }
+
+  if (t.prediction && Object.keys(t.prediction).length) {
+    html += `<h3>Prediction</h3><pre>${escapeHtml(JSON.stringify(t.prediction, null, 2))}</pre>`;
+  }
+
+  if (t.notes && t.notes.length) {
+    html += `<h3>Notes</h3><ul class="notes">` + t.notes.map(n => `<li>${escapeHtml(n)}</li>`).join("") + `</ul>`;
+  }
+
+  if (t.tool_output !== undefined && t.tool_output !== null) {
+    html += `<h3>Tool Output</h3><pre>${escapeHtml(typeof t.tool_output === "string" ? t.tool_output : JSON.stringify(t.tool_output, null, 2))}</pre>`;
+  }
+
+  if (t.memory_hits) {
+    html += `<h3>Memory</h3><div class="hint">${t.memory_hits} memory hit(s) surfaced during retrieval</div>`;
+  }
+
+  detail.innerHTML = html;
+}
+
+render();
+</script>
+</body>
+</html>

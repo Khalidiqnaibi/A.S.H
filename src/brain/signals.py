@@ -271,6 +271,7 @@ class BrainTrace:
     exposed via Brain.last_trace for debugging / UI."""
 
     query: str = ""
+    ts: float = field(default_factory=time.time)
     pathway: Pathway = Pathway.SLOW
     percepts: Dict[str, Any] = field(default_factory=dict)
     drives: Dict[str, float] = field(default_factory=dict)

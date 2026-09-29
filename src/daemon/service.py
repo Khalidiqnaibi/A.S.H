@@ -260,6 +260,12 @@ class ControlServer:
             return self._simulate(arg)
         if cmd == "why":
             return {"ok": True, "trace": rt.ash.explain_last()}
+        if cmd == "history":
+            try:
+                n = int(arg) if arg.strip() else 50
+            except ValueError:
+                n = 50
+            return {"ok": True, "history": rt.ash.explain_history(n)}
         if cmd == "sleep":
             return {"ok": True, "report": rt._sleep_phase()}
         if cmd == "rollup":
@@ -286,7 +292,7 @@ class ControlServer:
             return {"ok": True, "stopping": True}
         return {"ok": False, "error": f"unknown command {cmd!r}",
                 "commands": ["status", "pause", "resume", "mute", "unmute", "say",
-                             "why", "sleep", "rollup", "sensors", "face",
+                             "why", "history", "sleep", "rollup", "sensors", "face",
                              "enable", "disable", "simulate", "shutdown"]}
 
     # ------------------------------------------------------------------

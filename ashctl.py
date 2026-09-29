@@ -12,6 +12,10 @@ ashctl.py -- talk to a running ASH daemon.
     python ashctl.py disable screenshot
     python ashctl.py sleep                 # force a consolidation pass
     python ashctl.py rollup                # force journal -> episodic memory
+    python ashctl.py history               # last 50 decision traces (json)
+    python ashctl.py history 200            # last N decision traces
+    python ashctl.py history-export out.json  # write history to a file for
+                                               # decision_explorer.html
     python ashctl.py shutdown
 
     python ashctl.py simulate mic hey ash what time is it
@@ -34,6 +38,15 @@ system presets (battery_low/battery_critical/cpu_high) match the real
 salience/urgency numbers src/senses/devices.py uses for those conditions.
 It's injected async (queued for the next tick, same as real sensors) --
 follow up with `why` or `status` a moment later to see what happened.
+
+`why` shows the most recent cognitive cycle only -- the next ambient tick
+(idle/window-switch/etc. observations run every few seconds regardless)
+overwrites it. `history` returns the rolling buffer of recent cycles
+(bounded, oldest dropped) so a decision is still inspectable afterwards.
+`history-export` writes that buffer to a JSON file that
+decision_explorer.html (open it directly in a browser, no server needed)
+can load to show a timeline of decisions with a click-through board-vote
+breakdown per decision.
 """
 
 import json
@@ -62,6 +75,30 @@ def main() -> int:
     if len(sys.argv) < 2:
         print(__doc__)
         return 2
+
+    if sys.argv[1] == "history-export":
+        if len(sys.argv) < 3:
+            print("usage: ashctl.py history-export <path.json> [n]", file=sys.stderr)
+            return 2
+        out_path = sys.argv[2]
+        n = sys.argv[3] if len(sys.argv) > 3 else ""
+        try:
+            reply = control_client(f"history {n}".strip())
+        except ConnectionRefusedError:
+            print("No ASH daemon listening on 127.0.0.1:8787. Is ashd.py running?",
+                  file=sys.stderr)
+            return 1
+        except Exception as e:
+            print(f"Control error: {e}", file=sys.stderr)
+            return 1
+        if not reply.get("ok"):
+            print(json.dumps(reply, indent=2, default=str), file=sys.stderr)
+            return 1
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(reply.get("history", []), f, indent=2, default=str)
+        _safe_print(f"Wrote {len(reply.get('history', []))} traces to {out_path}")
+        return 0
+
     cmd = " ".join(sys.argv[1:])
     try:
         reply = control_client(cmd)

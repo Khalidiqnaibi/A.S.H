@@ -352,6 +352,14 @@ class ASH:
         t = self.brain.last_trace
         return t.as_dict() if t is not None else {}
 
+    def explain_history(self, n: int = 50) -> List[Dict[str, Any]]:
+        """Trace of the last N cognitive cycles (most recent last), so a
+        decision is still inspectable after later ambient ticks have
+        overwritten last_trace. Bounded by Brain.trace_history's own
+        maxlen regardless of what n is asked for."""
+        hist = list(self.brain.trace_history)[-max(1, int(n)):]
+        return [t.as_dict() for t in hist]
+
 
 llm = build_llm()
 ash = ASH(llm=llm)

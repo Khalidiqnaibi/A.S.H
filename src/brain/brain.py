@@ -43,7 +43,8 @@ from __future__ import annotations
 import logging
 import os
 import time
-from typing import Any, Callable, Dict, List, Optional
+from collections import deque
+from typing import Any, Callable, Deque, Dict, List, Optional
 
 import numpy as np
 
@@ -144,6 +145,13 @@ class Brain:
         self.sentiment_fn = sentiment_fn
         self._last_cycle_cost = 0.5
         self.last_trace: Optional[BrainTrace] = None
+        # Rolling history so a decision is still inspectable after the
+        # next ambient tick overwrites last_trace -- which happens
+        # within a couple of seconds, since window-switch/idle/system
+        # observations run every few seconds regardless of whether
+        # anyone just spoke to it. Bounded so a 24h daemon does not grow
+        # this unboundedly; each BrainTrace is small (no embeddings).
+        self.trace_history: Deque[BrainTrace] = deque(maxlen=500)
         self.cycles = 0
 
         # Counters for introspection / the /brain status endpoint.
@@ -530,6 +538,7 @@ class Brain:
         self.pathway_counts[pathway.value] = self.pathway_counts.get(pathway.value, 0) + 1
         trace.pathway = pathway
         self.last_trace = trace
+        self.trace_history.append(trace)
         if self.cycles % 20 == 0:
             self.system1.save()
             self.predictive.save()
