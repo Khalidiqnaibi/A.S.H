@@ -29,12 +29,20 @@ import os
 import platform
 import shlex
 import subprocess
+import threading
 import time
 from typing import Any, Dict, List, Optional
 
 from .base import Actuator, Capability, State
 
 logger = logging.getLogger("ash.senses.actuators")
+
+try:
+    import winsound
+    _HAS_WINSOUND = True
+except ImportError:
+    winsound = None
+    _HAS_WINSOUND = False
 
 
 class NotifyActuator(Actuator):
@@ -65,7 +73,6 @@ class NotifyActuator(Actuator):
         if backend == "win":
             try:
                 import ctypes
-                import threading
                 # MessageBoxW is a *blocking* call -- it does not return
                 # until a human clicks OK. Calling it synchronously here
                 # would freeze whichever thread called notify(), which for
@@ -112,13 +119,40 @@ class SpeakActuator(Actuator):
         text = args if isinstance(args, str) else str(args)
         if self.tts is None:
             return {"ok": False, "error": "no TTS engine attached"}
-        try:
-            chunks = 0
-            for _ in self.tts.stream_audio(text):
-                chunks += 1
-            return {"ok": True, "result": f"spoke {len(text)} chars in {chunks} chunks"}
-        except Exception as e:
-            return {"ok": False, "error": str(e)}
+
+        # tts.py's stream_audio() only *synthesizes* -- it yields raw WAV
+        # bytes per sentence and never plays them. app.py's web frontend
+        # forwards those bytes to a browser over a socket, which is what
+        # actually makes sound there; this actuator used to just count the
+        # chunks and throw the audio away, so the daemon synthesized speech
+        # and never played a single sample of it. That is the whole reason
+        # ASH has been silent: not a missing engine (Kokoro loads fine), a
+        # missing speaker.
+        #
+        # Playback runs on its own thread, one chunk at a time in order, for
+        # the same reason NotifyActuator's MessageBoxW got moved off-thread:
+        # _respond() runs synchronously on the ambient loop's own thread, and
+        # a multi-second blocking play() call there would freeze sensing and
+        # attention for the whole time ASH is talking.
+        def _play():
+            n = 0
+            try:
+                for wav_bytes in self.tts.stream_audio(text):
+                    n += 1
+                    try:
+                        if _HAS_WINSOUND:
+                            winsound.PlaySound(wav_bytes, winsound.SND_MEMORY)
+                        else:
+                            logger.warning(
+                                "No audio playback backend on this platform -- "
+                                "TTS chunk %d synthesized but not played", n)
+                    except Exception:
+                        logger.exception("TTS playback failed for chunk %d", n)
+            except Exception:
+                logger.exception("TTS synthesis failed")
+
+        threading.Thread(target=_play, daemon=True).start()
+        return {"ok": True, "result": f"speaking {len(text)} chars (async)"}
 
 
 class LaunchActuator(Actuator):

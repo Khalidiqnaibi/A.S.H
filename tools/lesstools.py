@@ -42,10 +42,20 @@ def calculator_tool(expression: str) -> str:
         return f"Error in calculation: {str(e)}"
 
 def date_time_tool(_query: str = "") -> str:
-    """Returns the current date and time now."""
+    """Returns the current date and time, phrased the way a person
+    would say it out loud rather than as a raw timestamp -- this gets
+    handed to the LLM as a fact it is told to use verbatim, so whatever
+    shape it is in here is close to what ends up spoken. Built by hand
+    instead of strftime's %-I/%-d because those no-leading-zero codes
+    are glibc-only and silently break on Windows.
+    """
     logging.info('Function date_time_tool called')
     print("date_time_tool called", flush=True , file=sys.stderr)
-    val = datetime.now().isoformat()
+    now = datetime.now()
+    hour12 = now.hour % 12 or 12
+    ampm = "AM" if now.hour < 12 else "PM"
+    val = (f"{hour12}:{now.minute:02d} {ampm} on "
+           f"{now.strftime('%A, %B')} {now.day}, {now.year}")
     print(f"date_time_tool returns {val}", flush=True , file=sys.stderr)
     return val
 

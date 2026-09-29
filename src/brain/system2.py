@@ -186,24 +186,28 @@ class System2Deliberator:
                 working: str, drives: Drives, modulation_block: str,
                 trace_note: str = "") -> str:
         system_content = (
-            f"You are {name}, a loyal personal assistant. Use the facts below verbatim where "
-            "applicable. Do NOT invent facts. Do NOT claim to have taken actions that are not "
-            "listed in the facts. Answer the query, then one short closing sentence."
+            f"You are {name}, a loyal personal assistant talking out loud to someone you know well. "
+            "Answer like a person would in conversation -- plain sentences, no headers, no bullet "
+            "points, no restating the question. If a fact below (like a time or a number) is in an "
+            "awkward written form, say it the way you would speak it, not copy it character for "
+            "character. Do NOT invent facts and do NOT claim to have taken actions that are not "
+            "listed below. Keep it brief -- one or two sentences unless the query genuinely needs more."
         )
 
-        parts = [f"Working memory (most recent first is last):\n{working or 'empty'}\n"]
-        parts.append(f"User query: {query}\n")
+        parts = [f"User query: {query}\n"]
+        if working and working.strip() and working.strip() != "empty":
+            parts.append(f"Recent conversation:\n{working}\n")
         for key, label in (("core", "Relevant Core Constraints"),
                            ("episodic", "Relevant Episodic Memory"),
                            ("entity", "Relevant Entities & Grounding")):
             if memory.get(key):
                 parts.append(f"{label}:\n{memory[key]}\n")
-        parts.append("Facts (use if present):\n" + json.dumps(facts, indent=2, default=str) + "\n")
+        if facts:
+            parts.append("Facts you can use:\n" + json.dumps(facts, indent=2, default=str) + "\n")
         parts.append(drives.as_prompt_block() + "\n")
         parts.append(modulation_block + "\n")
         if trace_note:
             parts.append(f"[COGNITIVE NOTE] {trace_note}\n")
-        parts.append("Follow the tone directives above. Respond in a small paragraph.")
 
         return self._call_llm("\n".join(parts), system=system_content)
 
