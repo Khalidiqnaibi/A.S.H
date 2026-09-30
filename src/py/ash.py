@@ -117,8 +117,14 @@ OLLAMA_MODEL = (os.getenv("OLLAMA_MODEL") or "mistral:latest").strip()
 
 DEFAULT_LLM_TEMPERATURE = 0.9
 
+# 180s was too tight for a slow/CPU-only local model -- seen timing out on an
+# air-gapped machine on a response that was still genuinely in progress, not
+# hung. Bumped to 5 minutes, and made tunable per-machine via env var since
+# hardware speed varies a lot more than this codebase does.
+DEFAULT_LLM_TIMEOUT = int(os.getenv("ASH_LLM_TIMEOUT", "300"))
 
-def build_llm(temperature: float = None, timeout: int = 180):
+
+def build_llm(temperature: float = None, timeout: int = DEFAULT_LLM_TIMEOUT):
     """Construct the chat backend named by ASH_LLM_MODE.
 
     Never raises: a missing key or an unreachable endpoint degrades to None so
