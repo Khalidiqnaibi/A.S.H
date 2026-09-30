@@ -58,7 +58,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "actuators": {
         "notify": {"enabled": True, "dry_run": False},
-        "speak": {"enabled": False, "dry_run": False},
+        "speak": {"enabled": True, "dry_run": False},
         "clipboard": {"enabled": False, "dry_run": True},
         "launch": {"enabled": False, "dry_run": True, "allowlist": []},
         "input": {"enabled": False, "dry_run": True},
