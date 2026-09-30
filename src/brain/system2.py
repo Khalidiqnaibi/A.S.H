@@ -243,22 +243,46 @@ class System2Deliberator:
         except Exception:
             messages = [{"role": "system", "content": system}, {"role": "user", "content": human}]
 
+        # `invoke`, `generate`, and the deprecated `__call__` fallback below
+        # are different *names* for calling this object, but on ASH's own
+        # LLM wrapper (tools/LLM.py) every one of them funnels through the
+        # same _generate() -> _call() -> one requests.post(..., timeout=...)
+        # call. `chat`/`complete` don't exist on it at all. So once a call
+        # reaches the network and comes back with a recognized provider-error
+        # string (timeout, connection refused, bad status), that failure is
+        # authoritative -- it proves the transport was reached and failed,
+        # and every other spelling on this same object will reproduce the
+        # identical failure. Retrying them anyway used to stack up to three
+        # independent full-length timeouts (invoke + generate + the callable
+        # fallback) for one logical request; against a slow/struggling Ollama
+        # that turned "the model is just slow" into an 8+ minute hang that
+        # tripped the ambient-loop watchdog over and over (watchdog restarts
+        # the loop, but can't kill the still-blocked synchronous call
+        # underneath -- Python threads aren't forcibly killable -- so the
+        # restarts did nothing but add log noise while the real wait
+        # continued). Only fall through to the next method when THIS one
+        # raised (wrong call shape for that attribute name), never when it
+        # returned cleanly with an error string.
         for attr in ("invoke", "chat", "generate", "complete"):
             fn = getattr(self.llm, attr, None)
             if not callable(fn):
                 continue
             try:
                 resp = fn(messages)
-                if isinstance(resp, tuple):
-                    text = str(resp[0])
-                else:
-                    text = getattr(resp, "content", None) or str(resp)
-                if self._is_llm_error(text):
-                    logger.warning("LLM.%s returned a provider error, not a reply: %s", attr, text)
-                    continue
-                return text
             except Exception as e:
                 logger.debug("LLM.%s failed: %s", attr, e)
+                continue
+            if isinstance(resp, tuple):
+                text = str(resp[0])
+            else:
+                text = getattr(resp, "content", None) or str(resp)
+            if self._is_llm_error(text):
+                logger.warning(
+                    "LLM.%s returned a provider error, not a reply -- not trying other "
+                    "call shapes, they share the same transport and would just repeat "
+                    "the same timeout: %s", attr, text)
+                return ""
+            return text
 
         try:
             if callable(self.llm):
