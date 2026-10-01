@@ -99,9 +99,31 @@ class AmbientRuntime:
     # Lifecycle
     # ------------------------------------------------------------------
     def start(self):
-        if self._thread and self._thread.is_alive():
-            return
+        # Clear the stop flag *before* the already-alive check, not only in
+        # the branch that spawns a new thread. If the previous ash-ambient
+        # thread is still blocked inside a slow synchronous call (an
+        # in-flight LLM request -- see the module docstring: _respond() runs
+        # on this thread directly, nothing is spawned per response) then a
+        # watchdog restart's stop() already set this flag and timed out its
+        # join() without actually stopping anything. Leaving it set here
+        # silently arms a time bomb: the stuck thread is still running the
+        # exact same loop with the exact same flag object, so the moment its
+        # current tick finally finishes and it re-checks the flag, it would
+        # see "stop" and exit for good -- which is exactly what looked like
+        # "ashd answered, then the whole process just exited": the daemon
+        # was not killed, its one and only ambient thread quietly honored a
+        # restart request that was issued minutes earlier.
         self._stop.clear()
+        if self._thread and self._thread.is_alive():
+            logger.warning(
+                "Ambient runtime start() called while the previous ash-ambient "
+                "thread is still running -- most likely still blocked in a slow "
+                "call (e.g. an LLM request) that a watchdog restart could not "
+                "actually interrupt (Python cannot force-kill a thread). Leaving "
+                "it in place rather than spawning a second one; it will resume "
+                "ticking normally once that call returns."
+            )
+            return
         self.started_at = time.time()
         self._thread = threading.Thread(target=self._run, daemon=True, name="ash-ambient")
         self._thread.start()
