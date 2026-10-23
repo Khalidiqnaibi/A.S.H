@@ -186,7 +186,12 @@ class Brain:
     # Public entry
     # ==================================================================
     def think(self, query: str, image: Any = None,
-              importance: float = 0.5) -> BrainResponse:
+              importance: float = 0.5, context: str = "") -> BrainResponse:
+        # `context` (recent ambient activity) is for the narrator only.
+        # Routing, the reflex cache, memory and the concept graph all see
+        # `query` alone -- window titles and timestamps mixed into the text
+        # being classified were steering tool choice (file_info for "remind
+        # me to call mom") and getting ingested as entities and concepts.
         t_start = time.perf_counter()
         timings: Dict[str, float] = {}
         trace = BrainTrace(query=query)
@@ -289,7 +294,8 @@ class Brain:
             trace.escalated_from = Pathway.FAST.value
 
         response = self._run_slow(query, bundle, drives, prediction, verdict, trace, timings,
-                                  importance=importance, latent=latent, activation=activation)
+                                  importance=importance, latent=latent, activation=activation,
+                                  context=context)
         trace.timings_ms = timings
         trace.timings_ms["total"] = (time.perf_counter() - t_start) * 1000.0
         final_pathway = Pathway.ESCALATED if trace.escalated_from else Pathway.SLOW
@@ -376,7 +382,7 @@ class Brain:
     def _run_slow(self, query, bundle: PerceptBundle, drives: Drives,
                   prediction: Prediction, verdict: Verdict, trace: BrainTrace,
                   timings: Dict[str, float], importance: float = 0.5,
-                  latent=None, activation=None) -> BrainResponse:
+                  latent=None, activation=None, context: str = "") -> BrainResponse:
         reasons = verdict.escalation_reasons or ["explicit deliberation"]
         logger.info("Brain: SLOW path -- %s", "; ".join(reasons[:3]))
 
@@ -455,7 +461,7 @@ class Brain:
         t0 = time.perf_counter()
         text = self.system2.narrate(
             self.name, query, facts, ctx, self.memory.working_block(),
-            drives, modulation_block, trace_note=note,
+            drives, modulation_block, trace_note=note, context=context,
         )
         timings["narrate"] = (time.perf_counter() - t0) * 1000.0
 

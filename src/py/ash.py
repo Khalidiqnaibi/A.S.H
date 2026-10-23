@@ -310,12 +310,12 @@ class ASH:
     # -----------------------
     # Public API
     # -----------------------
-    def think(self, query: str, image: Any = None):
+    def think(self, query: str, image: Any = None, context: str = ""):
         """Full cognitive cycle. Returns a BrainResponse (text + trace)."""
         if _maintenance_scheduler is not None:
             _maintenance_scheduler.note_activity()
 
-        response = self.brain.think(query, image=image)
+        response = self.brain.think(query, image=image, context=context)
         self._sync_state(query, response)
 
         t = response.trace

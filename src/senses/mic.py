@@ -56,6 +56,9 @@ ADDRESS_PATTERNS = [
     re.compile(r"^\s*(can you|could you|would you|please)\b", re.I),
 ]
 
+_LEADING_WAKE = re.compile(r"^\s*((hey|ok|okay|yo)\s+)?ash\b[\s,.!?:;-]*", re.I)
+_TRAILING_WAKE = re.compile(r"[\s,]*\b((hey|ok|okay|yo)\s+)?ash[\s.!?]*$", re.I)
+
 
 class MicrophoneSensor(Sensor):
     """Continuous capture with VAD-bounded utterance segmentation."""
@@ -257,6 +260,16 @@ class MicrophoneSensor(Sensor):
     @staticmethod
     def is_addressed(text: str) -> bool:
         return any(p.search(text or "") for p in ADDRESS_PATTERNS)
+
+    @staticmethod
+    def strip_address(text: str) -> str:
+        """Drop a leading/trailing wake phrase before the text is routed.
+        The word "ash" on its own scores 0.43 for system_stats in the intent
+        classifier, so leaving it in put a phantom system_stats candidate
+        into every "hey ash ..." query and diluted the real match ("what
+        time is it": get_time 0.42 bare vs 0.34 with "hey ash")."""
+        stripped = _TRAILING_WAKE.sub("", _LEADING_WAKE.sub("", text or "")).strip()
+        return stripped or (text or "")
 
     def transcribe(self, audio) -> str:
         """Pluggable ASR. Whisper if installed, then Google via

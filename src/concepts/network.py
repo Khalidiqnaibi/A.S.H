@@ -226,7 +226,8 @@ class ConceptNetwork:
                 out[self._ids[int(i)]] = s
         return out, best
 
-    def _spread(self, seed: Dict[int, float]) -> Dict[int, float]:
+    def _spread(self, seed: Dict[int, float],
+                perceived: Optional[Dict[int, float]] = None) -> Dict[int, float]:
         """Propagate along synapses, resparsifying each step.
 
         A concept reached only by association is capped below the strongest
@@ -236,8 +237,10 @@ class ConceptNetwork:
         proposer, since it discounts inferred routes by checking exactly that
         distinction. Inference must stay weaker than perception.
         """
+        perceived = seed if perceived is None else perceived
         act = dict(seed)
-        ceiling = self.inferred_cap * (max(seed.values()) if seed else 1.0)
+        top = perceived or seed
+        ceiling = self.inferred_cap * (max(top.values()) if top else 1.0)
         for _ in range(self.spread_steps):
             delta: Dict[int, float] = {}
             for cid, a in act.items():
@@ -257,7 +260,7 @@ class ConceptNetwork:
             if not delta:
                 break
             for cid, d in delta.items():
-                limit = 1.0 if cid in seed else ceiling
+                limit = 1.0 if cid in perceived else ceiling
                 act[cid] = max(0.0, min(limit, act.get(cid, 0.0) + d))
 
             if len(act) > self.spread_keep:
@@ -283,12 +286,19 @@ class ConceptNetwork:
             logger.debug("Grew concept c%d (best match %.2f < vigilance %.2f): %r",
                          c.id, best, self.vigilance, text[:60])
 
-        # Priming: carry a decayed trace of the previous cycle in as baseline.
+        # Priming: carry a decayed trace of the previous cycle in as baseline
+        # for the spread -- but not into `initial`. `initial` means "this
+        # input matched it": the proposer skips its inferred-route discount
+        # for anything in it, and only units in it get prototype updates.
+        # Merging priming in made last turn's winning intent count as a
+        # direct match this turn (confidence 1.00), so it won again, was
+        # primed again, and the same tool answered every question.
+        seed = dict(initial)
         for cid, a in self._prime.items():
             if cid in self.concepts:
-                initial[cid] = max(initial.get(cid, 0.0), a)
+                seed[cid] = max(seed.get(cid, 0.0), a)
 
-        spread = self._spread(initial)
+        spread = self._spread(seed, perceived=initial)
 
         now = time.time()
         for cid, a in spread.items():

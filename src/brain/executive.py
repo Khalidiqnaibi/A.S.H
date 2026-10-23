@@ -383,7 +383,15 @@ class ExecutiveCore:
             ))
 
         # Predictive model votes on expected outcome and current model trust.
-        pv = (proposal.expected_success - 0.5) * 2.0 - 0.6 * prediction.surprise
+        # A tool's track record says how often it works, not whether it fits
+        # this query, so it is weighted by match confidence. Unweighted, the
+        # one tool with any history (get_time, after a lot of "what time is
+        # it" testing) beat every better-matching tool still sitting at the
+        # 0.5 prior -- even at a 0.09 match -- and each win added to its
+        # history, so it won more.
+        relevance = max(0.0, min(1.0, proposal.confidence))
+        pv = ((proposal.expected_success - 0.5) * 2.0 * relevance
+              - 0.6 * prediction.surprise)
         votes.append(Vote(
             member="predictive", support=max(-1.0, min(1.0, pv)),
             confidence=max(0.2, prediction.confidence),

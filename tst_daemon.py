@@ -111,7 +111,7 @@ class StubASH:
         self.thought = []
         self.episodic_memory = StubEpisodic()
 
-    def think(self, query, image=None):
+    def think(self, query, image=None, context=""):
         self.thought.append(query)
         return StubResponse(f"noted: {query[:40]}")
 

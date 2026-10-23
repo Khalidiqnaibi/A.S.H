@@ -29,17 +29,20 @@ def safe_calc(expr: str):
     tree = ast.parse(expr, mode='eval')
     return _safe_eval(tree.body)
 
-def calculator_tool(expression: str) -> str:
+def calculator_tool(expression: str) -> dict:
     """Perform safe arithmetic calculations."""
     logging.info('Function calculator_tool called')
     print(f"[TOOL] calculator_tool called with: {expression}", flush=True, file=sys.stderr)
     try:
         result = safe_calc(expression)
         print(f"[TOOL] calculator_tool result: {result}", flush=True, file=sys.stderr)
-        return f"Result: {result}"
+        return {"ok": True, "result": result}
     except Exception as e:
         print(f"[TOOL] calculator_tool error: {e}", flush=True, file=sys.stderr)
-        return f"Error in calculation: {str(e)}"
+        # Returned as a dict so ToolEntry.run doesn't wrap the message as
+        # {"ok": True, "result": "Error..."} -- which recorded every failed
+        # calculation as a success and taught the brain to pick it more.
+        return {"ok": False, "error": f"couldn't calculate that: {e}"}
 
 def date_time_tool(_query: str = "") -> str:
     """Returns the current date and time, phrased the way a person

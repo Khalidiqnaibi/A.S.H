@@ -253,7 +253,8 @@ class AmbientRuntime:
         context = self.journal.context_block(self.cfg.context_window_s)
 
         if ev.addressed:
-            prompt = ev.text
+            from src.senses.mic import MicrophoneSensor
+            prompt = MicrophoneSensor.strip_address(ev.text)
         else:
             # Unprompted remarks get an explicit framing so the narrator knows
             # it is volunteering rather than answering. Without this the LLM
@@ -264,12 +265,9 @@ class AmbientRuntime:
                 f"remark. If it isn't clearly useful, say nothing of substance.]"
             )
 
-        if context:
-            prompt = f"{prompt}\n\n[RECENT AMBIENT CONTEXT]\n{context}"
-
         try:
             image = ev.data if getattr(ev.modality, "value", ev.modality) == "vision" else None
-            response = self.ash.think(prompt, image=image)
+            response = self.ash.think(prompt, image=image, context=context)
             text = (response.text or "").strip()[: self.cfg.max_response_chars]
         except Exception:
             logger.exception("Response cycle failed")

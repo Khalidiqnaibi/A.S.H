@@ -170,7 +170,9 @@ class System2Deliberator:
                 continue
             # Reward stable, plausible trajectories; punish runaway drift.
             p.value = (
-                1.2 * (r["expected_success"] - 0.5)
+                # Track record only counts in proportion to match -- see the
+                # predictive vote in executive.py for why.
+                1.2 * (r["expected_success"] - 0.5) * max(0.0, min(1.0, p.confidence))
                 + 0.5 * r["stability"]
                 - 0.7 * r["drift"]
                 + 0.4 * p.confidence
@@ -184,7 +186,7 @@ class System2Deliberator:
     # ------------------------------------------------------------------
     def narrate(self, name: str, query: str, facts: Dict[str, Any], memory: Dict[str, str],
                 working: str, drives: Drives, modulation_block: str,
-                trace_note: str = "") -> str:
+                trace_note: str = "", context: str = "") -> str:
         system_content = (
             f"You are {name}, a loyal personal assistant talking out loud to someone you know well. "
             "Answer like a person would in conversation -- plain sentences, no headers, no bullet "
@@ -206,6 +208,9 @@ class System2Deliberator:
             parts.append("Facts you can use:\n" + json.dumps(facts, indent=2, default=str) + "\n")
         parts.append(drives.as_prompt_block() + "\n")
         parts.append(modulation_block + "\n")
+        if context:
+            parts.append("What the user has been doing recently (background only -- "
+                         f"mention it only if it is relevant):\n{context}\n")
         if trace_note:
             parts.append(f"[COGNITIVE NOTE] {trace_note}\n")
 
