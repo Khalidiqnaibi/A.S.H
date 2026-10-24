@@ -143,6 +143,10 @@ class Brain:
 
         self.registry = registry
         self.sentiment_fn = sentiment_fn
+        # Goal-conditioned imagination. Off unless asked for: the outcome
+        # prototypes it relies on are always learned, but scoring candidates
+        # by them changes live behaviour, so it is opt-in per machine.
+        self.goal_rollout = os.environ.get("ASH_PLANNING", "0") == "1"
         self._last_cycle_cost = 0.5
         self.last_trace: Optional[BrainTrace] = None
         # Rolling history so a decision is still inspectable after the
@@ -393,9 +397,15 @@ class Brain:
         # able to conclude the reflex was right all along.
         if verdict.chosen is not None:
             candidates.append(verdict.chosen)
+        goal = None
+        if self.goal_rollout and verdict.chosen is not None:
+            # The reflex's pick is the best available statement of what the
+            # user is after; every candidate is scored against where THAT
+            # intent's past successes ended up.
+            goal = self.predictive.goal_for(verdict.chosen.intent)
         candidates = self.system2.imagine(
             candidates, latent if latent is not None else bundle.fused_embedding,
-            self.predictive)
+            self.predictive, goal=goal)
         timings["deliberate"] = (time.perf_counter() - t0) * 1000.0
 
         # --- re-arbitrate over the richer candidate set -----------------

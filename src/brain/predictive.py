@@ -34,6 +34,7 @@ import json
 import logging
 import os
 import time
+import zlib
 from collections import deque
 from dataclasses import dataclass
 from typing import Any, Deque, Dict, List, Optional, Tuple
@@ -76,7 +77,9 @@ class LatentForwardModel:
     def action_vec(self, intent: Optional[str]) -> np.ndarray:
         key = intent or "__none__"
         if key not in self.action_table:
-            rng = np.random.default_rng(abs(hash(key)) % (2**32))
+            # crc32, not hash(): str hashing is salted per process, which would
+            # hand the same intent a different vector after every restart.
+            rng = np.random.default_rng(zlib.crc32(key.encode("utf-8")))
             self.action_table[key] = _l2(
                 rng.standard_normal(self.action_dim).astype(np.float32)
             )
@@ -166,6 +169,14 @@ class PredictiveModel:
         self.persist = persist
         self.path = os.path.join(STATE_DIR, "predictive.npz")
         self.outcome_path = os.path.join(STATE_DIR, "outcomes.json")
+        self.goal_path = os.path.join(STATE_DIR, "goals.npz")
+
+        # Outcome prototypes: per intent, a running mean of the latent that
+        # FOLLOWED a successful use -- "what the world looks like once this
+        # works". Learned from experience, no language model involved. It is
+        # the cheapest honest answer to "what state am I trying to reach?".
+        self.goal_protos: Dict[str, np.ndarray] = {}
+        self.goal_counts: Dict[str, int] = {}
 
         # Running stats for normalizing raw cosine error into 0..1 surprise.
         self._err_mean = 0.35
@@ -180,7 +191,10 @@ class PredictiveModel:
         # Replay buffer for the sleep/consolidation phase.
         self.replay: Deque[Tuple[np.ndarray, Optional[str], np.ndarray]] = deque(maxlen=replay_size)
 
-        self._pending: Optional[Tuple[np.ndarray, Optional[str]]] = None
+        self._pending: Optional[Tuple[np.ndarray, Optional[str], Optional[bool]]] = None
+        # Set by record_outcome(), consumed by the next commit() so the
+        # transition it closes out knows whether the action it followed worked.
+        self._last_outcome: Optional[Tuple[Optional[str], bool]] = None
         self._load()
 
     # ------------------------------------------------------------------
@@ -213,7 +227,7 @@ class PredictiveModel:
         surprise, raw = 0.0, 0.0
 
         if self.forward.accepts(latent) and self._pending is not None:
-            prev_s, prev_intent = self._pending
+            prev_s, prev_intent, prev_ok = self._pending
             pred_prev = self.forward.predict(prev_s, prev_intent)
             if pred_prev is not None and prev_s.shape == latent.shape:
                 raw = float(1.0 - np.dot(pred_prev, latent))
@@ -222,6 +236,8 @@ class PredictiveModel:
                 # Learn from the transition we just closed out.
                 self.forward.learn(prev_s, prev_intent, latent)
                 self.replay.append((prev_s.copy(), prev_intent, latent.copy()))
+                if prev_ok is True and prev_intent:
+                    self._update_proto(prev_intent, latent)
 
         outcomes = {}
         for intent in (candidate_intents or []):
@@ -244,8 +260,12 @@ class PredictiveModel:
     def commit(self, latent: Optional[np.ndarray], intent: Optional[str]):
         """Called at the END of a cycle: remember (state, action) so the next
         `observe()` can score its own prediction."""
+        ok: Optional[bool] = None
+        if self._last_outcome is not None and self._last_outcome[0] == intent:
+            ok = self._last_outcome[1]
+        self._last_outcome = None
         if self.forward.accepts(latent):
-            self._pending = (latent.copy(), intent)
+            self._pending = (latent.copy(), intent, ok)
         else:
             self._pending = None
 
@@ -271,43 +291,108 @@ class PredictiveModel:
         predicted = self.expected_success(intent)
         self._outcome_err = 0.8 * self._outcome_err + 0.2 * abs(predicted - (1.0 if success else 0.0))
         self.outcomes.setdefault(intent, _BetaCounts()).observe(bool(success))
+        self._last_outcome = (intent, bool(success))
+
+    # ------------------------------------------------------------------
+    # Goals: outcome prototypes
+    # ------------------------------------------------------------------
+    def _update_proto(self, intent: str, latent: np.ndarray, rate: float = 0.2):
+        if not self.forward.accepts(latent):
+            return
+        v = _l2(latent.astype(np.float32))
+        n = self.goal_counts.get(intent, 0)
+        old = self.goal_protos.get(intent)
+        if old is None or old.shape != v.shape:
+            self.goal_protos[intent] = v
+            self.goal_counts[intent] = 1
+            return
+        # Running mean while evidence is thin, then a fixed-rate EMA so the
+        # prototype can follow a world that drifts instead of freezing.
+        r = max(rate, 1.0 / (n + 1))
+        self.goal_protos[intent] = _l2((1.0 - r) * old + r * v)
+        self.goal_counts[intent] = n + 1
+
+    def seed_goal(self, intent: str, vec: Optional[np.ndarray]):
+        """Cold-start a prototype (e.g. from an embedded tool description).
+        Counts as one observation, so real experience quickly overrides it."""
+        if vec is None or not self.forward.accepts(vec):
+            return
+        if intent not in self.goal_protos:
+            self._update_proto(intent, vec)
+
+    def goal_for(self, intent: Optional[str], min_obs: int = 2) -> Optional[np.ndarray]:
+        """The state that tends to follow `intent` working, or None if there
+        is not yet enough evidence to call it a goal."""
+        if not intent:
+            return None
+        if self.goal_counts.get(intent, 0) < min_obs:
+            return None
+        return self.goal_protos.get(intent)
 
     # ------------------------------------------------------------------
     # Rollout: used only by the slow path
     # ------------------------------------------------------------------
-    def rollout(self, latent: Optional[np.ndarray], proposal: ActionProposal, horizon: int = 3) -> Dict[str, float]:
+    def rollout(self, latent: Optional[np.ndarray], proposal: ActionProposal, horizon: int = 3,
+                goal: Optional[np.ndarray] = None,
+                path: Optional[List[Optional[str]]] = None) -> Dict[str, Any]:
         """Imagine taking this action, `horizon` steps ahead in latent space.
 
         Returns a drift score (how far this action moves the conversation from
         where it is now) and a stability score (whether the trajectory settles
         or runs away). A proposal whose imagined future diverges is one the
         Executive should be nervous about.
-        """
-        if not self.forward.accepts(latent):
-            return {"drift": 0.0, "stability": 1.0,
-                    "expected_success": self.expected_success(proposal.intent)}
 
-        s = latent.copy()
-        drifts = []
-        for step in range(horizon):
-            nxt = self.forward.predict(s, proposal.intent if step == 0 else None)
+        With a `goal` latent the rollout also answers the better question --
+        did the imagined future get CLOSER to where we want to be:
+
+            goal_gain   cos(s_end, goal) - cos(s_0, goal), in [-1, 1]
+            has_goal    whether goal_gain means anything (False => 0.0)
+
+        `path` supplies one intent per step (a multi-step plan); by default
+        only step 0 carries the proposal's intent, as before.
+
+        `success_fit` is separate: how much the imagined next state resembles
+        what followed this intent's past successes (None when unknown).
+        """
+        fallback = {"drift": 0.0, "stability": 1.0,
+                    "expected_success": self.expected_success(proposal.intent),
+                    "goal_gain": 0.0, "has_goal": False, "success_fit": None}
+        if not self.forward.accepts(latent):
+            return fallback
+
+        steps = list(path) if path else [proposal.intent] + [None] * (horizon - 1)
+        s = _l2(latent.astype(np.float32))
+        s0 = s
+        drifts: List[float] = []
+        first_next: Optional[np.ndarray] = None
+        for intent in steps:
+            nxt = self.forward.predict(s, intent)
             if nxt is None:
                 break
+            if first_next is None:
+                first_next = nxt
             drifts.append(float(1.0 - np.dot(_l2(s), nxt)))
             s = nxt
 
         if not drifts:
-            return {"drift": 0.0, "stability": 1.0,
-                    "expected_success": self.expected_success(proposal.intent)}
+            return fallback
 
         drift = float(np.clip(np.mean(drifts), 0.0, 2.0) / 2.0)
         # Stable = successive steps stop changing much.
         stability = float(np.clip(1.0 - abs(drifts[-1] - drifts[0]), 0.0, 1.0)) if len(drifts) > 1 else 1.0
-        return {
-            "drift": drift,
-            "stability": stability,
-            "expected_success": self.expected_success(proposal.intent),
-        }
+
+        out = dict(fallback)
+        out.update({"drift": drift, "stability": stability})
+
+        if goal is not None and self.forward.accepts(goal):
+            g = _l2(goal.astype(np.float32))
+            out["goal_gain"] = float(np.clip(np.dot(s, g) - np.dot(s0, g), -1.0, 1.0))
+            out["has_goal"] = True
+
+        own = self.goal_for(proposal.intent)
+        if own is not None and first_next is not None and own.shape == first_next.shape:
+            out["success_fit"] = float(np.dot(first_next, own))
+        return out
 
     # ------------------------------------------------------------------
     # Consolidation (sleep): replay the buffer to sharpen the forward model
@@ -337,6 +422,13 @@ class PredictiveModel:
             np.savez_compressed(self.path, **self.forward.state_dict())
             with open(self.outcome_path, "w", encoding="utf-8") as fh:
                 json.dump({k: [v.alpha, v.beta] for k, v in self.outcomes.items()}, fh, indent=2)
+            if self.goal_protos:
+                keys = list(self.goal_protos.keys())
+                np.savez_compressed(
+                    self.goal_path,
+                    intents=np.array(keys, dtype=object),
+                    protos=np.stack([self.goal_protos[k] for k in keys]),
+                    counts=np.array([self.goal_counts.get(k, 0) for k in keys], dtype=np.int64))
         except Exception:
             logger.exception("Failed to persist predictive model")
 
@@ -351,5 +443,11 @@ class PredictiveModel:
                 with open(self.outcome_path, "r", encoding="utf-8") as fh:
                     for k, (a, b) in json.load(fh).items():
                         self.outcomes[k] = _BetaCounts(alpha=float(a), beta=float(b))
+            if os.path.exists(self.goal_path):
+                g = np.load(self.goal_path, allow_pickle=True)
+                if g["protos"].ndim == 2 and g["protos"].shape[1] == self.dim:
+                    for i, k in enumerate(g["intents"]):
+                        self.goal_protos[str(k)] = g["protos"][i].astype(np.float32)
+                        self.goal_counts[str(k)] = int(g["counts"][i])
         except Exception:
             logger.exception("Failed to restore predictive model -- starting fresh")

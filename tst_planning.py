@@ -1,0 +1,273 @@
+"""
+tst_planning.py -- standalone tests for goal-conditioned imagination and planning.
+
+No sentence-transformers, no LLM, no network:
+
+    python tst_planning.py
+
+Phase 1: goal-conditioned rollout
+  * in a world with known dynamics, rollouts that move toward the goal score a
+    positive goal_gain and ones that move away score a negative one
+  * a multi-step path gains more than a single step
+  * with no goal the rollout is exactly what it was before
+  * outcome prototypes are learned from successes only, gated by evidence
+  * prototypes survive a save/load, and a dimension change is ignored
+  * imagine() ranks the goal-ward candidate first
+  * action embeddings are stable across processes (no salted hash())
+  * the wiring in Brain runs end-to-end with ASH_PLANNING on and off
+"""
+
+import os
+import subprocess
+import sys
+import tempfile
+
+# Must be set before src.brain is imported: STATE_DIR is read at import time,
+# and these tests must never touch the repo's tracked state/ directory.
+_TMP = tempfile.mkdtemp(prefix="ash_planning_")
+os.environ["ASH_BRAIN_STATE"] = _TMP
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import numpy as np  # noqa: E402
+
+from src.brain.predictive import PredictiveModel, _l2  # noqa: E402
+from src.brain.signals import ActionProposal  # noqa: E402
+from src.brain.system2 import System2Deliberator  # noqa: E402
+
+RESULTS = {"ok": True}
+
+
+def check(label, cond, detail=""):
+    print(f"  {'PASS' if cond else 'FAIL'}  {label}{'  -- ' + detail if detail else ''}")
+    RESULTS["ok"] = RESULTS["ok"] and bool(cond)
+
+
+def unit(rng, dim):
+    return _l2(rng.standard_normal(dim).astype(np.float32))
+
+
+# ----------------------------------------------------------------------
+# A world whose dynamics we know exactly:
+#   action "toward" pushes the state along +u, "away" along -u, None does nothing.
+# ----------------------------------------------------------------------
+def toy_world(dim=16, steps=4000, seed=3):
+    rng = np.random.default_rng(seed)
+    u = unit(rng, dim)
+    pm = PredictiveModel(dim=dim, persist=False)
+    for i in range(steps):
+        s = unit(rng, dim)
+        which = i % 3
+        if which == 0:
+            pm.forward.learn(s, "toward", _l2(s + 0.6 * u))
+        elif which == 1:
+            pm.forward.learn(s, "away", _l2(s - 0.6 * u))
+        else:
+            pm.forward.learn(s, None, s)
+    return pm, u, rng
+
+
+def phase1():
+    dim = 16
+
+    print("\n=== P1.1 Goal gain separates goal-ward from goal-away ===")
+    pm, u, rng = toy_world(dim)
+    pt = ActionProposal(intent="toward")
+    pa = ActionProposal(intent="away")
+    wins, margins = 0, []
+    for _ in range(30):
+        s0 = unit(rng, dim)
+        gt = pm.rollout(s0, pt, horizon=3, goal=u)
+        ga = pm.rollout(s0, pa, horizon=3, goal=u)
+        margins.append(gt["goal_gain"] - ga["goal_gain"])
+        if gt["goal_gain"] > 0 > ga["goal_gain"]:
+            wins += 1
+    check("toward gains, away loses (30/30 random start states)", wins == 30,
+          f"{wins}/30, mean margin {np.mean(margins):.3f}")
+    r = pm.rollout(unit(rng, dim), pt, horizon=3, goal=u)
+    check("has_goal is reported", r["has_goal"] is True)
+
+    print("\n=== P1.2 A longer path gets further ===")
+    s0 = unit(rng, dim)
+    one = pm.rollout(s0, pt, horizon=3, goal=u)["goal_gain"]
+    three = pm.rollout(s0, pt, horizon=3, goal=u,
+                       path=["toward", "toward", "toward"])["goal_gain"]
+    check("3 steps toward gain more than 1", three > one, f"1-step={one:.3f} 3-step={three:.3f}")
+    mixed = pm.rollout(s0, pt, horizon=3, goal=u,
+                       path=["toward", "away", "away"])["goal_gain"]
+    check("a path that turns back loses ground", mixed < one, f"mixed={mixed:.3f}")
+
+    print("\n=== P1.3 No goal => behaves exactly as before ===")
+    s0 = unit(rng, dim)
+    r = pm.rollout(s0, pt, horizon=3)
+    check("has_goal False and gain 0", r["has_goal"] is False and r["goal_gain"] == 0.0)
+    # independent recomputation of the legacy drift / stability
+    s, drifts = _l2(s0), []
+    for step in range(3):
+        nxt = pm.forward.predict(s, "toward" if step == 0 else None)
+        drifts.append(float(1.0 - np.dot(_l2(s), nxt)))
+        s = nxt
+    exp_drift = float(np.clip(np.mean(drifts), 0.0, 2.0) / 2.0)
+    exp_stab = float(np.clip(1.0 - abs(drifts[-1] - drifts[0]), 0.0, 1.0))
+    check("drift identical to legacy formula", abs(r["drift"] - exp_drift) < 1e-6,
+          f"{r['drift']:.6f} vs {exp_drift:.6f}")
+    check("stability identical to legacy formula", abs(r["stability"] - exp_stab) < 1e-6)
+    bad = pm.rollout(None, pt, horizon=3, goal=u)
+    check("unusable latent degrades safely",
+          bad["drift"] == 0.0 and bad["stability"] == 1.0 and bad["has_goal"] is False)
+    wrong = pm.rollout(s0, pt, horizon=3, goal=np.ones(dim + 3, dtype=np.float32))
+    check("goal of the wrong dimension is ignored", wrong["has_goal"] is False)
+
+    print("\n=== P1.4 Prototypes: learned from successes only, evidence-gated ===")
+    pm2 = PredictiveModel(dim=dim, persist=False)
+    target = unit(rng, dim)
+    for i in range(6):
+        s = unit(rng, dim)
+        pm2.observe(s, [])                       # closes previous transition
+        pm2.record_outcome("fetch", True)
+        pm2.commit(s, "fetch")
+        landed = _l2(target + 0.05 * unit(rng, dim))
+        pm2.observe(landed, [])                  # the state AFTER a success
+        pm2.commit(landed, None)
+    check("prototype exists after successes", "fetch" in pm2.goal_protos,
+          f"n={pm2.goal_counts.get('fetch')}")
+    cos = float(np.dot(pm2.goal_protos["fetch"], target))
+    check("prototype points at where successes landed", cos > 0.95, f"cos={cos:.3f}")
+    check("goal_for returns it once evidence suffices", pm2.goal_for("fetch") is not None)
+
+    pm3 = PredictiveModel(dim=dim, persist=False)
+    for i in range(6):
+        s = unit(rng, dim)
+        pm3.observe(s, [])
+        pm3.record_outcome("flaky", False)
+        pm3.commit(s, "flaky")
+        pm3.observe(unit(rng, dim), [])
+        pm3.commit(unit(rng, dim), None)
+    check("failures never form a prototype", "flaky" not in pm3.goal_protos)
+    check("goal_for is None with no evidence", pm3.goal_for("flaky") is None
+          and pm3.goal_for(None) is None and pm3.goal_for("never_seen") is None)
+
+    pm4 = PredictiveModel(dim=dim, persist=False)
+    s = unit(rng, dim)
+    pm4.observe(s, [])
+    pm4.record_outcome("once", True)
+    pm4.commit(s, "once")
+    pm4.observe(unit(rng, dim), [])
+    check("a single success is not yet a goal (min_obs=2)", pm4.goal_for("once") is None
+          and pm4.goal_counts.get("once") == 1)
+
+    # outcome recorded for a DIFFERENT intent than the committed one must not
+    # credit the committed action
+    pm5 = PredictiveModel(dim=dim, persist=False)
+    s = unit(rng, dim)
+    pm5.observe(s, [])
+    pm5.record_outcome("other", True)
+    pm5.commit(s, "committed")
+    pm5.observe(unit(rng, dim), [])
+    check("outcome for another intent does not credit this one",
+          "committed" not in pm5.goal_protos and "other" not in pm5.goal_protos)
+
+    pm6 = PredictiveModel(dim=dim, persist=False)
+    seed = unit(rng, dim)
+    pm6.seed_goal("cold", seed)
+    check("seed_goal gives a cold-start prototype, not yet a goal",
+          "cold" in pm6.goal_protos and pm6.goal_for("cold") is None)
+    pm6.seed_goal("cold", unit(rng, dim))
+    check("seed_goal never overwrites existing evidence",
+          np.allclose(pm6.goal_protos["cold"], seed))
+
+    print("\n=== P1.5 Prototypes persist; a dimension change is ignored ===")
+    d = tempfile.mkdtemp(prefix="ash_goals_")
+    old = PredictiveModel(dim=dim, persist=True)
+    old.path = os.path.join(d, "predictive.npz")
+    old.outcome_path = os.path.join(d, "outcomes.json")
+    old.goal_path = os.path.join(d, "goals.npz")
+    old.goal_protos = dict(pm2.goal_protos)
+    old.goal_counts = dict(pm2.goal_counts)
+    old.save()
+    fresh = PredictiveModel(dim=dim, persist=False)
+    fresh.path, fresh.outcome_path, fresh.goal_path = old.path, old.outcome_path, old.goal_path
+    fresh._load()
+    check("prototype round-trips through disk",
+          "fetch" in fresh.goal_protos
+          and np.allclose(fresh.goal_protos["fetch"], pm2.goal_protos["fetch"], atol=1e-6)
+          and fresh.goal_counts["fetch"] == pm2.goal_counts["fetch"])
+    other_dim = PredictiveModel(dim=dim + 8, persist=False)
+    other_dim.path, other_dim.outcome_path, other_dim.goal_path = old.path, old.outcome_path, old.goal_path
+    other_dim._load()
+    check("prototypes from a different latent size are not loaded",
+          other_dim.goal_protos == {})
+
+    print("\n=== P1.6 imagine() prefers the candidate that moves toward the goal ===")
+    sys2 = System2Deliberator(llm=None, registry=None)
+    s0 = unit(rng, dim)
+    cands = [ActionProposal(intent="away", confidence=0.5),
+             ActionProposal(intent="toward", confidence=0.5)]
+    out = sys2.imagine(cands, s0, pm, goal=u)
+    by = {c.intent: c for c in out}
+    check("toward outranks away with a goal", by["toward"].value > by["away"].value,
+          f"toward={by['toward'].value:.3f} away={by['away'].value:.3f}")
+    check("rationale records the gain", "gain=" in by["toward"].rationale)
+    cands2 = [ActionProposal(intent="away", confidence=0.5),
+              ActionProposal(intent="toward", confidence=0.5)]
+    out2 = sys2.imagine(cands2, s0, pm)
+    check("without a goal imagine() works and notes no gain",
+          all("gain=" not in c.rationale for c in out2))
+
+    print("\n=== P1.7 Action embeddings are stable across processes ===")
+    code = ("import sys,os;os.environ['ASH_BRAIN_STATE']=sys.argv[1];sys.path.insert(0,sys.argv[2]);"
+            "from src.brain.predictive import LatentForwardModel as L;"
+            "import numpy as np;v=L().action_vec('get_time');print(round(float(v.sum()),6))")
+    here = os.path.dirname(os.path.abspath(__file__))
+    outs = []
+    for seed in ("1", "2", "random"):
+        env = dict(os.environ, PYTHONHASHSEED=seed)
+        outs.append(subprocess.run([sys.executable, "-c", code, _TMP, here], env=env,
+                                   capture_output=True, text=True).stdout.strip())
+    check("same intent => same vector regardless of PYTHONHASHSEED",
+          len(set(outs)) == 1 and outs[0] != "", str(outs))
+
+    print("\n=== P1.8 Brain wiring, planning off and on ===")
+    import tst_brain
+    for flag in ("0", "1"):
+        os.environ["ASH_PLANNING"] = flag
+        st = tempfile.mkdtemp(prefix="ash_brain_")
+        brain = tst_brain.build_brain(st)
+        check(f"ASH_PLANNING={flag} sets goal_rollout", brain.goal_rollout == (flag == "1"))
+        brain.predictive.persist = False
+        qs = ["what time is it please", "what time is it now", "what is the time",
+              "what time is it currently", "tell me what time is it", "what time is it right now",
+              "so what time is it again", "what time is it", "calculate 6 times 7",
+              "calculate 40 plus 2", "what is 6 times 7", "delete the old logs"]
+        crashed = None
+        goal_scored = 0
+        try:
+            for q in qs:
+                r = brain.think(q)
+                goal_scored += sum("gain=" in p["rationale"] for p in r.trace.proposals)
+        except Exception as e:  # noqa: BLE001
+            crashed = repr(e)
+        if flag == "1":
+            check("candidates really are scored against a goal", goal_scored > 0,
+                  f"{goal_scored} goal-scored proposals")
+        else:
+            check("planning off => no candidate is goal-scored", goal_scored == 0)
+        check(f"session runs clean (planning={flag})", crashed is None, crashed or "")
+        check(f"prototypes learned from real cycles (planning={flag})",
+              len(brain.predictive.goal_protos) > 0,
+              f"{ {k: v for k, v in brain.predictive.goal_counts.items()} }")
+        brain.predictive.persist = True
+        brain.predictive.save()
+        check(f"goals.npz written (planning={flag})",
+              os.path.exists(brain.predictive.goal_path))
+    os.environ["ASH_PLANNING"] = "0"
+
+
+def main():
+    phase1()
+    print("\n" + ("ALL CHECKS PASSED" if RESULTS["ok"] else "SOME CHECKS FAILED"))
+    return 0 if RESULTS["ok"] else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

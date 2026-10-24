@@ -52,6 +52,11 @@ logger = logging.getLogger("ash.brain.system2")
 
 _JSON_FENCE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
 
+# Goal gain is a cosine difference over a few linear steps, so it is small in
+# magnitude (hundredths); the weight scales it to compete with the other terms.
+GOAL_GAIN_WEIGHT = 6.0
+SUCCESS_FIT_WEIGHT = 0.3
+
 
 class System2Deliberator:
     def __init__(self, llm, registry, candidate_fn=None, shapes: Optional[Dict[str, Any]] = None,
@@ -160,25 +165,39 @@ class System2Deliberator:
     # ------------------------------------------------------------------
     # Phase 2: imagination
     # ------------------------------------------------------------------
-    def imagine(self, proposals: Sequence[ActionProposal], latent, predictive) -> List[ActionProposal]:
-        """Roll each candidate forward and fold the result into its value."""
+    def imagine(self, proposals: Sequence[ActionProposal], latent, predictive,
+                goal=None) -> List[ActionProposal]:
+        """Roll each candidate forward and fold the result into its value.
+
+        With a `goal` latent, "did the imagined future get closer to where we
+        want to be" replaces most of the raw-drift penalty: moving toward the
+        goal necessarily means moving, so punishing drift there would punish
+        exactly the candidates that make progress.
+        """
         for p in proposals:
             try:
-                r = predictive.rollout(latent, p, horizon=self.rollout_horizon)
+                r = predictive.rollout(latent, p, horizon=self.rollout_horizon, goal=goal)
             except Exception:
                 logger.exception("Rollout failed for %r", p.intent)
                 continue
+            has_goal = bool(r.get("has_goal"))
             # Reward stable, plausible trajectories; punish runaway drift.
             p.value = (
                 # Track record only counts in proportion to match -- see the
                 # predictive vote in executive.py for why.
                 1.2 * (r["expected_success"] - 0.5) * max(0.0, min(1.0, p.confidence))
                 + 0.5 * r["stability"]
-                - 0.7 * r["drift"]
+                - (0.2 if has_goal else 0.7) * r["drift"]
                 + 0.4 * p.confidence
             )
+            if has_goal:
+                p.value += GOAL_GAIN_WEIGHT * r["goal_gain"]
+            if r.get("success_fit") is not None:
+                p.value += SUCCESS_FIT_WEIGHT * (r["success_fit"] - 0.5)
             p.expected_success = r["expected_success"]
             p.rationale += f" | rollout drift={r['drift']:.2f} stab={r['stability']:.2f}"
+            if has_goal:
+                p.rationale += f" gain={r['goal_gain']:+.3f}"
         return list(proposals)
 
     # ------------------------------------------------------------------
