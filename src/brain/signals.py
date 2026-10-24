@@ -215,6 +215,62 @@ class ActionProposal:
 
 
 @dataclass
+class Step:
+    """One imagined move in a plan. Carries what the Executive needs to vet
+    it later (class, reversibility) -- a plan never pre-approves anything."""
+
+    intent: Optional[str]
+    tool_name: Optional[str] = None
+    action_class: ActionClass = ActionClass.CONVERSATION
+    reversible: bool = True
+    expected_success: float = 0.5
+    expected_latent: Optional[Any] = None    # predicted state AFTER this step
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            "intent": self.intent, "tool": self.tool_name,
+            "action_class": self.action_class.value, "reversible": self.reversible,
+            "expected_success": round(self.expected_success, 3),
+        }
+
+
+@dataclass
+class Imagery:
+    """A mapped path from here to a goal state, built before acting.
+
+    The `goal` and each step's `expected_latent` are the "image": what the
+    brain expects the world to look like if the plan works. Following the
+    plan means comparing reality against those expectations step by step.
+    """
+
+    goal: Optional[Any] = None               # np.ndarray, the target state
+    goal_intent: Optional[str] = None        # whose outcomes defined the goal
+    path: List[Step] = field(default_factory=list)
+    gain: float = 0.0                        # cos(end, goal) - cos(start, goal)
+    p_success: float = 0.0                   # product of step success estimates
+    score: float = 0.0
+    confidence: float = 0.0                  # model faith * p_success, 0..1
+    rationale: str = ""
+
+    def __len__(self) -> int:
+        return len(self.path)
+
+    def intents(self) -> List[Optional[str]]:
+        return [st.intent for st in self.path]
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            "goal_intent": self.goal_intent,
+            "path": [st.as_dict() for st in self.path],
+            "gain": round(self.gain, 4),
+            "p_success": round(self.p_success, 3),
+            "score": round(self.score, 3),
+            "confidence": round(self.confidence, 3),
+            "rationale": self.rationale,
+        }
+
+
+@dataclass
 class Vote:
     """One board member's position on one proposal."""
 
@@ -284,6 +340,7 @@ class BrainTrace:
     timings_ms: Dict[str, float] = field(default_factory=dict)
     escalated_from: Optional[str] = None
     notes: List[str] = field(default_factory=list)
+    plan: Dict[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> Dict[str, Any]:
         d = asdict(self)

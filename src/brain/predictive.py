@@ -329,6 +329,21 @@ class PredictiveModel:
             return None
         return self.goal_protos.get(intent)
 
+    def trajectory(self, latent: Optional[np.ndarray],
+                   path: List[Optional[str]]) -> List[np.ndarray]:
+        """The imagined state after each step of `path` (one intent per step).
+        Empty when the latent is unusable."""
+        if not self.forward.accepts(latent):
+            return []
+        s = _l2(latent.astype(np.float32))
+        out: List[np.ndarray] = []
+        for intent in path:
+            s = self.forward.predict(s, intent)
+            if s is None:
+                break
+            out.append(s)
+        return out
+
     # ------------------------------------------------------------------
     # Rollout: used only by the slow path
     # ------------------------------------------------------------------

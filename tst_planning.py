@@ -5,6 +5,16 @@ No sentence-transformers, no LLM, no network:
 
     python tst_planning.py
 
+Phase 2: planning (Imagery / beam search)
+  * a goal that needs two different moves gets a two-move path, a one-move
+    goal gets a one-move path, and a goal that is already met gets no plan
+  * beam search finds the brute-force optimum
+  * no goal / bad latent / no tools => None, so callers deliberate as before
+  * irreversible steps and unreliable tools are avoided when an alternative exists
+  * plans are deterministic and only name tools that were offered
+  * the Brain wiring produces well-formed plans and the whole brain suite
+    still passes with ASH_PLANNING=1
+
 Phase 1: goal-conditioned rollout
   * in a world with known dynamics, rollouts that move toward the goal score a
     positive goal_gain and ones that move away score a negative one
@@ -263,8 +273,235 @@ def phase1():
     os.environ["ASH_PLANNING"] = "0"
 
 
+# ----------------------------------------------------------------------
+# Phase 2
+# ----------------------------------------------------------------------
+def planning_world(dim=24, steps=6000, seed=11):
+    """Five actions with known effects: X=+u, Y=+v, Z=-u, W=-v, X2=+u (u perp v)."""
+    rng = np.random.default_rng(seed)
+    u = unit(rng, dim)
+    v = unit(rng, dim)
+    v = _l2(v - np.dot(v, u) * u)
+    eff = {"X": u, "Y": v, "Z": -u, "W": -v, "X2": u}
+    pm = PredictiveModel(dim=dim, persist=False)
+    names = list(eff) + [None]
+    for i in range(steps):
+        st = unit(rng, dim)
+        a = names[i % len(names)]
+        pm.forward.learn(st, a, st if a is None else _l2(st + 0.6 * eff[a]))
+    return pm, eff, rng
+
+
+def props(names, irreversible=()):
+    return [ActionProposal(intent=n, tool_name=n, reversible=(n not in irreversible),
+                           confidence=0.5) for n in names]
+
+
+def apply_world(eff, s, seq):
+    for a in seq:
+        s = _l2(s + 0.6 * eff[a])
+    return s
+
+
+def phase2():
+    import json
+    from itertools import product
+    from src.brain.signals import Imagery, Step
+    sys2 = System2Deliberator(llm=None, registry=None)
+    pm, eff, rng = planning_world()
+    dim = 24
+    P = props(["X", "Y", "Z", "W"])
+
+    print("\n=== P2.1 A two-move goal gets a two-move path ===")
+    ok2, ok1 = 0, 0
+    for _ in range(20):
+        s0 = unit(rng, dim)
+        plan = sys2.plan(P, s0, pm, apply_world(eff, s0, ["X", "Y"]))
+        if plan and plan.intents() == ["X", "Y"]:
+            ok2 += 1
+        plan1 = sys2.plan(P, s0, pm, apply_world(eff, s0, ["X"]))
+        if plan1 and plan1.intents() == ["X"]:
+            ok1 += 1
+    check("X then Y is found for an X-then-Y goal (20/20)", ok2 == 20, f"{ok2}/20")
+    check("a one-move goal gets exactly one move (20/20)", ok1 == 20, f"{ok1}/20")
+    s0 = unit(rng, dim)
+    plan = sys2.plan(P, s0, pm, apply_world(eff, s0, ["Y", "X"]))
+    check("order matters: Y then X goal gives Y then X",
+          plan is not None and plan.intents() == ["Y", "X"], str(plan.intents() if plan else None))
+
+    print("\n=== P2.2 Plan object is well-formed ===")
+    s0 = unit(rng, dim)
+    plan = sys2.plan(P, s0, pm, apply_world(eff, s0, ["X", "Y"]), goal_intent="g", confidence=0.8)
+    check("is an Imagery with Steps",
+          isinstance(plan, Imagery) and all(isinstance(t, Step) for t in plan.path))
+    check("positive gain and a score", plan.gain > 0 and plan.score > 0,
+          f"gain={plan.gain:.3f} score={plan.score:.3f}")
+    check("every step has an expected latent of the right size",
+          all(t.expected_latent is not None and t.expected_latent.shape == (dim,)
+              for t in plan.path))
+    check("confidence = model confidence x p_success, within 0..1",
+          abs(plan.confidence - 0.8 * plan.p_success) < 1e-9 and 0.0 <= plan.confidence <= 1.0,
+          f"{plan.confidence:.3f}")
+    d = plan.as_dict()
+    check("as_dict is JSON-able",
+          bool(json.dumps(d)) and d["goal_intent"] == "g" and len(d["path"]) == len(plan))
+    check("steps carry tool and class from the proposal",
+          all(t.tool_name == t.intent for t in plan.path))
+    check("no step repeats its predecessor",
+          all(a != b for a, b in zip(plan.intents(), plan.intents()[1:])))
+    check("max_len is respected",
+          len(sys2.plan(P, s0, pm, apply_world(eff, s0, ["X", "Y"]), max_len=1)) == 1)
+
+    print("\n=== P2.3 Beam search finds the brute-force optimum ===")
+    names = ["X", "Y", "Z", "W"]
+    exact_wide, exact_default, worst_gap = 0, 0, 0.0
+    trials = 30
+    for _ in range(trials):
+        s0 = unit(rng, dim)
+        goal = _l2(unit(rng, dim) + 2.0 * (eff["X"] + eff["Y"]))
+        g, st0 = goal, _l2(s0)
+        best = None
+        for n in (1, 2, 3):
+            for seq in product(names, repeat=n):
+                if any(a == b for a, b in zip(seq, seq[1:])):
+                    continue
+                st, p_ok = st0, 1.0
+                for a in seq:
+                    st = pm.forward.predict(st, a)
+                    p_ok *= pm.expected_success(a)
+                gain = float(np.dot(st, g) - np.dot(st0, g))
+                sc = System2Deliberator._plan_score(gain, p_ok, n, 0)
+                if best is None or sc > best[0] + 1e-12:
+                    best = (sc, seq, gain)
+        wide = sys2.plan(P, s0, pm, goal, beam=100)
+        dflt = sys2.plan(P, s0, pm, goal)
+        if best[2] < 1e-3:
+            exact_wide += wide is None
+            exact_default += dflt is None
+            continue
+        if wide is not None and abs(wide.score - best[0]) < 1e-6:
+            exact_wide += 1
+        if dflt is not None and abs(dflt.score - best[0]) < 1e-6:
+            exact_default += 1
+        elif dflt is not None:
+            worst_gap = max(worst_gap, best[0] - dflt.score)
+    check("wide beam == brute force", exact_wide == trials, f"{exact_wide}/{trials}")
+    check("default beam (4) == brute force", exact_default == trials,
+          f"{exact_default}/{trials}, worst score gap {worst_gap:.4f}")
+
+    print("\n=== P2.4 Nothing to plan with => None ===")
+    s0 = unit(rng, dim)
+    goal = apply_world(eff, s0, ["X"])
+    check("no goal", sys2.plan(P, s0, pm, None) is None)
+    check("no latent", sys2.plan(P, None, pm, goal) is None)
+    check("goal of wrong size", sys2.plan(P, s0, pm, np.ones(dim + 2, dtype=np.float32)) is None)
+    check("latent of wrong size",
+          sys2.plan(P, np.ones(dim + 2, dtype=np.float32), pm, goal) is None)
+    check("no proposals", sys2.plan([], s0, pm, goal) is None)
+    check("proposals without a tool are not plannable",
+          sys2.plan([ActionProposal(intent="X"), ActionProposal(intent=None, tool_name="x")],
+                    s0, pm, goal) is None)
+    check("already at the goal => no plan", sys2.plan(P, s0, pm, s0) is None)
+    check("goal opposite to anything reachable => no plan",
+          sys2.plan(props(["Z"]), s0, pm, apply_world(eff, s0, ["X"])) is None)
+
+    print("\n=== P2.5 Irreversible steps and unreliable tools are avoided ===")
+    s0 = unit(rng, dim)
+    goal = apply_world(eff, s0, ["X"])
+    plan = sys2.plan(props(["X", "X2"], irreversible=("X",)), s0, pm, goal)
+    check("prefers the reversible twin", plan is not None and plan.intents() == ["X2"],
+          str(plan.intents() if plan else None))
+    plan_free = sys2.plan(props(["X", "X2"]), s0, pm, goal)
+    check("with neither irreversible it still plans one move",
+          plan_free is not None and len(plan_free) == 1)
+    only_irr = sys2.plan(props(["X"], irreversible=("X",)), s0, pm, goal)
+    check("an irreversible step is still allowed if it is the only way (the board vets it later)",
+          only_irr is not None and only_irr.path[0].reversible is False)
+    pm_u, _, _ = planning_world(seed=11)
+    for _i in range(12):
+        pm_u.record_outcome("X2", False)
+        pm_u.record_outcome("X", True)
+    plan_u = sys2.plan(props(["X", "X2"]), s0, pm_u, goal)
+    check("avoids the tool that keeps failing", plan_u is not None and plan_u.intents() == ["X"],
+          f"X={pm_u.expected_success('X'):.2f} X2={pm_u.expected_success('X2'):.2f}")
+
+    pm_r, _, _ = planning_world(seed=11)
+    for _i in range(30):
+        for a in ("X", "Y", "Z", "W"):
+            pm_r.record_outcome(a, True)
+    padded = sys2.plan(P, s0, pm_r, goal)
+    check("proven-reliable tools do not pad a plan",
+          padded is not None and padded.intents() == ["X"],
+          f"chose {padded.intents() if padded else None}, X={pm_r.expected_success('X'):.2f}")
+    s_pad = unit(rng, dim)
+    two = sys2.plan(P, s_pad, pm_r, apply_world(eff, s_pad, ["X", "Y"]))
+    check("but a genuinely two-move goal still gets two moves with reliable tools",
+          two is not None and two.intents() == ["X", "Y"],
+          str(two.intents() if two else None))
+
+    print("\n=== P2.6 Deterministic, and only offered tools appear ===")
+    s0 = unit(rng, dim)
+    goal = apply_world(eff, s0, ["X", "Y"])
+    runs = [sys2.plan(P, s0, pm, goal) for _ in range(5)]
+    check("same inputs, same plan", len({tuple(r.intents()) for r in runs}) == 1
+          and len({round(r.score, 9) for r in runs}) == 1)
+    rev = sys2.plan(list(reversed(P)), s0, pm, goal)
+    check("proposal order does not change the plan", rev.intents() == runs[0].intents())
+    sub = sys2.plan(props(["X", "Y"]), s0, pm, goal)
+    check("every step comes from the offered proposals", set(sub.intents()) <= {"X", "Y"})
+
+    print("\n=== P2.7 Brain wiring ===")
+    import tst_brain
+    os.environ["ASH_PLANNING"] = "1"
+    brain = tst_brain.build_brain(tempfile.mkdtemp(prefix="ash_brain_"))
+    brain.predictive.persist = False
+    qs = ["what time is it please", "what time is it now", "what is the time",
+          "what time is it currently", "tell me what time is it", "what time is it right now",
+          "so what time is it again", "what time is it", "calculate 6 times 7",
+          "calculate 40 plus 2", "what is 6 times 7", "what time will it be tomorrow",
+          "xyzzy time", "so what time is it now", "hmm what time is it", "time check please"]
+    plans, bad, crashed = [], [], None
+    registered = {"get_time", "calculate", "delete_file", "move_arm", "format_disk"}
+    try:
+        for q in qs:
+            r = brain.think(q)
+            if r.trace.plan:
+                plans.append(r.trace.plan)
+                if not r.trace.plan["path"] or any(
+                        st["intent"] not in registered for st in r.trace.plan["path"]):
+                    bad.append(r.trace.plan)
+    except Exception as e:  # noqa: BLE001
+        crashed = repr(e)
+    check("session with planning runs clean", crashed is None, crashed or "")
+    check("the brain really produced plans", len(plans) > 0, f"{len(plans)} plan(s)")
+    check("every produced plan is well-formed and names only registered tools", not bad,
+          str(bad[:1]))
+    if plans:
+        print(f"     e.g. {plans[-1]['rationale']}")
+    check("active_plan is an Imagery or None",
+          brain.active_plan is None or isinstance(brain.active_plan, Imagery))
+    os.environ["ASH_PLANNING"] = "0"
+    brain_off = tst_brain.build_brain(tempfile.mkdtemp(prefix="ash_brain_"))
+    brain_off.predictive.persist = False
+    any_plan = False
+    for q in qs:
+        any_plan = any_plan or bool(brain_off.think(q).trace.plan)
+    check("planning off => no plan is ever made",
+          not any_plan and brain_off.active_plan is None)
+
+    print("\n=== P2.8 The existing brain suite still passes with planning on ===")
+    here = os.path.dirname(os.path.abspath(__file__))
+    env = dict(os.environ, ASH_PLANNING="1", ASH_BRAIN_STATE=tempfile.mkdtemp(prefix="ash_tb_"))
+    res = subprocess.run([sys.executable, os.path.join(here, "tst_brain.py")], env=env,
+                         capture_output=True, text=True, cwd=here)
+    check("tst_brain.py passes under ASH_PLANNING=1",
+          res.returncode == 0 and "ALL CHECKS PASSED" in res.stdout,
+          res.stdout.strip().splitlines()[-1] if res.stdout.strip() else res.stderr[-200:])
+
+
 def main():
     phase1()
+    phase2()
     print("\n" + ("ALL CHECKS PASSED" if RESULTS["ok"] else "SOME CHECKS FAILED"))
     return 0 if RESULTS["ok"] else 1
 

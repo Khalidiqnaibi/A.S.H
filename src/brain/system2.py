@@ -43,8 +43,10 @@ import re
 import time
 from typing import Any, Dict, List, Optional, Sequence
 
+import numpy as np
+
 from .signals import (
-    ActionClass, ActionProposal, Drives, PerceptBundle, Prediction,
+    ActionClass, ActionProposal, Drives, Imagery, PerceptBundle, Prediction, Step,
 )
 from .system1 import classify_action
 
@@ -56,6 +58,16 @@ _JSON_FENCE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
 # magnitude (hundredths); the weight scales it to compete with the other terms.
 GOAL_GAIN_WEIGHT = 6.0
 SUCCESS_FIT_WEIGHT = 0.3
+
+# Planning. A longer plan has to earn its extra steps: each costs something,
+# and an irreversible step costs more, because it cannot be walked back if the
+# imagined future turns out to be wrong.
+PLAN_MAX_LEN = 3
+PLAN_BEAM = 4
+PLAN_STEP_COST = 0.15
+PLAN_SUCCESS_WEIGHT = 0.5
+PLAN_IRREVERSIBLE_COST = 0.3
+PLAN_MIN_GAIN = 1e-3
 
 
 class System2Deliberator:
@@ -199,6 +211,101 @@ class System2Deliberator:
             if has_goal:
                 p.rationale += f" gain={r['goal_gain']:+.3f}"
         return list(proposals)
+
+    # ------------------------------------------------------------------
+    # Phase 2b: planning
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _plan_score(gain: float, p_success: float, n_steps: int, n_irreversible: int) -> float:
+        # Success is scored against the "I know nothing" prior of 0.5 per step.
+        # A raw product would punish a tool with no history as if each step
+        # were a coin flip, and every extra step would compound that -- long
+        # plans would lose just for using tools it has not met yet. In log
+        # space an unknown step costs nothing, a proven one helps, and a
+        # failing one hurts. Capped at zero: a reliability BONUS would let a
+        # plan pad itself with proven tools and score higher for doing nothing.
+        evidence = min(0.0, float(np.log2(max(p_success, 1e-6) / (0.5 ** n_steps))))
+        return (GOAL_GAIN_WEIGHT * gain
+                + PLAN_SUCCESS_WEIGHT * evidence
+                - PLAN_STEP_COST * n_steps
+                - PLAN_IRREVERSIBLE_COST * n_irreversible)
+
+    def plan(self, proposals: Sequence[ActionProposal], latent, predictive, goal,
+             goal_intent: Optional[str] = None, confidence: float = 1.0,
+             max_len: int = PLAN_MAX_LEN, beam: int = PLAN_BEAM) -> Optional[Imagery]:
+        """Map a path from the current state to `goal`, before acting.
+
+        Beam search over sequences of the available tool intents, each step
+        imagined with the forward model. Pure arithmetic -- no language model.
+        Returns None when there is nothing to plan with (no goal, no usable
+        latent, no tool candidates) or when no imagined path actually gets
+        closer to the goal; the caller then deliberates exactly as before.
+
+        The plan only ever contains intents that were passed in as proposals,
+        so it cannot name a tool the registry did not already offer, and it
+        proposes rather than executes: every step still goes through the
+        Executive, the VLA and the Constitution when its turn comes.
+        """
+        if goal is None or latent is None or not predictive.forward.accepts(latent)                 or not predictive.forward.accepts(goal):
+            return None
+
+        by_intent: Dict[str, ActionProposal] = {}
+        for p in proposals:
+            if p.intent and p.tool_name and p.intent not in by_intent:
+                by_intent[p.intent] = p
+        if not by_intent:
+            return None
+        intents = sorted(by_intent)               # sorted => deterministic
+
+        g = goal.astype(np.float32)
+        g = g / max(float(np.linalg.norm(g)), 1e-9)
+        s0 = latent.astype(np.float32)
+        s0 = s0 / max(float(np.linalg.norm(s0)), 1e-9)
+        base = float(np.dot(s0, g))
+
+        # hypothesis: (path, state, p_success, n_irreversible, latents)
+        frontier = [([], s0, 1.0, 0, [])]
+        best = None
+        for _depth in range(max(1, int(max_len))):
+            expanded = []
+            for path, state, p_ok, n_irr, lat in frontier:
+                for intent in intents:
+                    if path and path[-1] == intent:
+                        continue                  # repeating a step is a loop, not a plan
+                    nxt = predictive.forward.predict(state, intent)
+                    if nxt is None:
+                        continue
+                    prop = by_intent[intent]
+                    new_p = p_ok * predictive.expected_success(intent)
+                    new_irr = n_irr + (0 if prop.reversible else 1)
+                    gain = float(np.dot(nxt, g)) - base
+                    score = self._plan_score(gain, new_p, len(path) + 1, new_irr)
+                    expanded.append((score, gain, path + [intent], nxt, new_p, new_irr, lat + [nxt]))
+            if not expanded:
+                break
+            # ties broken by path text so the result never depends on dict order
+            expanded.sort(key=lambda e: (-e[0], e[2]))
+            # strict '>' keeps the earlier (shorter) path on a tie
+            if best is None or expanded[0][0] > best[0]:
+                best = expanded[0]
+            frontier = [(e[2], e[3], e[4], e[5], e[6]) for e in expanded[:max(1, int(beam))]]
+
+        if best is None or best[1] < PLAN_MIN_GAIN:
+            return None
+
+        score, gain, path, _end, p_ok, _irr, lats = best
+        steps = []
+        for intent, lat in zip(path, lats):
+            prop = by_intent[intent]
+            steps.append(Step(
+                intent=intent, tool_name=prop.tool_name, action_class=prop.action_class,
+                reversible=prop.reversible,
+                expected_success=predictive.expected_success(intent), expected_latent=lat))
+        return Imagery(
+            goal=goal, goal_intent=goal_intent, path=steps, gain=gain, p_success=p_ok,
+            score=score, confidence=float(np.clip(confidence, 0.0, 1.0)) * p_ok,
+            rationale=f"{len(steps)}-step path {' -> '.join(path)} (gain {gain:+.3f})",
+        )
 
     # ------------------------------------------------------------------
     # Phase 3: narration

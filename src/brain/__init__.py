@@ -16,8 +16,8 @@ Fast/slow execution is `signals.Pathway` and is decided in
 """
 
 from .signals import (
-    ActionClass, ActionProposal, BrainResponse, BrainTrace, Drives,
-    Pathway, Percept, PerceptBundle, Prediction, Verdict, Vote,
+    ActionClass, ActionProposal, BrainResponse, BrainTrace, Drives, Imagery,
+    Pathway, Percept, PerceptBundle, Prediction, Step, Verdict, Vote,
 )
 from .sensory import SensoryCortex, TextExtractor, VisionExtractor
 from .homeostasis import HomeostaticModulator
@@ -31,8 +31,8 @@ from .brain import Brain
 from .consolidation import consolidate
 
 __all__ = [
-    "ActionClass", "ActionProposal", "BrainResponse", "BrainTrace", "Drives",
-    "Pathway", "Percept", "PerceptBundle", "Prediction", "Verdict", "Vote",
+    "ActionClass", "ActionProposal", "BrainResponse", "BrainTrace", "Drives", "Imagery",
+    "Pathway", "Percept", "PerceptBundle", "Prediction", "Step", "Verdict", "Vote",
     "SensoryCortex", "TextExtractor", "VisionExtractor",
     "HomeostaticModulator", "PredictiveModel", "LatentForwardModel",
     "System1Policy", "Critic", "classify_action", "System2Deliberator",

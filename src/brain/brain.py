@@ -71,6 +71,10 @@ SAFE_TO_CACHE = {
     ActionClass.COMPUTE,
 }
 
+# How much being step 1 of the imagined plan is worth to a candidate. Modest on
+# purpose: the plan is a suggestion to the board, not an instruction.
+PLAN_FIRST_STEP_BONUS = 0.25
+
 CYCLE_COST = {
     Pathway.OBSERVE: 0.02,
     Pathway.REFLEX: 0.05,
@@ -147,6 +151,7 @@ class Brain:
         # prototypes it relies on are always learned, but scoring candidates
         # by them changes live behaviour, so it is opt-in per machine.
         self.goal_rollout = os.environ.get("ASH_PLANNING", "0") == "1"
+        self.active_plan = None      # Imagery from the latest slow-path deliberation
         self._last_cycle_cost = 0.5
         self.last_trace: Optional[BrainTrace] = None
         # Rolling history so a decision is still inspectable after the
@@ -406,6 +411,20 @@ class Brain:
         candidates = self.system2.imagine(
             candidates, latent if latent is not None else bundle.fused_embedding,
             self.predictive, goal=goal)
+        if goal is not None:
+            plan = self.system2.plan(
+                candidates, latent if latent is not None else bundle.fused_embedding,
+                self.predictive, goal, goal_intent=verdict.chosen.intent,
+                confidence=prediction.confidence)
+            self.active_plan = plan
+            if plan is not None:
+                trace.plan = plan.as_dict()
+                # The plan nudges its first step; the board still decides.
+                first = plan.path[0].intent
+                for c in candidates:
+                    if c.intent == first:
+                        c.value += PLAN_FIRST_STEP_BONUS
+                        c.rationale += f" | plan step 1/{len(plan)}"
         timings["deliberate"] = (time.perf_counter() - t0) * 1000.0
 
         # --- re-arbitrate over the richer candidate set -----------------
