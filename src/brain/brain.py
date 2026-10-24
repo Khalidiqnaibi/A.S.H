@@ -49,6 +49,7 @@ from typing import Any, Callable, Deque, Dict, List, Optional
 import numpy as np
 
 from .executive import ExecutiveCore
+from .gist import build_gist
 from .homeostasis import HomeostaticModulator
 from .memory_engine import MemoryEngine
 from .planfollow import Decision, PlanFollower
@@ -152,6 +153,10 @@ class Brain:
         # prototypes it relies on are always learned, but scoring candidates
         # by them changes live behaviour, so it is opt-in per machine.
         self.goal_rollout = os.environ.get("ASH_PLANNING", "0") == "1"
+        # Decide what to say before saying it: plain replies are produced with
+        # no model call, and a model's phrasing of the rest is checked against
+        # the decision. Opt-in per machine, like planning.
+        self.gist_first = os.environ.get("ASH_GIST", "0") == "1"
         # Follows a multi-step plan across cycles. think() takes step 1 and
         # hands the rest over; advance_plan() / run_plan() take the others.
         self.follower = PlanFollower()
@@ -497,11 +502,20 @@ class Brain:
         elif verdict2.deadlocked:
             note = "Multiple interpretations scored equally. Ask one clarifying question."
 
+        gist = None
+        if self.gist_first:
+            gist = self._decide_gist(candidates, chosen, tool_out, tool_ok, verdict2, drives)
+            trace.gist = gist.as_dict()
+
         t0 = time.perf_counter()
         text = self.system2.narrate(
             self.name, query, facts, ctx, self.memory.working_block(),
             drives, modulation_block, trace_note=note, context=context,
+            gist=gist, embed_fn=(self._embed_text if gist is not None else None),
         )
+        if gist is not None:
+            trace.notes.append(f"narration: {self.system2.last_narration['mode']}"
+                               f" ({self.system2.last_narration['calls']} model call(s))")
         timings["narrate"] = (time.perf_counter() - t0) * 1000.0
 
         if not (text or "").strip():
@@ -553,6 +567,24 @@ class Brain:
             text=text, trace=trace, tool_output=tool_out, intent=intent,
             tool_used=tool_name, tool_success=tool_ok, pathway=Pathway.SLOW,
         )
+
+    # ==================================================================
+    # Deciding what to say
+    # ==================================================================
+    def _embed_text(self, text: str):
+        """Embed text for the meaning check. Goes straight to the encoder:
+        perceive() would also log the reply into the novelty history."""
+        return self.sensory.text._embed(text)
+
+    def _decide_gist(self, candidates, chosen, tool_out, tool_ok, verdict, drives):
+        """Commit to what this reply is for, from what actually happened."""
+        ranked = sorted((c for c in candidates if c.intent), key=lambda c: -c.confidence)
+        attempted = next((c for c in ranked if c.tool_name), None)
+        return build_gist(
+            chosen=chosen, tool_out=tool_out, tool_ok=tool_ok,
+            vetoed_by=verdict.vetoed_by, deadlocked=verdict.deadlocked,
+            attempted=attempted, alternatives=[c.intent for c in ranked],
+            drives=drives, body=_fmt_tool_output(tool_out), embed_fn=self._embed_text)
 
     # ==================================================================
     # Following a plan

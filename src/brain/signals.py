@@ -236,6 +236,61 @@ class Step:
 
 
 @dataclass
+class Point:
+    """One thing a reply has to get across."""
+
+    text: str                      # the meaning, as a brief for a phrasing model
+    role: str = "answer"           # answer | reason | question | caveat
+    say: Optional[str] = None      # a ready-made sentence, when one is enough
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {"text": self.text, "role": self.role, "say": self.say}
+
+
+@dataclass
+class Stance:
+    """How it should come across, taken from the limbic drives."""
+
+    warmth: float = 0.5
+    energy: float = 0.5
+    brevity: float = 0.5
+
+    def as_dict(self) -> Dict[str, float]:
+        return {"warmth": round(self.warmth, 3), "energy": round(self.energy, 3),
+                "brevity": round(self.brevity, 3)}
+
+
+@dataclass
+class Gist:
+    """What the brain has decided to communicate, before any wording.
+
+    The wording is a separate, later step. Deciding the content first is what
+    makes the reply checkable (did it say what was meant?) and, for the plain
+    cases, lets it be produced without a language model at all.
+    """
+
+    intent: str = "converse"       # inform | refuse | ask | report_failure | converse
+    points: List[Point] = field(default_factory=list)
+    stance: Stance = field(default_factory=Stance)
+    must_include: List[str] = field(default_factory=list)   # facts that must survive phrasing
+    must_avoid: List[str] = field(default_factory=list)     # phrases that would misstate what happened
+    follow_up: Optional[str] = None
+    vector: Optional[Any] = None   # embedding of the intended meaning
+    confidence: float = 0.5
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            "intent": self.intent,
+            "points": [p.as_dict() for p in self.points],
+            "stance": self.stance.as_dict(),
+            "must_include": list(self.must_include),
+            "must_avoid": list(self.must_avoid),
+            "follow_up": self.follow_up,
+            "confidence": round(self.confidence, 3),
+        }
+
+
+@dataclass
 class Imagery:
     """A mapped path from here to a goal state, built before acting.
 
@@ -342,6 +397,7 @@ class BrainTrace:
     escalated_from: Optional[str] = None
     notes: List[str] = field(default_factory=list)
     plan: Dict[str, Any] = field(default_factory=dict)
+    gist: Dict[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> Dict[str, Any]:
         d = asdict(self)

@@ -48,6 +48,7 @@ import numpy as np
 from .signals import (
     ActionClass, ActionProposal, Drives, Imagery, PerceptBundle, Prediction, Step,
 )
+from .gist import gist_prompt, render_gist, verify
 from .system1 import classify_action
 
 logger = logging.getLogger("ash.brain.system2")
@@ -313,7 +314,21 @@ class System2Deliberator:
     # ------------------------------------------------------------------
     def narrate(self, name: str, query: str, facts: Dict[str, Any], memory: Dict[str, str],
                 working: str, drives: Drives, modulation_block: str,
-                trace_note: str = "", context: str = "") -> str:
+                trace_note: str = "", context: str = "", gist=None, embed_fn=None) -> str:
+        """Render the reply.
+
+        With a `gist` (the content already decided) the plain cases are
+        produced with no model at all, and a model's phrasing of the rest is
+        checked against it. Without one, or for open conversation, this is
+        unchanged free generation. `last_narration` records which route ran.
+        """
+        self.last_narration = {"mode": "llm", "calls": 0, "problems": []}
+        use_gist = gist is not None and gist.intent != "converse" and bool(gist.points)
+        if use_gist:
+            text = render_gist(gist)
+            if text is not None:
+                self.last_narration = {"mode": "rule", "calls": 0, "problems": []}
+                return text
         system_content = (
             f"You are {name}, a loyal personal assistant talking out loud to someone you know well. "
             "Answer like a person would in conversation -- plain sentences, no headers, no bullet "
@@ -340,8 +355,43 @@ class System2Deliberator:
                          f"mention it only if it is relevant):\n{context}\n")
         if trace_note:
             parts.append(f"[COGNITIVE NOTE] {trace_note}\n")
+        if use_gist:
+            parts.append(gist_prompt(gist) + "\n")
 
-        return self._call_llm("\n".join(parts), system=system_content)
+        human = "\n".join(parts)
+        if not use_gist:
+            self.last_narration["calls"] = 1
+            return self._call_llm(human, system=system_content)
+        return self._narrate_checked(human, system_content, gist, embed_fn)
+
+    def _narrate_checked(self, human: str, system: str, gist, embed_fn) -> str:
+        """Phrase a gist with the model and hold the result to it.
+
+        One retry, told exactly what was wrong. A provider error (empty reply)
+        is never retried: the transport already failed and a second call would
+        just stack another full timeout. When nothing passes, return "" so the
+        caller falls back to the raw facts rather than speaking an unchecked
+        claim.
+        """
+        problems: List[str] = []
+        prompt = human
+        for attempt in (1, 2):
+            text = self._call_llm(prompt, system=system)
+            self.last_narration["calls"] = attempt
+            if not (text or "").strip():
+                self.last_narration.update(mode="fallback", problems=problems + ["no reply"])
+                return ""
+            ok, problems = verify(text, gist, embed_fn)
+            if ok:
+                self.last_narration.update(mode="llm" if attempt == 1 else "llm_retry",
+                                           problems=[])
+                return text
+            prompt = (human + "\n[CORRECTION] Your previous reply was rejected because "
+                      + "; ".join(problems) + ". Say it again, fixing that.\n")
+        self.last_narration.update(mode="fallback", problems=problems)
+        logger.warning("Narration failed verification twice (%s); using raw facts",
+                       "; ".join(problems))
+        return ""
 
     # tools/LLM.py never raises on a provider/network failure -- it catches
     # the exception itself and returns the error as plain string content
