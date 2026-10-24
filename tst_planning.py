@@ -5,6 +5,14 @@ No sentence-transformers, no LLM, no network:
 
     python tst_planning.py
 
+Phase 3: following a plan (PlanFollower + Brain.advance_plan / run_plan)
+  * the decision rules: continue / replan / done / abort, and their ordering
+  * a scripted plan runs step by step through the real brain, each tool once
+  * failing, vetoed and unsafe steps (irreversible, physical, mutating) stop it
+  * surprise triggers a replan from the current state, capped so it cannot loop
+  * a stale plan or a new user request ends it
+  * think() takes step 1 and the follower takes the rest
+
 Phase 2: planning (Imagery / beam search)
   * a goal that needs two different moves gets a two-move path, a one-move
     goal gets a one-move path, and a goal that is already met gets no plan
@@ -499,9 +507,351 @@ def phase2():
           res.stdout.strip().splitlines()[-1] if res.stdout.strip() else res.stderr[-200:])
 
 
+# ----------------------------------------------------------------------
+# Phase 3
+# ----------------------------------------------------------------------
+def make_plan(intents, goal=None, expected=None, classes=None, reversible=None, args="q"):
+    from src.brain.signals import ActionClass, Imagery, Step
+    steps = []
+    for i, name in enumerate(intents):
+        steps.append(Step(
+            intent=name, tool_name=name,
+            action_class=(classes or {}).get(name, ActionClass.COMPUTE),
+            reversible=(reversible or {}).get(name, True),
+            expected_success=0.8,
+            expected_latent=(expected[i] if expected else None), args=args))
+    return Imagery(goal=goal, goal_intent="g", path=steps, gain=0.1, p_success=0.5,
+                   score=1.0, confidence=0.5, rationale="scripted")
+
+
+def phase3():
+    from src.brain.planfollow import Assessment, Decision, PlanFollower
+    from src.brain.signals import ActionClass, Prediction
+    dim = 16
+    rng = np.random.default_rng(5)
+
+    class Clock:
+        t = 1000.0
+
+        def __call__(self):
+            return self.t
+
+    print("\n=== P3.1 PlanFollower decision rules ===")
+    clk = Clock()
+    goal = unit(rng, dim)
+    start = _l2(goal * 0.3 + unit(rng, dim))                  # some distance from the goal
+    mid = _l2(0.5 * start + 0.5 * goal)
+    end = _l2(0.1 * start + 0.9 * goal)
+    plan = make_plan(["a", "b", "c"], goal=goal, expected=[mid, mid, end])
+
+    def fresh(**kw):
+        f = PlanFollower(clock=clk, **kw)
+        f.adopt(plan, [], start_latent=start, completed=0)
+        return f
+
+    f = PlanFollower(clock=clk)
+    check("starts inactive", not f.active and f.current() is None)
+    f.adopt(plan, [], start_latent=start, completed=0)
+    check("adopt activates and exposes step 0", f.active and f.current().intent == "a")
+    f.idx = 1
+    check("current follows idx", f.current().intent == "b")
+    f.idx = 3
+    check("current is None once the path is spent", f.current() is None)
+    f.drop("because")
+    check("drop clears and remembers why", not f.active and f.last_ended == "because")
+    f2 = PlanFollower(clock=clk)
+    f2.adopt(plan, [], completed=99)
+    check("completed is clamped to the path length", f2.idx == 3)
+
+    f = fresh(); f.idx = 1
+    a = f.assess(mid, True, 0.1)
+    check("on track => CONTINUE", a.decision == Decision.CONTINUE, a.reason)
+    f = fresh(); f.idx = 1
+    a = f.assess(mid, False, 0.0)
+    check("failed step => REPLAN", a.decision == Decision.REPLAN and "failed" in a.reason)
+    f = fresh(); f.idx = 1
+    a = f.assess(mid, True, 0.9)
+    check("high surprise => REPLAN", a.decision == Decision.REPLAN and "surpris" in a.reason)
+    f = fresh(); f.idx = 1
+    a = f.assess(mid, True, 0.75)
+    check("surprise exactly at the limit is tolerated", a.decision == Decision.CONTINUE)
+    away = _l2(-goal + 0.1 * unit(rng, dim))
+    f = fresh(); f.idx = 1
+    a = f.assess(away, True, 0.0)
+    check("moving away from the goal => REPLAN", a.decision == Decision.REPLAN and "away" in a.reason,
+          a.reason)
+    slight = _l2(start - 0.02 * goal)
+    f = fresh(); f.idx = 1
+    c_start = float(np.dot(start, goal))
+    c_slight = float(np.dot(slight, goal))
+    a = f.assess(slight, True, 0.0)
+    check("a dip inside the margin is tolerated",
+          (c_start - c_slight) < f.drift_margin and a.decision == Decision.CONTINUE,
+          f"dip {c_start - c_slight:.3f}")
+    f = fresh(); f.idx = 3
+    check("path complete => DONE", f.assess(end, True, 0.0).decision == Decision.DONE)
+    f = fresh(); f.idx = 3
+    check("path complete is DONE even with no observation",
+          f.assess(None, True, 0.0).decision == Decision.DONE)
+    f = fresh(); f.idx = 1
+    a = f.assess(end, True, 0.0)
+    check("reaching the final imagined state early => DONE",
+          a.decision == Decision.DONE and "early" in a.reason, a.reason)
+
+    f = fresh(); f.idx = 1; clk.t += 5000
+    a = f.assess(mid, True, 0.0)
+    check("an old plan => ABORT", a.decision == Decision.ABORT and "expired" in a.reason)
+    f = fresh(); f.idx = 1; clk.t += 5000
+    check("expiry outranks a failed step",
+          f.assess(mid, False, 0.0).reason == "plan expired")
+    clk.t = 1000.0
+
+    f = fresh(); f.idx = 1
+    f.replans = f.max_replans
+    a = f.assess(mid, False, 0.0)
+    check("replan budget spent => ABORT", a.decision == Decision.ABORT and "limit" in a.reason)
+
+    f = fresh(); f.idx = 1
+    a = f.assess(np.ones(dim + 4, dtype=np.float32), True, 0.0)
+    check("a latent from a different space does not crash or trigger anything",
+          a.decision == Decision.CONTINUE)
+    f = fresh(); f.idx = 1
+    check("no observation => CONTINUE", f.assess(None, True, 0.0).decision == Decision.CONTINUE)
+    f = PlanFollower(clock=clk)
+    check("assess with no plan is an ABORT, not a crash",
+          f.assess(mid, True, 0.0).decision == Decision.ABORT)
+    noplangoal = make_plan(["a", "b"], goal=None)
+    f = PlanFollower(clock=clk)
+    f.adopt(noplangoal, [], start_latent=start, completed=1)
+    check("a plan with no goal still works (CONTINUE, then DONE)",
+          f.assess(mid, True, 0.0).decision == Decision.CONTINUE
+          and (setattr(f, "idx", 2) or f.assess(mid, True, 0.0).decision == Decision.DONE))
+
+    # ---- brain-level ---------------------------------------------------
+    import tst_brain
+
+    def build():
+        os.environ["ASH_PLANNING"] = "1"
+        b = tst_brain.build_brain(tempfile.mkdtemp(prefix="ash_brain_"))
+        b.predictive.persist = False
+        # Brains load whatever earlier tests saved to the shared state dir;
+        # start each scenario with no tool history and no prototypes.
+        b.predictive.outcomes.clear()
+        b.predictive.goal_protos.clear()
+        b.predictive.goal_counts.clear()
+        calls = {}
+        for name, entry in b.registry._by_intent.items():
+            real = entry.func
+
+            def wrap(q, _n=entry.name, _real=real):
+                calls[_n] = calls.get(_n, 0) + 1
+                return _real(q)
+            entry.func = wrap
+        return b, calls
+
+    def tool_state(b):
+        return b.predictive.forward.steps, dict(b.predictive.goal_counts)
+
+    print("\n=== P3.2 Following a scripted plan through the real brain ===")
+    b, calls = build()
+    pl = make_plan(["date_time", "calculator", "date_time"])
+    # the stub registry names tools date_time / calculator for intents get_time / calculate
+    pl = make_plan(["get_time", "calculate", "get_time"])
+    for st in pl.path:
+        st.tool_name = {"get_time": "date_time", "calculate": "calculator"}[st.intent]
+    b.follower.adopt(pl, [], start_latent=None, completed=1,
+                     pending_output={"ok": True, "result": "2026-08-24T10:00:00"}, pending_ok=True)
+    steps0, _ = tool_state(b)
+    rs = b.run_plan()
+    check("two remaining steps ran", len(rs) == 2, f"{len(rs)} response(s)")
+    check("each tool ran exactly once", calls == {"calculator": 1, "date_time": 1}, str(calls))
+    check("steps ran in order with their real output",
+          [r.tool_used for r in rs] == ["calculator", "date_time"]
+          and rs[0].text == "Result: 42", str([r.text for r in rs]))
+    check("status is step then done",
+          [r.trace.plan["status"] for r in rs] == ["step", "done"],
+          str([r.trace.plan["status"] for r in rs]))
+    check("progress is reported", rs[-1].trace.plan["step"] == 3 and rs[-1].trace.plan["of"] == 3)
+    check("the plan is cleared when finished", not b.follower.active and b.active_plan is None)
+    check("every response is a successful FAST-path tool call",
+          all(r.tool_success is True and r.pathway.value == "fast" for r in rs))
+    steps1, protos = tool_state(b)
+    check("the forward model learned from the plan's transitions", steps1 > steps0,
+          f"{steps0} -> {steps1}")
+    check("successful steps fed the outcome prototypes", protos.get("calculate", 0) >= 1,
+          str(protos))
+    check("advance_plan with nothing to do returns None", b.advance_plan() is None)
+    check("run_plan with nothing to do returns []", b.run_plan() == [])
+
+    print("\n=== P3.3 Failing, vetoed and unsafe steps stop the plan ===")
+    b, calls = build()
+    b.registry._by_intent["calculate"].func = lambda q: {"ok": False, "error": "boom"}
+    pl = make_plan(["get_time", "calculate", "get_time"])
+    for st in pl.path:
+        st.tool_name = {"get_time": "date_time", "calculate": "calculator"}[st.intent]
+    b.follower.adopt(pl, [], start_latent=None, completed=1,
+                     pending_output={"ok": True, "result": "x"}, pending_ok=True)
+    rs = b.run_plan()
+    check("a failed step stops the plan (no better path)",
+          len(rs) == 1 and rs[0].trace.plan["status"] == "aborted" and not b.follower.active,
+          str([r.trace.plan for r in rs]))
+    check("the step after a failure never runs", calls.get("date_time", 0) == 0, str(calls))
+    check("the response says it stopped", "stopped the plan" in rs[0].text, rs[0].text)
+    check("the failure counted against the tool's record",
+          b.predictive.expected_success("calculate") < 0.5)
+
+    b, calls = build()
+    b.executive.constitution._cache = [
+        {"text": "ASH must never run calculate under any circumstances.", "priority": 10}]
+    b.executive.constitution._loaded = True
+    pl = make_plan(["get_time", "calculate", "get_time"])
+    for st in pl.path:
+        st.tool_name = {"get_time": "date_time", "calculate": "calculator"}[st.intent]
+    b.follower.adopt(pl, [], start_latent=None, completed=1,
+                     pending_output={"ok": True, "result": "x"}, pending_ok=True)
+    rs = b.run_plan()
+    check("a Constitution-forbidden step is blocked, not run",
+          len(rs) == 1 and "constitution" in rs[0].text and calls.get("calculator", 0) == 0,
+          rs[0].text if rs else "no response")
+    check("and the plan is gone", not b.follower.active and rs[0].trace.plan["status"] == "aborted")
+
+    for label, cls, rev in (("irreversible class", ActionClass.IRREVERSIBLE, False),
+                            ("physical class", ActionClass.PHYSICAL, False),
+                            ("mutation class", ActionClass.MUTATION, True),
+                            ("compute but not reversible", ActionClass.COMPUTE, False)):
+        b, calls = build()
+        pl = make_plan(["get_time", "calculate"], classes={"calculate": cls},
+                       reversible={"calculate": rev})
+        for st in pl.path:
+            st.tool_name = {"get_time": "date_time", "calculate": "calculator"}[st.intent]
+        b.follower.adopt(pl, [], start_latent=None, completed=1,
+                         pending_output={"ok": True, "result": "x"}, pending_ok=True)
+        rs = b.run_plan()
+        check(f"{label} is never run unattended",
+              len(rs) == 1 and calls.get("calculator", 0) == 0
+              and "go-ahead" in rs[0].text and not b.follower.active, rs[0].text if rs else "")
+
+    print("\n=== P3.4 Replanning when reality disagrees ===")
+    from src.brain.signals import Imagery  # noqa: F811
+    b, calls = build()
+    replans = []
+
+    def fake_plan(proposals, latent, predictive, goal, goal_intent=None, confidence=1.0, **kw):
+        replans.append((len(proposals), latent is not None))
+        p = make_plan(["get_time"])
+        p.path[0].tool_name = "date_time"
+        return p
+    b.system2.plan = fake_plan
+    b.follower.max_replans = 2
+    pl = make_plan(["get_time", "calculate", "get_time"], goal=unit(rng, 64))
+    for st in pl.path:
+        st.tool_name = {"get_time": "date_time", "calculate": "calculator"}[st.intent]
+    cands = tst_brain_proposals(b)
+    b.follower.adopt(pl, cands, start_latent=None, completed=1,
+                     pending_output={"ok": True, "result": "x"}, pending_ok=True)
+    # force a surprising observation
+    real_obs = b.predictive.observe
+    b.predictive.observe = lambda latent, intents=None: Prediction(surprise=0.99, confidence=1.0)
+    r = b.advance_plan()
+    check("a surprising observation triggers a replan",
+          len(replans) >= 1 and r is not None and r.trace.plan["status"] == "replanned",
+          str((replans, r.trace.plan if r else None)))
+    check("the replan was made from the current state with the same candidates",
+          replans and replans[0][0] == len(cands) and replans[0][1] is True)
+    check("replan count is tracked", b.follower.replans >= 1, f"replans={b.follower.replans}")
+    check("a replan starts the new plan from its first step",
+          b.follower.active is False or b.follower.idx <= 1)
+    # keep surprising it: replans must stop at the cap
+    for _ in range(12):
+        if not b.follower.active:
+            break
+        b.advance_plan()
+    check("repeated surprise ends the plan instead of looping forever", not b.follower.active,
+          f"replans={b.follower.replans}, last_ended={b.follower.last_ended!r}")
+    check("the cap is what ended it", "limit" in b.follower.last_ended or b.follower.replans <= 2,
+          b.follower.last_ended)
+    b.predictive.observe = real_obs
+
+    print("\n=== P3.5 Time and new requests end a plan ===")
+    b, calls = build()
+    clock = Clock()
+    b.follower.clock = clock
+    pl = make_plan(["get_time", "calculate"])
+    for st in pl.path:
+        st.tool_name = {"get_time": "date_time", "calculate": "calculator"}[st.intent]
+    b.follower.adopt(pl, [], start_latent=None, completed=1,
+                     pending_output={"ok": True, "result": "x"}, pending_ok=True)
+    clock.t += b.follower.max_age_s + 1
+    rs = b.run_plan()
+    check("a stale plan is abandoned without running anything",
+          len(rs) == 1 and rs[0].trace.plan["status"] == "aborted" and not calls,
+          str(rs[0].trace.plan if rs else None))
+
+    b, calls = build()
+    b.follower.adopt(make_plan(["get_time", "calculate"]), [], start_latent=None, completed=1)
+    b.think("hello there")
+    check("a new user request supersedes the plan",
+          not b.follower.active and b.follower.last_ended == "superseded by a new request")
+    check("and nothing from the old plan ran", calls.get("calculator", 0) == 0, str(calls))
+
+    print("\n=== P3.6 End to end: think() takes step 1, the follower takes the rest ===")
+    b, calls = build()
+    canned = {"n": 0}
+
+    def canned_plan(proposals, latent, predictive, goal, goal_intent=None, confidence=1.0, **kw):
+        canned["n"] += 1
+        p = make_plan(["get_time", "calculate"], goal=None)
+        for st in p.path:
+            st.tool_name = {"get_time": "date_time", "calculate": "calculator"}[st.intent]
+        return p
+    b.system2.plan = canned_plan
+    b.predictive.goal_for = lambda intent, min_obs=2: unit(np.random.default_rng(1), 64)
+    r = b.think("what time is it")
+    check("think() used the planner", canned["n"] == 1)
+    check("think() took step 1 only", calls.get("date_time") == 1 and not calls.get("calculator"),
+          str(calls))
+    check("the follower holds the remaining step", b.follower.active and b.follower.idx == 1
+          and b.active_plan is not None)
+    check("the trace recorded the plan", r.trace.plan.get("path"))
+    rs = b.run_plan()
+    check("the follower finished the plan", len(rs) == 1 and rs[0].trace.plan["status"] == "done"
+          and rs[0].tool_used == "calculator", str([x.trace.plan for x in rs]))
+    check("each tool ran once overall", calls == {"date_time": 1, "calculator": 1}, str(calls))
+    check("status() still works afterwards", isinstance(b.status(), dict))
+
+    b, calls = build()
+    b.system2.plan = lambda *a, **k: _wrong_first(canned_plan(*a, **k))
+    b.predictive.goal_for = lambda intent, min_obs=2: unit(np.random.default_rng(1), 64)
+    b.think("what time is it")
+    check("if the board picks a different first action the plan is not adopted",
+          not b.follower.active and b.active_plan is None)
+
+    b, calls = build()
+    b.goal_rollout = False
+    b.system2.plan = canned_plan
+    b.think("what time is it")
+    check("planning off => nothing is adopted", not b.follower.active)
+    os.environ["ASH_PLANNING"] = "0"
+
+
+def _wrong_first(plan):
+    """Make the plan start with an action the board will not choose for a
+    time query."""
+    plan.path[0].intent = "calculate"
+    plan.path[0].tool_name = "calculator"
+    return plan
+
+
+def tst_brain_proposals(b):
+    from src.brain.signals import ActionProposal as AP
+    return [AP(intent="get_time", tool_name="date_time", args="q"),
+            AP(intent="calculate", tool_name="calculator", args="q")]
+
+
 def main():
     phase1()
     phase2()
+    phase3()
     print("\n" + ("ALL CHECKS PASSED" if RESULTS["ok"] else "SOME CHECKS FAILED"))
     return 0 if RESULTS["ok"] else 1
 

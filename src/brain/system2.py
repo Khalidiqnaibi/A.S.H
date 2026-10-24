@@ -300,7 +300,8 @@ class System2Deliberator:
             steps.append(Step(
                 intent=intent, tool_name=prop.tool_name, action_class=prop.action_class,
                 reversible=prop.reversible,
-                expected_success=predictive.expected_success(intent), expected_latent=lat))
+                expected_success=predictive.expected_success(intent), expected_latent=lat,
+                args=prop.args))
         return Imagery(
             goal=goal, goal_intent=goal_intent, path=steps, gain=gain, p_success=p_ok,
             score=score, confidence=float(np.clip(confidence, 0.0, 1.0)) * p_ok,

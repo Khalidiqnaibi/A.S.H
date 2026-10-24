@@ -225,6 +225,7 @@ class Step:
     reversible: bool = True
     expected_success: float = 0.5
     expected_latent: Optional[Any] = None    # predicted state AFTER this step
+    args: Any = None                         # what the tool is called with
 
     def as_dict(self) -> Dict[str, Any]:
         return {

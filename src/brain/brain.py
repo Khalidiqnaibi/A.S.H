@@ -51,6 +51,7 @@ import numpy as np
 from .executive import ExecutiveCore
 from .homeostasis import HomeostaticModulator
 from .memory_engine import MemoryEngine
+from .planfollow import Decision, PlanFollower
 from .predictive import PredictiveModel
 from .sensory import SensoryCortex
 from .signals import (
@@ -151,7 +152,10 @@ class Brain:
         # prototypes it relies on are always learned, but scoring candidates
         # by them changes live behaviour, so it is opt-in per machine.
         self.goal_rollout = os.environ.get("ASH_PLANNING", "0") == "1"
-        self.active_plan = None      # Imagery from the latest slow-path deliberation
+        # Follows a multi-step plan across cycles. think() takes step 1 and
+        # hands the rest over; advance_plan() / run_plan() take the others.
+        self.follower = PlanFollower()
+        self._last_ctx = None        # (bundle, prediction) of the latest think()
         self._last_cycle_cost = 0.5
         self.last_trace: Optional[BrainTrace] = None
         # Rolling history so a decision is still inspectable after the
@@ -206,6 +210,11 @@ class Brain:
         trace = BrainTrace(query=query)
         self.cycles += 1
 
+        # A new request outranks whatever was being carried out: the plan was
+        # made for a situation the user has just changed.
+        if self.follower.active:
+            self.follower.drop("superseded by a new request")
+
         # --- 1. Settle previous turn's reward -------------------------
         sentiment = self._sentiment(query)
         self.system1.settle_reward(query, sentiment.get("sentiment"))
@@ -250,6 +259,7 @@ class Brain:
         prediction = self.predictive.observe(latent, candidate_intents)
         timings["predict"] = (time.perf_counter() - t0) * 1000.0
         trace.prediction = prediction.as_dict()
+        self._last_ctx = (bundle, prediction)
 
         # --- 5. Modulate (limbic broadcast) ----------------------------
         t0 = time.perf_counter()
@@ -403,6 +413,7 @@ class Brain:
         if verdict.chosen is not None:
             candidates.append(verdict.chosen)
         goal = None
+        plan = None
         if self.goal_rollout and verdict.chosen is not None:
             # The reflex's pick is the best available statement of what the
             # user is after; every candidate is scored against where THAT
@@ -416,7 +427,6 @@ class Brain:
                 candidates, latent if latent is not None else bundle.fused_embedding,
                 self.predictive, goal, goal_intent=verdict.chosen.intent,
                 confidence=prediction.confidence)
-            self.active_plan = plan
             if plan is not None:
                 trace.plan = plan.as_dict()
                 # The plan nudges its first step; the board still decides.
@@ -534,6 +544,8 @@ class Brain:
                                 importance=importance, pathway=Pathway.SLOW)
         self.predictive.commit(latent if latent is not None else bundle.fused_embedding,
                                intent)
+        self._adopt_plan(plan, candidates, chosen, tool_ok, tool_out,
+                         latent if latent is not None else bundle.fused_embedding)
         self._concept_feedback(activation, bundle, chosen, tool_success=tool_ok,
                                summary=f"{query[:80]} -> {text[:120]}")
 
@@ -541,6 +553,183 @@ class Brain:
             text=text, trace=trace, tool_output=tool_out, intent=intent,
             tool_used=tool_name, tool_success=tool_ok, pathway=Pathway.SLOW,
         )
+
+    # ==================================================================
+    # Following a plan
+    # ==================================================================
+    @property
+    def active_plan(self):
+        """The Imagery currently being followed, or None."""
+        return self.follower.plan
+
+    def _adopt_plan(self, plan, candidates, chosen, tool_ok, tool_out, latent):
+        """Take over a plan after think() has carried out its first step.
+
+        Only if that is what actually happened: if the board chose something
+        else, or the tool failed, the plan's picture of the world is already
+        wrong and there is nothing to follow.
+        """
+        if plan is None or len(plan) < 2 or chosen is None:
+            return
+        if chosen.intent != plan.path[0].intent or tool_ok is not True:
+            return
+        self.follower.adopt(plan, proposals=candidates, start_latent=latent,
+                            completed=1, pending_output=tool_out, pending_ok=True)
+
+    def _observe_step(self, out: Any, ok: bool):
+        """Perceive what a step produced and score it against the forward
+        model. Returns the Assessment of the step just taken."""
+        f = self.follower
+        latent, surprise = None, 0.0
+        try:
+            bundle = self.sensory.perceive(text=_fmt_tool_output(out), image=None)
+            if bundle.percepts and bundle.fused_embedding is not None:
+                _act, latent = self._conceive(bundle, learn=False)
+        except Exception:
+            logger.exception("Could not perceive a plan step's result")
+        if latent is not None:
+            # effective_surprise, not raw: while the forward model is still
+            # cold its errors mean nothing, and the Executive's own gate
+            # discounts them the same way.
+            surprise = self.predictive.observe(latent, []).effective_surprise()
+            f.state = latent
+        return f.assess(latent, ok, surprise)
+
+    def _apply_assessment(self, a) -> str:
+        """Act on an Assessment. Returns the plan's resulting status:
+        step | done | replanned | aborted."""
+        f = self.follower
+        if a.decision == Decision.CONTINUE:
+            return "step"
+        if a.decision == Decision.DONE:
+            f.drop(a.reason)
+            return "done"
+        if a.decision == Decision.ABORT:
+            f.drop(a.reason)
+            return "aborted"
+        # REPLAN: map a fresh path from where things actually are.
+        old = f.plan
+        new = None
+        if f.state is not None:
+            new = self.system2.plan(
+                f.proposals, f.state, self.predictive, old.goal,
+                goal_intent=old.goal_intent,
+                confidence=self._last_ctx[1].confidence if self._last_ctx else 1.0)
+        if new is None:
+            f.drop(f"{a.reason}; no better path found")
+            return "aborted"
+        f.adopt(new, f.proposals, start_latent=f.state, completed=0, replans=f.replans + 1)
+        return "replanned"
+
+    def _plan_response(self, trace: BrainTrace, status: str, reason: str, text: str,
+                       step=None, tool_out=None, ok=None, t0: float = 0.0,
+                       steps_done=None, steps_of=None) -> BrainResponse:
+        f = self.follower
+        trace.plan = {"status": status, "reason": reason,
+                      "step": steps_done, "of": steps_of, "replans": f.replans}
+        trace.notes.append(f"plan {status}: {reason}")
+        trace.timings_ms["total"] = (time.perf_counter() - t0) * 1000.0
+        self._finish_cycle(Pathway.FAST, trace)
+        return BrainResponse(
+            text=text, trace=trace, tool_output=tool_out,
+            intent=(step.intent if step else None),
+            tool_used=(step.tool_name if step else None),
+            tool_success=ok, pathway=Pathway.FAST)
+
+    # Steps a plan may carry out unattended. Anything that changes the world
+    # or cannot be undone waits for a person, however good the plan looks.
+    AUTONOMOUS_CLASSES = (ActionClass.CONVERSATION, ActionClass.RETRIEVAL, ActionClass.COMPUTE)
+
+    def advance_plan(self) -> Optional[BrainResponse]:
+        """Carry out the next step of the active plan, then check the result
+        against what the plan imagined. None means there is no plan to follow.
+
+        Each step still goes through the Executive and the Constitution, and
+        a step that is physical, irreversible or state-changing is never
+        taken unattended -- the plan stops and says so instead.
+        """
+        f = self.follower
+        if not f.active:
+            return None
+        t0 = time.perf_counter()
+        self.cycles += 1
+        n = len(f.plan)
+        trace = BrainTrace(query=f"<plan step {f.idx + 1}/{n}>")
+
+        # Close out the step think() already took, before taking another.
+        if f.pending_output is not None:
+            a = self._observe_step(f.pending_output, f.pending_ok)
+            f.pending_output = None
+            done_before = f.idx
+            status = self._apply_assessment(a)
+            if status in ("done", "aborted"):
+                return self._plan_response(trace, status, a.reason, "", t0=t0,
+                                           steps_done=done_before, steps_of=n)
+            n = len(f.plan)
+        step = f.current()
+        if step is None:
+            f.drop("plan exhausted")
+            return self._plan_response(trace, "done", "plan exhausted", "", t0=t0,
+                                       steps_done=n, steps_of=n)
+
+        if step.action_class not in self.AUTONOMOUS_CLASSES or not step.reversible:
+            reason = f"'{step.intent}' needs your go-ahead"
+            done_before = f.idx
+            f.drop(reason)
+            return self._plan_response(
+                trace, "aborted", reason,
+                f"I stopped the plan before '{step.intent}' -- it needs your go-ahead.",
+                step=step, t0=t0, steps_done=done_before, steps_of=n)
+
+        proposal = ActionProposal(
+            intent=step.intent, tool_name=step.tool_name, args=step.args, origin="system2",
+            action_class=step.action_class, confidence=step.expected_success,
+            expected_success=step.expected_success, reversible=step.reversible,
+            rationale=f"plan step {f.idx + 1}/{n}")
+        bundle, prediction = self._last_ctx if self._last_ctx else (PerceptBundle(), Prediction())
+        verdict = self.executive.arbitrate([proposal], bundle, self.homeostasis.drives, prediction)
+        if verdict.chosen is None:
+            who = ", ".join(verdict.vetoed_by) or "the board"
+            done_before = f.idx
+            f.drop(f"'{step.intent}' blocked by {who}")
+            return self._plan_response(
+                trace, "aborted", f"blocked by {who}",
+                f"I stopped the plan: '{step.intent}' was blocked by {who}.",
+                step=step, t0=t0, steps_done=done_before, steps_of=n)
+
+        tool_out = self.system1.execute(proposal)
+        ok = bool(tool_out.get("ok"))
+        self.predictive.record_outcome(step.intent, ok)
+        # State before this step: what we last observed (or where we began).
+        before = f.state if f.state is not None else f.start_latent
+        self.predictive.commit(before, step.intent)
+        f.idx += 1
+        taken = f.idx
+        trace.tool_output = tool_out
+
+        a = self._observe_step(tool_out, ok)
+        status = self._apply_assessment(a)
+        body = _fmt_tool_output(tool_out)
+        text = body if ok else (body or "That step didn't work.")
+        if status == "aborted" and not ok:
+            text = f"{text} I stopped the plan there."
+        if text.strip():
+            self.memory.push("ash", text, salience=0.3)
+        return self._plan_response(trace, status, a.reason, text, step=step,
+                                   tool_out=tool_out, ok=ok, t0=t0,
+                                   steps_done=taken, steps_of=n)
+
+    def run_plan(self, max_steps: int = 8) -> List[BrainResponse]:
+        """Follow the active plan to its end (or until it stops itself)."""
+        out: List[BrainResponse] = []
+        for _ in range(max(1, int(max_steps))):
+            r = self.advance_plan()
+            if r is None:
+                break
+            out.append(r)
+            if not self.follower.active:
+                break
+        return out
 
     # ==================================================================
     # Helpers
