@@ -61,6 +61,7 @@ class AmbientConfig:
     watchdog_stall_s: float = 120.0
     context_window_s: float = 1800.0
     max_response_chars: int = 600
+    follow_plans: bool = True        # carry on a multi-step plan between ticks
 
 
 class AmbientRuntime:
@@ -91,6 +92,7 @@ class AmbientRuntime:
         self.stats = {
             "ticks": 0, "events": 0, "dropped": 0,
             "observed": 0, "responded": 0, "ignored": 0, "errors": 0,
+            "plan_steps": 0,
         }
         self._user_busy = 0.0
         self._last_activity = time.time()
@@ -203,9 +205,15 @@ class AmbientRuntime:
 
         # 2. Process.
         events = self._drain()
+        responded_before = self.stats["responded"]
         for ev in events:
             self.stats["events"] += 1
             self._handle(ev)
+
+        # 2b. Carry on a plan, one step per tick, but never on a tick where
+        # the brain just answered someone: that answer already replaced it.
+        if self.stats["responded"] == responded_before:
+            self._advance_plan()
 
         # 3. Housekeeping.
         self._update_busy()
@@ -273,6 +281,12 @@ class AmbientRuntime:
             logger.exception("Response cycle failed")
             return
 
+        # A plan the brain adopted while volunteering a remark is not
+        # followed: the remark was spent against the hourly budget, and the
+        # rest of the steps would speak with none.
+        if not ev.addressed:
+            self._drop_plan("unprompted")
+
         if not text:
             return
 
@@ -288,6 +302,50 @@ class AmbientRuntime:
 
         if ev.addressed:
             self.gate.note_user_turn()
+
+    # ------------------------------------------------------------------
+    def _plan_active(self) -> bool:
+        f = getattr(self.brain, "follower", None)
+        return bool(f is not None and getattr(f, "active", False)
+                    and hasattr(self.brain, "advance_plan"))
+
+    def _drop_plan(self, reason: str):
+        if self._plan_active():
+            try:
+                self.brain.follower.drop(reason)
+            except Exception:
+                logger.exception("Could not drop plan")
+
+    def _advance_plan(self):
+        """Take the next step of the brain's active plan and say what came of it."""
+        if not self.cfg.follow_plans or not self._plan_active():
+            return
+        if self._user_busy >= 1.0:
+            return                       # typing right now: wait, the plan keeps
+        try:
+            response = self.brain.advance_plan()
+        except Exception:
+            self.stats["errors"] += 1
+            logger.exception("Plan step failed; dropping the plan")
+            self._drop_plan("error")
+            return
+        if response is None:
+            return
+        self.stats["plan_steps"] += 1
+        self._last_activity = time.time()
+        text = (response.text or "").strip()[: self.cfg.max_response_chars]
+        if not text:
+            return
+        try:
+            self.response_sink(text, {
+                "addressed": True,
+                "source": "plan",
+                "attention": None,
+                "pathway": response.pathway.value,
+                "plan": dict(getattr(response.trace, "plan", None) or {}),
+            })
+        except Exception:
+            logger.exception("Response sink failed")
 
     # ------------------------------------------------------------------
     def _update_busy(self):
