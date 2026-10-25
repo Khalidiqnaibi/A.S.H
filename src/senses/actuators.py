@@ -110,6 +110,11 @@ class SpeakActuator(Actuator):
     action_class = "mutation"
     reversible = False      # you cannot un-say a thing in a quiet room
     intents = ["speak", "say", "talk"]
+    # Not a tool the brain routes to. Every answer is already spoken by the
+    # daemon's response sink; as a tool, chit-chat ("yo, what's up, ash?")
+    # classified as `talk` and the actuator read the user's own words aloud,
+    # then the real answer was spoken after it.
+    routable = False
 
     def __init__(self, tts_engine=None, **kw):
         self.tts = tts_engine

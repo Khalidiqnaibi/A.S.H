@@ -267,6 +267,18 @@ def main():
     ctx = j.context_block(seconds=99999, limit=5)
     check("context block renders", bool(ctx) and "\n" in ctx, f"{len(ctx)} chars")
 
+    print("\n=== 9. Speech is the daemon's, not a tool ===")
+    from src.senses.actuators import NotifyActuator, SpeakActuator
+    from tools.registry import ToolEntry, ToolRegistry
+    preg = PeripheryRegistry()
+    preg.add_actuator(SpeakActuator(tts_engine=None, enabled=True, dry_run=False))
+    preg.add_actuator(NotifyActuator(enabled=True, dry_run=True))
+    treg = ToolRegistry()
+    preg.bind_to_registry(treg, ToolEntry)
+    check("chit-chat can never route to speak", all(treg.match(i) is None for i in ("speak", "say", "talk")),
+          str(treg.all_intents()))
+    check("other actuators are still routable", treg.match("notify") is not None)
+
     print("\n=== Attention counters ===")
     print("    ", rt.gate.status()["counts"])
 

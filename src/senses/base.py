@@ -251,6 +251,10 @@ class Actuator(ABC):
     capability: Capability = Capability(name="actuator")
     action_class: str = "mutation"     # -> brain.ActionClass
     reversible: bool = False
+    # Whether the brain's intent classifier may route a user's request to
+    # this actuator. Off for actuators that only make sense driven by the
+    # daemon itself.
+    routable: bool = True
     intents: List[str] = field(default_factory=list)  # overridden per subclass
 
     def __init__(self, dry_run: bool = True, enabled: bool = False):
@@ -369,7 +373,7 @@ class PeripheryRegistry:
         finds the function, not permission to run it."""
         n = 0
         for a in self.actuators.values():
-            if a.state == State.UNAVAILABLE:
+            if a.state == State.UNAVAILABLE or not getattr(a, "routable", True):
                 continue
             intents = a.intents or [a.name]
             tool_registry.register(ToolEntry(
