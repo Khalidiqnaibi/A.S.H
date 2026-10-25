@@ -97,7 +97,9 @@ def build_response_sink(periphery, prefer_speech: bool = True):
 
         # Speak when spoken to. Volunteered remarks stay silent unless the
         # user has explicitly asked for a talkative ASH.
-        if speak is not None and speak.state.value == "active" and (addressed or prefer_speech):
+        # ...and never an apology for being broken: that goes to the quiet channel only.
+        if (speak is not None and speak.state.value == "active"
+                and (addressed or prefer_speech) and not meta.get("degraded")):
             r = speak(text)
             if r.get("ok"):
                 delivered.append("speak")

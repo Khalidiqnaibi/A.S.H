@@ -48,9 +48,18 @@ from typing import Any, Callable, Deque, Dict, List, Optional
 from .attention import AttentionGate, Disposition
 from .journal import Journal
 from .privacy import PrivacyPolicy
-from .social import FlowDetector, ReactionTracker, SocialLearner, classify_reply
+from .social import (FlowDetector, ReactionTracker, SocialLearner, classify_reply,
+                     compose_check_in, friendly_app, is_generic_checkin)
+
+try:
+    from src.brain.memory_engine import is_failure_text
+except Exception:                                        # pragma: no cover
+    def is_failure_text(text) -> bool:
+        return isinstance(text, str) and text.strip().startswith(("[LLM]", "Error calling"))
 
 logger = logging.getLogger("ash.daemon.ambient")
+
+NO_MODEL_TEXT = "My language model isn't responding, so I can't answer that right now."
 
 
 @dataclass
@@ -67,6 +76,7 @@ class AmbientConfig:
     flow_offers: bool = True         # offer a chat in free moments, help when stuck
     social_path: Optional[str] = None    # where the learned record lives (None: in memory)
     reaction_window_s: float = 120.0     # how long to wait for a reaction to a remark
+    no_reply_notice_s: float = 600.0     # how often to say the model is down, at most
 
 
 class AmbientRuntime:
@@ -115,6 +125,8 @@ class AmbientRuntime:
             self.reactions = ReactionTracker(self.learner, window_s=self.cfg.reaction_window_s)
         self._reaction = None            # the reaction the event being handled carried
         self.stats["offers"] = 0
+        self.stats["no_reply"] = 0
+        self._last_no_reply_notice = -1e12
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -338,10 +350,14 @@ class AmbientRuntime:
             say = str(meta["say"])
             prompt = ""
         elif offer == "free_moment":
+            where = friendly_app(str(meta.get("process", "")))
             prompt = (
-                f"[FREE MOMENT -- the user did not ask you anything: {ev.text}. Say ONE short, "
-                f"friendly line: a light check-in, or a genuinely useful nudge. At most one "
-                f"question, no lists. If you have nothing worth saying, say nothing.]")
+                f"[FREE MOMENT -- the user did not ask you anything. Fact: {ev.text}"
+                f"{' (' + where + ')' if where else ''}. Reply with ONE short sentence, under 25 "
+                f"words, that mentions what they were doing or for how long -- a natural remark "
+                f"from a colleague who noticed, e.g. about the stretch of work or a break. Do NOT "
+                f"ask how you can help, do NOT say 'hey there', do NOT offer assistance in "
+                f"general. At most one question.]")
         else:
             # Unprompted remarks get an explicit framing so the narrator knows
             # it is volunteering rather than answering. Without this the LLM
@@ -371,6 +387,17 @@ class AmbientRuntime:
         if not ev.addressed:
             self._drop_plan("unprompted")
 
+        degraded = is_failure_text(text)
+        if offer == "free_moment" and (degraded or is_generic_checkin(text)):
+            # Needs no model: a plain line from how long they worked and in what.
+            text = compose_check_in(float(meta.get("minutes", 5) or 5),
+                                    str(meta.get("process", "")),
+                                    time.localtime(self.clock()).tm_hour)
+            pathway, degraded = "offer", False
+        elif degraded:
+            self._model_unavailable(ev, decision)
+            return
+
         if not text:
             return
 
@@ -393,6 +420,31 @@ class AmbientRuntime:
                 text, self.clock(),
                 topic=str(meta.get("topic", "")),
                 accept_context=str(meta.get("accept_context") or f"You had just said: {text}"))
+
+    def _model_unavailable(self, ev, decision):
+        """The brain had no real reply (the model is down or said nothing).
+
+        Never spoken, and never about a remark nobody asked for. Someone who did
+        ask is told once, quietly, then left alone until the notice interval has
+        passed: repeating "I couldn't put together a response" aloud for every
+        sentence of a conversation is worse than the outage.
+        """
+        self.stats["no_reply"] += 1
+        now = self.clock()
+        if not ev.addressed or now - self._last_no_reply_notice < self.cfg.no_reply_notice_s:
+            logger.warning("No reply to give (%s)", "addressed" if ev.addressed else "unprompted")
+            if ev.addressed:
+                self.gate.note_user_turn()
+            return
+        self._last_no_reply_notice = now
+        try:
+            self.response_sink(NO_MODEL_TEXT, {
+                "addressed": True, "source": ev.source, "attention": decision.as_dict(),
+                "pathway": "degraded", "degraded": True,
+            })
+        except Exception:
+            logger.exception("Response sink failed")
+        self.gate.note_user_turn()
 
     # ------------------------------------------------------------------
     def _plan_active(self) -> bool:

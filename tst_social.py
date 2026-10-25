@@ -867,6 +867,142 @@ def s8_switches():
     check("a detector that raises is counted and survived", h.rt.stats["errors"] >= 1)
 
 
+def reply_with(h, text):
+    """Make the stub model say `text` to everything."""
+    h.ash.think = lambda q, image=None, context="": (h.ash.calls.append((q, context)) or Resp(text))
+
+
+def with_process(h, process="Code.exe"):
+    h.say("", addressed=False, source="screen", meta={"process": process, "dwell_s": 0})
+
+
+def s9_lines_and_outages():
+    print("\n=== S9. The check-in line, and a model that is down ===")
+    from src.daemon.social import compose_check_in, friendly_app, is_generic_checkin
+    from src.daemon.ambient import NO_MODEL_TEXT
+
+    check("friendly app names", [friendly_app(p) for p in ("Code.exe", "claude.exe", "WindowsTerminal.exe",
+                                                           "mything.exe", "", None)]
+          == ["VS Code", "Claude", "the terminal", "Mything", "", ""])
+    generic = ["Hey there! Just wanted to check in and see if you needed any help.",
+               "How can I help you today?", "Let me know if you need anything!",
+               "Feel free to ask me anything.", "Is there anything I can help with?",
+               "Don't hesitate to reach out.", "", "x" * 300, "Done? Tired? Hungry?",
+               "I'm here to help whenever."]
+    for g in generic:
+        check(f"generic: {g[:44]!r}", is_generic_checkin(g))
+    specific = ["Solid stretch in VS Code -- ready for a break?", "Forty minutes on that parser, nice.",
+                "That was a long one. Coffee?", "Good run. How's the planner coming?"]
+    for g in specific:
+        check(f"specific: {g[:44]!r}", not is_generic_checkin(g))
+
+    lines = {m: compose_check_in(m, "Code.exe", 14) for m in (1, 3, 12, 45, 100, 200)}
+    check("composed lines mention the app", all("VS Code" in v for v in lines.values()), str(lines))
+    check("...scale with how long", "stopping" in lines[1] and "solid" in lines[12]
+          and "break" in lines[45] and "hours" in lines[100], str(lines))
+    check("...state the minutes where it makes sense", "12 minutes" in lines[12] and "45 minutes" in lines[45])
+    check("...never generic", not any(is_generic_checkin(v) for v in lines.values()), str(lines))
+    check("...and are short", all(len(v) < 120 for v in lines.values()))
+    check("with no app known it still reads naturally", "in " not in compose_check_in(10, "", 14).split("minutes")[1][:4]
+          and "minutes" in compose_check_in(10, "", 14))
+    check("late at night it says so", compose_check_in(20, "Code.exe", 1).startswith("It's late.")
+          and not compose_check_in(20, "Code.exe", 14).startswith("It's late."))
+    one = compose_check_in(0, "", 14)
+    check("minutes are clamped to at least one, and singular", "1 minute " in one and "1 minutes" not in one, one)
+
+    # --- through the runtime
+    h = rig()
+    with_process(h)
+    reply_with(h, "Hey there! How can I help you today?")
+    got = free_moment(h)
+    check("a generic line from the model is replaced by a specific one",
+          len(got) == 1 and "help you today" not in got[0][0] and "VS Code" in got[0][0]
+          and "minutes" in got[0][0], str(got))
+    check("...marked as an offer", got[0][1]["pathway"] == "offer")
+    check("the prompt gave the model the facts and ruled out the generic",
+          "VS Code" in h.ash.calls[-1][0] and "Do NOT ask how you can help" in h.ash.calls[-1][0],
+          h.ash.calls[-1][0][:200])
+    check("the replaced line is still watched for a reaction", len(h.rt.reactions.pending) == 1)
+
+    h = rig()
+    with_process(h)
+    reply_with(h, "Solid stretch in VS Code -- ready for a break?")
+    got = free_moment(h)
+    check("a specific line from the model is kept as it is",
+          len(got) == 1 and got[0][0] == "Solid stretch in VS Code -- ready for a break?", str(got))
+
+    h = rig()
+    with_process(h)
+    reply_with(h, "[LLM] Error calling Ollama API: connection refused")
+    got = free_moment(h)
+    check("model down: the check-in is still said, from the facts, without the model",
+          len(got) == 1 and "Ollama" not in got[0][0] and "VS Code" in got[0][0], str(got))
+
+    # --- model down, someone asked
+    h = rig()
+    reply_with(h, "I couldn't put together a response for that.")
+    h.say("what is the capital of france")
+    got = [o for o in h.out if o[1].get("degraded")]
+    check("someone asks and the model is down: told once, in plain words, as a degraded notice",
+          len(got) == 1 and got[0][0] == NO_MODEL_TEXT and got[0][1]["addressed"]
+          and got[0][1]["pathway"] == "degraded", str(h.out))
+    check("the canned apology itself is never delivered",
+          not any("couldn't put together" in o[0] for o in h.out), str(h.out))
+    h.step(30, 600)
+    h.say("and what about germany")
+    check("asked again right away: no repeat", len([o for o in h.out if o[1].get("degraded")]) == 1
+          and len(h.out) == 1, str(h.out))
+    check("...but counted", h.rt.stats["no_reply"] == 2)
+    h.step(700, 600)
+    h.say("and italy")
+    check("after the notice interval it says so again", len([o for o in h.out if o[1].get("degraded")]) == 2)
+
+    h = rig()
+    reply_with(h, "[LLM] Error calling Ollama API: boom")
+    h.say("hello there")
+    check("a raw provider error is treated the same, and never shown",
+          len(h.out) == 1 and h.out[0][0] == NO_MODEL_TEXT and "boom" not in h.out[0][0], str(h.out))
+
+    h = rig()
+    reply_with(h, "Error: no such file")
+    h.say("open the thing")
+    check("a reply that merely starts with 'Error:' is a real answer",
+          h.out and h.out[0][0] == "Error: no such file" and not h.out[0][1].get("degraded"), str(h.out))
+
+    # --- model down, nobody asked
+    h = rig()
+    reply_with(h, "I couldn't put together a response for that.")
+    h.step(10, 40.0)
+    h.say("battery at 3%", addressed=False, source="system", salience=0.9, urgency=0.8)
+    check("an unprompted remark with the model down: silence", h.out == [], str(h.out))
+    check("...nothing to watch for a reaction to", not h.rt.reactions.pending)
+    check("...and the loop is fine", h.rt.stats["errors"] == 0 and h.rt.stats["no_reply"] == 1)
+
+    # --- the sink never speaks the apology
+    try:
+        import ashd
+        spoken, notified = [], []
+
+        class Act:
+            def __init__(self, log):
+                self.log = log
+                self.state = type("S", (), {"value": "active"})()
+
+            def __call__(self, text):
+                self.log.append(text)
+                return {"ok": True}
+
+        class P:
+            actuators = {"notify": Act(notified), "speak": Act(spoken)}
+        sink = ashd.build_response_sink(P(), prefer_speech=False)
+        sink("an answer", {"addressed": True})
+        sink(NO_MODEL_TEXT, {"addressed": True, "degraded": True})
+        check("the daemon's sink: an answer is notified and spoken, a degraded notice only notified",
+              notified == ["an answer", NO_MODEL_TEXT] and spoken == ["an answer"], f"{notified} {spoken}")
+    except Exception as e:  # noqa: BLE001
+        check("the daemon's sink can be exercised", False, repr(e)[:120])
+
+
 def main():
     s1_replies()
     s2_context()
@@ -876,6 +1012,7 @@ def main():
     s6_gate()
     s7_runtime()
     s8_switches()
+    s9_lines_and_outages()
     print("\n" + ("ALL CHECKS PASSED" if OK else "SOME CHECKS FAILED"))
     return 0 if OK else 1
 

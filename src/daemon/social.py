@@ -87,6 +87,60 @@ def classify_reply(text: str) -> str:
     return "engaged"
 
 
+# --- the check-in line --------------------------------------------------------
+# A free-moment remark that could be said to anyone at any time ("how can I help
+# you today?") is worse than none: it asks the user to do the work of thinking
+# of something. The model is asked for something specific; if what comes back is
+# generic, long or a string of questions, a plain line built from the facts
+# (how long, in what) is said instead.
+_GENERIC = re.compile(
+    r"how can i (?:help|assist)|how may i (?:help|assist)|(?:need|want) any help|anything (?:i can|else)|"
+    r"(?:don'?t|do not) hesitate|feel free to ask|here to help|let me know if|what can i do for you|"
+    r"just wanted to (?:check in|see)|hey there|how are you (?:doing )?today|how can i be of", re.I)
+
+_APPS = {
+    "code": "VS Code", "chrome": "Chrome", "msedge": "Edge", "firefox": "Firefox", "claude": "Claude",
+    "windowsterminal": "the terminal", "cmd": "the terminal", "powershell": "the terminal",
+    "pwsh": "the terminal", "python": "Python", "pythonw": "Python", "pycharm64": "PyCharm",
+    "idea64": "IntelliJ", "explorer": "File Explorer", "slack": "Slack", "discord": "Discord",
+    "spotify": "Spotify", "notepad": "Notepad", "winword": "Word", "excel": "Excel",
+    "powerpnt": "PowerPoint", "githubdesktop": "GitHub Desktop",
+}
+
+
+def friendly_app(process: str) -> str:
+    """'claude.exe' -> 'Claude'; unknown names are tidied, empty stays empty."""
+    p = re.sub(r"\.(?:exe|app|bin)$", "", (process or "").strip(), flags=re.I)
+    if not p:
+        return ""
+    return _APPS.get(p.lower(), p[:1].upper() + p[1:])
+
+
+def is_generic_checkin(text: str) -> bool:
+    t = (text or "").strip()
+    return (not t or len(t) > 220 or t.count("?") > 1 or bool(_GENERIC.search(t)))
+
+
+def compose_check_in(minutes: float, process: str = "", hour: Optional[int] = None) -> str:
+    """A short, specific line from the facts alone: used when the model has
+    nothing better than a generic one."""
+    m = max(1, int(round(minutes)))
+    unit = "minute" if m == 1 else "minutes"
+    app = friendly_app(process)
+    where = f" in {app}" if app else ""
+    late = hour is not None and (hour >= 23 or hour < 5)
+    if m >= 90:
+        h = m / 60.0
+        line = f"That's about {h:.1f} hours straight{where}. Worth a stretch and some water?"
+    elif m >= 30:
+        line = f"You've been at it{where} for about {m} {unit} -- a short break might do you good."
+    elif m >= 8:
+        line = f"That was a solid {m} {unit}{where}. I'm around if you want a second opinion on anything."
+    else:
+        line = f"Nice focus -- {m} {unit}{where} without stopping."
+    return ("It's late. " + line) if late else line
+
+
 def context_key(user_busy: float, now: Optional[float] = None) -> str:
     """The situation a remark lands in, coarse enough to learn from quickly."""
     if user_busy >= 0.9:
@@ -496,12 +550,13 @@ class FlowDetector:
 
     def _free_event(self, now) -> SensorEvent:
         mins = (self.last_active - (self.burst_start or self.last_active)) / 60.0
-        where = f" in {self.process}" if self.process else ""
+        where = f" in {friendly_app(self.process)}" if self.process else ""
         return SensorEvent(
             source="flow", modality=Modality.TEXT, ts=now, persistable=False, addressed=False,
             text=f"the user just finished about {mins:.0f} minutes of work{where} and paused",
             salience=0.5,
             meta={"offer": "free_moment", "offer_strength": round(min(0.8, 0.6 + 0.01 * mins), 3),
+                  "minutes": round(mins, 1), "process": self.process,
                   "accept_context": f"You had just checked in after {mins:.0f} minutes of their work{where}."})
 
     def status(self) -> Dict[str, Any]:
