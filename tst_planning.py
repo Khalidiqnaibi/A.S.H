@@ -965,6 +965,28 @@ def phase4():
     g = G.build_gist(deadlocked=True, alternatives=["only_one"], drives=cool)
     check("a deadlock with no real alternatives leaves the question to the model",
           g.intent == "ask" and g.points[0].say is None and G.render_gist(g) is None)
+    # Found running the real brain: one intent can be proposed twice (reflex
+    # and deliberation), which produced "Did you mean get time, or get time?"
+    g = G.build_gist(deadlocked=True, alternatives=["get_time", "get_time", None], drives=cool)
+    check("the same intent twice is one alternative, not two",
+          g.intent == "ask" and g.points[0].say is None, str(g.points[0].say))
+    g = G.build_gist(deadlocked=True, alternatives=["get_time", "get_time", "calculate"], drives=cool)
+    check("duplicates are skipped to reach two distinct readings",
+          g.points[0].say == "Did you mean get time, or calculate?", str(g.points[0].say))
+    from types import SimpleNamespace as _NS
+    from src.brain.brain import ASK_MIN_CONFIDENCE
+    from src.brain.brain import Brain as _Brain
+    cands = [_NS(intent="get_time", confidence=0.42, tool_name="date_time"),
+             _NS(intent="set_reminder", confidence=0.14, tool_name="r"),
+             _NS(intent="file_info", confidence=0.12, tool_name="f"), _NS(intent=None, confidence=0.5, tool_name=None)]
+    dl = _NS(vetoed_by=[], deadlocked=True)
+    g = _Brain._decide_gist(_NS(_embed_text=lambda t: None), cands, None, None, None, dl, cool)
+    check("weak guesses are not offered as a ready-made question (real run: 'hello there')",
+          g.intent == "ask" and g.points[0].say is None, str(g.points[0].say))
+    cands[1].confidence = 0.35
+    g = _Brain._decide_gist(_NS(_embed_text=lambda t: None), cands, None, None, None, dl, cool)
+    check("two well-supported readings are", g.points[0].say == "Did you mean get time, or set reminder?"
+          and ASK_MIN_CONFIDENCE == 0.3, str(g.points[0].say))
     g = G.build_gist(drives=cool)
     check("nothing happened => converse, no points, no checks",
           g.intent == "converse" and not g.points and not g.must_include and not g.must_avoid)

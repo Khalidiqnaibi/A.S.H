@@ -203,7 +203,9 @@ def build_gist(*, chosen=None, tool_out=None, tool_ok: Optional[bool] = None,
                     Point(f"explain why: {reason}", "reason", f"{reason[0].upper()}{reason[1:]}.")],
             stance=stance, must_avoid=list(_FALSE_SUCCESS), confidence=1.0)
     elif deadlocked:
-        opts = [readable(a) for a in alternatives if a][:2]
+        # Distinct readings only: an intent proposed by both the reflex and
+        # deliberation shows up twice, and "get time, or get time" is no question.
+        opts = list(dict.fromkeys(readable(a) for a in alternatives if a))[:2]
         if len(opts) == 2:
             # Two concrete readings: the question writes itself.
             point = Point(f"ask which they meant: {opts[0]} or {opts[1]}", "question",

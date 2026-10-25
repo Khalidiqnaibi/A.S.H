@@ -76,6 +76,7 @@ SAFE_TO_CACHE = {
 # How much being step 1 of the imagined plan is worth to a candidate. Modest on
 # purpose: the plan is a suggestion to the board, not an instruction.
 PLAN_FIRST_STEP_BONUS = 0.25
+ASK_MIN_CONFIDENCE = 0.3     # an alternative must match at least this well to be offered
 
 CYCLE_COST = {
     Pathway.OBSERVE: 0.02,
@@ -583,7 +584,11 @@ class Brain:
         return build_gist(
             chosen=chosen, tool_out=tool_out, tool_ok=tool_ok,
             vetoed_by=verdict.vetoed_by, deadlocked=verdict.deadlocked,
-            attempted=attempted, alternatives=[c.intent for c in ranked],
+            attempted=attempted,
+            # Only readings with real support are worth putting to the user as
+            # a ready-made question; guesses at 0.12 would turn "hello there"
+            # into "did you mean search files, or calculate?".
+            alternatives=[c.intent for c in ranked if c.confidence >= ASK_MIN_CONFIDENCE],
             drives=drives, body=_fmt_tool_output(tool_out), embed_fn=self._embed_text)
 
     # ==================================================================
