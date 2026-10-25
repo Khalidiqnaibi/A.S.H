@@ -49,6 +49,13 @@ from .model import Animation, FaceParams, REST, blend
 logger = logging.getLogger("ash.face.player")
 
 CROSSFADE_S = 0.18
+# A one-shot expression that holds its last pose keeps it this long, then the
+# face relaxes back to idle. Without this, `hold_last` meant "forever": one
+# skeptical squint, or the boot pose, stayed on screen for the rest of the run
+# and -- because a held animation still outranked idle and moods -- blocked
+# every later expression too.
+SETTLE_S = 2.5
+RELAX_S = 0.45            # the crossfade back to idle is slower than a reaction
 
 
 class FacePlayer:
@@ -70,6 +77,7 @@ class FacePlayer:
         # Crossfade state.
         self._from_pose: Optional[FaceParams] = None
         self._fade_start: float = 0.0
+        self._fade_len: float = CROSSFADE_S
 
         # Blink layer.
         self._blink: Optional[Animation] = None
@@ -102,7 +110,10 @@ class FacePlayer:
     def play_animation(self, anim: Animation, force: bool = False) -> bool:
         with self._lock:
             cur = self.current
-            if cur is not None and not force:
+            # A finished one-shot is only holding its last pose: anything may
+            # replace it, whatever its priority.
+            settled = cur is not None and cur.finished(self.current_t)
+            if cur is not None and not force and not settled:
                 # A running animation holds the screen if it outranks the
                 # request, or ties but refuses to be cut.
                 if cur.priority > anim.priority:
@@ -115,6 +126,7 @@ class FacePlayer:
 
             self._from_pose = self.pose.copy()
             self._fade_start = time.time()
+            self._fade_len = CROSSFADE_S
             self.current = anim
             self.current_t = 0.0
             self._started = time.time()
@@ -126,7 +138,23 @@ class FacePlayer:
             self.current_t = 0.0
 
     def set_idle(self, name: str):
-        self.idle_name = name
+        """Change the resting animation. If the old one is on screen right
+        now it is swapped out, gently -- a looping idle never finishes, so
+        waiting for it to end meant waiting forever (ASH stayed sleepy at
+        someone who had come back)."""
+        with self._lock:
+            old, self.idle_name = self.idle_name, name
+            if old == name or self.current is None or self.current.name != old:
+                return
+            anim = self.library.get(name)
+            if anim is None:
+                return
+            self._from_pose = self.pose.copy()
+            self._fade_start = time.time()
+            self._fade_len = RELAX_S
+            self.current = anim
+            self.current_t = 0.0
+            self._started = time.time()
 
     # ------------------------------------------------------------------
     # Drive modulation
@@ -217,12 +245,15 @@ class FacePlayer:
                 pose = REST.copy()
             else:
                 self.current_t = now - self._started
-                if anim.finished(self.current_t) and not anim.hold_last:
+                done = anim.finished(self.current_t)
+                if done and anim.name != self.idle_name and (
+                        not anim.hold_last or self.current_t >= anim.duration + SETTLE_S):
                     self.current = None
                     idle = self.library.get(self.idle_name)
                     if idle is not None:
                         self._from_pose = self.pose.copy()
                         self._fade_start = now
+                        self._fade_len = RELAX_S
                         self.current = idle
                         self._started = now
                         anim = idle
@@ -231,7 +262,7 @@ class FacePlayer:
 
             # Crossfade out of whatever was on screen before.
             if self._from_pose is not None:
-                u = (now - self._fade_start) / CROSSFADE_S
+                u = (now - self._fade_start) / self._fade_len
                 if u >= 1.0:
                     self._from_pose = None
                 else:

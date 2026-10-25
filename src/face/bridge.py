@@ -80,10 +80,19 @@ class FaceBridge:
 
     def on_thinking_end(self, tool_success: Optional[bool] = None):
         self._thinking_since = None
+        # `thinking` loops at a higher priority than either reaction below, so
+        # it has to be ended before one can play -- otherwise the face keeps
+        # thinking, lids half down, long after the answer has landed.
+        self._end_loop("thinking", "listening", "processing")
         if tool_success is False:
             self._play("confused")
         else:
             self._play("acknowledge")
+
+    def _end_loop(self, *names: str):
+        cur = self.player.current
+        if cur is not None and cur.name in names:
+            self.player.stop()
 
     def on_speaking(self, on: bool):
         if on:
@@ -123,6 +132,9 @@ class FaceBridge:
     def on_pathway(self, pathway: str, tool_success: Optional[bool] = None,
                    vetoed_by=None, deadlocked: bool = False):
         """Called once per completed cognitive cycle."""
+        # The cycle is over, so whatever it looped (thinking, listening) ends
+        # here; every reaction below outranks idle but not those loops.
+        self._end_loop("thinking", "listening", "processing")
         if vetoed_by:
             self.on_veto(vetoed_by)
             return

@@ -183,6 +183,61 @@ def main():
           f"current={pl.current.name}")
 
     # ---------------------------------------------------------------
+    print("\n=== 5b. Player: held expressions settle ===")
+    from src.face.player import SETTLE_S
+    from src.face.bridge import FaceBridge
+    ps = FacePlayer(renderer=r, driver=NullDriver(), auto_blink=False, library=dict(BUILTINS))
+    t0 = time.time()
+    ps.play("boot", force=True)
+    ps._started = t0
+    ps.advance(t0 + 0.5)
+    check("an unfinished boot still blocks a mood", not ps.play("happy"))
+    ps.advance(t0 + BUILTINS["boot"].duration + 0.1)
+    check("a finished boot no longer blocks anything", ps.play("happy"),
+          f"current={ps.current.name}")
+    ps.play("skeptical", force=True)
+    ps._started = t0
+    dur = BUILTINS["skeptical"].duration
+    ps.advance(t0 + dur + SETTLE_S * 0.5)
+    check("a held squint holds for a moment", ps.current.name == "skeptical")
+    p = ps.advance(t0 + dur + SETTLE_S + 0.01)
+    check("then the face relaxes to idle", ps.current.name == "idle", ps.current.name)
+    p = ps.advance(t0 + dur + SETTLE_S + 2.0)
+    check("and the lids really open again", p.left.lid_top < 0.05 and p.left.lid_bottom < 0.05,
+          f"lid_top={p.left.lid_top:.2f} lid_bottom={p.left.lid_bottom:.2f}")
+    loops = 0
+    for name, a in BUILTINS.items():
+        if a.loop:
+            continue
+        ps.play(name, force=True)
+        ps._started = t0
+        ps.advance(t0 + a.duration + SETTLE_S + 0.01)
+        loops += ps.current.name != "idle"
+    check("every one-shot builtin ends back at idle", loops == 0, f"{loops} stuck")
+
+    pi = FacePlayer(renderer=r, driver=NullDriver(), auto_blink=False, library=dict(BUILTINS))
+    pi.set_idle("sleepy")
+    pi.advance()
+    check("the sleepy idle is on screen", pi.current.name == "sleepy")
+    pi.set_idle("idle")
+    check("waking up swaps the sleepy loop out at once", pi.current.name == "idle", pi.current.name)
+    pi.play("happy", force=True)
+    pi.set_idle("sleepy")
+    check("a new idle does not cut off a reaction", pi.current.name == "happy")
+
+    pb = FacePlayer(renderer=r, driver=NullDriver(), auto_blink=False, library=dict(BUILTINS))
+    br = FaceBridge(pb)
+    br.on_thinking_start()
+    br.on_pathway("slow")
+    check("an answered slow cycle stops thinking", pb.current.name == "acknowledge", pb.current.name)
+    br.on_addressed()
+    br.on_pathway("fast")
+    check("a fast answer stops listening", pb.current is None or pb.current.name != "listening")
+    br.on_thinking_start()
+    br.on_pathway("slow", deadlocked=True)
+    check("a deadlock shows confusion instead of thinking", pb.current.name == "confused", pb.current.name)
+
+    # ---------------------------------------------------------------
     print("\n=== 6. Player: blink is a layer ===")
     pl2 = FacePlayer(renderer=r, driver=NullDriver(), auto_blink=True, library=dict(BUILTINS))
     pl2.play("happy", force=True)
