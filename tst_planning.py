@@ -68,6 +68,17 @@ def check(label, cond, detail=""):
     RESULTS["ok"] = RESULTS["ok"] and bool(cond)
 
 
+
+def make_reliable(pred):
+    """Present a forward model that has demonstrably learned: enough steps and
+    an error well under the 'nothing changes' baseline."""
+    pred.forward.steps = max(pred.forward.steps, 100)
+    pred._n_err = max(pred._n_err, 100)
+    pred._err_mean, pred._base_mean = 0.75, 0.95   # confidence 0.25: just reliable
+    assert pred.reliable
+    return pred
+
+
 def unit(rng, dim):
     return _l2(rng.standard_normal(dim).astype(np.float32))
 
@@ -260,6 +271,7 @@ def phase1():
         brain = tst_brain.build_brain(st)
         check(f"ASH_PLANNING={flag} sets goal_rollout", brain.goal_rollout == (flag == "1"))
         brain.predictive.persist = False
+        make_reliable(brain.predictive)
         qs = ["what time is it please", "what time is it now", "what is the time",
               "what time is it currently", "tell me what time is it", "what time is it right now",
               "so what time is it again", "what time is it", "calculate 6 times 7",
@@ -470,6 +482,7 @@ def phase2():
     os.environ["ASH_PLANNING"] = "1"
     brain = tst_brain.build_brain(tempfile.mkdtemp(prefix="ash_brain_"))
     brain.predictive.persist = False
+    make_reliable(brain.predictive)
     qs = ["what time is it please", "what time is it now", "what is the time",
           "what time is it currently", "tell me what time is it", "what time is it right now",
           "so what time is it again", "what time is it", "calculate 6 times 7",
@@ -498,6 +511,7 @@ def phase2():
     os.environ["ASH_PLANNING"] = "0"
     brain_off = tst_brain.build_brain(tempfile.mkdtemp(prefix="ash_brain_"))
     brain_off.predictive.persist = False
+    make_reliable(brain_off.predictive)
     any_plan = False
     for q in qs:
         any_plan = any_plan or bool(brain_off.think(q).trace.plan)
@@ -641,6 +655,7 @@ def phase3():
         os.environ["ASH_PLANNING"] = "1"
         b = tst_brain.build_brain(tempfile.mkdtemp(prefix="ash_brain_"))
         b.predictive.persist = False
+        make_reliable(b.predictive)
         # Brains load whatever earlier tests saved to the shared state dir;
         # start each scenario with no tool history and no prototypes.
         b.predictive.outcomes.clear()
@@ -978,11 +993,15 @@ def phase4():
     from src.brain.brain import Brain as _Brain
     cands = [_NS(intent="get_time", confidence=0.42, tool_name="date_time"),
              _NS(intent="set_reminder", confidence=0.14, tool_name="r"),
-             _NS(intent="file_info", confidence=0.12, tool_name="f"), _NS(intent=None, confidence=0.5, tool_name=None)]
+             _NS(intent="file_info", confidence=0.12, tool_name="f")]
+    chat = _NS(intent=None, confidence=0.5, tool_name=None)
     dl = _NS(vetoed_by=[], deadlocked=True)
+    g = _Brain._decide_gist(_NS(_embed_text=lambda t: None), cands + [chat], None, None, None, dl, cool)
+    check("a tie that includes 'just answer' is conversation, not a clarifying question "
+          "(real run: every 'hello' asked 'could you tell me more?')", g.intent == "converse", g.intent)
     g = _Brain._decide_gist(_NS(_embed_text=lambda t: None), cands, None, None, None, dl, cool)
-    check("weak guesses are not offered as a ready-made question (real run: 'hello there')",
-          g.intent == "ask" and g.points[0].say is None, str(g.points[0].say))
+    check("weak guesses never make a question (real run: 'hello there')",
+          g.intent == "converse", g.intent)
     cands[1].confidence = 0.35
     g = _Brain._decide_gist(_NS(_embed_text=lambda t: None), cands, None, None, None, dl, cool)
     check("two well-supported readings are", g.points[0].say == "Did you mean get time, or set reminder?"
@@ -1169,6 +1188,7 @@ def phase4():
         os.environ["ASH_PLANNING"] = "0"
         b = tst_brain.build_brain(tempfile.mkdtemp(prefix="ash_brain_"))
         b.predictive.persist = False
+        make_reliable(b.predictive)
         # Candidate generation can also ask the model to nominate an action.
         # That is a separate call; these tests are about narration only.
         b.system2.allow_llm_proposals = False
@@ -1233,11 +1253,12 @@ def phase4():
           and r.trace.gist.get("intent") == "converse", str(r.trace.gist.get("intent")))
 
     b = build("1")
-    b.system2.llm = ScriptedLLM(["What would you like to know?"])
+    b.system2.llm = ScriptedLLM(["Hi! What can I do for you?"])
     r = b.think("hello there")
-    check("a deadlock with nothing concrete to offer is phrased by the model as a question",
-          r.trace.gist.get("intent") == "ask" and r.text == "What would you like to know?"
-          and "purpose: ask" in b.system2.llm.prompts[0], str(r.trace.gist.get("intent")))
+    check("a tie that ends in 'just answer' is conversation: the model replies, unbriefed "
+          "(real run: every 'hello' asked 'could you tell me more?')",
+          r.trace.gist.get("intent") == "converse" and r.text == "Hi! What can I do for you?"
+          and "[WHAT TO SAY]" not in b.system2.llm.prompts[0], str(r.trace.gist.get("intent")))
 
     b = build("1")
     orig = b.executive.arbitrate
@@ -1249,8 +1270,8 @@ def phase4():
     b.executive.arbitrate = deadlock
     tst_brain.LLM_CALLS["n"] = 0
     r = b.think("hello there")
-    check("a deadlocked board with no concrete options asks via the model",
-          tst_brain.LLM_CALLS["n"] == 1 and r.trace.gist.get("intent") == "ask", r.text)
+    check("a forced deadlock with no real alternatives still just converses",
+          tst_brain.LLM_CALLS["n"] == 1 and r.trace.gist.get("intent") == "converse", r.text)
 
     b = build("1")
     orig2 = b.executive.arbitrate

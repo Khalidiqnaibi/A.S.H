@@ -47,6 +47,10 @@ logger = logging.getLogger("ash.brain.predictive")
 
 STATE_DIR = os.environ.get("ASH_BRAIN_STATE", os.path.join(os.getcwd(), "state", "brain"))
 
+WARM_STEPS = 25              # transitions before the forward model's rollouts say anything
+RELIABLE_CONFIDENCE = 0.2    # model_confidence() needed to let planning steer decisions
+PERSISTENCE_MARGIN = 0.85    # to be reliable, error must be under this fraction of "nothing changes" error
+
 
 def _l2(v: np.ndarray) -> np.ndarray:
     n = float(np.linalg.norm(v))
@@ -182,6 +186,9 @@ class PredictiveModel:
         self._err_mean = 0.35
         self._err_var = 0.05
         self._n_err = 0
+        # Error of the laziest possible predictor ("the next state is the
+        # current one"). A forward model that cannot beat it knows nothing.
+        self._base_mean = 0.35
 
         # Rolling Brier-style error on outcome predictions. Unlike state
         # error this is always diagnostic: if the model said a tool would
@@ -208,11 +215,13 @@ class PredictiveModel:
         z = (raw - self._err_mean) / sd
         return float(np.clip(0.5 + 0.25 * z, 0.0, 1.0))
 
-    def _track_err(self, raw: float):
+    def _track_err(self, raw: float, baseline: Optional[float] = None):
         self._n_err += 1
         d = raw - self._err_mean
         self._err_mean += d / min(self._n_err, 200)
         self._err_var = 0.98 * self._err_var + 0.02 * (d * d)
+        if baseline is not None:
+            self._base_mean += (baseline - self._base_mean) / min(self._n_err, 200)
 
     # ------------------------------------------------------------------
     # Job 1: state prediction / surprise
@@ -232,7 +241,7 @@ class PredictiveModel:
             if pred_prev is not None and prev_s.shape == latent.shape:
                 raw = float(1.0 - np.dot(pred_prev, latent))
                 surprise = self._normalize_surprise(raw)
-                self._track_err(raw)
+                self._track_err(raw, float(1.0 - np.dot(_l2(prev_s), _l2(latent))))
                 # Learn from the transition we just closed out.
                 self.forward.learn(prev_s, prev_intent, latent)
                 self.replay.append((prev_s.copy(), prev_intent, latent.copy()))
@@ -243,9 +252,7 @@ class PredictiveModel:
         for intent in (candidate_intents or []):
             outcomes[intent] = self.expected_success(intent)
 
-        conf = float(np.clip(1.0 - self._err_mean, 0.0, 1.0)) * float(
-            np.clip(self.forward.steps / 25.0, 0.0, 1.0)
-        )
+        conf = self.model_confidence()
 
         pred_next = self.forward.predict(latent, None)
         return Prediction(
@@ -256,6 +263,22 @@ class PredictiveModel:
             confidence=conf,
             action_outcomes=outcomes,
         )
+
+    def model_confidence(self) -> float:
+        """0..1: how far the forward model's own predictions can be trusted."""
+        return float(np.clip(1.0 - self._err_mean, 0.0, 1.0)) * float(
+            np.clip(self.forward.steps / 25.0, 0.0, 1.0)
+        )
+
+    @property
+    def reliable(self) -> bool:
+        """Whether imagined futures mean anything yet. A cold linear model
+        predicts nearly the same next state whatever the action, so the small
+        differences between candidates are noise -- and goal gain multiplies
+        them by six. Found running real queries: with planning on, "hello"
+        went to read_file."""
+        return (self.model_confidence() >= RELIABLE_CONFIDENCE
+                and self._err_mean < PERSISTENCE_MARGIN * self._base_mean)
 
     def commit(self, latent: Optional[np.ndarray], intent: Optional[str]):
         """Called at the END of a cycle: remember (state, action) so the next
@@ -399,12 +422,17 @@ class PredictiveModel:
         out = dict(fallback)
         out.update({"drift": drift, "stability": stability})
 
-        if goal is not None and self.forward.accepts(goal):
+        # Until the model has seen enough transitions the differences between
+        # candidates' imagined futures are noise: no goal gain, no success fit.
+        # (A model trained directly, with no observed transitions to judge it
+        # by, is trusted on its step count alone.)
+        warm = self.forward.steps >= WARM_STEPS and (self._n_err < WARM_STEPS or self.reliable)
+        if warm and goal is not None and self.forward.accepts(goal):
             g = _l2(goal.astype(np.float32))
             out["goal_gain"] = float(np.clip(np.dot(s, g) - np.dot(s0, g), -1.0, 1.0))
             out["has_goal"] = True
 
-        own = self.goal_for(proposal.intent)
+        own = self.goal_for(proposal.intent) if warm else None
         if own is not None and first_next is not None and own.shape == first_next.shape:
             out["success_fit"] = float(np.dot(first_next, own))
         return out

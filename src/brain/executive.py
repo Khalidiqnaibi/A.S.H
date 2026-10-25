@@ -358,8 +358,14 @@ class ExecutiveCore:
             ))
 
         if proposal.origin == "system2":
+            # Deliberation's endorsement is its own imagined value for this
+            # candidate. A flat 0.7 for everything it proposed meant it could
+            # not tell its own candidates apart, and a 0.14 match beat a 0.42
+            # one on the strength of a side vote. An unvalued proposal (no
+            # rollout ran) keeps the old default.
+            sup = proposal.value if proposal.value > 0.0 else 0.7
             votes.append(Vote(
-                member="system2", support=0.7, confidence=proposal.confidence,
+                member="system2", support=max(-1.0, min(1.0, sup)), confidence=proposal.confidence,
                 reason=proposal.rationale or "deliberated proposal",
             ))
         else:
@@ -582,10 +588,27 @@ class ExecutiveCore:
             )
 
         live.sort(key=lambda s: s[0], reverse=True)
-        best_score, best, best_votes, best_tally, _ = live[0]
-        runner_up = live[1][0] if len(live) > 1 else -1.0
-        margin = best_score - runner_up if len(live) > 1 else 1.0
-        deadlocked = len(live) > 1 and margin < DEADLOCK_MARGIN
+
+        def _same(a, b):
+            return a.intent == b.intent and a.tool_name == b.tool_name
+
+        # Within a hair of the top score the ranking is noise -- a stray side
+        # vote decided "how is my cpu doing" for set_reminder over the 0.33
+        # system_stats match. When different actions are that close, the one
+        # the person's words support best wins.
+        near = [s for s in live if live[0][0] - s[0] < DEADLOCK_MARGIN]
+        if any(not _same(s[1], live[0][1]) for s in near):
+            pick = max(near, key=lambda s: (s[1].confidence, s[0]))
+        else:
+            pick = live[0]
+        best_score, best, best_votes, best_tally, _ = pick
+        # The same action proposed twice (reflex and deliberation both put
+        # forward get_time) is one candidate with two endorsements, not a
+        # rival: only a different intent can contest the decision.
+        rivals = [s for s in live if not _same(s[1], best)]
+        runner_up = max((s[0] for s in rivals), default=-1.0)
+        margin = best_score - runner_up if rivals else 1.0
+        deadlocked = bool(rivals) and margin < DEADLOCK_MARGIN
 
         if best_score < MIN_PASS_SCORE:
             pathway, reasons = Pathway.SLOW, [

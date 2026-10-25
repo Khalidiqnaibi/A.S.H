@@ -30,7 +30,7 @@ os.environ["ASH_PLANNING"] = "1"
 import numpy as np  # noqa: E402
 
 import tst_brain  # noqa: E402
-from tst_planning import make_plan, unit  # noqa: E402
+from tst_planning import make_plan, make_reliable, unit  # noqa: E402
 from src.daemon import AmbientConfig, AmbientRuntime, AttentionGate, Journal, PrivacyPolicy  # noqa: E402
 from src.senses.base import Modality, PeripheryRegistry, SensorEvent  # noqa: E402
 
@@ -70,6 +70,7 @@ def ev(text, addressed=True, salience=0.8, urgency=0.0):
 def build():
     b = tst_brain.build_brain(tempfile.mkdtemp(prefix="ash_brain_"))
     b.predictive.persist = False
+    make_reliable(b.predictive)
     b.predictive.outcomes.clear()
     b.predictive.goal_protos.clear()
     b.predictive.goal_counts.clear()

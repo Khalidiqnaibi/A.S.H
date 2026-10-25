@@ -70,6 +70,9 @@ PLAN_SUCCESS_WEIGHT = 0.5
 PLAN_IRREVERSIBLE_COST = 0.3
 PLAN_MIN_GAIN = 1e-3
 
+# Confidence of the "just answer" option is this minus the best tool's match.
+CONVERSATION_BASE = 0.62
+
 
 class System2Deliberator:
     def __init__(self, llm, registry, candidate_fn=None, shapes: Optional[Dict[str, Any]] = None,
@@ -117,10 +120,17 @@ class System2Deliberator:
         # A pure-conversation option is always on the table. Without it, the
         # board can only choose between tools, and "just answer the person"
         # would never win.
+        # Its confidence is whatever the best tool match leaves unexplained. A
+        # fixed 0.5 beat every tool the classifier ranked first at 0.3-0.4
+        # ("convert 5 miles to kilometers", "how is my cpu doing") and left
+        # them tied or lost to chat; and its expected success is the neutral
+        # prior, since "answering" has no track record to claim a bonus from.
+        best_tool = max((p.confidence for p in proposals), default=0.0)
         proposals.append(ActionProposal(
             intent=None, tool_name=None, args=query, origin="system2",
             action_class=ActionClass.CONVERSATION,
-            confidence=0.5, expected_success=0.7, reversible=True,
+            confidence=float(min(0.6, max(0.15, CONVERSATION_BASE - best_tool))),
+            expected_success=0.5, reversible=True,
             rationale="answer conversationally, no tool",
         ))
 

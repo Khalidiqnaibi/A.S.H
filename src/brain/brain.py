@@ -76,7 +76,9 @@ SAFE_TO_CACHE = {
 # How much being step 1 of the imagined plan is worth to a candidate. Modest on
 # purpose: the plan is a suggestion to the board, not an instruction.
 PLAN_FIRST_STEP_BONUS = 0.25
-ASK_MIN_CONFIDENCE = 0.3     # an alternative must match at least this well to be offered
+ASSOC_UNSUPPORTED_MAX = 0.25  # most confidence an association gets for an intent the classifier did not pick
+GOAL_MIN_MATCH = 0.3        # the reflex's pick must match this well to define a goal
+ASK_MIN_CONFIDENCE = 0.3    # an alternative must match at least this well to be offered
 
 CYCLE_COST = {
     Pathway.OBSERVE: 0.02,
@@ -285,6 +287,18 @@ class Brain:
         if activation is not None:
             try:
                 cp = self.concepts.proposer.propose(activation, bundle, drives, prediction)
+                if cp is not None and cp.intent != prelim.intent:
+                    # Activation scores grow past 1.0 as links strengthen, so
+                    # a habit would reach full confidence with no evidence
+                    # behind it ("check system stats" -> word_count at 1.00
+                    # against the classifier's 0.56). An association may lift
+                    # an intent the classifier supports, not stand in for it:
+                    # capped, and dropped when the classifier never listed it
+                    # (unit_convert kept turning up for "ls src/brain").
+                    cp.confidence = min(cp.confidence, ASSOC_UNSUPPORTED_MAX)
+                    listed = self._classifier_intents(query)
+                    if listed is not None and cp.intent not in listed:
+                        cp = None
                 if cp is not None and not any(
                         p.intent == cp.intent and p.origin == "system1" for p in proposals):
                     proposals.append(cp)
@@ -420,10 +434,13 @@ class Brain:
             candidates.append(verdict.chosen)
         goal = None
         plan = None
-        if self.goal_rollout and verdict.chosen is not None:
+        if (self.goal_rollout and verdict.chosen is not None and verdict.chosen.tool_name
+                and verdict.chosen.confidence >= GOAL_MIN_MATCH and self.predictive.reliable):
             # The reflex's pick is the best available statement of what the
             # user is after; every candidate is scored against where THAT
-            # intent's past successes ended up.
+            # intent's past successes ended up. Only when the classifier backs
+            # it: a goal built from a 0.12 guess makes imagination reward
+            # agreeing with the guess, and "hello" went to read_file.
             goal = self.predictive.goal_for(verdict.chosen.intent)
         candidates = self.system2.imagine(
             candidates, latent if latent is not None else bundle.fused_embedding,
@@ -577,18 +594,40 @@ class Brain:
         perceive() would also log the reply into the novelty history."""
         return self.sensory.text._embed(text)
 
+    def _classifier_intents(self, query: str, k: int = 6):
+        """Intents the classifier considers at all for this query, or None if
+        there is no classifier to ask."""
+        fn = getattr(self.system2, "candidate_fn", None)
+        if fn is None:
+            return None
+        try:
+            return {c.get("intent") for c in (fn(query, k) or [])}
+        except Exception:
+            logger.exception("Classifier candidates unavailable")
+            return None
+
     def _decide_gist(self, candidates, chosen, tool_out, tool_ok, verdict, drives):
         """Commit to what this reply is for, from what actually happened."""
         ranked = sorted((c for c in candidates if c.intent), key=lambda c: -c.confidence)
         attempted = next((c for c in ranked if c.tool_name), None)
+        # "Just answer" is one of the options on the board. A tie that includes
+        # it is not ambiguity about what the person wants: it is open
+        # conversation, and the model should simply reply.
+        # Only readings with real support are worth putting to the user as a
+        # question; guesses at 0.12 would turn "hello there" into "did you
+        # mean search files, or calculate?".
+        alternatives = [c.intent for c in ranked if c.confidence >= ASK_MIN_CONFIDENCE]
+        deadlocked = bool(verdict.deadlocked)
+        if deadlocked and (chosen is None or chosen.intent is None):
+            # The board settled on "just answer". Unless two real tool readings
+            # are competing with it, that is open conversation, not ambiguity:
+            # every "hello" was getting "could you tell me a bit more?".
+            deadlocked = len(set(alternatives)) >= 2
         return build_gist(
             chosen=chosen, tool_out=tool_out, tool_ok=tool_ok,
-            vetoed_by=verdict.vetoed_by, deadlocked=verdict.deadlocked,
+            vetoed_by=verdict.vetoed_by, deadlocked=deadlocked,
             attempted=attempted,
-            # Only readings with real support are worth putting to the user as
-            # a ready-made question; guesses at 0.12 would turn "hello there"
-            # into "did you mean search files, or calculate?".
-            alternatives=[c.intent for c in ranked if c.confidence >= ASK_MIN_CONFIDENCE],
+            alternatives=alternatives,
             drives=drives, body=_fmt_tool_output(tool_out), embed_fn=self._embed_text)
 
     # ==================================================================
