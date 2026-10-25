@@ -117,7 +117,7 @@ class SpeakActuator(Actuator):
 
     def act(self, args: Any) -> Dict[str, Any]:
         text = args if isinstance(args, str) else str(args)
-        if self.tts is None:
+        if self.tts is None or getattr(self.tts, "engine", True) is None:
             return {"ok": False, "error": "no TTS engine attached"}
 
         # tts.py's stream_audio() only *synthesizes* -- it yields raw WAV

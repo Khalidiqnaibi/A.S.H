@@ -76,12 +76,34 @@ from src.daemon import (  # noqa: E402
 logger = logging.getLogger("ashd")
 
 
-def build_response_sink(periphery, prefer_speech: bool = True):
+def find_model_file(name: str) -> str:
+    """Locate a model file. `models/` is git-ignored, so a git worktree has
+    none of its own; fall back to the main checkout's copy rather than going
+    silently mute when launched from a worktree or another directory."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    roots = [os.environ.get("ASH_MODELS_DIR"), os.path.join(os.getcwd(), "models"),
+             os.path.join(here, "models")]
+    try:
+        gitfile = os.path.join(here, ".git")
+        if os.path.isfile(gitfile):  # worktree: "gitdir: <main>/.git/worktrees/<name>"
+            gd = open(gitfile, encoding="utf-8").read().split(":", 1)[1].strip()
+            roots.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(gd))), "models"))
+    except Exception:
+        pass
+    for r in roots:
+        if r and os.path.isfile(os.path.join(r, name)):
+            return os.path.join(r, name)
+    return os.path.join("models", name)
+
+
+def build_response_sink(periphery, prefer_speech: bool = True, window_open=None):
     """How ASH actually reaches the user.
 
     Notification first, speech second. A notification is glanceable and
     ignorable; synthesized speech in a room with other people in it is not,
     which is why an unprompted remark should default to the quiet channel.
+    When the console window is open it already shows the line, so the
+    notification is skipped rather than doubled.
     """
     notify = periphery.actuators.get("notify")
     speak = periphery.actuators.get("speak")
@@ -90,7 +112,8 @@ def build_response_sink(periphery, prefer_speech: bool = True):
         addressed = meta.get("addressed", False)
         delivered = []
 
-        if notify is not None and notify.state.value == "active":
+        if (notify is not None and notify.state.value == "active"
+                and not (window_open is not None and window_open())):
             r = notify(text)
             if r.get("ok"):
                 delivered.append("notify")
@@ -166,8 +189,8 @@ def main() -> int:
         tts = None
         try:
             from tools import TTSEngine
-            tts = TTSEngine(model_path="models/kokoro-v1.0.onnx",
-                            voices_path="models/voices-v1.0.bin")
+            tts = TTSEngine(model_path=find_model_file("kokoro-v1.0.onnx"),
+                            voices_path=find_model_file("voices-v1.0.bin"))
         except Exception as e:
             logger.warning("TTS unavailable; speech actuator will be inert -- %s: %s",
                           type(e).__name__, e, exc_info=args.verbose)
@@ -206,6 +229,12 @@ def main() -> int:
             quiet_hours=(tuple(qh) if qh else None),
         )
 
+        ucfg = cfg.get("ui", {})
+        bus = None
+        if ucfg.get("enabled", True):
+            from src.ui import UIBus  # noqa: E402
+            bus = UIBus()
+
         rcfg = cfg.get("runtime", {})
         runtime = AmbientRuntime(
             ash=ash,
@@ -223,13 +252,16 @@ def main() -> int:
                     "social.json"),
             ),
             response_sink=build_response_sink(periphery,
-                                              prefer_speech=rcfg.get("speak_unprompted", False)),
+                                              prefer_speech=rcfg.get("speak_unprompted", False),
+                                              window_open=(lambda: bus.clients > 0) if bus else None),
         )
 
         # ---- face -----------------------------------------------------------
         # Attached by wrapping the runtime's hooks, so the ambient loop has no
         # knowledge of the face and a display failure cannot take it down.
         fcfg = cfg.get("face", {})
+        if bus is not None and fcfg.get("driver") is None:
+            fcfg = dict(fcfg, driver="null")   # the console window shows the face
         if fcfg.get("enabled", True):
             try:
                 from src.face import attach_to_daemon, build_face
@@ -247,6 +279,28 @@ def main() -> int:
                             len(player.library), type(player.driver).__name__)
             except Exception:
                 logger.exception("Face subsystem failed to start -- continuing without it")
+
+        # ---- console window ----------------------------------------------
+        # After the face, so the console can stream its poses.
+        console = None
+        if bus is not None:
+            try:
+                from src.ui import ConsoleServer, attach_ui, open_window  # noqa: E402
+                state_dir = os.environ.get("ASH_BRAIN_STATE",
+                                           os.path.join(os.getcwd(), "state", "brain"))
+                console = ConsoleServer(bus, port=int(ucfg.get("port", 8788)),
+                                        theme=ucfg.get("theme", "nebula"),
+                                        prefs_path=os.path.join(os.path.dirname(state_dir), "ui.json"))
+                profile = os.path.join(os.path.dirname(state_dir), "ui-window")
+                opener = lambda: open_window(console.url, profile_dir=profile)  # noqa: E731
+                console.on_say, console.on_control, console.state_extra = attach_ui(
+                    runtime, bus, opener=opener,
+                    open_on_message=ucfg.get("open_on_message", True))
+                if not console.start():
+                    console = None
+            except Exception:
+                logger.exception("Console failed to start -- continuing without it")
+                console = None
 
         control = None
         ccfg = cfg.get("control", {})
@@ -266,6 +320,8 @@ def main() -> int:
                 pass
             try:
                 watchdog.stop()
+                if console:
+                    console.stop()
                 if control:
                     control.stop()
                 runtime.stop()
@@ -283,6 +339,9 @@ def main() -> int:
             active = [s.name for s in periphery.active_sensors()]
             logger.warning("ASH is now listening/observing via: %s", ", ".join(active) or "nothing")
 
+        if console and ucfg.get("open_on_start", True):
+            how = opener()
+            logger.info("Console window opened (%s): %s", how, console.url)
         logger.info("Daemon up. Ctrl-C to stop. Control: ashctl.py status")
     except Exception:
         logger.critical("ASH daemon failed to start -- see traceback below for "

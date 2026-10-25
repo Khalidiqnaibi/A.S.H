@@ -91,6 +91,13 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "source": "drives",      # drives | emotions
     },
     "control": {"enabled": True, "host": "127.0.0.1", "port": 8787},
+    "ui": {
+        "enabled": True,
+        "port": 8788,            # loopback only
+        "theme": "nebula",       # nebula | blossom | paper | forest
+        "open_on_start": True,   # open the console window when the daemon starts
+        "open_on_message": True, # reopen it when ASH has something to say and it is closed
+    },
     "log": {"level": "INFO", "file": "logs/ashd.log", "max_mb": 20, "backups": 5},
 }
 

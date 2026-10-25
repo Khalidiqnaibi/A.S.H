@@ -9,3 +9,7 @@ tst.py
 /output_md_dict
 /models
 data/embeddings_intents.pkl
+
+# console window: its own browser profile and the chosen theme
+/state/ui-window/
+/state/ui.json
