@@ -58,8 +58,8 @@ class Ash:
         self.brain = brain
         self.episodic_memory = None
 
-    def think(self, query, image=None):
-        return self.brain.think(query)
+    def think(self, query, image=None, context=""):
+        return self.brain.think(query, context=context)
 
 
 def ev(text, addressed=True, salience=0.8, urgency=0.0):
