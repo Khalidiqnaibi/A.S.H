@@ -180,10 +180,21 @@ def register_handler(handler: BaseHandler) -> None:
 # never makes something up.
 # ----------------------------------------------------------------------
 _QUOTED_PATH_RE = re.compile(r'"([^"]+)"|\'([^\']+)\'')
+# A relative path with separators ("src/brain") has to be tried before the
+# absolute-path alternative: otherwise the scan reaches the "/" inside it and
+# returns "/brain".
 _PATH_TOKEN_RE = re.compile(
-    r'(?:[A-Za-z]:\\[^\s\'"]+|~?/[^\s\'"]+|\.{1,2}/[^\s\'"]+|[^\s\'"]+\.[A-Za-z0-9]{1,8})'
+    r'(?:[A-Za-z]:[\\/][^\s\'"]+|~?/[^\s\'"]+|\.{1,2}/[^\s\'"]+'
+    r'|(?<![\w/\\.~])[\w.\-]+(?:[/\\][\w.\-]+)+|[^\s\'"]+\.[A-Za-z0-9]{1,8})'
 )
-_SEARCH_FOR_RE = re.compile(r'(?:search|find|look)\s+for\s+["\']?(.+?)["\']?\s+in\s+(.+)$', re.IGNORECASE)
+_SEARCH_FOR_RE = re.compile(
+    r'(?:search|find|look)\s+(?:for\s+)?(?:the\s+)?(?:text|word|phrase|string|pattern)?\s*'
+    r'["\']?(.+?)["\']?\s+in\s+(.+)$', re.IGNORECASE)
+_GENERIC_PLACE = {"the", "all", "my", "these", "those", "this", "current", "local", "project",
+                  "files", "file", "folder", "folders", "directory", "dir", "here", "codebase",
+                  "code", "everywhere", "any", "of", "them", "repo", "repository"}
+_DIR_AFTER_RE = re.compile(r'\b(?:directory|folder|dir)\s+([\w.\-]+)', re.IGNORECASE)
+_DIR_BEFORE_RE = re.compile(r'\b([\w.\-]+)\s+(?:directory|folder|dir)\b', re.IGNORECASE)
 _LEADING_COMMAND_RE = re.compile(r'^(search|find|look)\s+(for\s+)?', re.IGNORECASE)
 
 
@@ -195,7 +206,9 @@ def _extract_path(text: str) -> Optional[str]:
         return m.group(1) or m.group(2)
     m = _PATH_TOKEN_RE.search(text)
     if m:
-        return m.group(0).strip(",.;:!?")
+        # Trailing punctuation only: strip() on both ends turned "./tools/x.py"
+        # into "/tools/x.py".
+        return m.group(0).rstrip(",.;:!?")
     return None
 
 
@@ -204,8 +217,17 @@ def _extract_search_query_and_path(text: str):
     if m:
         query = m.group(1).strip().strip("\"'")
         tail = m.group(2)
-        path = _extract_path(tail) or tail.strip()
+        path = _extract_path(tail)
+        if path is None:
+            words = re.findall(r"[\w.\-]+", tail.lower())
+            # "in the files", "in all files", "in here": nowhere in particular.
+            path = "." if all(w in _GENERIC_PLACE for w in words) else tail.strip()
         return query or None, path
+    quoted = _QUOTED_PATH_RE.search(text)
+    if quoted:
+        # The quoted text is what to look for -- not where to look.
+        query = (quoted.group(1) or quoted.group(2)).strip()
+        return (query or None), _extract_path(text.replace(quoted.group(0), " ", 1))
     path = _extract_path(text)
     remainder = text.replace(path, "", 1).strip() if path else text
     query = _LEADING_COMMAND_RE.sub("", remainder).strip().strip("\"'")
@@ -242,8 +264,20 @@ def file_info_tool(raw_query: str) -> Dict[str, Any]:
     )
 
 
+def _named_dir(text: str) -> Optional[str]:
+    """A bare folder name ("the tools folder", "directory notes") that the path
+    pattern cannot see because it has no separator or extension."""
+    for rx in (_DIR_AFTER_RE, _DIR_BEFORE_RE):
+        m = rx.search(text or "")
+        if m and m.group(1).lower() not in _GENERIC_PLACE:
+            return m.group(1)
+    return None
+
+
 def list_directory_tool(raw_query: str) -> Dict[str, Any]:
-    path = os.path.expanduser(_extract_path(raw_query) or ".")
+    # Without a named folder this lists the current one; with one that does
+    # not exist it says so instead of quietly listing somewhere else.
+    path = os.path.expanduser(_extract_path(raw_query) or _named_dir(raw_query) or ".")
     if not os.path.isdir(path):
         return _error("list_directory", path, "That doesn't look like an existing folder.")
     try:

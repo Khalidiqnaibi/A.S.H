@@ -8,6 +8,7 @@ Configure with ASH_AI_BASE env var (defaults to ./ash_ai folder).
 """
 from typing import List, Dict, Any, Tuple, Optional
 import os
+import re
 import sys
 import json
 import pickle
@@ -71,6 +72,22 @@ def _intent_description_from_block(block: Dict[str, Any]) -> str:
     return f"Intent `{block.get('tag','?')}` — example phrases: {sample}"
 
 
+# Each intent is matched through its description AND every example phrase, not
+# the description alone: a query is compared with the phrases people actually
+# say ("what is 12 times 7" scored 0.16 for calculate against the description,
+# and that exact sentence is one of its examples). An intent's score is the
+# mean of its two best-matching rows.
+#
+# The raw scores of that rule sit higher than the description-only scores every
+# threshold downstream (the executive's match floor, the gate, INTENT_THRESHOLD)
+# was tuned on, so they are mapped back onto that scale. Fitted by matching the
+# medians of tool queries and of plain chat over a few dozen real queries; it
+# changes how well intents are told apart, not what a given score means.
+CATALOG_SCORE_SLOPE = 0.73
+CATALOG_SCORE_OFFSET = -0.05
+CATALOG_CACHE_VERSION = 2
+
+
 class EmbeddingCatalog:
     def __init__(self, model_name: str = EMBEDDING_MODEL_NAME):
         self.model_name = model_name
@@ -115,8 +132,12 @@ class EmbeddingCatalog:
             if not tag:
                 continue
             labels.append(tag)
-            desc = _intent_description_from_block(b)
-            descs.append(desc)
+            descs.append(_intent_description_from_block(b))
+            for phrase in b.get("patterns", []) or []:
+                phrase = str(phrase).strip()
+                if phrase:
+                    labels.append(tag)
+                    descs.append(phrase)
         self.labels = labels
         self.descriptions = descs
         emb = self.model.encode(descs, convert_to_numpy=True, normalize_embeddings=True)
@@ -127,6 +148,7 @@ class EmbeddingCatalog:
         try:
             with open(fname, "wb") as fh:
                 pickle.dump({
+                    "version": CATALOG_CACHE_VERSION,
                     "labels": self.labels,
                     "descriptions": self.descriptions,
                     "embeddings": self.embeddings
@@ -141,6 +163,8 @@ class EmbeddingCatalog:
         try:
             with open(fname, "rb") as fh:
                 data = pickle.load(fh)
+                if data.get("version") != CATALOG_CACHE_VERSION:
+                    return False        # built by the old one-row-per-intent rule
                 self.labels = data.get("labels", [])
                 self.descriptions = data.get("descriptions", [])
                 self.embeddings = data.get("embeddings", None)
@@ -155,8 +179,16 @@ class EmbeddingCatalog:
             return []
         q_emb = self.model.encode([text], convert_to_numpy=True, normalize_embeddings=True)[0]
         sims = (self.embeddings @ q_emb).tolist()
-        idxs = sorted(range(len(sims)), key=lambda i: sims[i], reverse=True)[:top_k]
-        return [(self.labels[i], float(sims[i])) for i in idxs]
+        by_label: Dict[str, List[float]] = {}
+        for label, sim in zip(self.labels, sims):
+            by_label.setdefault(label, []).append(float(sim))
+        scored = []
+        for label, ss in by_label.items():
+            best = sorted(ss, reverse=True)[:2]
+            raw = sum(best) / len(best)
+            scored.append((label, max(0.0, min(1.0, CATALOG_SCORE_SLOPE * raw + CATALOG_SCORE_OFFSET))))
+        scored.sort(key=lambda kv: kv[1], reverse=True)
+        return scored[:top_k]
 
 _INTENT_CATALOG = EmbeddingCatalog()
 
@@ -198,6 +230,89 @@ def _ensure_catalogs_loaded(force: bool = False):
                 _INTENT_CATALOG.save_cache(INTENT_EMB_FNAME)
         _INTENT_CATALOG._source_mtime = intents_mtime
 
+ARITHMETIC_SCORE = 0.85
+
+
+def _is_arithmetic(query: str) -> bool:
+    try:
+        from tools.lesstools import looks_like_arithmetic
+        return looks_like_arithmetic(query)
+    except Exception:
+        return False
+
+
+# Structural evidence the embeddings are poor at: a file path in the request,
+# a duration, a quantity with units. Each adds a fixed amount to the intents it
+# points at -- it re-ranks and lifts candidates the catalog already found
+# plausible, and cannot conjure one from nothing.
+_PATH_HINT = re.compile(r"(?:[\w.\-]+[/\\][\w.\-]+|\b[\w\-]+\.[A-Za-z0-9]{1,6}\b)")
+_UNIT_WORD = (r"km|kilomet\w+|mi|miles?|m|meters?|metres?|cm|mm|ft|feet|foot|inch(?:es)?|yd|yards?|"
+              r"kg|kilogram\w*|g|grams?|lbs?|pounds?|oz|ounces?|l|liters?|litres?|ml|gal(?:lons?)?|"
+              r"cups?|celsius|fahrenheit|[cf]")
+_PRIORS = [
+    (re.compile(r"\bremind(?:er)?\b|\bdon'?t\s+(?:let\s+me\s+)?forget\b", re.I),
+     {"set_reminder": 0.20}),
+    (re.compile(r"\bin\s+(?:an?|half\s+an?|\d+|one|two|three|five|ten|twenty|thirty)\s*"
+                r"(?:seconds?|minutes?|mins?|hours?|hrs?|days?|weeks?)\b|\btomorrow\b", re.I),
+     {"set_reminder": 0.12}),
+    (re.compile(r"\d\s*(?:" + _UNIT_WORD + r")\b.*\b(?:to|in|into)\b|\bhow\s+many\s+(?:" + _UNIT_WORD + r")\b",
+                re.I),
+     {"unit_convert": 0.20}),
+    (re.compile(r"\b(?:cpu|ram|memory|temperature|temp|uptime|disk|battery|processor)\b", re.I),
+     {"system_stats": 0.20}),
+    (re.compile(r"\bsentiment\b|\b(?:mood|tone)\s+of\b", re.I), {"sentiment_analysis": 0.20}),
+    (re.compile(r"\b(?:words?|characters?)\b.*\b(?:in|of|is|are|count)\b|\bword\s+count\b|\breading\s+time\b",
+                re.I), {"word_count": 0.12}),
+    (re.compile(r"\b(?:grep|search|find|look)\b", re.I), {"search_files": 0.10}),
+    (re.compile(r"\b(?:ls|dir)\b|\b(?:list|show)\b.*\b(?:files|folders?|director\w+)\b|"
+                r"\bwhat'?s\s+in\b.*\b(?:folder|directory)\b|\bfiles\s+in\b", re.I),
+     {"list_directory": 0.20}),
+]
+_FILE_INTENTS = ("read_file", "file_info", "list_directory", "search_files")
+_PATH_BOOST = 0.15
+PRIOR_CAP = 0.9
+
+# A request to destroy or change the machine: nothing here can do it, and a
+# read-only tool answering "rm -rf /" with a directory listing is wrong
+# whichever way it is read. These go to conversation, which can say no.
+_DESTRUCTIVE = re.compile(
+    r"^\s*(?:please\s+)?(?:delete|remove|erase|wipe|format|shut\s*down|shutdown|reboot|restart|kill|"
+    r"drop|truncate|uninstall|rm|rmdir|del|mkfs|sudo)\b|\brm\s+-\w*r|\bdrop\s+table\b|\bformat\s+(?:the\s+)?"
+    r"(?:disk|drive|hard\s*drive|c:)", re.I)
+
+# "hi ash", "hey ash, what time is it": the name is an address, not a topic.
+_ADDRESS = re.compile(r"^\s*(?:(?:hey|hi|hello|ok|okay|yo)[,\s]+)?ash\b[,.!\s]*|[,\s]+ash[.!?\s]*$", re.I)
+
+
+def strip_address(query: str) -> str:
+    return _ADDRESS.sub("", query or "", count=1).strip()
+
+
+def _apply_priors(query: str, scored):
+    """scored: [(intent, score)] -> same shape, re-ranked by structural evidence."""
+    q = query or ""
+    boost: Dict[str, float] = {}
+    for rx, targets in _PRIORS:
+        if rx.search(q):
+            for intent, amount in targets.items():
+                boost[intent] = boost.get(intent, 0.0) + amount
+    if _PATH_HINT.search(q) and not re.search(r"\d\s*(?:" + _UNIT_WORD + r")\b", q, re.I):
+        for intent in _FILE_INTENTS:
+            boost[intent] = boost.get(intent, 0.0) + _PATH_BOOST
+    if not boost:
+        return list(scored)
+    out = [(i, min(PRIOR_CAP, sc + boost.get(i, 0.0))) for i, sc in scored]
+    out.sort(key=lambda kv: kv[1], reverse=True)
+    return out
+
+
+def _ranked(query: str, top_k: int):
+    """Catalog candidates for `query`, with the structural priors applied."""
+    cat = _INTENT_CATALOG
+    wide = max(top_k, len(set(cat.labels)))          # priors may promote a lower-ranked intent
+    return _apply_priors(query, cat.most_similar(query, top_k=wide))[:top_k]
+
+
 def classify_intent(query: str) -> Dict[str, Any]:
     logger.info("classify_intent called")
     _ensure_catalogs_loaded()
@@ -205,7 +320,12 @@ def classify_intent(query: str) -> Dict[str, Any]:
         logger.warning("Embedding model not available; returning 'conversation'")
         return {"intent": "conversation", "score": 0.0}
 
-    candidates = _INTENT_CATALOG.most_similar(query, top_k=1)
+    query = strip_address(query)
+    if not query or _DESTRUCTIVE.search(query):
+        return {"intent": "conversation", "score": 0.0}
+    if _is_arithmetic(query):
+        return {"intent": "calculate", "score": ARITHMETIC_SCORE}
+    candidates = _ranked(query, top_k=1)
     if not candidates:
         return {"intent": "conversation", "score": 0.0}
     intent, score = candidates[0]
@@ -219,8 +339,14 @@ def get_intent_candidates(query: str, top_k: int = 3):
     _ensure_catalogs_loaded()
     if SentenceTransformer is None:
         return []
-    raw = _INTENT_CATALOG.most_similar(query, top_k=top_k)
-    return [{"intent": i, "score": s} for i, s in raw]
+    query = strip_address(query)
+    if not query or _DESTRUCTIVE.search(query):
+        return []
+    out = [{"intent": i, "score": s} for i, s in _ranked(query, top_k=top_k)]
+    if _is_arithmetic(query):
+        out = [{"intent": "calculate", "score": ARITHMETIC_SCORE}] + [
+            c for c in out if c["intent"] != "calculate"][:max(0, top_k - 1)]
+    return out
 
 def sentiment_tool(text: str) -> Dict[str, Any]:
     logger.info("sentiment_tool called")
