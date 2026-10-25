@@ -62,6 +62,8 @@ class AttentionDecision:
     threshold: float = 0.0
     reasons: List[str] = field(default_factory=list)
     addressed: bool = False
+    kind: str = ""          # what sort of remark this would be (an offer, or the source)
+    ctx: str = ""           # the situation it would land in, for learning from the reaction
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -70,6 +72,8 @@ class AttentionDecision:
             "threshold": round(self.threshold, 3),
             "addressed": self.addressed,
             "reasons": self.reasons,
+            "kind": self.kind,
+            "ctx": self.ctx,
         }
 
 
@@ -83,7 +87,12 @@ class AttentionGate:
         max_unsolicited_per_hour: int = 6,
         quiet_hours: Optional[tuple] = None,     # (start_hour, end_hour), local
         interrupt_cost_weight: float = 0.20,
+        max_offers_per_hour: int = 3,
+        learner=None,                            # a SocialLearner, or None for fixed weights
     ):
+        self.max_offers_per_hour = max_offers_per_hour
+        self.learner = learner
+        self._offers: Deque[float] = deque(maxlen=32)
         self.base_threshold = base_threshold
         self.ignore_below = ignore_below
         self.refractory_seconds = refractory_seconds
@@ -157,16 +166,37 @@ class AttentionGate:
         # ---- Score ------------------------------------------------------
         salience = float(getattr(event, "salience", 0.3))
         urgency = float(getattr(event, "urgency", 0.0))
+        meta = getattr(event, "meta", None) or {}
+        offer = meta.get("offer")
+        kind = str(offer or getattr(event, "source", "event"))
+        from .social import context_key
+        ctx = context_key(user_busy, now)
 
-        score = (
-            0.45 * urgency
-            + 0.30 * salience
-            + 0.15 * novelty
-            + 0.10 * drives.curiosity
-        )
+        if offer:
+            # An offer carries its own evidence (how stuck, how long a stretch
+            # of work), which is what salience is standing in for elsewhere.
+            score = float(meta.get("offer_strength", 0.5)) + 0.10 * (drives.curiosity - 0.5)
+        else:
+            score = (
+                0.45 * urgency
+                + 0.30 * salience
+                + 0.15 * novelty
+                + 0.10 * drives.curiosity
+            )
         # Urgency is allowed to dominate: a critical battery should get
         # through a mildly raised bar without needing anything else to agree.
         score = max(score, urgency * 0.95)
+
+        # What was learned from how earlier remarks of this kind landed.
+        shift = 0.0
+        if self.learner is not None:
+            if self.learner.snoozed(kind, now) and urgency < 0.9:
+                self.counts[Disposition.OBSERVE.value] += 1
+                return AttentionDecision(Disposition.OBSERVE, score, 0.0,
+                                         ["told to stop; holding off on this kind of remark"],
+                                         kind=kind, ctx=ctx)
+            shift = self.learner.bar_shift(kind, ctx, urgency, now)
+            score += self.learner.exploration(kind, ctx, urgency, now)
 
         # ---- Threshold --------------------------------------------------
         threshold = self.base_threshold
@@ -175,7 +205,13 @@ class AttentionGate:
             threshold += refr
             reasons.append(f"refractory +{refr:.2f}")
 
-        busy_cost = self.interrupt_cost_weight * user_busy
+        if abs(shift) > 0.01:
+            threshold += shift
+            reasons.append(f"learned {shift:+.2f} for {kind} ({ctx})")
+
+        # An offer is made at a pause, so being busy is not weighed -- it is a
+        # hard stop below. Everything else pays for interrupting.
+        busy_cost = 0.0 if offer else self.interrupt_cost_weight * user_busy
         if busy_cost > 0.01:
             threshold += busy_cost
             reasons.append(f"user busy +{busy_cost:.2f}")
@@ -192,34 +228,40 @@ class AttentionGate:
         threshold += 0.10 * drives.caution
 
         # ---- Hard stops -------------------------------------------------
+        def verdict(d, why):
+            self.counts[d.value] += 1
+            return AttentionDecision(d, score, threshold, reasons + [why], kind=kind, ctx=ctx)
+
         if score < self.ignore_below:
-            self.counts[Disposition.IGNORE.value] += 1
-            return AttentionDecision(Disposition.IGNORE, score, threshold,
-                                     reasons + ["below noise floor"])
+            return verdict(Disposition.IGNORE, "below noise floor")
 
         if self._in_quiet_hours(now) and urgency < 0.85:
-            self.counts[Disposition.OBSERVE.value] += 1
-            return AttentionDecision(Disposition.OBSERVE, score, threshold,
-                                     reasons + ["quiet hours"])
+            return verdict(Disposition.OBSERVE, "quiet hours")
+
+        if offer and user_busy >= 0.9:
+            return verdict(Disposition.OBSERVE, "typing right now; not interrupting an offer")
 
         spent = self._budget_spent(now)
         if spent >= self.max_unsolicited_per_hour and urgency < 0.9:
-            self.counts[Disposition.OBSERVE.value] += 1
-            return AttentionDecision(
-                Disposition.OBSERVE, score, threshold,
-                reasons + [f"hourly budget spent ({spent}/{self.max_unsolicited_per_hour})"])
+            return verdict(Disposition.OBSERVE,
+                           f"hourly budget spent ({spent}/{self.max_unsolicited_per_hour})")
+
+        if offer:
+            while self._offers and now - self._offers[0] > 3600:
+                self._offers.popleft()
+            if len(self._offers) >= self.max_offers_per_hour:
+                return verdict(Disposition.OBSERVE,
+                               f"offer budget spent ({len(self._offers)}/{self.max_offers_per_hour})")
 
         # ---- Verdict ------------------------------------------------------
         if score >= threshold:
             self._last_response = now
             self._unsolicited.append(now)
-            self.counts[Disposition.RESPOND.value] += 1
-            return AttentionDecision(Disposition.RESPOND, score, threshold,
-                                     reasons + ["volunteered"])
+            if offer:
+                self._offers.append(now)
+            return verdict(Disposition.RESPOND, "volunteered")
 
-        self.counts[Disposition.OBSERVE.value] += 1
-        return AttentionDecision(Disposition.OBSERVE, score, threshold,
-                                 reasons + [f"score {score:.2f} < threshold {threshold:.2f}"])
+        return verdict(Disposition.OBSERVE, f"score {score:.2f} < threshold {threshold:.2f}")
 
     # ------------------------------------------------------------------
     def note_user_turn(self):
@@ -238,6 +280,8 @@ class AttentionGate:
             "counts": dict(self.counts),
             "unsolicited_last_hour": self._budget_spent(now),
             "budget": self.max_unsolicited_per_hour,
+            "offers_last_hour": sum(1 for t in self._offers if now - t <= 3600),
+            "offer_budget": self.max_offers_per_hour,
             "seconds_since_response": (round(now - self._last_response, 1)
                                        if self._last_response else None),
             "quiet_hours": self.quiet_hours,

@@ -48,6 +48,7 @@ from typing import Any, Callable, Deque, Dict, List, Optional
 from .attention import AttentionGate, Disposition
 from .journal import Journal
 from .privacy import PrivacyPolicy
+from .social import FlowDetector, ReactionTracker, SocialLearner, classify_reply
 
 logger = logging.getLogger("ash.daemon.ambient")
 
@@ -62,6 +63,10 @@ class AmbientConfig:
     context_window_s: float = 1800.0
     max_response_chars: int = 600
     follow_plans: bool = True        # carry on a multi-step plan between ticks
+    learn_social: bool = True        # learn from how volunteered remarks land
+    flow_offers: bool = True         # offer a chat in free moments, help when stuck
+    social_path: Optional[str] = None    # where the learned record lives (None: in memory)
+    reaction_window_s: float = 120.0     # how long to wait for a reaction to a remark
 
 
 class AmbientRuntime:
@@ -96,6 +101,20 @@ class AmbientRuntime:
         }
         self._user_busy = 0.0
         self._last_activity = time.time()
+        self.clock: Callable[[], float] = time.time
+
+        # The social loop: what was said, how it landed, and when to speak.
+        self.learner: Optional[SocialLearner] = None
+        self.reactions: Optional[ReactionTracker] = None
+        self.flow: Optional[FlowDetector] = FlowDetector() if self.cfg.flow_offers else None
+        if self.cfg.learn_social:
+            self.learner = getattr(self.gate, "learner", None) or SocialLearner(
+                path=self.cfg.social_path)
+            self.gate.learner = self.learner
+            self.learner.clock = lambda: self.clock()
+            self.reactions = ReactionTracker(self.learner, window_s=self.cfg.reaction_window_s)
+        self._reaction = None            # the reaction the event being handled carried
+        self.stats["offers"] = 0
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -215,19 +234,59 @@ class AmbientRuntime:
         if self.stats["responded"] == responded_before:
             self._advance_plan()
 
+        # 2c. Speak up at a free moment or when stuck, and count the remarks
+        # nobody reacted to.
+        self._social_step(self.clock())
+
         # 3. Housekeeping.
         self._update_busy()
         self._maybe_sleep(now)
 
     # ------------------------------------------------------------------
+    def _idle_seconds(self) -> Optional[float]:
+        sensor = self.periphery.sensors.get("idle")
+        if sensor is None:
+            return None
+        try:
+            return float(sensor.seconds_idle())
+        except Exception:
+            return None
+
+    def _social_step(self, now: float, idle_s: Optional[float] = None):
+        try:
+            if self.reactions is not None:
+                self.reactions.expire(now)
+            if self.flow is None:
+                return
+            if idle_s is None:
+                idle_s = self._idle_seconds()
+            if idle_s is None:
+                return                   # no way to tell when they pause: say nothing
+            for offer in self.flow.poll(idle_s, now):
+                self.stats["offers"] += 1
+                self.submit(offer)
+        except Exception:
+            self.stats["errors"] += 1
+            logger.exception("Social step failed")
+
     def _handle(self, ev):
         self.journal.append(ev)
+        now = self.clock()
+
+        self._reaction = None
+        if self.flow is not None:
+            self.flow.observe(ev, now)
+        if self.reactions is not None:
+            try:
+                self._reaction = self.reactions.on_user_event(ev, now)
+            except Exception:
+                logger.exception("Reading the reaction failed")
 
         novelty = 0.5
         try:
             drives = self.brain.homeostasis.drives
             decision = self.gate.decide(ev, drives, novelty=novelty,
-                                        user_busy=self._user_busy)
+                                        user_busy=self._user_busy, now=now)
         except Exception:
             logger.exception("Attention gate failed; defaulting to observe")
             decision = None
@@ -259,10 +318,30 @@ class AmbientRuntime:
     def _respond(self, ev, decision):
         """Full cognitive cycle, with ambient context attached."""
         context = self.journal.context_block(self.cfg.context_window_s)
+        meta = getattr(ev, "meta", None) or {}
+        offer = None if ev.addressed else meta.get("offer")
+        react = self._reaction if ev.addressed else None
+        say = None                       # a line that needs no model to say
 
         if ev.addressed:
             from src.senses.mic import MicrophoneSensor
             prompt = MicrophoneSensor.strip_address(ev.text)
+            if react is not None and react.outcome in ("rejected", "deferred"):
+                # "Not now" after an offer is answered as a person would, and
+                # the offer's kind has already been snoozed.
+                say = ("Okay, I'll stay out of your way." if react.outcome == "rejected"
+                       else "Okay, I'll check back later.")
+            elif react is not None and react.offer.accept_context:
+                context = (f"{context}\n[{react.offer.accept_context} "
+                           f"The user's message is their answer to that.]").strip()
+        elif offer == "stuck_help" and meta.get("say"):
+            say = str(meta["say"])
+            prompt = ""
+        elif offer == "free_moment":
+            prompt = (
+                f"[FREE MOMENT -- the user did not ask you anything: {ev.text}. Say ONE short, "
+                f"friendly line: a light check-in, or a genuinely useful nudge. At most one "
+                f"question, no lists. If you have nothing worth saying, say nothing.]")
         else:
             # Unprompted remarks get an explicit framing so the narrator knows
             # it is volunteering rather than answering. Without this the LLM
@@ -273,13 +352,18 @@ class AmbientRuntime:
                 f"remark. If it isn't clearly useful, say nothing of substance.]"
             )
 
-        try:
-            image = ev.data if getattr(ev.modality, "value", ev.modality) == "vision" else None
-            response = self.ash.think(prompt, image=image, context=context)
-            text = (response.text or "").strip()[: self.cfg.max_response_chars]
-        except Exception:
-            logger.exception("Response cycle failed")
-            return
+        pathway = "offer"
+        if say is not None:
+            text = say[: self.cfg.max_response_chars]
+        else:
+            try:
+                image = ev.data if getattr(ev.modality, "value", ev.modality) == "vision" else None
+                response = self.ash.think(prompt, image=image, context=context)
+                text = (response.text or "").strip()[: self.cfg.max_response_chars]
+                pathway = response.pathway.value
+            except Exception:
+                logger.exception("Response cycle failed")
+                return
 
         # A plan the brain adopted while volunteering a remark is not
         # followed: the remark was spent against the hourly budget, and the
@@ -295,13 +379,20 @@ class AmbientRuntime:
                 "addressed": ev.addressed,
                 "source": ev.source,
                 "attention": decision.as_dict(),
-                "pathway": response.pathway.value,
+                "pathway": pathway,
             })
         except Exception:
             logger.exception("Response sink failed")
 
         if ev.addressed:
             self.gate.note_user_turn()
+        elif self.reactions is not None:
+            # Something was volunteered: watch what the user does with it.
+            self.reactions.register(
+                getattr(decision, "kind", "") or ev.source, getattr(decision, "ctx", ""),
+                text, self.clock(),
+                topic=str(meta.get("topic", "")),
+                accept_context=str(meta.get("accept_context") or f"You had just said: {text}"))
 
     # ------------------------------------------------------------------
     def _plan_active(self) -> bool:
@@ -430,6 +521,9 @@ class AmbientRuntime:
             "queue": len(self._queue),
             "user_busy": round(self._user_busy, 2),
             "attention": self.gate.status(),
+            "social": ({"learner": self.learner.status() if self.learner else None,
+                        "reactions": self.reactions.status() if self.reactions else None,
+                        "flow": self.flow.status() if self.flow else None}),
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),
             "periphery": self.periphery.status(),

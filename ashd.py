@@ -214,6 +214,11 @@ def main() -> int:
             config=AmbientConfig(
                 tick_seconds=rcfg.get("tick_seconds", 1.0),
                 sleep_after_idle_s=rcfg.get("sleep_after_idle_s", 1500),
+                learn_social=rcfg.get("learn_social", True),
+                flow_offers=rcfg.get("flow_offers", True),
+                social_path=os.path.join(
+                    os.environ.get("ASH_BRAIN_STATE", os.path.join(os.getcwd(), "state", "brain")),
+                    "social.json"),
             ),
             response_sink=build_response_sink(periphery,
                                               prefer_speech=rcfg.get("speak_unprompted", False)),
