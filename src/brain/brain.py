@@ -51,7 +51,7 @@ import numpy as np
 from .executive import ExecutiveCore
 from .gist import build_gist
 from .homeostasis import HomeostaticModulator
-from .memory_engine import MemoryEngine
+from .memory_engine import NO_REPLY_TEXT, MemoryEngine, is_failure_text
 from .planfollow import Decision, PlanFollower
 from .predictive import PredictiveModel
 from .sensory import SensoryCortex
@@ -537,7 +537,7 @@ class Brain:
         timings["narrate"] = (time.perf_counter() - t0) * 1000.0
 
         if not (text or "").strip():
-            text = _fmt_tool_output(tool_out) or "I couldn't put together a response for that."
+            text = _fmt_tool_output(tool_out) or NO_REPLY_TEXT
             trace.notes.append("narration empty -- fell back to raw facts")
 
         # --- commit ---------------------------------------------------------
@@ -568,6 +568,7 @@ class Brain:
             and chosen.action_class in SAFE_TO_CACHE
             and tool_ok is not False
             and bool((text or "").strip())
+            and not is_failure_text(text)
         )
         if cacheable:
             self.system1.reflex_store(query, text, tool_out)

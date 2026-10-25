@@ -38,6 +38,20 @@ logger = logging.getLogger("ash.brain.memory")
 WM_CAPACITY = 8
 WM_TTL = 600.0   # seconds before a working-memory slot decays out
 
+# What ASH says when it has nothing to say, and what a failed model call looks
+# like (tools/LLM.py returns the error as plain text rather than raising). Neither
+# is something ASH meant, so neither may be remembered: a provider error stored
+# as an utterance became entities, "core" context and cached replies.
+NO_REPLY_TEXT = "I couldn't put together a response for that."
+# (A bare "Error:" is not here: a tool can legitimately answer "Error: no such file".)
+_FAILURE_PREFIXES = ("[LLM]", "[LLM ERROR]", "Error calling", "Error from LLM provider:",
+                     "API Error:")
+
+
+def is_failure_text(text: Any) -> bool:
+    t = text.strip() if isinstance(text, str) else ""
+    return t == NO_REPLY_TEXT or t.startswith(_FAILURE_PREFIXES)
+
 
 @dataclass
 class WorkingSlot:
@@ -125,6 +139,8 @@ class MemoryEngine:
     # ------------------------------------------------------------------
     def commit_utterance(self, text: str, source: str = "chat",
                          importance: float = 0.5, actor: Optional[str] = None) -> Dict[str, Any]:
+        if is_failure_text(text):
+            return {"skipped": "not a real utterance (a failed reply)"}
         try:
             return self.router.route_utterance(
                 text=text, source=source, importance=importance, actor=actor
@@ -144,7 +160,8 @@ class MemoryEngine:
         working buffer still sees it.
         """
         self.push("user", user_text, salience=0.6)
-        self.push("ash", ash_text, salience=0.5)
+        if not is_failure_text(ash_text):
+            self.push("ash", ash_text, salience=0.5)
 
         if pathway == Pathway.REFLEX:
             return {"skipped": "reflex turn not persisted"}

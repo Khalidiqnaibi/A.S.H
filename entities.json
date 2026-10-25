@@ -472,7 +472,6 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Ollama",
-      "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
       "source": "ash",
       "updated_at": 1786173423.6153936
     },
@@ -2975,38 +2974,6 @@
     "created_at": 1782758471.0679069,
     "updated_at": 1782758471.0679069
   },
-  "e39d9bb5-676d-4f03-b0be-94990b9a5200": {
-    "entity_id": "e39d9bb5-676d-4f03-b0be-94990b9a5200",
-    "entity_type": "proper",
-    "primary_identifiers": {
-      "name": "provider"
-    },
-    "secondary_identifiers": {},
-    "attributes": {
-      "canonical_name": "Provider",
-      "last_seen_context": "[LLM] API Error: 429 - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false,\"provider_error_code\":\"429\",\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key (https://openrouter.ai/settings/integrations), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
-      "source": "ash",
-      "updated_at": 1786026080.071453
-    },
-    "created_at": 1782759399.0520391,
-    "updated_at": 1786026080.0724514
-  },
-  "e4578bb4-0909-4289-8782-feda0444be04": {
-    "entity_id": "e4578bb4-0909-4289-8782-feda0444be04",
-    "entity_type": "proper",
-    "primary_identifiers": {
-      "name": "stealth"
-    },
-    "secondary_identifiers": {},
-    "attributes": {
-      "canonical_name": "Stealth",
-      "last_seen_context": "[LLM] API Error: 400 - {\"error\":{\"message\":\"Provider returned error\",\"code\":400,\"metadata\":{\"raw\":\"ERROR\",\"provider_name\":\"Stealth\",\"is_byok\":false}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
-      "source": "chat",
-      "updated_at": 1782760586.034681
-    },
-    "created_at": 1782759399.1023414,
-    "updated_at": 1782760586.034681
-  },
   "d9f6f570-9314-43f0-a411-db4bda62cdac": {
     "entity_id": "d9f6f570-9314-43f0-a411-db4bda62cdac",
     "entity_type": "proper",
@@ -3471,38 +3438,6 @@
     "created_at": 1782822552.3842878,
     "updated_at": 1786272099.4718218
   },
-  "06655eec-ab82-4cef-94b4-8541fc5d435d": {
-    "entity_id": "06655eec-ab82-4cef-94b4-8541fc5d435d",
-    "entity_type": "url",
-    "primary_identifiers": {
-      "name": "https://openrouter.ai/settings/integrations\",\"provider_name\":\"google"
-    },
-    "secondary_identifiers": {},
-    "attributes": {
-      "canonical_name": "https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google",
-      "last_seen_context": "[LLM] API Error: 429 - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false,\"provider_error_code\":\"429\",\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key (https://openrouter.ai/settings/integrations), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
-      "source": "ash",
-      "updated_at": 1786026079.87685
-    },
-    "created_at": 1782823003.44735,
-    "updated_at": 1786026079.87685
-  },
-  "0a029bc2-5897-457b-ad77-4031986bdb62": {
-    "entity_id": "0a029bc2-5897-457b-ad77-4031986bdb62",
-    "entity_type": "url",
-    "primary_identifiers": {
-      "name": "https://openrouter.ai/settings/integrations\"}]}},\"user_id\":\"user_31cbcfhl2fezhutusqctnqondjv\"}"
-    },
-    "secondary_identifiers": {},
-    "attributes": {
-      "canonical_name": "https://openrouter.ai/settings/integrations\"}]}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
-      "last_seen_context": "[LLM] API Error: 429 - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false,\"previous_errors\":[{\"code\":429,\"message\":\"Provider returned error\",\"provider_name\":\"OpenInference\",\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\"}]}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
-      "source": "chat",
-      "updated_at": 1782823003.4633079
-    },
-    "created_at": 1782823003.4633079,
-    "updated_at": 1782823003.4633079
-  },
   "ead5759a-9c1f-4656-9421-1bafbff8c8c6": {
     "entity_id": "ead5759a-9c1f-4656-9421-1bafbff8c8c6",
     "entity_type": "proper",
@@ -3512,28 +3447,11 @@
     "secondary_identifiers": {},
     "attributes": {
       "canonical_name": "Google",
-      "last_seen_context": "[LLM] API Error: 429 - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false,\"provider_error_code\":\"429\",\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key (https://openrouter.ai/settings/integrations), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
       "source": "ash",
       "updated_at": 1786026080.133493
     },
     "created_at": 1782823003.6504133,
     "updated_at": 1786026080.1344895
-  },
-  "4205c06d-e6d9-404a-9bbe-48c07d9f4300": {
-    "entity_id": "4205c06d-e6d9-404a-9bbe-48c07d9f4300",
-    "entity_type": "proper",
-    "primary_identifiers": {
-      "name": "studio"
-    },
-    "secondary_identifiers": {},
-    "attributes": {
-      "canonical_name": "Studio",
-      "last_seen_context": "[LLM] API Error: 429 - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false,\"provider_error_code\":\"429\",\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key (https://openrouter.ai/settings/integrations), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
-      "source": "ash",
-      "updated_at": 1786026080.1534739
-    },
-    "created_at": 1782823003.7140725,
-    "updated_at": 1786026080.1534739
   },
   "ec344478-597d-498d-a2f3-b5f97d45c8bd": {
     "entity_id": "ec344478-597d-498d-a2f3-b5f97d45c8bd",
@@ -3950,118 +3868,6 @@
     },
     "created_at": 1785948443.0517724,
     "updated_at": 1786272721.7202768
-  },
-  "1a740332-5f42-4c4f-b748-543e0fffe61e": {
-    "entity_id": "1a740332-5f42-4c4f-b748-543e0fffe61e",
-    "entity_type": "person",
-    "primary_identifiers": {
-      "name": "ollama api"
-    },
-    "secondary_identifiers": {},
-    "attributes": {
-      "canonical_name": "Ollama API",
-      "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
-      "source": "ash",
-      "updated_at": 1786173423.5185
-    },
-    "created_at": 1786025585.8692744,
-    "updated_at": 1786173423.5185
-  },
-  "9d1cc74d-6793-4c60-8219-efdff9c29a7b": {
-    "entity_id": "9d1cc74d-6793-4c60-8219-efdff9c29a7b",
-    "entity_type": "person",
-    "primary_identifiers": {
-      "name": "max"
-    },
-    "secondary_identifiers": {},
-    "attributes": {
-      "canonical_name": "Max",
-      "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
-      "source": "ash",
-      "updated_at": 1786173423.5384462
-    },
-    "created_at": 1786025585.9346666,
-    "updated_at": 1786173423.5384462
-  },
-  "29a39a51-d45c-473a-b49e-0406d1a928b2": {
-    "entity_id": "29a39a51-d45c-473a-b49e-0406d1a928b2",
-    "entity_type": "proper",
-    "primary_identifiers": {
-      "name": "caused"
-    },
-    "secondary_identifiers": {},
-    "attributes": {
-      "canonical_name": "Caused",
-      "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
-      "source": "ash",
-      "updated_at": 1786173423.8485188
-    },
-    "created_at": 1786025586.1154487,
-    "updated_at": 1786173423.8495173
-  },
-  "da1fb45d-9dab-40c8-90bc-d02b64fbb538": {
-    "entity_id": "da1fb45d-9dab-40c8-90bc-d02b64fbb538",
-    "entity_type": "proper",
-    "primary_identifiers": {
-      "name": "failed"
-    },
-    "secondary_identifiers": {},
-    "attributes": {
-      "canonical_name": "Failed",
-      "last_seen_context": "[LLM] Error calling Ollama API: HTTPConnectionPool(host='127.0.0.1', port=4444): Max retries exceeded with url: /api/chat (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=4444): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
-      "source": "ash",
-      "updated_at": 1786173423.912696
-    },
-    "created_at": 1786025586.1343703,
-    "updated_at": 1786173423.912696
-  },
-  "0f6b2fec-1fb2-4899-954f-2869b7320b9c": {
-    "entity_id": "0f6b2fec-1fb2-4899-954f-2869b7320b9c",
-    "entity_type": "url",
-    "primary_identifiers": {
-      "name": "https://openrouter.ai/settings/integrations),"
-    },
-    "secondary_identifiers": {},
-    "attributes": {
-      "canonical_name": "https://openrouter.ai/settings/integrations),",
-      "last_seen_context": "[LLM] API Error: 429 - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false,\"provider_error_code\":\"429\",\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key (https://openrouter.ai/settings/integrations), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
-      "source": "ash",
-      "updated_at": 1786026079.9372108
-    },
-    "created_at": 1786026079.9372108,
-    "updated_at": 1786026079.9372108
-  },
-  "9e80c625-1fe7-499c-b584-a2f0a27c6a47": {
-    "entity_id": "9e80c625-1fe7-499c-b584-a2f0a27c6a47",
-    "entity_type": "url",
-    "primary_identifiers": {
-      "name": "https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_31cbcfhl2fezhutusqctnqondjv\"}"
-    },
-    "secondary_identifiers": {},
-    "attributes": {
-      "canonical_name": "https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
-      "last_seen_context": "[LLM] API Error: 429 - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false,\"provider_error_code\":\"429\",\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key (https://openrouter.ai/settings/integrations), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
-      "source": "ash",
-      "updated_at": 1786026079.9558127
-    },
-    "created_at": 1786026079.9558127,
-    "updated_at": 1786026079.9558127
-  },
-  "006360ae-091e-4593-9ed4-f8a45e59ae86": {
-    "entity_id": "006360ae-091e-4593-9ed4-f8a45e59ae86",
-    "entity_type": "proper",
-    "primary_identifiers": {
-      "name": "retry"
-    },
-    "secondary_identifiers": {},
-    "attributes": {
-      "canonical_name": "Retry",
-      "last_seen_context": "[LLM] API Error: 429 - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false,\"provider_error_code\":\"429\",\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key (https://openrouter.ai/settings/integrations), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_31CbcFHL2FEZhUtuSqcTnqOndJV\"}",
-      "source": "ash",
-      "updated_at": 1786026080.1714203
-    },
-    "created_at": 1786026080.1714203,
-    "updated_at": 1786026080.1714203
   },
   "467952d7-343d-466e-8e17-b8975ecce681": {
     "entity_id": "467952d7-343d-466e-8e17-b8975ecce681",
