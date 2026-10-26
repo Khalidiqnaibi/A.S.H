@@ -198,7 +198,9 @@ class PredictiveModel:
         # Replay buffer for the sleep/consolidation phase.
         self.replay: Deque[Tuple[np.ndarray, Optional[str], np.ndarray]] = deque(maxlen=replay_size)
 
-        self._pending: Optional[Tuple[np.ndarray, Optional[str], Optional[bool]]] = None
+        # (state, action, outcome, stream): the guess is about the next event
+        # *of that stream*; see observe().
+        self._pending: Optional[Tuple[np.ndarray, Optional[str], Optional[bool], str]] = None
         # Set by record_outcome(), consumed by the next commit() so the
         # transition it closes out knows whether the action it followed worked.
         self._last_outcome: Optional[Tuple[Optional[str], bool]] = None
@@ -226,17 +228,29 @@ class PredictiveModel:
     # ------------------------------------------------------------------
     # Job 1: state prediction / surprise
     # ------------------------------------------------------------------
-    def observe(self, latent: Optional[np.ndarray], candidate_intents: Optional[List[str]] = None) -> Prediction:
+    def observe(self, latent: Optional[np.ndarray], candidate_intents: Optional[List[str]] = None,
+                stream: str = "request") -> Prediction:
         """Called at the START of a cycle, before acting.
 
         Scores how surprising the *arriving* percept was relative to the
         prediction made last cycle, then emits a fresh prediction plus
         per-candidate outcome estimates.
+
+        A prediction is only about the next event of the stream it was made
+        in. The one chain used to run across everything, so the guess made
+        after a window switch ("the next window switch") was scored against
+        the user's next question, which is of course different: every request
+        after sensor activity read as a surprise, was trained on as if the
+        model had been wrong, and dragged the error statistics the ambient
+        stream is judged by. A transition that crosses streams is therefore
+        neither scored nor learned from.
         """
         surprise, raw = 0.0, 0.0
 
+        if self._pending is not None and self._pending[3] != stream:
+            self._pending = None
         if self.forward.accepts(latent) and self._pending is not None:
-            prev_s, prev_intent, prev_ok = self._pending
+            prev_s, prev_intent, prev_ok, _ = self._pending
             pred_prev = self.forward.predict(prev_s, prev_intent)
             if pred_prev is not None and prev_s.shape == latent.shape:
                 raw = float(1.0 - np.dot(pred_prev, latent))
@@ -280,15 +294,15 @@ class PredictiveModel:
         return (self.model_confidence() >= RELIABLE_CONFIDENCE
                 and self._err_mean < PERSISTENCE_MARGIN * self._base_mean)
 
-    def commit(self, latent: Optional[np.ndarray], intent: Optional[str]):
+    def commit(self, latent: Optional[np.ndarray], intent: Optional[str], stream: str = "request"):
         """Called at the END of a cycle: remember (state, action) so the next
-        `observe()` can score its own prediction."""
+        `observe()` of the same stream can score its own prediction."""
         ok: Optional[bool] = None
         if self._last_outcome is not None and self._last_outcome[0] == intent:
             ok = self._last_outcome[1]
         self._last_outcome = None
         if self.forward.accepts(latent):
-            self._pending = (latent.copy(), intent, ok)
+            self._pending = (latent.copy(), intent, ok, stream)
         else:
             self._pending = None
 

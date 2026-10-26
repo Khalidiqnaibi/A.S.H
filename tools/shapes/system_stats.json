@@ -9,7 +9,13 @@
     "show system stats",
     "are you overheating",
     "how much memory are you using",
-    "give me a health check"
+    "give me a health check",
+    "what's your status",
+    "status",
+    "status now",
+    "system status",
+    "status report",
+    "give me a status update"
   ],
   "tool": { "module": "tools.extra_tools", "function": "system_stats_tool" }
 }

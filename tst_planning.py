@@ -773,7 +773,7 @@ def phase3():
                      pending_output={"ok": True, "result": "x"}, pending_ok=True)
     # force a surprising observation
     real_obs = b.predictive.observe
-    b.predictive.observe = lambda latent, intents=None: Prediction(surprise=0.99, confidence=1.0)
+    b.predictive.observe = lambda latent, intents=None, stream="request": Prediction(surprise=0.99, confidence=1.0)
     r = b.advance_plan()
     check("a surprising observation triggers a replan",
           len(replans) >= 1 and r is not None and r.trace.plan["status"] == "replanned",

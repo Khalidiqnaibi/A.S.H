@@ -130,8 +130,10 @@ class Brain:
         self.name = name
         self.user = user
 
+        state_dir = os.environ.get("ASH_BRAIN_STATE", os.path.join(os.getcwd(), "state", "brain"))
         self.sensory = SensoryCortex(embedder=embedder, enable_vision=enable_vision,
-                                     latent_dim=latent_dim)
+                                     latent_dim=latent_dim,
+                                     requests_path=os.path.join(state_dir, "requests.npz"))
 
         # The associative layer. When present, the predictive model runs in
         # concept space rather than raw embedding space -- predicting the next
@@ -659,7 +661,7 @@ class Brain:
         f = self.follower
         latent, surprise = None, 0.0
         try:
-            bundle = self.sensory.perceive(text=_fmt_tool_output(out), image=None)
+            bundle = self.sensory.perceive(text=_fmt_tool_output(out), image=None, stream="result")
             if bundle.percepts and bundle.fused_embedding is not None:
                 _act, latent = self._conceive(bundle, learn=False)
         except Exception:
@@ -668,7 +670,7 @@ class Brain:
             # effective_surprise, not raw: while the forward model is still
             # cold its errors mean nothing, and the Executive's own gate
             # discounts them the same way.
-            surprise = self.predictive.observe(latent, []).effective_surprise()
+            surprise = self.predictive.observe(latent, [], stream="result").effective_surprise()
             f.state = latent
         return f.assess(latent, ok, surprise)
 
@@ -779,7 +781,7 @@ class Brain:
         self.predictive.record_outcome(step.intent, ok)
         # State before this step: what we last observed (or where we began).
         before = f.state if f.state is not None else f.start_latent
-        self.predictive.commit(before, step.intent)
+        self.predictive.commit(before, step.intent, stream="result")
         f.idx += 1
         taken = f.idx
         trace.tool_output = tool_out
@@ -840,6 +842,7 @@ class Brain:
         trace.pathway = pathway
         self.last_trace = trace
         self.trace_history.append(trace)
+        self.sensory.save_requests()        # small (<=64 vectors), and losing it costs a slow restart
         if self.cycles % 20 == 0:
             self.system1.save()
             self.predictive.save()
@@ -871,7 +874,7 @@ class Brain:
         trace.pathway = Pathway.OBSERVE
         self.cycles += 1
 
-        bundle = self.sensory.perceive(text=text, image=image)
+        bundle = self.sensory.perceive(text=text, image=image, stream="ambient")
         if not bundle.percepts:
             trace.notes.append("nothing perceptible")
             return trace
@@ -885,7 +888,7 @@ class Brain:
         if activation is not None:
             trace.concepts = self.concepts.net.explain(activation)
 
-        prediction = self.predictive.observe(latent, [])
+        prediction = self.predictive.observe(latent, [], stream="ambient")
         trace.prediction = prediction.as_dict()
 
         # Limbic update on a cheap cycle. Ambient observation costs almost
@@ -898,7 +901,7 @@ class Brain:
         trace.drives = drives.as_dict()
 
         self.memory.push(source, text or f"<{source} percept>", salience=bundle.salience)
-        self.predictive.commit(latent, None)
+        self.predictive.commit(latent, None, stream="ambient")
 
         trace.timings_ms["total"] = (time.perf_counter() - t0) * 1000.0
         self._finish_cycle(Pathway.OBSERVE, trace)

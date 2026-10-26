@@ -72,6 +72,15 @@ PLAN_MIN_GAIN = 1e-3
 
 # Confidence of the "just answer" option is this minus the best tool's match.
 CONVERSATION_BASE = 0.62
+# The LLM's tool nomination is a second opinion on the classifier, never a
+# replacement for it. It may only pick among intents the classifier itself
+# shortlisted with at least this match, and it cannot claim more confidence
+# than that match plus LLM_MARGIN. Without this a local model, asked to name
+# a tool, named one for chit-chat at confidence 0.9 and outvoted plain
+# conversation: "how are we doing?" ran sentiment analysis, "it's a routing
+# issue" ran the calculator, "go sleep" set a reminder.
+LLM_MIN_MATCH = 0.2
+LLM_MARGIN = 0.1
 
 
 class System2Deliberator:
@@ -135,16 +144,24 @@ class System2Deliberator:
         ))
 
         if self.allow_llm_proposals and self.llm is not None:
-            extra = self._llm_proposal(query, bundle, prediction)
+            extra = self._llm_proposal(query, bundle, prediction,
+                                       shortlist={c.get("intent"): float(c.get("score", 0.0) or 0.0)
+                                                  for c in raw if c.get("intent")})
             if extra is not None:
                 proposals.append(extra)
 
         return proposals
 
-    def _llm_proposal(self, query: str, bundle: PerceptBundle,
-                      prediction: Prediction) -> Optional[ActionProposal]:
-        """Ask the LLM to nominate a tool. Strictly a nomination."""
+    def _llm_proposal(self, query: str, bundle: PerceptBundle, prediction: Prediction,
+                      shortlist: Optional[Dict[str, float]] = None) -> Optional[ActionProposal]:
+        """Ask the LLM to nominate a tool. Strictly a nomination, and only
+        from the classifier's own shortlist (see LLM_MIN_MATCH)."""
         tools = self.registry.list_tools()
+        shortlist = {k: v for k, v in (shortlist or {}).items() if v >= LLM_MIN_MATCH}
+        if not tools or not shortlist:
+            return None     # nothing the classifier believes in: no tool to second
+        wanted = {i.lower() for i in shortlist}
+        tools = [t for t in tools if wanted & {str(i).lower() for i in t.get("intents") or []}]
         if not tools:
             return None
         catalog = "\n".join(
@@ -174,12 +191,17 @@ class System2Deliberator:
         if entry is None:
             logger.debug("LLM nominated unknown intent %r -- discarded", intent)
             return None
+        match = shortlist.get(intent)
+        if match is None:
+            logger.debug("LLM nominated %r, which the classifier did not shortlist -- discarded", intent)
+            return None
 
         cls, reversible = classify_action(intent, self.shapes.get(intent))
         return ActionProposal(
             intent=intent, tool_name=entry.name, args=query, origin="system2",
             action_class=cls,
-            confidence=float(min(1.0, max(0.0, float(payload.get("confidence", 0.5) or 0.5)))),
+            confidence=float(min(match + LLM_MARGIN,
+                                 max(0.0, float(payload.get("confidence", 0.5) or 0.5)))),
             expected_success=prediction.action_outcomes.get(intent, 0.5),
             reversible=reversible,
             rationale=f"LLM nomination: {str(payload.get('why', ''))[:100]}",

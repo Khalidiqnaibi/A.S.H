@@ -310,6 +310,188 @@ def main():
     check("replay ran", rep.get("replay", {}).get("trained", 0) > 0, str(rep.get("replay")))
     check("state persisted", rep.get("persisted") is True)
 
+    print("\n=== 10. Familiarity is about requests, not the ambient stream ===")
+    import numpy as _np
+    from src.brain.sensory import SensoryCortex
+    probe = "what time is it please"
+    emb = brain.sensory.text._embed(probe)
+    before = brain.sensory._novelty(emb, "request")
+    noise = ["motion in camera view (delta 0.16)", "screen changed while in Discord",
+             "switched to Stremio (was on A.S.H for 480s)", "memory at 94%", "CPU at 91%"]
+    for i in range(200):                      # far more than the 64-entry history
+        brain.observe(text=noise[i % len(noise)] + f" #{i}", source="noise")
+    after = brain.sensory._novelty(emb, "request")
+    check("200 ambient events do not make a past request look new", abs(after - before) < 1e-6,
+          f"novelty before={before:.3f} after={after:.3f}")
+    r = brain.think("so what time is it please")
+    check("a familiar read-only request after an ambient flood still goes fast",
+          r.pathway == Pathway.FAST, f"pathway={r.pathway.value} "
+          f"reasons={r.trace.verdict.get('escalation_reasons', [])[:2]}")
+
+    import zlib as _zlib
+
+    class SteadyEncoder(StubEncoder):
+        """StubEncoder hashes with hash(), which Python re-seeds every run; a
+        fixed hash keeps these stream checks from depending on collisions."""
+        def encode(self, texts, convert_to_numpy=True, normalize_embeddings=True):
+            import re as _re
+            out = []
+            for t in texts:
+                v = _np.zeros(self.dim, dtype=_np.float32)
+                for tok in _re.findall(r"[a-z0-9']+", t.lower()):
+                    v[_zlib.crc32(tok.encode()) % self.dim] += 1.0
+                n = float(_np.linalg.norm(v))
+                out.append(v / n if n > 1e-9 else v)
+            return _np.stack(out)
+
+    sc = SensoryCortex(embedder=SteadyEncoder(64), latent_dim=64)
+    sc.perceive("what is my cpu usage", stream="request")
+    for i in range(80):
+        sc.perceive(f"window switch number {i} to some app", stream="ambient")
+    check("the request stream ignores ambient events",
+          sc.perceive("what is my cpu usage now", stream="request").novelty < 0.5)
+    check("the ambient stream ignores requests",
+          sc.perceive("what is my cpu usage", stream="ambient").novelty > 0.5)
+    check("a plan step's result does not count as a request",
+          (sc.perceive("cpu 40% ram 70%", stream="result") and
+           len(sc._streams["request"]) == 2))
+    try:
+        sc.perceive("x", stream="bogus")
+        check("an unknown stream is rejected", False)
+    except ValueError:
+        check("an unknown stream is rejected", True)
+
+    print("\n=== 11. Past requests survive a restart ===")
+    path = os.path.join(tmp, "requests.npz")
+    check("the request history is saved after a turn", os.path.exists(path))
+    import numpy as _np
+    with _np.load(path) as d:
+        keys = sorted(d.files)
+        n_saved = d["embeddings"].shape[0]
+    check("only embeddings are stored, never the words", keys == ["embeddings"], str(keys))
+    reborn = build_brain(tmp)
+    check("a restarted brain remembers its past requests",
+          len(reborn.sensory._streams["request"]) == n_saved > 0, f"{n_saved} vectors")
+    check("so a known question is not novel after a restart",
+          reborn.sensory._novelty(emb, "request") < 0.3)
+    with open(path, "wb") as f:
+        f.write(b"not an npz")
+    check("a corrupt history file is ignored, not fatal",
+          len(build_brain(tmp).sensory._streams["request"]) == 0)
+    _np.savez_compressed(path, embeddings=_np.ones((3, 32), dtype=_np.float32))
+    check("a history from a different encoder (wrong size) is ignored",
+          len(build_brain(tmp).sensory._streams["request"]) == 0)
+    os.environ["ASH_BRAIN_STATE"] = tmp
+
+    print("\n=== 12. The LLM can only second the classifier ===")
+    import json as _json
+    from src.brain import system2 as s2mod
+    from src.brain.signals import PerceptBundle, Prediction
+
+    class Nominator:
+        """Answers the tool-selection prompt like an overconfident local model."""
+        def __init__(self, intent, conf=0.95):
+            self.intent, self.conf, self.prompts = intent, conf, []
+
+        def invoke(self, messages):
+            self.prompts.append("\n".join(str(getattr(m, "content", m)) for m in messages))
+            payload = _json.dumps({"intent": self.intent, "confidence": self.conf, "why": "x"})
+
+            class R:
+                content = payload
+            return R()
+
+    sys2 = brain.system2
+    bundle0, pred0 = PerceptBundle(percepts=[], fused_embedding=None, text=""), Prediction()
+    keep = sys2.llm
+    try:
+        sys2.llm = Nominator("calculate")
+        got = sys2._llm_proposal("it's a routing issue", bundle0, pred0, shortlist={"get_time": 0.4})
+        check("a tool the classifier did not shortlist is discarded", got is None)
+        sys2.llm = Nominator("calculate")
+        got = sys2._llm_proposal("it's a routing issue", bundle0, pred0, shortlist={"calculate": 0.12})
+        check("a shortlisted tool with a weak match is discarded", got is None)
+        check("and the model is not even asked", sys2.llm.prompts == [])
+        sys2.llm = Nominator("calculate")
+        got = sys2._llm_proposal("what is 6 times 7", bundle0, pred0,
+                                 shortlist={"calculate": 0.4, "get_time": 0.25})
+        check("a backed nomination counts, capped near the classifier's match",
+              got is not None and abs(got.confidence - (0.4 + s2mod.LLM_MARGIN)) < 1e-9,
+              f"confidence={getattr(got, 'confidence', None)}")
+        shown = sys2.llm.prompts[0]
+        check("the model is shown only the shortlisted tools",
+              "calculator" in shown and "date_time" in shown and "deleter" not in shown)
+    finally:
+        sys2.llm = keep
+
+    print("\n=== 13. State surprise is the gate's, not a tax on every tool ===")
+    from src.brain.signals import ActionProposal, Drives
+    prop = ActionProposal(intent="get_time", tool_name="date_time", origin="system1",
+                          action_class=ActionClass.RETRIEVAL, confidence=0.6, value=1.0,
+                          expected_success=0.5)
+    for conf in (0.0, 0.9):
+        odd = Prediction(surprise=0.6, confidence=conf)
+        vote = next(v for v in brain.executive._intrinsic_votes(prop, Drives(), odd, bundle0)
+                    if v.member == "predictive")
+        check(f"an unexpected moment (model confidence {conf}) does not lower the tool's vote",
+              abs(vote.support) < 1e-9, f"support={vote.support:.3f}")
+    surprised = brain.executive.gate(prop, Drives(), Prediction(surprise=0.9, confidence=0.95),
+                                     PerceptBundle(percepts=[], fused_embedding=None, text="",
+                                                   novelty=0.1), margin=1.0, deadlocked=False)
+    check("the gate still deliberates when the moment is truly surprising",
+          surprised[0] == Pathway.SLOW and any("surprise" in r for r in surprised[1]), str(surprised[1]))
+    burnt = Prediction(surprise=0.0, outcome_surprise=0.6, confidence=0.0)
+    vote = next(v for v in brain.executive._intrinsic_votes(prop, Drives(), burnt, bundle0)
+                if v.member == "predictive")
+    check("tools misbehaving (outcome surprise) still counts against", vote.support < -0.3,
+          f"support={vote.support:.3f}")
+
+    print("\n=== 14. A guess is only scored against the stream it was about ===")
+    from src.brain.predictive import PredictiveModel
+    import numpy as _np
+    _load = PredictiveModel._load
+    PredictiveModel._load = lambda self: None       # a fresh model, not the repo's saved one
+    try:
+        pm = PredictiveModel(dim=64, persist=False)
+    finally:
+        PredictiveModel._load = _load
+    rng = _np.random.default_rng(3)
+
+    def unit(v):
+        return v / _np.linalg.norm(v)
+
+    amb = [unit(rng.normal(size=64).astype(_np.float32)) for _ in range(40)]
+    for v in amb:                               # a long ambient stretch trains it
+        pm.observe(v, [], stream="ambient")
+        pm.commit(v, None, stream="ambient")
+    steps = pm.forward.steps
+    n_err = pm._n_err
+    ask = unit(rng.normal(size=64).astype(_np.float32))
+    pred = pm.observe(ask, ["get_time"], stream="request")
+    check("a request after sensor activity is not scored against 'the next sensor event'",
+          pred.surprise == 0.0 and pred.raw_error == 0.0, f"surprise={pred.surprise:.2f}")
+    check("and the model does not learn from that cross-stream jump",
+          pm.forward.steps == steps and pm._n_err == n_err, f"steps {steps}->{pm.forward.steps}")
+    pm.commit(ask, "get_time", stream="request")
+    again = unit(ask + 0.05 * rng.normal(size=64).astype(_np.float32))
+    pm.observe(again, [], stream="request")
+    check("two requests in a row are still scored against each other", pm._n_err == n_err + 1,
+          f"n_err {n_err}->{pm._n_err}")
+    pm.commit(again, None, stream="request")
+    pm.observe(amb[0], [], stream="ambient")
+    check("a sensor event after a request is not scored against the request either",
+          pm._n_err == n_err + 1)
+
+    n0 = brain.predictive._n_err
+    brain.observe(text="window switch alpha", source="noise")
+    brain.observe(text="window switch beta", source="noise")
+    check("the brain scores consecutive sensor events against each other",
+          brain.predictive._n_err > n0, f"n_err {n0}->{brain.predictive._n_err}")
+    brain.think("what time is it please")
+    n1 = brain.predictive._n_err
+    brain.observe(text="window switch gamma", source="noise")
+    check("but not against the question before them", brain.predictive._n_err == n1)
+
     print("\n=== Pathway mix over the session ===")
     for k, v in brain.status()["pathways"].items():
         if v:

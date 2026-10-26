@@ -395,13 +395,23 @@ class ExecutiveCore:
         # it" testing) beat every better-matching tool still sitting at the
         # 0.5 prior -- even at a 0.09 match -- and each win added to its
         # history, so it won more.
+        #
+        # Only outcome surprise (tools behaving unlike their record) counts
+        # here. State surprise -- "this moment is unexpected" -- is the gate's
+        # to act on, and it does (surprise_ceiling). Subtracting it from every
+        # proposal as well double-counted it, and since the forward model also
+        # learns the ambient stream, a question arriving after a burst of
+        # window switches always looked surprising: even "how is my cpu doing"
+        # (match 0.60, critic 0.96) stayed under MIN_PASS_SCORE, so nothing
+        # could ever take the fast path.
         relevance = max(0.0, min(1.0, proposal.confidence))
+        surprise = prediction.outcome_surprise
         pv = ((proposal.expected_success - 0.5) * 2.0 * relevance
-              - 0.6 * prediction.surprise)
+              - 0.6 * surprise)
         votes.append(Vote(
             member="predictive", support=max(-1.0, min(1.0, pv)),
             confidence=max(0.2, prediction.confidence),
-            reason=f"P(success)={proposal.expected_success:.2f}, surprise={prediction.surprise:.2f}",
+            reason=f"P(success)={proposal.expected_success:.2f}, surprise={surprise:.2f}",
         ))
 
         # Homeostasis nudges toward acting when urgent, away when cautious and

@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import re
 import time
 from collections import deque
@@ -224,6 +225,9 @@ class VisionExtractor(BaseExtractor):
         )
 
 
+STREAMS = ("request", "ambient", "result")
+
+
 class SensoryCortex:
     """Runs every registered extractor, fuses the results, scores novelty.
 
@@ -233,30 +237,76 @@ class SensoryCortex:
     """
 
     def __init__(self, embedder=None, history: int = 64, enable_vision: bool = False,
-                 latent_dim: int = 384):
+                 latent_dim: int = 384, requests_path: Optional[str] = None):
         self.latent_dim = latent_dim
         self.text = TextExtractor(embedder=embedder, dim_fallback=latent_dim)
         self.vision: Optional[VisionExtractor] = (
             VisionExtractor(target_dim=latent_dim) if enable_vision else None
         )
-        self._history: Deque[np.ndarray] = deque(maxlen=history)
+        # Novelty is relative to a stream, not to everything ever perceived.
+        # One shared history let the ambient stream (window switches, camera
+        # motion, "screen changed", every few seconds) push the user's own
+        # earlier questions out within minutes, so every request looked new
+        # and the Executive sent "what's your status" down the slow path
+        # every single time. A request is now novel only against requests;
+        # ambient events against ambient events; a plan step's result against
+        # earlier results.
+        self._streams: Dict[str, Deque[np.ndarray]] = {
+            s: deque(maxlen=history) for s in STREAMS}
         self._recent_hashes: Deque[str] = deque(maxlen=history)
+        # The request stream survives restarts: "have I been asked this
+        # before" should not reset every time the daemon does. Only the
+        # embeddings are stored, never the text.
+        self.requests_path = requests_path
+        self._requests_dirty = False
+        self._load_requests()
+
+    def _load_requests(self):
+        if not self.requests_path or not os.path.exists(self.requests_path):
+            return
+        try:
+            with np.load(self.requests_path) as d:
+                embs = d["embeddings"]
+            if embs.ndim == 2 and embs.shape[1] == self.latent_dim:
+                self._streams["request"].extend(e.astype(np.float32) for e in embs)
+        except Exception:
+            logger.warning("Ignoring unreadable request history at %s", self.requests_path)
+
+    def save_requests(self):
+        hist = self._streams["request"]
+        if not self.requests_path or not hist or not self._requests_dirty:
+            return
+        try:
+            os.makedirs(os.path.dirname(self.requests_path) or ".", exist_ok=True)
+            tmp = self.requests_path + ".tmp.npz"
+            np.savez_compressed(tmp, embeddings=np.stack(list(hist)).astype(np.float32))
+            os.replace(tmp, self.requests_path)
+            self._requests_dirty = False
+        except Exception:
+            logger.warning("Could not save request history", exc_info=True)
 
     def enable_vision(self):
         if self.vision is None:
             self.vision = VisionExtractor(target_dim=self.latent_dim)
 
-    def _novelty(self, emb: Optional[np.ndarray]) -> float:
-        """1 - max cosine similarity against recent percepts. First-ever
-        input is maximally novel."""
-        if emb is None or not self._history:
+    def _novelty(self, emb: Optional[np.ndarray], stream: str = "request") -> float:
+        """1 - max cosine similarity against recent percepts of the same
+        stream. First-ever input is maximally novel."""
+        history = self._streams.get(stream) or ()
+        if emb is None or not history:
             return 1.0
-        sims = [float(np.dot(emb, h)) for h in self._history if h.shape == emb.shape]
+        sims = [float(np.dot(emb, h)) for h in history if h.shape == emb.shape]
         if not sims:
             return 1.0
         return float(np.clip(1.0 - max(sims), 0.0, 1.0))
 
-    def perceive(self, text: str = "", image: Any = None, extra: Optional[Dict[str, Any]] = None) -> PerceptBundle:
+    def perceive(self, text: str = "", image: Any = None, extra: Optional[Dict[str, Any]] = None,
+                 stream: str = "request") -> PerceptBundle:
+        """`stream` says what this is -- a request from the user, an ambient
+        observation, or the result of ASH's own step -- and so what its
+        novelty is measured against."""
+        if stream not in self._streams:
+            raise ValueError(f"unknown perception stream {stream!r}; expected one of {STREAMS}")
         percepts: List[Percept] = []
 
         p_text = self.text.extract(text)
@@ -287,12 +337,13 @@ class SensoryCortex:
         else:
             fused = None
 
-        novelty = self._novelty(fused)
+        novelty = self._novelty(fused, stream)
         for p in percepts:
             p.novelty = novelty
 
         if fused is not None:
-            self._history.append(fused)
+            self._streams[stream].append(fused)
+            self._requests_dirty |= stream == "request"
 
         bundle = PerceptBundle(
             percepts=percepts,
