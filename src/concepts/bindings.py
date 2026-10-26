@@ -428,6 +428,8 @@ class ConceptSystem:
 
         if learn and self.enabled:
             self.plasticity.potentiate(act)
+            # Neighbours of the winning units drift toward the input.
+            self.plasticity.nonhebb.pull_prototypes(vec, act.initial)
         return act
 
     def encode_episode(self, vec, text: str = "", act: Optional[Activation] = None,

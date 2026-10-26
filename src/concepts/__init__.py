@@ -20,6 +20,7 @@ from .neuromod import Neuromodulators, NeuroState
 from .sleep import SleepCycle, SleepConfig
 from .network import ConceptNetwork
 from .plasticity import Plasticity, PlasticityConfig
+from .nonhebbian import NonHebbian, NonHebbianConfig
 from .bindings import (
     ConceptMemoryIndex, ConceptProposer, ConceptSystem, RoutingEvaluator,
     seed_from_ash,
@@ -30,6 +31,7 @@ __all__ = [
     "SynType", "TYPE_RULES", "Hippocampus", "Trace",
     "Neuromodulators", "NeuroState", "SleepCycle", "SleepConfig",
     "ConceptNetwork", "Plasticity", "PlasticityConfig",
+    "NonHebbian", "NonHebbianConfig",
     "ConceptMemoryIndex", "ConceptProposer", "ConceptSystem",
     "RoutingEvaluator", "seed_from_ash",
 ]

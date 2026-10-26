@@ -95,6 +95,10 @@ class ConceptNetwork:
         self.concepts: Dict[int, Concept] = {}
         self.synapses: Dict[Tuple[int, int], Synapse] = {}
         self._out: Dict[int, Dict[int, Synapse]] = {}   # adjacency, src -> dst
+        # Reverse adjacency, dst -> src. Heterosynaptic plasticity has to find
+        # every input onto a neuron, active or not, and scanning the whole
+        # synapse table per cycle would not scale.
+        self._in: Dict[int, Dict[int, Synapse]] = {}
         self._next_id = 0
 
         # Prototype matrix, kept in sync with `concepts` so activation is one
@@ -156,7 +160,10 @@ class ConceptNetwork:
             self.synapses.pop((s, d), None)
             if s in self._out:
                 self._out[s].pop(d, None)
+            if d in self._in:
+                self._in[d].pop(s, None)
         self._out.pop(cid, None)
+        self._in.pop(cid, None)
         self._prime.pop(cid, None)
         self._dirty = True
 
@@ -174,7 +181,12 @@ class ConceptNetwork:
             s = Synapse(src=src, dst=dst)
             self.synapses[(src, dst)] = s
             self._out.setdefault(src, {})[dst] = s
+            self._in.setdefault(dst, {})[src] = s
         return s
+
+    def inputs(self, dst: int) -> Dict[int, Synapse]:
+        """Every synapse arriving at `dst`, keyed by source."""
+        return self._in.get(dst, {})
 
     def link(self, a: int, b: int, weight: float, bidirectional: bool = True,
              frozen: bool = False, kind=None):
@@ -452,6 +464,7 @@ class ConceptNetwork:
             self.concepts.clear()
             self.synapses.clear()
             self._out.clear()
+            self._in.clear()
             self._by_label.clear()
             self._by_intent.clear()
 
@@ -464,6 +477,8 @@ class ConceptNetwork:
                     intent=m.get("intent"), activations=int(m.get("activations", 0)),
                     seed_text=m.get("seed_text", ""), frozen=bool(m.get("frozen", False)),
                     plasticity=float(m.get("plasticity", 0.05)),
+                    rate=float(m.get("rate", 0.0)),
+                    rate_cycle=int(m.get("rate_cycle", 0)),
                 )
                 self.concepts[cid] = c
                 if c.label:

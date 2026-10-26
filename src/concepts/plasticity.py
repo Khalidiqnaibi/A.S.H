@@ -64,6 +64,7 @@ import numpy as np
 
 from .model import Activation, Origin, PROTECTED_ORIGINS, SynType
 from .network import ConceptNetwork
+from .nonhebbian import NonHebbian, NonHebbianConfig
 
 logger = logging.getLogger("ash.concepts.plasticity")
 
@@ -123,6 +124,10 @@ class PlasticityConfig:
     reward_floor: float = -1.0
     reward_ceiling: float = 1.0
 
+    # Heterosynaptic depression, the sliding threshold and neighbourhood
+    # spread. See nonhebbian.py.
+    nonhebbian: NonHebbianConfig = field(default_factory=NonHebbianConfig)
+
 
 class Plasticity:
     """Owns all modification of the graph's weights."""
@@ -130,6 +135,7 @@ class Plasticity:
     def __init__(self, net: ConceptNetwork, cfg: Optional[PlasticityConfig] = None):
         self.net = net
         self.cfg = cfg or PlasticityConfig()
+        self.nonhebb = NonHebbian(net, self.cfg.nonhebbian)
 
         # Eligibility traces: co-activation accumulated since the last sleep,
         # awaiting a reward signal and consolidation.
@@ -258,18 +264,26 @@ class Plasticity:
             self._stdp(act)
 
         ids = [c for c in act.spread if c in self.net.concepts]
+        live = not self.replay_mode
+        adapted_all = {c: self.adapted(c, act.spread[c]) for c in ids}
         if len(ids) < 2:
+            # One strongly active unit still depresses its inactive inputs.
+            if ids and live:
+                self.nonhebb.heterosynaptic(adapted_all, act.spread, now)
+                self.nonhebb.observe(adapted_all)
             return 0
 
         self._decay_fast(now)
         gain = self._gain()
         touched = 0
+        updates: List[Tuple[int, int, float, float]] = []
+        pending_start = len(self._pending)
         for i, a in enumerate(ids):
-            act_a = self.adapted(a, act.spread[a])
+            act_a = adapted_all[a]
             if act_a < 0.05:
                 continue
             for b in ids[i + 1:]:
-                act_b = self.adapted(b, act.spread[b])
+                act_b = adapted_all[b]
                 if act_b < 0.05:
                     continue
 
@@ -293,15 +307,35 @@ class Plasticity:
                     # what bounds the weight -- as w grows, the update shrinks
                     # and reaches equilibrium instead of diverging.
                     lr = self.cfg.eta_fast * gain * syn.rules()["lr"]
+                    if live:
+                        # Sliding threshold: a unit that has been busy lately
+                        # is harder to potentiate further.
+                        lr *= self.nonhebb.meta_scale(d)
                     delta = lr * post * (pre - self.cfg.oja_gain * post * w)
                     syn.w_fast += delta
                     syn.last_potentiated = now
                     syn.potentiations += 1
                     touched += 1
+                    updates.append((s, d, delta, coact))
 
                 key = (a, b) if a < b else (b, a)
                 self.traces[key] = self.traces.get(key, 0.0) + coact
                 self._pending.append((key, coact))
+
+        if live:
+            # Competition first, then spread, then update the activity record
+            # the next cycle's threshold will be read from.
+            self.nonhebb.heterosynaptic(adapted_all, act.spread, now)
+            spread = []
+            for key, credit in self.nonhebb.spread_synapses(updates, set(ids), now):
+                self.traces[key] = self.traces.get(key, 0.0) + credit
+                spread.append((key, credit))
+            # Reward credit runs backwards from the end of the list, so the
+            # neighbour entries go BEFORE this cycle's real pairs. Appended
+            # after them they got the largest share and a neighbour could end
+            # up consolidating harder than the edge that taught it.
+            self._pending[pending_start:pending_start] = spread
+            self.nonhebb.observe(adapted_all)
 
         self.potentiations += 1
         if len(self.net.synapses) > self.cfg.max_synapses:
@@ -560,6 +594,9 @@ class Plasticity:
             out = self.net._out.get(k[0])
             if out:
                 out.pop(k[1], None)
+            inc = self.net._in.get(k[1])
+            if inc:
+                inc.pop(k[0], None)
         return len(dead)
 
     def _emergency_prune(self):
@@ -570,8 +607,10 @@ class Plasticity:
         survivors = dict(ranked[:keep])
         self.net.synapses = survivors
         self.net._out = {}
+        self.net._in = {}
         for (s, d), syn in survivors.items():
             self.net._out.setdefault(s, {})[d] = syn
+            self.net._in.setdefault(d, {})[s] = syn
         logger.warning("Synapse cap hit; pruned to %d strongest", len(survivors))
 
     def _merge_converged(self) -> int:
@@ -683,5 +722,6 @@ class Plasticity:
                                 if s.kind == SynType.CAUSAL),
             "open_traces": len(self.traces),
             "credited_traces": len(self.credited),
+            "nonhebbian": self.nonhebb.status(),
             "last_consolidation": self.last_report,
         }

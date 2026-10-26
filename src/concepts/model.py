@@ -121,6 +121,13 @@ class Concept:
 
     frozen: bool = False                      # exempt from all learning
 
+    # Sliding-window activity (metaplasticity). `rate` is an exponential
+    # average of how strongly this unit has fired recently, and `rate_cycle`
+    # is the network cycle it was last brought up to date at, so decay can be
+    # applied lazily instead of touching every unit on every cycle.
+    rate: float = 0.0
+    rate_cycle: int = 0
+
     def touch(self, strength: float, now: Optional[float] = None):
         self.activations += 1
         self.activation_sum += float(strength)
@@ -153,6 +160,8 @@ class Concept:
             "age_h": round((time.time() - self.created) / 3600, 2),
             "frozen": self.frozen,
             "seed_text": self.seed_text[:80],
+            "rate": round(self.rate, 5),
+            "rate_cycle": self.rate_cycle,
         }
 
 
