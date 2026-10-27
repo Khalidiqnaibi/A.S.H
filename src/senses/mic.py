@@ -21,11 +21,16 @@ overwritten continuously. What persists is text.
 
 Direct address
 --------------
-`ADDRESS_PATTERNS` is what separates "the user said something near ASH" from
-"the user said something *to* ASH". A transcript matching one of these sets
-`addressed=True`, which the attention gate treats as an unconditional
-override -- being spoken to always earns a reply, regardless of drives,
-refractory period, or how busy the user looks.
+What separates "the user said something near ASH" from "the user said
+something *to* ASH" lives in src/senses/address.py, which weighs the name,
+second person, question form, imperatives and whether a conversation is
+already running. It answers with a confidence, not a yes/no, and this module
+turns that into the event's `addressed` flag, its salience and its urgency.
+
+Certainly addressed is an unconditional override at the attention gate --
+being spoken to always earns a reply, regardless of drives, refractory period
+or how busy the user looks. Probably addressed is carried in the event meta
+and handled by the gate's route 1b.
 
 Everything else is heard, remembered, and usually not answered.
 """
@@ -40,6 +45,7 @@ import threading
 import time
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
+from . import address
 from .base import Capability, Modality, Sensor, SensorEvent
 
 logger = logging.getLogger("ash.senses.mic")
@@ -50,14 +56,29 @@ FRAME_SAMPLES = SAMPLE_RATE * FRAME_MS // 1000
 
 WAKE_WORDS = ["ash", "hey ash", "ok ash", "yo ash"]
 
-# A transcript is treated as directly addressed if it matches any of these.
-ADDRESS_PATTERNS = [
-    re.compile(r"\b(hey |ok |okay |yo )?ash\b", re.I),
-    re.compile(r"^\s*(can you|could you|would you|please)\b", re.I),
-]
-
 _LEADING_WAKE = re.compile(r"^\s*((hey|ok|okay|yo)\s+)?ash\b[\s,.!?:;-]*", re.I)
 _TRAILING_WAKE = re.compile(r"[\s,]*\b((hey|ok|okay|yo)\s+)?ash[\s.!?]*$", re.I)
+
+
+def build_event(source: str, text: str, verdict, data=None, **meta) -> SensorEvent:
+    """One heard utterance as a SensorEvent, graded by the address verdict.
+
+    Shared with the daemon's `simulate mic` so a simulated sentence carries
+    exactly the numbers a real one would -- a test harness that scores its
+    input differently from the real sensor tests nothing.
+
+    Salience and urgency rise with the confidence rather than stepping at a
+    single threshold, so an utterance that is probably-but-not-certainly for
+    ASH still arrives at the attention gate carrying weight.
+    """
+    conf = float(verdict.confidence)
+    return SensorEvent(
+        source=source, modality=Modality.TEXT, text=text, data=data,
+        salience=round(min(0.95, 0.45 + 0.50 * conf), 3),
+        urgency=round(0.65 * conf if conf >= address.LIKELY_AT else 0.0, 3),
+        addressed=verdict.addressed,
+        meta={"addressed": verdict.addressed, "address": verdict.as_dict(), **meta},
+    )
 
 
 class MicrophoneSensor(Sensor):
@@ -238,28 +259,27 @@ class MicrophoneSensor(Sensor):
             logger.debug("Mic: %.2fs clip transcribed empty (discarded)", duration)
             return
 
-        addressed = self.is_addressed(text)
+        verdict = address.score(text)
+        addressed = verdict.addressed
         self._speech_seen += 1
         # The only place the actual words ASH heard are visible anywhere --
         # without this, "did it hear me, and what did it think I said" is
-        # unanswerable from the logs alone.
-        logger.info("Mic transcript (%.2fs, addressed=%s): %r", duration, addressed, text)
+        # unanswerable from the logs alone. The confidence and its reasons go
+        # in too: "why didn't it answer me" is the other unanswerable one.
+        logger.info("Mic transcript (%.2fs, address=%.2f %s): %r", duration,
+                    verdict.confidence, "/".join(verdict.reasons) or "nothing", text)
 
-        event = SensorEvent(
-            source=self.name, modality=Modality.TEXT,
-            text=text,
-            data=(audio if self.keep_audio else None),
-            salience=0.85 if addressed else 0.55,
-            urgency=0.6 if addressed else 0.0,
-            addressed=addressed,
-            meta={"duration_s": round(duration, 2), "addressed": addressed},
-        )
         with self._lock:
-            self._out.append(event)
+            self._out.append(build_event(self.name, text, verdict,
+                                         data=(audio if self.keep_audio else None),
+                                         duration_s=round(duration, 2)))
 
     @staticmethod
     def is_addressed(text: str) -> bool:
-        return any(p.search(text or "") for p in ADDRESS_PATTERNS)
+        """Certainly spoken to. `address.score()` is the richer answer -- it
+        also reports the cases that are probably but not certainly for ASH,
+        which this boolean has no way to express."""
+        return address.is_addressed(text)
 
     @staticmethod
     def strip_address(text: str) -> str:

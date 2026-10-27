@@ -11,12 +11,21 @@ exhausting. Every ambient event gets one of three dispositions:
                 and it is what ~99% of a day's events get.
     RESPOND  -- run the full cognitive cycle and say something.
 
-Two independent routes to RESPOND
----------------------------------
-1. ADDRESSED. The user said ASH's name, or spoke a direct request. This is an
-   unconditional override -- no threshold, no refractory period, no drive
-   check. Being spoken to and ignored is the single worst failure mode an
-   assistant has, so it is not subject to any of the machinery below.
+Three independent routes to RESPOND
+-----------------------------------
+1. ADDRESSED. src/senses/address.py is sure the user was talking to ASH. This
+   is an unconditional override -- no threshold, no refractory period, no
+   drive check. Being spoken to and ignored is the single worst failure mode
+   an assistant has, so it is not subject to any of the machinery below.
+
+1b. PROBABLY ADDRESSED. The same model, short of sure: "what time is it" with
+   nobody else in the room. Too likely to leave unanswered, not certain
+   enough to override everything. It is scored like anything else but with a
+   floor set by the confidence, and the three devices that exist to ration
+   *volunteered* remarks are waived -- the refractory timer, the hourly
+   budget, and the cost of interrupting a busy user (you spoke while typing;
+   that was deliberate). Fatigue, caution, quiet hours and a learned bar
+   still apply, which is what keeps the band from behaving like route 1.
 
 2. VOLUNTEERED. Nobody asked, but something crossed the bar. The bar is not a
    constant; it is raised and lowered by:
@@ -62,8 +71,17 @@ class AttentionDecision:
     threshold: float = 0.0
     reasons: List[str] = field(default_factory=list)
     addressed: bool = False
+    likely: bool = False    # probably spoken to, short of certain (route 1b)
     kind: str = ""          # what sort of remark this would be (an offer, or the source)
     ctx: str = ""           # the situation it would land in, for learning from the reaction
+
+    @property
+    def to_ash(self) -> bool:
+        """Said to ASH, certainly or probably. What callers that are deciding
+        how to *phrase* a reply want -- answering a probable question with
+        "[UNPROMPTED OBSERVATION]" framing produces a remark about the
+        question instead of an answer to it."""
+        return self.addressed or self.likely
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -71,6 +89,7 @@ class AttentionDecision:
             "score": round(self.score, 3),
             "threshold": round(self.threshold, 3),
             "addressed": self.addressed,
+            "likely": self.likely,
             "reasons": self.reasons,
             "kind": self.kind,
             "ctx": self.ctx,
@@ -167,6 +186,20 @@ class AttentionGate:
         salience = float(getattr(event, "salience", 0.3))
         urgency = float(getattr(event, "urgency", 0.0))
         meta = getattr(event, "meta", None) or {}
+
+        # ---- Route 1b: probably addressed. -------------------------------
+        #
+        # "what time is it" with nobody else in the room. Not certain enough
+        # to override everything, far too likely to leave unanswered. It is
+        # weighed, but the three things that exist to ration *volunteered*
+        # remarks are waived, because this is not one: the politeness timer,
+        # the hourly budget and the cost of interrupting someone who is
+        # typing (you spoke while typing; that was deliberate). What remains
+        # -- fatigue, caution, quiet hours, and a learned bar -- can still
+        # keep it quiet, which is the point of the band.
+        addr = meta.get("address") or {}
+        likely = bool(addr.get("likely")) and not meta.get("offer")
+        confidence = float(addr.get("confidence", 0.0) or 0.0)
         offer = meta.get("offer")
         kind = str(offer or getattr(event, "source", "event"))
         from .social import context_key
@@ -187,6 +220,13 @@ class AttentionGate:
         # through a mildly raised bar without needing anything else to agree.
         score = max(score, urgency * 0.95)
 
+        if likely:
+            # A floor in the same units, rising with the confidence: the
+            # bottom of the band is genuinely marginal and the top of it
+            # clears any ordinary bar.
+            score = max(score, confidence + 0.35)
+            reasons.append(f"probably spoken to ({confidence:.2f})")
+
         # What was learned from how earlier remarks of this kind landed.
         shift = 0.0
         if self.learner is not None:
@@ -200,7 +240,7 @@ class AttentionGate:
 
         # ---- Threshold --------------------------------------------------
         threshold = self.base_threshold
-        refr = self._refractory(now, urgency)
+        refr = 0.0 if likely else self._refractory(now, urgency)
         if refr > 0.01:
             threshold += refr
             reasons.append(f"refractory +{refr:.2f}")
@@ -211,7 +251,7 @@ class AttentionGate:
 
         # An offer is made at a pause, so being busy is not weighed -- it is a
         # hard stop below. Everything else pays for interrupting.
-        busy_cost = 0.0 if offer else self.interrupt_cost_weight * user_busy
+        busy_cost = 0.0 if (offer or likely) else self.interrupt_cost_weight * user_busy
         if busy_cost > 0.01:
             threshold += busy_cost
             reasons.append(f"user busy +{busy_cost:.2f}")
@@ -230,7 +270,8 @@ class AttentionGate:
         # ---- Hard stops -------------------------------------------------
         def verdict(d, why):
             self.counts[d.value] += 1
-            return AttentionDecision(d, score, threshold, reasons + [why], kind=kind, ctx=ctx)
+            return AttentionDecision(d, score, threshold, reasons + [why],
+                                     likely=likely, kind=kind, ctx=ctx)
 
         if score < self.ignore_below:
             return verdict(Disposition.IGNORE, "below noise floor")
@@ -242,7 +283,7 @@ class AttentionGate:
             return verdict(Disposition.OBSERVE, "typing right now; not interrupting an offer")
 
         spent = self._budget_spent(now)
-        if spent >= self.max_unsolicited_per_hour and urgency < 0.9:
+        if spent >= self.max_unsolicited_per_hour and urgency < 0.9 and not likely:
             return verdict(Disposition.OBSERVE,
                            f"hourly budget spent ({spent}/{self.max_unsolicited_per_hour})")
 
@@ -255,6 +296,10 @@ class AttentionGate:
 
         # ---- Verdict ------------------------------------------------------
         if score >= threshold:
+            if likely:
+                # An answer, not a remark: it costs nothing from the budget
+                # and arms no politeness timer, same as a certain address.
+                return verdict(Disposition.RESPOND, "answered a probable question")
             self._last_response = now
             self._unsolicited.append(now)
             if offer:

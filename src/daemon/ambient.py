@@ -45,6 +45,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Callable, Deque, Dict, List, Optional
 
+from src.senses import address
 from .attention import AttentionGate, Disposition
 from .journal import Journal
 from .privacy import PrivacyPolicy
@@ -285,6 +286,12 @@ class AmbientRuntime:
         self.journal.append(ev)
         now = self.clock()
 
+        if getattr(ev, "addressed", False):
+            # Holds the exchange open from the user's side, so a second
+            # sentence arriving before ASH has answered the first still reads
+            # as part of the same conversation.
+            address.conversation.note_user_turn(now)
+
         self._reaction = None
         if self.flow is not None:
             self.flow.observe(ev, now)
@@ -331,11 +338,16 @@ class AmbientRuntime:
         """Full cognitive cycle, with ambient context attached."""
         context = self.journal.context_block(self.cfg.context_window_s)
         meta = getattr(ev, "meta", None) or {}
-        offer = None if ev.addressed else meta.get("offer")
-        react = self._reaction if ev.addressed else None
+        # Certainly addressed, or route 1b's "probably". Both are replies to
+        # the user and must be phrased as replies -- framing "what time is
+        # it" as an unprompted observation gets a remark about the question
+        # rather than an answer to it.
+        to_ash = bool(getattr(ev, "addressed", False) or getattr(decision, "likely", False))
+        offer = None if to_ash else meta.get("offer")
+        react = self._reaction if to_ash else None
         say = None                       # a line that needs no model to say
 
-        if ev.addressed:
+        if to_ash:
             from src.senses.mic import MicrophoneSensor
             prompt = MicrophoneSensor.strip_address(ev.text)
             if react is not None and react.outcome in ("rejected", "deferred"):
@@ -384,7 +396,7 @@ class AmbientRuntime:
         # A plan the brain adopted while volunteering a remark is not
         # followed: the remark was spent against the hourly budget, and the
         # rest of the steps would speak with none.
-        if not ev.addressed:
+        if not to_ash:
             self._drop_plan("unprompted")
 
         degraded = is_failure_text(text)
@@ -403,7 +415,8 @@ class AmbientRuntime:
 
         try:
             self.response_sink(text, {
-                "addressed": ev.addressed,
+                "addressed": to_ash,
+                "likely": bool(getattr(decision, "likely", False)),
                 "source": ev.source,
                 "attention": decision.as_dict(),
                 "pathway": pathway,
@@ -411,8 +424,11 @@ class AmbientRuntime:
         except Exception:
             logger.exception("Response sink failed")
 
-        if ev.addressed:
+        if to_ash:
             self.gate.note_user_turn()
+            # The exchange is now open: the next sentence is read as the other
+            # half of it, with no need to say the name again.
+            address.conversation.note_ash_spoke(self.clock())
         elif self.reactions is not None:
             # Something was volunteered: watch what the user does with it.
             self.reactions.register(

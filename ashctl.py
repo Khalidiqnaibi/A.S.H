@@ -33,7 +33,9 @@ concentrating you usually want mute.
 `simulate` injects a synthetic sensor event through the exact same
 AttentionGate/journal/response path a real sensor's event takes -- no
 hardware, no quiet room, no draining a real battery required. `mic` runs
-through the same addressed-detection heuristic real speech does; the
+through the same src/senses/address.py scorer real speech does -- including
+the follow-up window, so `simulate mic what about tomorrow` lands
+differently moments after ASH has spoken than it does cold; the
 system presets (battery_low/battery_critical/cpu_high) match the real
 salience/urgency numbers src/senses/devices.py uses for those conditions.
 It's injected async (queued for the next tick, same as real sensors) --

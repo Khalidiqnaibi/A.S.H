@@ -61,7 +61,11 @@ def attach_ui(runtime, bus, opener: Optional[Callable[[], Any]] = None,
     # ---- input --------------------------------------------------------
     def handle(ev):
         try:
-            if getattr(ev, "addressed", False):
+            meta = getattr(ev, "meta", None) or {}
+            addr = meta.get("address") or {}
+            # Route 1b's "probably you" is shown too, or the window fills with
+            # answers to questions it never shows being asked.
+            if getattr(ev, "addressed", False) or addr.get("likely"):
                 bus.publish("user", text=ev.text, channel=_channel(ev))
             elif (getattr(ev, "meta", None) or {}).get("dismissed"):
                 bus.publish("user", text="dismissed the offer", channel="button", quiet=True)
@@ -72,7 +76,8 @@ def attach_ui(runtime, bus, opener: Optional[Callable[[], Any]] = None,
     # ---- thinking and actions -----------------------------------------
     def respond(ev, decision):
         offer = (getattr(ev, "meta", None) or {}).get("offer")
-        label = ("answering you" if getattr(ev, "addressed", False)
+        label = ("answering you" if (getattr(ev, "addressed", False)
+                                     or getattr(decision, "likely", False))
                  else "noticed something" if offer else "considering a remark")
         try:
             bus.cue("thinking", True, label=label)
@@ -132,7 +137,12 @@ def attach_ui(runtime, bus, opener: Optional[Callable[[], Any]] = None,
 
     # ---- the server's callbacks ----------------------------------------
     def on_say(text: str):
+        from src.senses import address
         from src.senses.base import Modality, SensorEvent
+        # Typing in the console is unambiguous address -- and it opens the
+        # same conversation window speech does, so the next thing said out
+        # loud continues what was typed.
+        address.conversation.note_user_turn()
         runtime.submit(SensorEvent(source="console", modality=Modality.TEXT, text=text,
                                    salience=0.9, urgency=0.6, addressed=True,
                                    meta={"typed": True}))

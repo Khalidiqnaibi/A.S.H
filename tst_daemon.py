@@ -5,6 +5,8 @@ Runs the ambient loop against fake sensors and a stub ASH, so the whole
 observe/respond pipeline is exercised without a microphone, a model, or an
 LLM. Verifies the behaviors that actually matter for a 24h process:
 
+  * "was that meant for me" reads intent, not just the name
+  * a probable question is answered; overheard speech is not
   * direct address always gets a response, even under a spent budget
   * routine ambient events are observed, not answered
   * an urgent event breaks through
@@ -142,6 +144,61 @@ def main():
         ok = ok and cond
 
     # ---------------------------------------------------------------
+    print("\n=== 0. Addressing: was that meant for me? ===")
+    from src.senses import address
+    from src.senses.mic import build_event
+
+    # The wake word answered "no" to every one of these, which is the whole
+    # reason this module exists: you do not say someone's name to ask them
+    # how they are.
+    certain = ["hey ash", "ash, stop", "what time is it, ash", "what's your status",
+               "how are you", "are you there", "what do you think",
+               "can you check the weather", "please open notepad",
+               "do you remember what I said", "remind me to call mom at six",
+               "tell me a joke", "i need you to summarise that"]
+    for t in certain:
+        v = address.score(t)
+        check(f"addressed: {t!r}", v.addressed, f"{v.confidence:.2f} {','.join(v.reasons)}")
+
+    # Probably, not certainly: answered by route 1b, which the attention gate
+    # section below exercises.
+    probable = ["what time is it", "what's the weather like", "open notepad",
+                "turn the volume down"]
+    for t in probable:
+        v = address.score(t)
+        check(f"probably addressed: {t!r}", v.likely,
+              f"{v.confidence:.2f} {','.join(v.reasons)}")
+
+    # Heard, not spoken to. A false positive here is ASH talking over a phone
+    # call, which is worse than a missed question.
+    overheard = ["I told ash about it", "clean the ash tray", "the ash is everywhere",
+                 "volcanic ash covered the road", "hey sam, can you grab that",
+                 "i'm so tired", "my back hurts", "he said he would come by later",
+                 "the meeting is at three", "switched to Chrome"]
+    for t in overheard:
+        v = address.score(t)
+        check(f"not addressed: {t!r}", v.confidence < address.LIKELY_AT,
+              f"{v.confidence:.2f} {','.join(v.reasons)}")
+
+    # The follow-up window: nobody says the name twice in a row.
+    convo = address.Conversation()
+    t0 = time.time()
+    convo.note_ash_spoke(t0)
+    check("mid-conversation, a bare question is addressed",
+          address.score("what about tomorrow", now=t0 + 3, convo=convo).addressed)
+    check("mid-conversation, 'no thanks' is at least probable",
+          address.score("no thanks", now=t0 + 3, convo=convo).likely)
+    check("ten minutes later the window has shut",
+          address.score("no thanks", now=t0 + 600, convo=convo).confidence == 0.0)
+    check("a sentence about someone else stays out of it",
+          address.score("sam is coming over", now=t0 + 3, convo=convo).confidence
+          < address.LIKELY_AT)
+    convo.note_ash_spoke(t0)
+    convo.close()
+    check("closing the conversation shuts the window immediately",
+          convo.openness(t0 + 1) == 0.0)
+
+    # ---------------------------------------------------------------
     print("\n=== 1. Attention gate: routing ===")
     gate = AttentionGate(base_threshold=0.62, max_unsolicited_per_hour=3,
                          refractory_seconds=120)
@@ -160,6 +217,23 @@ def main():
 
     r = gate.decide(ev("something mildly interesting", salience=0.8, urgency=0.7), d)
     check("refractory suppresses the next remark", r.disposition == Disposition.OBSERVE,
+          "; ".join(r.reasons))
+
+    print("\n--- route 1b: probably addressed ---")
+    g1b = AttentionGate(base_threshold=0.62, max_unsolicited_per_hour=0,
+                        refractory_seconds=600)
+    g1b._last_response = time.time()        # just spoke: refractory fully armed
+    question = build_event("mic", "what time is it", address.score("what time is it"))
+    r = g1b.decide(question, d)
+    check("a probable question is answered", r.disposition == Disposition.RESPOND,
+          "; ".join(r.reasons))
+    check("...despite a spent budget and an armed refractory timer",
+          g1b.status()["unsolicited_last_hour"] == 0)
+    r = g1b.decide(question, d, user_busy=1.0)
+    check("...and typing does not silence it", r.disposition == Disposition.RESPOND)
+    r = g1b.decide(build_event("mic", "the meeting is at three",
+                               address.score("the meeting is at three")), d)
+    check("overheard speech is still only observed", r.disposition == Disposition.OBSERVE,
           "; ".join(r.reasons))
 
     print("\n=== 2. Hourly budget is a hard stop ===")

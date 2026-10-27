@@ -249,13 +249,20 @@ class ControlServer:
         if cmd == "status":
             return {"ok": True, "status": rt.status()}
         if cmd == "pause":
+            from src.senses import address
             rt.privacy.pause(arg or "control")
+            # Whatever was being said, it is over. Without this the follow-up
+            # window outlives the pause and the first thing heard on resume
+            # is read as a reply to a conversation from before.
+            address.conversation.close()
             return {"ok": True, "paused": True}
         if cmd == "resume":
             rt.privacy.resume()
             return {"ok": True, "paused": False}
         if cmd == "mute":
+            from src.senses import address
             rt.gate.mute(True)
+            address.conversation.close()
             return {"ok": True, "muted": True}
         if cmd == "unmute":
             rt.gate.mute(False)
@@ -314,8 +321,9 @@ class ControlServer:
         same way a real one from that sensor would.
 
         Syntax: simulate <type> <text...>
-          mic <text>             -- addressed detection via the same
-                                     is_addressed() real mic.py uses
+          mic <text>             -- scored by the same src/senses/address.py
+                                     model, and built by the same
+                                     mic.build_event(), real speech is
           active_window <text>   -- ambient text observation
           idle <seconds>         -- idle-duration telemetry
           battery_low / battery_critical / cpu_high -- canned system alerts,
@@ -337,15 +345,12 @@ class ControlServer:
             return {"ok": False, "error": "usage: simulate <type> <text...>"}
 
         if kind == "mic":
-            from src.senses.mic import MicrophoneSensor
-            addressed = MicrophoneSensor.is_addressed(text)
-            ev = SensorEvent(
-                source="sim:mic", modality=Modality.TEXT, text=text,
-                salience=0.85 if addressed else 0.55,
-                urgency=0.6 if addressed else 0.0,
-                addressed=addressed,
-                meta={"simulated": True},
-            )
+            from src.senses import address
+            from src.senses.mic import build_event
+            # Built by the same function the real sensor uses, so the
+            # simulated sentence carries exactly the salience, urgency and
+            # address verdict a spoken one would.
+            ev = build_event("sim:mic", text, address.score(text), simulated=True)
         elif kind == "active_window":
             ev = SensorEvent(
                 source="sim:active_window", modality=Modality.TEXT, text=text,
