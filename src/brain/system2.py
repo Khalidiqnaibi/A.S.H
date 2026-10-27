@@ -101,7 +101,27 @@ LLM_MARGIN = 0.1
 # to the *human* turn as block five of six, after a JSON fact dump and three
 # memory sections, where a 7B model weighs it at approximately nothing. It
 # is an instruction about how to speak; it belongs with the instructions.
+#
+# Order matters more than it looks. The first draft put the style bullets
+# first and the hard rules at the bottom, and mistral:7b duly weighted the
+# top of the prompt: asked about an action the Executive had blocked it
+# answered "Yes, I tried to send the email... I'll let you know if there's
+# any update", which is three failures in one sentence -- it reads as though
+# the mail went out, it promises a follow-up that will never come, and it
+# got there because "don't apologise" outranked "don't claim things you did
+# not do". The hard rules go first now, and the one about promising later
+# action is explicit, because a warm model's favourite way to be agreeable
+# is to volunteer something it cannot do.
 _VOICE = """\
+Three things you never do, whatever else is going on:
+- Do not invent facts.
+- Do not claim to have done anything that is not listed below as something
+  you did. If an action was blocked or did not happen, say so plainly, in
+  those words, and say what blocked it.
+- Do not promise future action. You have no way to come back later, so
+  never say you will check, look into, follow up, keep an eye on, or let
+  them know. Either you did it and it is listed below, or you did not.
+
 How you talk:
 - Like a person in the room, not a product. Contractions. Plain words. Never
   open with "Certainly", "Of course", "Absolutely", "I'd be happy to",
@@ -118,12 +138,9 @@ How you talk:
   need no cushioning. If you got something wrong, say so once, plainly, and
   carry on -- no apologising twice for the same thing.
 - Out loud. This is spoken, so no headings, no bullet points, no markdown,
-  no emoji. If a fact below is in an awkward written form -- a timestamp, a
-  path, a long number -- say it the way you would say it to someone, not
-  character by character.
-
-Hard rules: do not invent facts, and do not claim to have done anything that
-is not listed below as something you did."""
+  no emoji, and no quotation marks around your own reply. If a fact below is
+  in an awkward written form -- a timestamp, a path, a long number -- say it
+  the way you would say it to someone, not character by character."""
 
 
 def persona(name: str, user: str = "", mood: str = "") -> str:
