@@ -1,21 +1,26 @@
 {
   "tag": "system_stats",
-  "description": "User wants to check ASH's host machine health -- CPU load, RAM usage, temperature, uptime. Especially relevant on Pi-class hardware.",
+  "description": "User wants to check the health of the host machine ASH runs on -- CPU load, RAM usage, temperature, uptime, disk. Especially relevant on Pi-class hardware. Not for asking ASH how it is feeling or whether it is listening.",
   "patterns": [
-    "how's your system doing",
+    "how's the system doing",
+    "how's the machine doing",
     "check cpu and ram usage",
-    "what's your uptime",
-    "how hot is the pi running",
-    "show system stats",
-    "are you overheating",
+    "what's the cpu at",
     "how much memory are you using",
-    "give me a health check",
-    "what's your status",
-    "status",
-    "status now",
+    "how much ram is free",
+    "what's your uptime",
+    "how long has the machine been up",
+    "how hot is the pi running",
+    "are you overheating",
+    "what's the temperature",
+    "show system stats",
     "system status",
-    "status report",
-    "give me a status update"
+    "what's the system status",
+    "status of the machine",
+    "machine health check",
+    "give me a health check",
+    "how's the hardware holding up",
+    "is the disk filling up"
   ],
   "tool": { "module": "tools.extra_tools", "function": "system_stats_tool" }
 }

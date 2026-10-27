@@ -272,6 +272,40 @@ def main():
     check("boosts are capped", max(s for _i, s in _apply_priors("remind me in 5 minutes tomorrow",
                                                               [("set_reminder", 0.8)])) <= 0.9)
 
+    print("\n=== Asking ASH how it is, vs asking about the box ===")
+    from tools.classification import classify_intent, is_self_small_talk
+
+    # "what's your status" was answered with `cpu_percent: 39.3,
+    # ram_used_percent: 93.0, ram_used_mb: 15145`. The three phrases a person
+    # opens with, answered with telemetry.
+    for q in ["what's your status", "whats your status", "how are you",
+              "how are you doing today", "how's it going", "are you there",
+              "are you ok", "you ok?", "you there?", "what's up", "what's new",
+              "how've you been", "are you listening", "are you awake",
+              "hey ash, how are you"]:
+        got = classify_intent(q)["intent"]
+        check(f"{q!r} is for the narrator, not a tool", got == "conversation", got)
+
+    # ...but the hardware question is a real question and still has to work.
+    for q in ["system status", "check cpu and ram usage", "how's the machine doing",
+              "are you overheating", "what's your uptime", "how much memory are you using",
+              "show system stats", "is the disk filling up", "how hot is the pi running",
+              "what's the cpu at", "give me a health check",
+              "how are you doing on memory"]:
+        got = classify_intent(q)["intent"]
+        check(f"{q!r} still reads the machine", got == "system_stats", got)
+
+    check("a machine noun beats the small-talk shape",
+          not is_self_small_talk("how are you doing on memory")
+          and is_self_small_talk("how are you doing today"))
+
+    # Nothing else moved.
+    for q, want in [("what time is it", "get_time"), ("what's 17 times 23", "calculate"),
+                    ("remind me in 5 minutes", "set_reminder"),
+                    ("convert 5 km to miles", "unit_convert")]:
+        got = classify_intent(q)["intent"]
+        check(f"{q!r} routes as before", got == want, got)
+
     print("\n=== Speech: the reply goes in as one utterance ===")
     from tools.tts import MAX_SEGMENT_CHARS, clean_for_speech, segment
 

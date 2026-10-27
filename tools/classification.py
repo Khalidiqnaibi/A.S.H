@@ -280,6 +280,48 @@ _DESTRUCTIVE = re.compile(
     r"drop|truncate|uninstall|rm|rmdir|del|mkfs|sudo)\b|\brm\s+-\w*r|\bdrop\s+table\b|\bformat\s+(?:the\s+)?"
     r"(?:disk|drive|hard\s*drive|c:)", re.I)
 
+# Asking ASH how it is, said to a person and not to a box.
+#
+# The embedding cannot tell these apart from a hardware query and there is no
+# amount of pattern-tuning that will teach it to: "how are you" and "how's the
+# system doing" are a hair apart in MiniLM space, and system_stats.json has to
+# keep the second one. So "what's your status" came back as
+# `cpu_percent: 39.3, ram_used_percent: 93.0, ram_used_mb: 15145` -- the three
+# phrases a person is most likely to open with, answered with telemetry.
+#
+# There is no tool that answers these. The right handler is the narrator,
+# which already has the emotional modulation block and the drive vector, so
+# ASH can say how it actually is. Vetoed to conversation the same way a
+# destructive request is, and for the same reason: not "this tool scores
+# lower", but "no tool is the answer to this".
+_SELF_SMALL_TALK = re.compile(
+    r"^\s*(?:so|and|but|hey|ok|okay)?[\s,]*"
+    # "we" belongs here with "you": "how are we doing?" is the same question
+    # asked more kindly, and it was in the live run that started all this.
+    r"(?:how(?:'?s|'?re| is| are| have| has)?\s+(?:you|u|ya|we|yourself|things|it\s+going|"
+    r"you\s+doing|we\s+doing)"
+    r"|how(?:'?ve| have)\s+(?:you|we)\s+been"
+    r"|are\s+you\s+(?:there|ok|okay|alright|all\s+right|around|awake|up|busy|free|"
+    r"listening|still\s+there|with\s+me|good|fine|well|real|sure|sentient|alive)"
+    r"|you\s+(?:there|ok|okay|alright|awake|around|good|still\s+there)"
+    r"|what(?:'?s| is)\s+(?:your|ur)\s+status"
+    r"|what(?:'?s| is)\s+(?:up|new|going\s+on)(?:\s+with\s+you)?"
+    r"|(?:you\s+)?(?:still|there)\s*\?)"
+    r"\b", re.I)
+# ...unless it names something only the machine has, in which case it really
+# is a hardware question: "how are you doing on memory", "are you up still --
+# what's the uptime".
+_MACHINE_NOUN = re.compile(
+    r"\b(?:cpu|ram|memory|mem|temperature|temp|uptime|disk|storage|battery|processor|"
+    r"system|machine|hardware|pi|server|load|fan|swap|gpu)\b", re.I)
+
+
+def is_self_small_talk(query: str) -> bool:
+    """"How are you" -- a question for the narrator, not for a tool."""
+    q = query or ""
+    return bool(_SELF_SMALL_TALK.search(q)) and not _MACHINE_NOUN.search(q)
+
+
 # "hi ash", "hey ash, what time is it": the name is an address, not a topic.
 _ADDRESS = re.compile(r"^\s*(?:(?:hey|hi|hello|ok|okay|yo)[,\s]+)?ash\b[,.!\s]*|[,\s]+ash[.!?\s]*$", re.I)
 
@@ -321,7 +363,7 @@ def classify_intent(query: str) -> Dict[str, Any]:
         return {"intent": "conversation", "score": 0.0}
 
     query = strip_address(query)
-    if not query or _DESTRUCTIVE.search(query):
+    if not query or _DESTRUCTIVE.search(query) or is_self_small_talk(query):
         return {"intent": "conversation", "score": 0.0}
     if _is_arithmetic(query):
         return {"intent": "calculate", "score": ARITHMETIC_SCORE}
@@ -340,7 +382,7 @@ def get_intent_candidates(query: str, top_k: int = 3):
     if SentenceTransformer is None:
         return []
     query = strip_address(query)
-    if not query or _DESTRUCTIVE.search(query):
+    if not query or _DESTRUCTIVE.search(query) or is_self_small_talk(query):
         return []
     out = [{"intent": i, "score": s} for i, s in _ranked(query, top_k=top_k)]
     if _is_arithmetic(query):
