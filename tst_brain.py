@@ -530,6 +530,59 @@ def main():
     check("feeling social, one short opening",
           brain._template_render("7", Chatty(), "calculate").endswith("Anything else on that?"))
 
+    print("\n=== Memory reaches the narrator as background, not as material ===")
+    # Asked "how are you", ASH answered with three dates: "our last three
+    # interactions were on August 16th, when we discussed the disk issue and I
+    # reported it was 92% full..." The blocks were labelled "Relevant Episodic
+    # Memory" and a model handed a filing-cabinet label reads out the drawer.
+    from src.brain.system2 import MEMORY_FRAMES, System2Deliberator, persona
+
+    class CapturingLLM:
+        """Records the prompt instead of answering it."""
+
+        def __init__(self):
+            self.human = self.system = ""
+
+        def invoke(self, messages):
+            self.system = str(getattr(messages[0], "content", messages[0]))
+            self.human = str(getattr(messages[-1], "content", messages[-1]))
+            return type("R", (), {"content": "ok"})()
+
+    class StubDrives2:
+        urgency = caution = curiosity = effort_budget = social = fatigue = 0.5
+
+        def as_prompt_block(self):
+            return "[LATENT DRIVES] urgency: 0.50"
+
+    cap = CapturingLLM()
+    s2 = System2Deliberator(cap, registry=None)
+    s2.narrate("A.S.H", "how are you", {},
+               {"core": "- ASH is loyal to its user.",
+                "episodic": "- [2026-08-16] Immortal: the disk is 92% full",
+                "entity": "- Entity: Immortal (SPEAKER_SELF)"},
+               "", StubDrives2(), "[EMOTIONAL STATE] steady", user="Immortal")
+
+    check("every memory block says what it is for",
+          all(MEMORY_FRAMES[k] in cap.human for k in ("core", "episodic", "entity")))
+    check("episodic is marked background, not content",
+          "Background only" in MEMORY_FRAMES["episodic"]
+          and "never bring up a date" in MEMORY_FRAMES["episodic"])
+    check("entity memory is for resolving references, not reading out",
+          "background only" in MEMORY_FRAMES["entity"].lower()
+          and "never read it" in MEMORY_FRAMES["entity"])
+    check("core memory is rules to follow, not news to share",
+          "Follow them" in MEMORY_FRAMES["core"])
+    check("the bare filing-cabinet labels are gone",
+          "Relevant Episodic Memory" not in cap.human
+          and "Relevant Entities" not in cap.human, cap.human[:80])
+    check("the memory itself still reaches the model",
+          "92% full" in cap.human and "loyal to its user" in cap.human)
+    check("tone and identity are in the system turn, not buried in the human one",
+          "EMOTIONAL STATE" in cap.system and "Immortal" in cap.system
+          and "EMOTIONAL STATE" not in cap.human)
+    check("the hard rules come before the style rules",
+          cap.system.index("never do") < cap.system.index("How you talk"))
+
     print("\n=== Pathway mix over the session ===")
     for k, v in brain.status()["pathways"].items():
         if v:

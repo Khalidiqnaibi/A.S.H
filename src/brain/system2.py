@@ -143,6 +143,37 @@ How you talk:
   the way you would say it to someone, not character by character."""
 
 
+# What each memory block is FOR, said in the prompt rather than left for the
+# model to guess from a label.
+#
+# "Relevant Episodic Memory" is a filing-cabinet label, and a model handed one
+# reads out the contents. Asked "how are you", ASH answered: "I'm doing well,
+# thanks for asking. Let's see, our last three interactions were on August
+# 16th, when we discussed the disk issue and I reported it was 92% full. On
+# August 13th, we talked about the active window being switched to Stremio."
+# Nobody asked. The ambient context block a few lines below has said
+# "background only -- mention it only if it is relevant" since it was written,
+# and it does not do this; these three had bare labels, so one block said
+# don't recite me and three said nothing, and the model obeyed each exactly.
+#
+# They are framed separately rather than given one shared sentence because
+# they are three different kinds of thing. Core memory is rules to follow --
+# reciting those is worse than reciting dates. Episodic is what happened
+# before. Entity memory is for working out who "he" is, not a directory to
+# read aloud.
+MEMORY_FRAMES = {
+    "core": ("Standing rules about who you are and how you behave. Follow them. "
+             "They are not something to tell the user about unless they ask:"),
+    "episodic": ("Background only, for your own continuity: things that happened "
+                 "before. Draw on it only where it bears on what was just said. "
+                 "Never recount it, never list it, and never bring up a date "
+                 "nobody asked you for:"),
+    "entity": ("People and things you know of, for working out who or what the user "
+               "means (background only -- use it to understand them, never read it "
+               "back to them):"),
+}
+
+
 def persona(name: str, user: str = "", mood: str = "") -> str:
     """The narrator's system turn: who ASH is, how it talks, how it feels."""
     who = (f"You are {name}, talking out loud to {user}."
@@ -438,11 +469,9 @@ class System2Deliberator:
         parts = [f"User query: {query}\n"]
         if working and working.strip() and working.strip() != "empty":
             parts.append(f"Recent conversation:\n{working}\n")
-        for key, label in (("core", "Relevant Core Constraints"),
-                           ("episodic", "Relevant Episodic Memory"),
-                           ("entity", "Relevant Entities & Grounding")):
+        for key in ("core", "episodic", "entity"):
             if memory.get(key):
-                parts.append(f"{label}:\n{memory[key]}\n")
+                parts.append(f"{MEMORY_FRAMES[key]}\n{memory[key]}\n")
         if facts:
             parts.append("Facts you can use:\n" + json.dumps(facts, indent=2, default=str) + "\n")
         parts.append(drives.as_prompt_block() + "\n")
