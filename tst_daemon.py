@@ -144,6 +144,22 @@ def main():
         ok = ok and cond
 
     # ---------------------------------------------------------------
+    print("\n=== 0a. ashctl waits as long as the command needs ===")
+    from src.daemon.service import CTL_SLOW_TIMEOUT, CTL_TIMEOUT, ctl_timeout
+
+    # mistral's first `say` here took 122s and ashctl reported a timeout at
+    # 30s for an answer the daemon produced perfectly well.
+    check("a question waits for the model", ctl_timeout("say what's your status")
+          == CTL_SLOW_TIMEOUT, f"{ctl_timeout('say hello'):.0f}s")
+    check("...and that is longer than the model's own budget",
+          CTL_SLOW_TIMEOUT > float(os.environ.get("ASH_LLM_TIMEOUT", "300")))
+    for quick in ("status", "why", "sensors", "history 50", "pause"):
+        check(f"{quick.split()[0]!r} still gives up quickly",
+              ctl_timeout(quick) == CTL_TIMEOUT)
+    check("consolidation is a slow one too", ctl_timeout("sleep") == CTL_SLOW_TIMEOUT)
+    check("an empty command does not crash the choice", ctl_timeout("") == CTL_TIMEOUT)
+
+    # ---------------------------------------------------------------
     print("\n=== 0. Addressing: was that meant for me? ===")
     from src.senses import address
     from src.senses.mic import build_event

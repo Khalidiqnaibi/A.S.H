@@ -44,6 +44,31 @@ STATE_DIR = os.environ.get("ASH_STATE_DIR", os.path.join(os.getcwd(), "state"))
 PID_FILE = os.path.join(STATE_DIR, "ashd.pid")
 CONFIG_FILE = os.environ.get("ASH_DAEMON_CONFIG", os.path.join(os.getcwd(), "daemon.json"))
 
+# How long `ashctl` waits for a reply. Most commands answer out of in-memory
+# state and are instant, so a short ceiling on those is a useful "the daemon
+# is wedged" signal rather than a hang.
+#
+# `say` is a different animal: it runs a full cognitive cycle, and on a
+# CPU-bound local model that is minutes, not seconds. Against mistral here
+# the first call took 122s -- ashctl printed "Control error: timed out" at
+# 30s for an answer the daemon then went on to produce perfectly well, which
+# makes the daemon look broken when it is only thinking. The slow commands
+# now wait as long as the brain is itself allowed to take, plus a margin for
+# the rest of the cycle around the model call.
+#
+# A daemon that is not listening still fails instantly either way: that is
+# connection refused, not a timeout.
+CTL_TIMEOUT = float(os.environ.get("ASH_CTL_TIMEOUT", "30"))
+CTL_SLOW_TIMEOUT = float(os.environ.get("ASH_LLM_TIMEOUT", "300")) + 30.0
+# Commands that wait on the model rather than on memory.
+SLOW_COMMANDS = ("say", "sleep", "rollup")
+
+
+def ctl_timeout(cmd: str) -> float:
+    """How long to wait for this command's reply."""
+    verb = (cmd or "").strip().split(" ", 1)[0].lower()
+    return CTL_SLOW_TIMEOUT if verb in SLOW_COMMANDS else CTL_TIMEOUT
+
 DEFAULT_CONFIG: Dict[str, Any] = {
     "sensors": {
         # Cheap and non-invasive: on.
@@ -398,9 +423,11 @@ class ControlServer:
 
 
 def control_client(cmd: str, host: str = "127.0.0.1", port: int = 8787,
-                   timeout: float = 30.0) -> Dict[str, Any]:
-    """Used by `ashctl`."""
-    with socket.create_connection((host, port), timeout=timeout) as s:
+                   timeout: Optional[float] = None) -> Dict[str, Any]:
+    """Used by `ashctl`. With no timeout given, one is chosen from the
+    command: see CTL_TIMEOUT and SLOW_COMMANDS above."""
+    with socket.create_connection(
+            (host, port), timeout=ctl_timeout(cmd) if timeout is None else timeout) as s:
         s.sendall((cmd + "\n").encode())
         buf = b""
         while not buf.endswith(b"\n"):

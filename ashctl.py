@@ -25,6 +25,12 @@ ashctl.py -- talk to a running ASH daemon.
     python ashctl.py simulate battery_low
     python ashctl.py simulate cpu_high
 
+`say` waits as long as the brain is allowed to take (ASH_LLM_TIMEOUT, 300s
+by default, plus a margin), because a full cognitive cycle on a CPU-bound
+local model is minutes rather than seconds. Everything else answers out of
+in-memory state and gives up after ASH_CTL_TIMEOUT (30s), so a wedged daemon
+still looks wedged instead of hanging the terminal.
+
 `pause` and `mute` are different on purpose: pause stops *perceiving*
 (microphone, camera, screen), mute stops *speaking* while continuing to
 observe and remember. In a meeting you usually want pause; while
