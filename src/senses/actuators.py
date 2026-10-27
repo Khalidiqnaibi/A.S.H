@@ -125,8 +125,8 @@ class SpeakActuator(Actuator):
         if self.tts is None or getattr(self.tts, "engine", True) is None:
             return {"ok": False, "error": "no TTS engine attached"}
 
-        # tts.py's stream_audio() only *synthesizes* -- it yields raw WAV
-        # bytes per sentence and never plays them. app.py's web frontend
+        # tts.py's stream_audio() only *synthesizes* -- it yields the reply
+        # as one WAV and never plays it. app.py's web frontend
         # forwards those bytes to a browser over a socket, which is what
         # actually makes sound there; this actuator used to just count the
         # chunks and throw the audio away, so the daemon synthesized speech
@@ -134,8 +134,8 @@ class SpeakActuator(Actuator):
         # ASH has been silent: not a missing engine (Kokoro loads fine), a
         # missing speaker.
         #
-        # Playback runs on its own thread, one chunk at a time in order, for
-        # the same reason NotifyActuator's MessageBoxW got moved off-thread:
+        # Playback runs on its own thread, for the same reason
+        # NotifyActuator's MessageBoxW got moved off-thread:
         # _respond() runs synchronously on the ambient loop's own thread, and
         # a multi-second blocking play() call there would freeze sensing and
         # attention for the whole time ASH is talking.

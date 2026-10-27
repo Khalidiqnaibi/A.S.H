@@ -14,6 +14,7 @@ What it asserts:
   * an irreversible action never takes the fast path
   * the VLA vetoes an ungrounded physical action
   * no single board member can pass a motion alone
+  * a reflex answer is phrased like speech, not dumped as tool output
 """
 
 import os
@@ -491,6 +492,43 @@ def main():
     n1 = brain.predictive._n_err
     brain.observe(text="window switch gamma", source="noise")
     check("but not against the question before them", brain.predictive._n_err == n1)
+
+    print("\n=== A reflex answer is still something someone said ===")
+    # The fast path has no language model in it, which is the point of it --
+    # and used to mean a practised question was answered with the tool's raw
+    # output. Getting better at a question made ASH worse at saying it.
+    from src.brain.brain import _as_spoken_sentence, _is_bare_value
+
+    class Plain:
+        urgency, effort_budget, social = 0.3, 0.7, 0.3
+
+    class Rushed(Plain):
+        urgency = 0.9
+
+    class Chatty(Plain):
+        social = 0.9
+
+    said = [brain._template_render("4:12 PM", Plain(), "get_time") for _ in range(4)]
+    check("a bare value gets the lead-in a person would give it",
+          all(s.endswith("4:12 PM.") and s != "4:12 PM." for s in said), said[0])
+    check("...and does not play the same recording every time",
+          len(set(said)) > 1, str(sorted(set(said))))
+    sum_said = brain._template_render("7", Plain(), "calculate")
+    check("a calculation reads as an answer", sum_said == "That's 7.", sum_said)
+    check("an intent with no lead-in is still a sentence",
+          brain._template_render("the file is 4.2 MB", Plain(), "file_info")
+          == "The file is 4.2 MB.")
+    check("a labelled dump is left alone, not capitalised mid-label",
+          brain._template_render("cpu: 31%, memory: 62%", Plain(), "system_stats")
+          == "cpu: 31%, memory: 62%.")
+    check("a clock reading counts as a bare value", _is_bare_value("4:12 PM"))
+    check("...a key/value dump does not", not _is_bare_value("cpu: 31%"))
+    check("multi-line output is never reshaped",
+          _as_spoken_sentence("line one\nline two") == "line one\nline two")
+    check("in a hurry, the answer and nothing after it",
+          brain._template_render("4:12 PM", Rushed(), "get_time").endswith("4:12 PM."))
+    check("feeling social, one short opening",
+          brain._template_render("7", Chatty(), "calculate").endswith("Anything else on that?"))
 
     print("\n=== Pathway mix over the session ===")
     for k, v in brain.status()["pathways"].items():

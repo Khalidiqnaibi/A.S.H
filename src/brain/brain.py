@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from collections import deque
 from typing import Any, Callable, Deque, Dict, List, Optional
@@ -89,6 +90,46 @@ CYCLE_COST = {
 }
 
 
+# Intents whose tool output is a bare value -- a clock reading, a number --
+# and so lands wrong on its own. Everything not listed here is spoken as it
+# comes back; a lead-in glued to the front of a sentence that already has one
+# reads worse than no lead-in at all.
+_FAST_LEADS = {
+    "get_time": ("It's", "Right now it's", "It's"),
+    "get_date": ("It's", "Today's", "It's"),
+    "calculate": ("That's", "Comes to", "That's"),
+    "unit_convert": ("That's", "That works out to", "That's"),
+    "random_number": ("You got", "That's", "You got"),
+}
+
+# A "key: value" dump -- a colon with a space after it. "4:12 PM" is not one,
+# which is the whole reason this is not just a test for a colon.
+_LABELLED = re.compile(r"\w:\s")
+# A bare value: short, one line, and not a sentence or a dump already.
+_BARE_VALUE = re.compile(r"^[^\n;]{1,48}$")
+_ENDS_SENTENCE = re.compile(r"[.!?]$")
+
+
+def _is_bare_value(body: str) -> bool:
+    text = body.strip()
+    return bool(_BARE_VALUE.match(text)) and not _LABELLED.search(text)
+
+
+def _as_spoken_sentence(body: str) -> str:
+    """Capital at the front, a full stop at the back -- the difference
+    between a value and someone saying it. A labelled dump keeps its own
+    capitalisation, because "Cpu: 31%" is not an improvement on "cpu: 31%".
+    """
+    text = body.strip()
+    if not text or "\n" in text:
+        return text
+    if text[:1].isalpha() and text[0].islower() and not _LABELLED.search(text):
+        text = text[0].upper() + text[1:]
+    if not _ENDS_SENTENCE.search(text):
+        text += "."
+    return text
+
+
 def _fmt_tool_output(out: Any) -> str:
     """Template renderer for the fast path. Deliberately boring -- the whole
     point of FAST is that no language model is involved."""
@@ -129,6 +170,9 @@ class Brain:
     ):
         self.name = name
         self.user = user
+        # Which lead-in a reflex answer used last, per intent, so a
+        # practised question is not answered word for word every time.
+        self._fast_turn: Dict[str, int] = {}
 
         state_dir = os.environ.get("ASH_BRAIN_STATE", os.path.join(os.getcwd(), "state", "brain"))
         self.sensory = SensoryCortex(embedder=embedder, enable_vision=enable_vision,
@@ -383,7 +427,7 @@ class Brain:
             self.system1.stage_reward(proposal, tool_success=False, escalated=True)
             return None
 
-        text = self._template_render(body, drives)
+        text = self._template_render(body, drives, proposal.intent)
 
         trace.pathway = Pathway.FAST
         trace.tool_output = out
@@ -405,17 +449,40 @@ class Brain:
             tool_success=True, pathway=Pathway.FAST,
         )
 
-    @staticmethod
-    def _template_render(body: str, drives: Drives) -> str:
-        """Tone applied by rule, not by model. Three registers, chosen by
-        the drive vector -- enough to not sound robotic, cheap enough to
-        keep the fast path fast."""
+    def _template_render(self, body: str, drives: Drives, intent: str = "") -> str:
+        """Tone applied by rule, not by model -- cheap enough to keep the
+        fast path fast.
+
+        This used to hand back the tool's output verbatim, which is how a
+        practised question ended up answered with a raw string: ask the time
+        twice and the second answer was `2026-10-27 16:12:04`, because by
+        then the reflex had learned the route and no language model was in
+        the loop any more. Getting *better* at a question made ASH worse at
+        saying the answer.
+
+        So a reflex answer is now at least a spoken sentence, and for the
+        handful of intents whose output is a bare value it gets the lead-in
+        a person would put in front of it. The lead rotates per intent, so
+        asking the time five times does not play the same recording five
+        times -- consistency of character, not of wording.
+        """
         body = body.strip()
-        if drives.urgency > 0.65 or drives.effort_budget < 0.3:
+        if not body:
             return body
+
+        leads = _FAST_LEADS.get(intent or "")
+        if leads and _is_bare_value(body):
+            n = self._fast_turn.get(intent, 0)
+            self._fast_turn[intent] = n + 1
+            body = f"{leads[n % len(leads)]} {body}"
+
+        text = _as_spoken_sentence(body)
+        if drives.urgency > 0.65 or drives.effort_budget < 0.3:
+            # In a hurry, or nearly out of budget: the answer, nothing after it.
+            return text
         if drives.social > 0.65:
-            return f"{body} — anything else you need on that?"
-        return body
+            return f"{text} Anything else on that?"
+        return text
 
     # ==================================================================
     # Slow path
@@ -532,6 +599,7 @@ class Brain:
             self.name, query, facts, ctx, self.memory.working_block(),
             drives, modulation_block, trace_note=note, context=context,
             gist=gist, embed_fn=(self._embed_text if gist is not None else None),
+            user=self.user,
         )
         if gist is not None:
             trace.notes.append(f"narration: {self.system2.last_narration['mode']}"

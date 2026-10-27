@@ -60,7 +60,10 @@ except Exception:                                        # pragma: no cover
 
 logger = logging.getLogger("ash.daemon.ambient")
 
-NO_MODEL_TEXT = "My language model isn't responding, so I can't answer that right now."
+# Said out loud, to someone who asked a real question, so: what is wrong and
+# nothing else. No apology (it is not ASH's fault and saying sorry twice for
+# the same outage is worse than the outage) and no jargon dressed up as one.
+NO_MODEL_TEXT = "My model isn't answering right now, so I've got nothing for you on that."
 
 
 @dataclass

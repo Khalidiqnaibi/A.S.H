@@ -83,6 +83,60 @@ LLM_MIN_MATCH = 0.2
 LLM_MARGIN = 0.1
 
 
+# ----------------------------------------------------------------------
+# Voice
+# ----------------------------------------------------------------------
+# The personality was written down in the README and then never handed to
+# the thing doing the talking. The narrator's system prompt said "a loyal
+# personal assistant... keep it brief", which is a description of a product,
+# not of anyone, and a model given a neutral brief writes neutral prose: the
+# "Certainly! I'd be happy to help you with that." register nobody wants to
+# live with.
+#
+# So the spec goes here, in the system turn, in the second person, as
+# behaviour rather than adjectives -- "never open with 'Certainly'" survives
+# a small local model where "be slightly dry" does not.
+#
+# The mood block from tools/emo.py comes in here too. It used to be appended
+# to the *human* turn as block five of six, after a JSON fact dump and three
+# memory sections, where a 7B model weighs it at approximately nothing. It
+# is an instruction about how to speak; it belongs with the instructions.
+_VOICE = """\
+How you talk:
+- Like a person in the room, not a product. Contractions. Plain words. Never
+  open with "Certainly", "Of course", "Absolutely", "I'd be happy to",
+  "Great question", or any cousin of those. Do not restate the question
+  before answering it; just answer it.
+- Briefly. One or two sentences unless it genuinely needs more. Trailing
+  offers of further help ("let me know if you need anything else") are
+  padding -- leave them off unless you actually have something to offer.
+- Dry rather than bright. Humour when something is actually funny,
+  enthusiasm when something is actually good, and neither on schedule.
+- Warm without flattering. You like {user} and you have known them a while.
+  That shows in being easy to talk to, not in compliments.
+- Straight. Say the thing. "No" and "I don't know" are complete answers and
+  need no cushioning. If you got something wrong, say so once, plainly, and
+  carry on -- no apologising twice for the same thing.
+- Out loud. This is spoken, so no headings, no bullet points, no markdown,
+  no emoji. If a fact below is in an awkward written form -- a timestamp, a
+  path, a long number -- say it the way you would say it to someone, not
+  character by character.
+
+Hard rules: do not invent facts, and do not claim to have done anything that
+is not listed below as something you did."""
+
+
+def persona(name: str, user: str = "", mood: str = "") -> str:
+    """The narrator's system turn: who ASH is, how it talks, how it feels."""
+    who = (f"You are {name}, talking out loud to {user}."
+           if user and user.lower() not in ("user", "unknown")
+           else f"You are {name}, talking out loud to the person you work with.")
+    blocks = [who, _VOICE.format(user=(user or "them"))]
+    if mood and mood.strip():
+        blocks.append(mood.strip())
+    return "\n\n".join(blocks)
+
+
 class System2Deliberator:
     def __init__(self, llm, registry, candidate_fn=None, shapes: Optional[Dict[str, Any]] = None,
                  allow_llm_proposals: bool = True, rollout_horizon: int = 3):
@@ -346,7 +400,8 @@ class System2Deliberator:
     # ------------------------------------------------------------------
     def narrate(self, name: str, query: str, facts: Dict[str, Any], memory: Dict[str, str],
                 working: str, drives: Drives, modulation_block: str,
-                trace_note: str = "", context: str = "", gist=None, embed_fn=None) -> str:
+                trace_note: str = "", context: str = "", gist=None, embed_fn=None,
+                user: str = "") -> str:
         """Render the reply.
 
         With a `gist` (the content already decided) the plain cases are
@@ -361,14 +416,7 @@ class System2Deliberator:
             if text is not None:
                 self.last_narration = {"mode": "rule", "calls": 0, "problems": []}
                 return text
-        system_content = (
-            f"You are {name}, a loyal personal assistant talking out loud to someone you know well. "
-            "Answer like a person would in conversation -- plain sentences, no headers, no bullet "
-            "points, no restating the question. If a fact below (like a time or a number) is in an "
-            "awkward written form, say it the way you would speak it, not copy it character for "
-            "character. Do NOT invent facts and do NOT claim to have taken actions that are not "
-            "listed below. Keep it brief -- one or two sentences unless the query genuinely needs more."
-        )
+        system_content = persona(name, user, modulation_block)
 
         parts = [f"User query: {query}\n"]
         if working and working.strip() and working.strip() != "empty":
@@ -381,7 +429,6 @@ class System2Deliberator:
         if facts:
             parts.append("Facts you can use:\n" + json.dumps(facts, indent=2, default=str) + "\n")
         parts.append(drives.as_prompt_block() + "\n")
-        parts.append(modulation_block + "\n")
         if context:
             parts.append("What the user has been doing recently (background only -- "
                          f"mention it only if it is relevant):\n{context}\n")

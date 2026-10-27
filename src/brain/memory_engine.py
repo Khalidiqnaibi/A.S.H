@@ -42,7 +42,12 @@ WM_TTL = 600.0   # seconds before a working-memory slot decays out
 # like (tools/LLM.py returns the error as plain text rather than raising). Neither
 # is something ASH meant, so neither may be remembered: a provider error stored
 # as an utterance became entities, "core" context and cached replies.
-NO_REPLY_TEXT = "I couldn't put together a response for that."
+NO_REPLY_TEXT = "I've got nothing useful for that one."
+# Wordings this line has had before. They are still out there -- in episodic
+# memory, in reflex caches, in journals written by an older build -- and a
+# retired line that stops being recognised is a failure that gets replayed as
+# though ASH had meant it. Add here, never remove.
+_RETIRED_NO_REPLY = ("I couldn't put together a response for that.",)
 # (A bare "Error:" is not here: a tool can legitimately answer "Error: no such file".)
 _FAILURE_PREFIXES = ("[LLM]", "[LLM ERROR]", "Error calling", "Error from LLM provider:",
                      "API Error:")
@@ -50,7 +55,8 @@ _FAILURE_PREFIXES = ("[LLM]", "[LLM ERROR]", "Error calling", "Error from LLM pr
 
 def is_failure_text(text: Any) -> bool:
     t = text.strip() if isinstance(text, str) else ""
-    return t == NO_REPLY_TEXT or t.startswith(_FAILURE_PREFIXES)
+    return (t == NO_REPLY_TEXT or t in _RETIRED_NO_REPLY
+            or t.startswith(_FAILURE_PREFIXES))
 
 
 @dataclass

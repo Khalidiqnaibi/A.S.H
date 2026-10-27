@@ -405,7 +405,11 @@ def u5_actions():
     order = [r["kind"] for r in h3.bus.history() if r["kind"] in ("action", "ash")]
     check("the action is shown before the reply, and only once", order[-2:] == ["action", "ash"]
           and order.count("action") == 1, str(order))
-    trace.update(ts=time.time() + 1, verdict={"chosen": {"tool_name": "shell", "args": "rm"},
+    # +2, not +1: _report_trace dedupes on the trace's own ts, and on Windows
+    # time.time() has ~16ms resolution, so two traces built in the same tick
+    # got the same ts and the second was discarded as already shown. This
+    # failed about three runs in four, and never for a reason in the product.
+    trace.update(ts=time.time() + 2, verdict={"chosen": {"tool_name": "shell", "args": "rm"},
                                               "vetoed_by": ["executive"]})
     h3.on_say("delete it")
     h3.rt._tick()

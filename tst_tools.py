@@ -272,6 +272,31 @@ def main():
     check("boosts are capped", max(s for _i, s in _apply_priors("remind me in 5 minutes tomorrow",
                                                               [("set_reminder", 0.8)])) <= 0.9)
 
+    print("\n=== Speech: the reply goes in as one utterance ===")
+    from tools.tts import MAX_SEGMENT_CHARS, clean_for_speech, segment
+
+    reply = "It's 4:12. You've been at it a while. Worth a stretch?"
+    check("a whole reply is one span", segment(reply) == [reply], str(segment(reply)))
+    check("nothing to say is no spans", segment("") == [] and segment("   ") == [])
+
+    # Only split when the model's budget forces it, and never below it.
+    long_reply = "I went through the log and the picture is fairly clear. " * 12
+    spans = segment(long_reply)
+    check("a long reply splits as little as it can", len(spans) <= 3, f"{len(spans)} spans")
+    check("every span fits the model's budget",
+          all(len(s) <= MAX_SEGMENT_CHARS for s in spans),
+          f"longest {max(len(s) for s in spans)} of {MAX_SEGMENT_CHARS}")
+    check("splitting loses no words",
+          " ".join(spans).split() == long_reply.split())
+
+    # A wall of text with no punctuation to split on must not defeat it.
+    spans = segment("word " * 300)
+    check("unpunctuated text still fits", all(len(s) <= MAX_SEGMENT_CHARS for s in spans))
+
+    spoken = clean_for_speech("**Done.** Check the `config.py` file -- it's well-known.")
+    check("markdown is not read aloud", "*" not in spoken and "`" not in spoken, spoken)
+    check("...but hyphenated words survive it", "well-known" in spoken, spoken)
+
     print("\n" + ("ALL CHECKS PASSED" if OK else "SOME CHECKS FAILED"))
     return 0 if OK else 1
 
