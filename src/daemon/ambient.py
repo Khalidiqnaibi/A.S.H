@@ -42,15 +42,15 @@ import logging
 import threading
 import time
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Deque, Dict, List, Optional
 
 from src.senses import address
 from .attention import AttentionGate, Disposition
 from .journal import Journal
 from .privacy import PrivacyPolicy
-from .social import (FlowDetector, ReactionTracker, SocialLearner, classify_reply,
-                     compose_check_in, friendly_app, is_generic_checkin, where_phrase)
+from .social import (FlowDetector, ReactionTracker, SocialLearner,
+                     compose_check_in, is_generic_checkin, where_phrase)
 
 try:
     from src.brain.memory_engine import is_failure_text
@@ -453,12 +453,21 @@ class AmbientRuntime:
         ask is told once, quietly, then left alone until the notice interval has
         passed: repeating "I couldn't put together a response" aloud for every
         sentence of a conversation is worse than the outage.
+
+        "Someone who did ask" includes route 1b. This keyed on ev.addressed,
+        which is only the *certain* half, so a probable question -- "what time
+        is it", the whole reason that route exists -- got complete silence
+        when the model was down. Being asked and saying nothing is the failure
+        the route was added to stop; it should not come back the moment Ollama
+        does not answer.
         """
         self.stats["no_reply"] += 1
         now = self.clock()
-        if not ev.addressed or now - self._last_no_reply_notice < self.cfg.no_reply_notice_s:
-            logger.warning("No reply to give (%s)", "addressed" if ev.addressed else "unprompted")
-            if ev.addressed:
+        asked = bool(getattr(ev, "addressed", False)
+                     or getattr(decision, "likely", False))
+        if not asked or now - self._last_no_reply_notice < self.cfg.no_reply_notice_s:
+            logger.warning("No reply to give (%s)", "asked" if asked else "unprompted")
+            if asked:
                 self.gate.note_user_turn()
             return
         self._last_no_reply_notice = now

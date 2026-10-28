@@ -17,9 +17,20 @@ so it is built around three ideas:
      volume by well over 90% during normal work.
 
   3. BLOCKLIST BEFORE CAPTURE, NOT AFTER. Password managers, banking sites,
-     and anything the user names are checked against the *window title* first.
-     If it matches, no pixels are read at all -- there is no sensitive frame
-     sitting in RAM waiting to be filtered.
+     calls, and anything the user names are checked against the *window
+     title* first. If it matches, no pixels are read at all -- there is no
+     sensitive frame sitting in RAM waiting to be filtered.
+
+  4. CAPTURE THE FOCUSED WINDOW, NOT THE MONITOR. Point 3 checks the title
+     of the window with focus, so capturing the whole screen quietly broke
+     it: a blocked app merely *visible* beside an allowed one was captured
+     and read anyway. The first time OCR was switched on, what it read and
+     journaled was a lecture being presented over Google Meet in another
+     window -- meeting URL, presenter's name and all -- while the focused
+     window was a terminal and the blocklist, checking that terminal, said
+     yes. Cropping to the focused window makes the check mean what it says.
+     Where no rectangle is available the monitor is still used, and that is
+     reported in the sensor status rather than assumed.
 
 Idle time matters independently: it is what tells the attention gate whether
 the user is at the keyboard (don't interrupt) or has been away for an hour
@@ -48,7 +59,29 @@ DEFAULT_BLOCKLIST = [
     "password", "keepass", "bitwarden", "1password", "lastpass", "keychain",
     "banking", "bank of", "paypal", "stripe dashboard", "wallet", "seed phrase",
     "private browsing", "incognito", "authenticator", "2fa", "recovery code",
+
+    # Other people. Everything above protects the user from their own screen;
+    # none of it covered a call or a chat, where the screen belongs partly to
+    # someone who was never asked. Turning OCR on for the first time, the very
+    # first thing ASH read and wrote to the journal was a lecture someone was
+    # presenting over Google Meet, complete with the meeting URL and the
+    # presenter's name. That is the clearest case the blocklist exists for and
+    # it was not in it.
+    # Matched against the real titles these put in a title bar, not the
+    # product names. Google Meet is "Meet - abc-defg-hij - Opera", which
+    # contains neither "google meet" nor "meet.google" -- the first draft of
+    # this list missed a call that was on screen at the time.
+    "meet - ", "meet.google", "google meet", "zoom meeting", "zoom.us",
+    "- zoom", "microsoft teams", "teams meeting", "webex", "gotomeeting",
+    "bluejeans", "jitsi", "skype", "is sharing", "screen sharing",
+    "whatsapp", "signal", "telegram", "messenger", "facetime",
 ]
+# A substring list will always trail whatever the next application decides to
+# call its windows, and it only ever sees the focused one. It is the cheap
+# layer. The structural protections are capturing just that focused window
+# (so a blocked app beside an allowed one is out of frame) and
+# privacy.blocked_apps, which is the user's own list and the only one that
+# knows what their work looks like.
 
 
 # A window title is "<what you are looking at> - <maybe a project> - <App>",
@@ -235,6 +268,32 @@ class ActiveWindowSensor(Sensor):
         }.get(self._backend)
         return fn() if fn else ("", "")
 
+    def rect(self) -> Optional[Tuple[int, int, int, int]]:
+        """(left, top, right, bottom) of the focused window, or None.
+
+        Win32 only for now; every other backend reports None and the caller
+        falls back to the whole monitor.
+        """
+        if self._backend != "win32":
+            return None
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            u32 = ctypes.windll.user32
+            hwnd = u32.GetForegroundWindow()
+            if not hwnd:
+                return None
+            r = wintypes.RECT()
+            if not u32.GetWindowRect(hwnd, ctypes.byref(r)):
+                return None
+            if r.right - r.left < 64 or r.bottom - r.top < 64:
+                return None          # minimised or a sliver; not worth it
+            return int(r.left), int(r.top), int(r.right), int(r.bottom)
+        except Exception:
+            logger.debug("GetWindowRect failed", exc_info=True)
+            return None
+
     def is_blocked(self, title: str) -> bool:
         low = (title or "").lower()
         return any(b in low for b in self.blocklist)
@@ -319,16 +378,20 @@ class ScreenshotSensor(Sensor):
         # machine. read() is called from the ambient loop's own polling
         # thread, so doing that inline would freeze sensing for six seconds
         # every time the screen changed -- a third of a core, continuously,
-        # on a project that targets Pi-class hardware. It runs on a worker
-        # instead and the result rides the next event out, which is why the
-        # meta carries how old the reading is.
+        # on a project that targets Pi-class hardware. It runs on a worker.
+        #
+        # The result then gets an event of its own rather than being attached
+        # to whatever frame happens to come next. Gluing it on produced
+        # journal lines like "screen changed while in A.S.H -- reading:
+        # <four-minute-old lecture slide>", which is not a stale fact but a
+        # false one: it asserts that text is on a screen it is not on.
         self._ocr_lock = threading.Lock()
-        self._ocr_text = ""
+        self._ocr_pending: Optional[Dict[str, Any]] = None
         self._ocr_at = 0.0
-        self._ocr_started = 0.0
         self._ocr_busy = False
         self._last_hash: Optional[int] = None
         self._dropped = 0
+        self._cropped = False
         super().__init__(interval=interval, enabled=enabled)
 
     @property
@@ -355,31 +418,71 @@ class ScreenshotSensor(Sensor):
             return False, f"no screen capture backend ({e}); pip install mss"
 
     def _capture(self):
+        """The focused window where its rectangle is known, else the monitor.
+
+        Cropping is what makes the title blocklist honest: it is a statement
+        about the focused window, so anything else on the monitor is outside
+        what it can promise. It is also cheaper -- less area to hash, less to
+        read -- and quieter, since a second window's text no longer lands in
+        the gist of the first.
+        """
+        rect = None
+        if self.window_sensor is not None:
+            rect = self.window_sensor.rect()
+
         if self._grab == "mss":
             import mss
             from PIL import Image
             with mss.mss() as sct:
                 mon = sct.monitors[1]
+                if rect is not None:
+                    left, top, right, bottom = rect
+                    # Clamp into the monitor: a maximised window reports a
+                    # frame a few pixels outside it on Windows.
+                    box = {"left": max(mon["left"], left), "top": max(mon["top"], top)}
+                    box["width"] = max(1, min(right, mon["left"] + mon["width"]) - box["left"])
+                    box["height"] = max(1, min(bottom, mon["top"] + mon["height"]) - box["top"])
+                    mon = box
+                self._cropped = rect is not None
                 shot = sct.grab(mon)
                 return Image.frombytes("RGB", shot.size, shot.bgra, "raw", "BGRX")
+
         from PIL import ImageGrab
-        return ImageGrab.grab()
+        self._cropped = rect is not None
+        return ImageGrab.grab(bbox=rect) if rect is not None else ImageGrab.grab()
 
     def read(self) -> List[SensorEvent]:
+        # A reading that finished since the last poll goes out on its own,
+        # describing the frame it was taken from. It is emitted even when
+        # this poll captures nothing, or the reading would be lost whenever
+        # the screen settled.
+        out: List[SensorEvent] = []
+        with self._ocr_lock:
+            done, self._ocr_pending = self._ocr_pending, None
+        if done and done.get("text"):
+            seen = f" in {done['title'][:60]}" if done.get("title") else ""
+            out.append(SensorEvent(
+                source=self.name, modality=Modality.TEXT,
+                text=f"read the screen{seen}: {done['text']}",
+                salience=0.45,
+                meta={"on_screen": done["text"], "scene": done.get("scene", ""),
+                      "ahash": done.get("ahash"), "read_s": done.get("took", 0.0)},
+            ))
+
         # Blocklist check happens BEFORE capture -- see module docstring.
         title = ""
         if self.window_sensor is not None:
             title, _ = self.window_sensor.current()
             if self.window_sensor.is_blocked(title):
                 self._dropped += 1
-                return []
+                return out
 
         img = self._capture()
         h = _ahash(img)
 
         if self._last_hash is not None and _hamming(h, self._last_hash) <= self.hamming_threshold:
             self._dropped += 1
-            return []   # screen hasn't meaningfully changed
+            return out   # screen hasn't meaningfully changed
         self._last_hash = h
 
         path = None
@@ -394,40 +497,39 @@ class ScreenshotSensor(Sensor):
         # "exposed 4 actuator(s) to the classifier", and recognisably
         # useless. 1600px is wide enough for ordinary UI text without
         # paying for OCR across a full 4K frame.
-        self._maybe_read(img)
-        with self._ocr_lock:
-            on_screen, read_at = self._ocr_text, self._ocr_at
-
-        # Downscale before handing to the vision extractor: the ViT resizes to
-        # 224px anyway, and a 4K frame in the event queue is pure waste.
+        # Downscale AFTER the OCR hand-off below: the ViT resizes to 224px
+        # anyway and a 4K frame in the event queue is pure waste, but OCR
+        # needs the pixels.
+        legible = img
+        img = img.copy()
         img.thumbnail((640, 400))
 
         scene = screenread.describe(img) if self.describe_enabled else {}
+        self._maybe_read(legible, title, scene.get("kind", ""), h)
 
-        # "screen changed while in X" said only that something moved. With
-        # either layer on it says what sort of screen it is and, if OCR is
-        # available, what it actually says -- which is the whole reason to
-        # pay for a capture rather than read the window title for free.
+        # "screen changed while in X" said only that something moved; the
+        # scene says what sort of screen it is. What it *says* is a separate
+        # event, because by the time OCR finishes this frame is history.
         where = f" while in {title[:60]}" if title else ""
-        what = screenread.phrase(scene, on_screen)
+        what = screenread.phrase(scene)
         text = f"screen changed{where}" + (f" -- {what}" if what else "")
 
-        return [SensorEvent(
+        out.append(SensorEvent(
             source=self.name, modality=Modality.VISION,
             text=text,
             data=img, salience=0.4,
             meta={"ahash": h, "path": path, "dropped_since": self._dropped,
-                  "scene": scene.get("kind", ""), "on_screen": on_screen,
-                  "on_screen_age_s": (round(time.time() - read_at, 1)
-                                      if read_at else None)},
-        )]
+                  "scene": scene.get("kind", "")},
+        ))
+        return out
 
-    def _maybe_read(self, img):
+    def _maybe_read(self, img, title: str, scene: str, ahash: int):
         """Kick off an OCR pass if one is due and none is running.
 
         Never blocks: the caller is the ambient loop's polling thread, and a
         six-second read there stops ASH sensing anything at all for six
-        seconds.
+        seconds. The frame's title, scene and hash are carried along so the
+        result can describe the screen it was actually taken from.
         """
         reader = self.reader
         if reader is None:
@@ -437,20 +539,23 @@ class ScreenshotSensor(Sensor):
             if self._ocr_busy or now - self._ocr_at < self.read_text_every_s:
                 return
             self._ocr_busy = True
-            self._ocr_started = now
 
         legible = img.copy()
         if legible.width > OCR_MAX_WIDTH:
             legible.thumbnail((OCR_MAX_WIDTH, OCR_MAX_WIDTH))
 
         def _run():
-            text = ""
+            started, text = time.time(), ""
             try:
                 text = reader.read_text(legible)
             finally:
                 with self._ocr_lock:
-                    self._ocr_text, self._ocr_at = text, time.time()
-                    self._ocr_busy = False
+                    self._ocr_at, self._ocr_busy = time.time(), False
+                    if text:
+                        self._ocr_pending = {
+                            "text": text, "title": title, "scene": scene,
+                            "ahash": ahash, "took": round(time.time() - started, 2),
+                        }
 
         threading.Thread(target=_run, name="ash-screen-ocr", daemon=True).start()
 
@@ -482,6 +587,7 @@ class ScreenshotSensor(Sensor):
     def status(self) -> Dict[str, Any]:
         d = super().status()
         d["dropped_duplicates"] = self._dropped
+        d["captures"] = "focused window" if self._cropped else "whole monitor"
         d["describes"] = self.describe_enabled
         d["reads_text"] = self.read_text_enabled
         if self._reader is not None:

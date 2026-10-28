@@ -217,7 +217,7 @@ def main():
     from PIL import Image, ImageDraw
 
     from src.daemon.service import DEFAULT_CONFIG
-    from src.senses.screen import ScreenshotSensor
+    from src.senses.screen import ActiveWindowSensor, ScreenshotSensor
     from src.senses.screenread import ScreenReader, _gist, describe, phrase
 
     # Two layers, because they cost very differently. Looking is eight numpy
@@ -243,7 +243,7 @@ def main():
               f"{got['kind']} (ratio {got.get('ratio')})")
     check("a screen it cannot parse says so rather than guessing",
           describe(None)["kind"] == "unknown")
-    check("looking turns into a phrase", phrase({"kind": "media"}) == "watching something")
+    check("looking turns into a phrase", phrase({"kind": "media"}) == "video or images")
     check("...and carries the words when there are some",
           phrase({"kind": "text"}, "the gist") == "reading: the gist")
 
@@ -258,6 +258,31 @@ def main():
 
     check("a missing OCR engine reads nothing and does not raise",
           ScreenReader(backend="definitely-not-installed").read_text(text_img) == "")
+    check("a screen with nothing to show still says something readable",
+          phrase({"kind": "text"}) == "a screen of text")
+
+    # The blocklist is matched against the title an application actually
+    # writes, not its product name. Google Meet is "Meet - abc-defg-hij -
+    # Opera": the first version of this list said "google meet" and missed a
+    # call that was on screen at the time.
+    blocker = ActiveWindowSensor(enabled=False)
+    for title in ["Meet - abc-defg-hij - Opera", "Zoom Meeting",
+                  "Chat | Microsoft Teams", "WhatsApp",
+                  "Someone is sharing their screen", "1Password", "my bank of america"]:
+        check(f"{title[:34]!r} is not captured", blocker.is_blocked(title))
+    for title in ["brain.py - A.S.H - Visual Studio Code", "Downloads",
+                  "Meet the team - Notion"]:
+        check(f"{title[:34]!r} is ordinary work", not blocker.is_blocked(title))
+
+    # The blocklist is a statement about the FOCUSED window, so capturing the
+    # whole monitor quietly broke it: a call merely visible beside an allowed
+    # window was read anyway, which is how a presenter's name and a meeting
+    # URL reached the journal.
+    import inspect
+    src = inspect.getsource(ScreenshotSensor._capture)
+    check("capture crops to the focused window where it can",
+          "window_sensor.rect()" in src and "bbox=rect" in src)
+    check("...and says which it did", "captures" in ScreenshotSensor(enabled=False).status())
 
     # Both layers are switches, and the reader is not even built when off.
     off = ScreenshotSensor(enabled=False, read_text=False, describe=False)

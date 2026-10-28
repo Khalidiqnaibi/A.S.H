@@ -59,7 +59,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("ash.senses.screenread")
 
@@ -239,18 +239,19 @@ def describe(img) -> Dict[str, Any]:
         return {"kind": "unknown"}
 
 
+# Two forms, because "-- reading" on its own is not a sentence. With words
+# to show, the phrase introduces them; without, it has to stand up alone.
 _KIND_PHRASE = {
-    "text": "reading",
-    "media": "watching something",
-    "mixed": "working",
-    "blank": "an idle screen",
+    "text": ("reading", "a screen of text"),
+    "media": ("watching", "video or images"),
+    "mixed": ("working in", "a mix of text and images"),
+    "blank": ("", "an idle screen"),
 }
 
 
 def phrase(scene: Dict[str, Any], text: str = "") -> str:
     """One short clause for the event line: what this screen looks like."""
-    kind = (scene or {}).get("kind", "unknown")
-    lead = _KIND_PHRASE.get(kind, "")
+    lead, alone = _KIND_PHRASE.get((scene or {}).get("kind", "unknown"), ("", ""))
     if text:
         return f"{lead}: {text}" if lead else text
-    return lead
+    return alone
