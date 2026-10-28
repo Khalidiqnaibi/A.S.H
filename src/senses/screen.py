@@ -198,6 +198,10 @@ class ActiveWindowSensor(Sensor):
         self.blocklist = [b.lower() for b in (blocklist or DEFAULT_BLOCKLIST)]
         self._last_title: Optional[str] = None
         self._since: float = time.time()
+        # Why the last rect() lookup came back empty. Cropping to the
+        # focused window is what makes the title blocklist honest, so
+        # falling back to the whole monitor is worth being able to see.
+        self.rect_reason: str = "not looked up yet"
         super().__init__(interval=interval, enabled=enabled)
 
     def probe(self) -> Tuple[bool, str]:
@@ -275,24 +279,40 @@ class ActiveWindowSensor(Sensor):
         falls back to the whole monitor.
         """
         if self._backend != "win32":
+            self.rect_reason = f"no rectangle on the {self._backend or 'unprobed'} backend"
             return None
         try:
             import ctypes
             from ctypes import wintypes
 
             u32 = ctypes.windll.user32
+            # HWND is 64-bit on Win64 and ctypes defaults the return to a
+            # 32-bit int, which silently truncates a large handle.
+            u32.GetForegroundWindow.restype = wintypes.HWND
             hwnd = u32.GetForegroundWindow()
             if not hwnd:
+                self.rect_reason = "nothing has focus"
                 return None
             r = wintypes.RECT()
             if not u32.GetWindowRect(hwnd, ctypes.byref(r)):
+                self.rect_reason = "GetWindowRect refused the handle"
                 return None
             if r.right - r.left < 64 or r.bottom - r.top < 64:
-                return None          # minimised or a sliver; not worth it
+                self.rect_reason = "focused window is minimised or a sliver"
+                return None          # not worth cropping to
+            self.rect_reason = ""
             return int(r.left), int(r.top), int(r.right), int(r.bottom)
-        except Exception:
+        except Exception as e:
+            self.rect_reason = f"{type(e).__name__}: {e}"
             logger.debug("GetWindowRect failed", exc_info=True)
             return None
+
+    def status(self) -> Dict[str, Any]:
+        d = super().status()
+        d["backend"] = self._backend or "none"
+        if self.rect_reason:
+            d["no_crop_because"] = self.rect_reason
+        return d
 
     def is_blocked(self, title: str) -> bool:
         low = (title or "").lower()

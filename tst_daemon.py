@@ -283,6 +283,13 @@ def main():
     check("capture crops to the focused window where it can",
           "window_sensor.rect()" in src and "bbox=rect" in src)
     check("...and says which it did", "captures" in ScreenshotSensor(enabled=False).status())
+    # Falling back to the whole monitor widens what gets captured past what
+    # the blocklist can speak for, so it is not allowed to happen silently.
+    nocrop = ActiveWindowSensor(enabled=False)
+    nocrop._backend = "xdotool"          # a backend with no rectangle to give
+    check("a backend that cannot crop says so rather than widening quietly",
+          nocrop.rect() is None and nocrop.status().get("no_crop_because"),
+          str(nocrop.status().get("no_crop_because")))
 
     # Both layers are switches, and the reader is not even built when off.
     off = ScreenshotSensor(enabled=False, read_text=False, describe=False)
