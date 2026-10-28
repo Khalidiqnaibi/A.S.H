@@ -66,6 +66,9 @@ def build_periphery(config: dict, tts_engine=None, registry=None) -> PeripheryRe
         window_sensor=window,
         save_frames=shot_cfg.get("save_frames", False),
         max_frames=shot_cfg.get("max_frames", 500),
+        read_text=shot_cfg.get("read_text", False),
+        describe=shot_cfg.get("describe", True),
+        read_text_every_s=shot_cfg.get("read_text_every_s", 120.0),
     ))
 
     mic_cfg = s.get("microphone", {})

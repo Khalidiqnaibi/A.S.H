@@ -116,20 +116,23 @@ def friendly_app(process: str) -> str:
     return _APPS.get(p.lower(), p[:1].upper() + p[1:])
 
 
-def where_phrase(process: str = "", subject: str = "") -> str:
-    """" in VS Code", " on brain.py in VS Code", or nothing.
+def where_phrase(process: str = "", subject: str = "", project: str = "") -> str:
+    """" in VS Code", " on brain.py in A.S.H", or nothing.
 
     The subject leads because it is the part that says what the work was. An
-    hour "in Code" is a fact about a window; an hour "on brain.py" is a fact
-    about the evening.
+    hour "in Code" is a fact about a window; an hour "on brain.py in A.S.H"
+    is a fact about the evening. The project beats the app as the container
+    for the same reason -- it is the more specific of the two, and it is the
+    one the user would use themselves.
     """
     app = friendly_app(process)
     subject = (subject or "").strip()
-    if subject and app:
-        return f" on {subject} in {app}"
+    inside = (project or "").strip() or app
+    if subject and inside:
+        return f" on {subject} in {inside}"
     if subject:
         return f" on {subject}"
-    return f" in {app}" if app else ""
+    return f" in {inside}" if inside else ""
 
 
 def is_generic_checkin(text: str) -> bool:
@@ -138,12 +141,12 @@ def is_generic_checkin(text: str) -> bool:
 
 
 def compose_check_in(minutes: float, process: str = "", hour: Optional[int] = None,
-                     subject: str = "") -> str:
+                     subject: str = "", project: str = "") -> str:
     """A short, specific line from the facts alone: used when the model has
     nothing better than a generic one."""
     m = max(1, int(round(minutes)))
     unit = "minute" if m == 1 else "minutes"
-    where = where_phrase(process, subject)
+    where = where_phrase(process, subject, project)
     late = hour is not None and (hour >= 23 or hour < 5)
     if m >= 90:
         h = m / 60.0
@@ -450,6 +453,7 @@ class FlowDetector:
         self.queries: Deque[Tuple[float, frozenset]] = deque(maxlen=32)
         self.process = ""
         self.subject = ""       # what is open in it: the file, the document
+        self.project = ""       # and what that belongs to
         self.since = 0.0
         self.burst_start: Optional[float] = None
         self.last_active: float = 0.0
@@ -475,13 +479,14 @@ class FlowDetector:
             dwell = float(meta.get("dwell_s", 0.0) or 0.0)
             if proc != self.process:
                 self.process, self.since = str(proc), now - dwell
-                self.subject = ""
+                self.subject = self.project = ""
             elif dwell:
                 self.since = min(self.since, now - dwell)
             # The subject moves within a stretch of work -- switching file is
             # not switching task -- so it tracks the latest one and does not
             # restart the dwell clock the way a process change does.
             self.subject = str(meta.get("subject") or "") or self.subject
+            self.project = str(meta.get("project") or "") or self.project
         if text and _ERROR.search(text):
             sig = error_signature(text)
             self.errors.setdefault(sig, deque(maxlen=16)).append(now)
@@ -575,15 +580,17 @@ class FlowDetector:
 
     def _free_event(self, now) -> SensorEvent:
         mins = (self.last_active - (self.burst_start or self.last_active)) / 60.0
-        where = where_phrase(self.process, self.subject)
+        where = where_phrase(self.process, self.subject, self.project)
         return SensorEvent(
             source="flow", modality=Modality.TEXT, ts=now, persistable=False, addressed=False,
             text=f"the user just finished about {mins:.0f} minutes of work{where} and paused",
             salience=0.5,
             meta={"offer": "free_moment", "offer_strength": round(min(0.8, 0.6 + 0.01 * mins), 3),
-                  "minutes": round(mins, 1), "process": self.process, "subject": self.subject,
+                  "minutes": round(mins, 1), "process": self.process,
+                  "subject": self.subject, "project": self.project,
                   "accept_context": f"You had just checked in after {mins:.0f} minutes of their work{where}."})
 
     def status(self) -> Dict[str, Any]:
         return {"emitted": dict(self.emitted), "process": self.process,
-                "subject": self.subject, "tracked_errors": len(self.errors)}
+                "subject": self.subject, "project": self.project,
+                "tracked_errors": len(self.errors)}

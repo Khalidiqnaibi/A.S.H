@@ -368,7 +368,8 @@ class AmbientRuntime:
             # The subject ("brain.py") says more about the stretch of work
             # than the app ("VS Code") ever does, so it leads.
             where = where_phrase(str(meta.get("process", "")),
-                                 str(meta.get("subject", ""))).strip()
+                                 str(meta.get("subject", "")),
+                                 str(meta.get("project", ""))).strip()
             prompt = (
                 f"[FREE MOMENT -- the user did not ask you anything. Fact: {ev.text}"
                 f"{' (' + where + ')' if where else ''}. Reply with ONE short sentence, under 25 "
@@ -411,7 +412,8 @@ class AmbientRuntime:
             text = compose_check_in(float(meta.get("minutes", 5) or 5),
                                     str(meta.get("process", "")),
                                     time.localtime(self.clock()).tm_hour,
-                                    subject=str(meta.get("subject", "")))
+                                    subject=str(meta.get("subject", "")),
+                                    project=str(meta.get("project", "")))
             pathway, degraded = "offer", False
         elif degraded:
             self._model_unavailable(ev, decision)

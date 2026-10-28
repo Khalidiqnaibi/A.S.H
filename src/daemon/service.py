@@ -76,7 +76,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "idle": {"enabled": True, "interval": 10.0},
         "system": {"enabled": True, "interval": 30.0},
         # Invasive: off until the user says otherwise.
-        "screenshot": {"enabled": False, "interval": 20.0, "save_frames": False},
+        # `describe` is free and tells text from video from an empty screen.
+        # `read_text` is OCR: seconds of CPU per frame and the contents of
+        # the screen turned into journaled text, so it is off with capture.
+        "screenshot": {"enabled": False, "interval": 20.0, "save_frames": False,
+                       "describe": True, "read_text": False,
+                       "read_text_every_s": 120.0},
         "microphone": {"enabled": False, "keep_audio": False},
         "camera": {"enabled": False, "interval": 2.0, "index": 0},
         "serial": {"enabled": False, "port": "/dev/ttyUSB0", "baud": 115200},

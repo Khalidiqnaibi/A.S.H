@@ -8,6 +8,13 @@ Pillow                  # screenshot capture + perceptual dedup
 
 # --- screen / window ---
 mss                     # much faster screenshots than PIL.ImageGrab
+rapidocr-onnxruntime    # reads the words on a captured screen. Without it,
+#   screenshots are still *looked* at -- text vs video vs an empty desktop,
+#   from numpy statistics, free -- but not read. onnxruntime only, no torch,
+#   models are ~15MB. Costs ~6s of CPU per frame read on a 1080p screen, so
+#   it runs on a worker thread and at most every sensors.screenshot.
+#   read_text_every_s seconds (120 by default). Needs
+#   sensors.screenshot.read_text = true, which is off with capture itself.
 # Linux only, install via your package manager, not pip:
 #   sudo apt install xdotool xprintidle   (active window + idle time)
 # Windows and macOS need nothing extra for these.

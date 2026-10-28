@@ -146,7 +146,7 @@ def main():
     # ---------------------------------------------------------------
     print("\n=== 0b. What is open in the app, not just which app ===")
     from src.daemon.social import compose_check_in, where_phrase
-    from src.senses.screen import window_subject
+    from src.senses.screen import window_fields, window_subject
 
     # The title carries the only field that says what the work was, and it
     # was being dropped for the process name everywhere downstream: ASH knew
@@ -170,6 +170,14 @@ def main():
         check(f"{title!r} says nothing the process does not",
               window_subject(title, proc) == "", repr(window_subject(title, proc)))
 
+    # The title is fielded, and the middle field is the project.
+    check("the whole title is read, not just the first field",
+          window_fields("brain.py - A.S.H - Visual Studio Code", "Code.exe")
+          == ("brain.py", "A.S.H"))
+    check("...and a title with nothing to say yields neither field",
+          window_fields("Discord", "Discord.exe") == ("", ""))
+    check("the project beats the app as the container",
+          where_phrase("Code.exe", "brain.py", "A.S.H") == " on brain.py in A.S.H")
     check("the subject leads, because it is the part that says what the work was",
           where_phrase("Code.exe", "brain.py") == " on brain.py in VS Code")
     check("...and the app alone still reads properly",
@@ -202,6 +210,67 @@ def main():
     check("a blocklisted window contributes no subject",
           " on " not in blocked["summary"] and blocked["subjects"] == [],
           blocked["summary"])
+
+    # ---------------------------------------------------------------
+    print("\n=== 0c. Looking at a screen, and reading one ===")
+    import numpy as np
+    from PIL import Image, ImageDraw
+
+    from src.daemon.service import DEFAULT_CONFIG
+    from src.senses.screen import ScreenshotSensor
+    from src.senses.screenread import ScreenReader, _gist, describe, phrase
+
+    # Two layers, because they cost very differently. Looking is eight numpy
+    # statistics and tells text from video from an empty desktop. Reading is
+    # OCR: ~6s of CPU per frame, and the contents of the screen turned into
+    # journaled text.
+    text_img = Image.new("RGB", (640, 400), "white")
+    draw = ImageDraw.Draw(text_img)
+    for y in range(16, 388, 12):
+        draw.text((12, y), "def window_fields(title, process): return subject, project",
+                  fill="black")
+    xs = np.linspace(0, 255, 640)[None, :, None]
+    ys = np.linspace(0, 255, 400)[:, None, None]
+    media_img = Image.fromarray(np.clip(
+        np.concatenate([np.tile(xs, (400, 1, 1)), np.tile(ys, (1, 640, 1)),
+                        np.full((400, 640, 1), 180.0)], axis=2)
+        + np.random.rand(400, 640, 3) * 18, 0, 255).astype("uint8"))
+    blank_img = Image.new("RGB", (640, 400), (32, 32, 34))
+
+    for name, im in (("text", text_img), ("media", media_img), ("blank", blank_img)):
+        got = describe(im)
+        check(f"a {name} screen is seen as {name}", got["kind"] == name,
+              f"{got['kind']} (ratio {got.get('ratio')})")
+    check("a screen it cannot parse says so rather than guessing",
+          describe(None)["kind"] == "unknown")
+    check("looking turns into a phrase", phrase({"kind": "media"}) == "watching something")
+    check("...and carries the words when there are some",
+          phrase({"kind": "text"}, "the gist") == "reading: the gist")
+
+    # The gist is the few longest runs of real words -- a full desktop OCRs
+    # into hundreds of fragments, most of them menu bars and clocks.
+    gist = _gist(["File  Edit  View", "12:04", "x",
+                  "def window_fields(title, process, limit=80):",
+                  "    return subject[:limit], project[:limit]"])
+    check("the gist keeps the sentences and drops the furniture",
+          "window_fields" in gist and "12:04" not in gist and "File Edit View" not in gist,
+          gist)
+
+    check("a missing OCR engine reads nothing and does not raise",
+          ScreenReader(backend="definitely-not-installed").read_text(text_img) == "")
+
+    # Both layers are switches, and the reader is not even built when off.
+    off = ScreenshotSensor(enabled=False, read_text=False, describe=False)
+    check("reading is off unless asked for", off.reader is None and not off.read_text_enabled)
+    on = ScreenshotSensor(enabled=False, read_text=True)
+    check("...and OCR is throttled hard when it is on",
+          on.read_text_every_s >= 60, f"{on.read_text_every_s}s")
+    check("the switches are in the config file, not just in the code",
+          {"describe", "read_text", "read_text_every_s"}
+          <= set(DEFAULT_CONFIG["sensors"]["screenshot"]))
+    check("...and capture itself is still off by default",
+          DEFAULT_CONFIG["sensors"]["screenshot"]["enabled"] is False
+          and DEFAULT_CONFIG["sensors"]["screenshot"]["read_text"] is False)
 
     # ---------------------------------------------------------------
     print("\n=== 0a. ashctl waits as long as the command needs ===")

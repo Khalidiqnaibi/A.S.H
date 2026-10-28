@@ -33,6 +33,7 @@ import os
 import platform
 import re
 import subprocess
+import threading
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -57,6 +58,10 @@ DEFAULT_BLOCKLIST = [
 # actually doing, and it was being thrown away everywhere downstream in
 # favour of the process name, so ASH knew you had been in Code for forty
 # minutes and never which file.
+# OCR reads from a frame this wide at most: enough for ordinary UI text,
+# far cheaper than running it across a full 4K capture.
+OCR_MAX_WIDTH = 1600
+
 _TITLE_SEP = re.compile(r"\s+[-–—|·•:]\s+")
 # Leading junk: VS Code's unsaved dot, a modified marker, Chrome's unread
 # count, a browser's muted/playing glyph.
@@ -67,20 +72,25 @@ def _squash(s: str) -> str:
     return re.sub(r"[^a-z0-9]", "", (s or "").lower())
 
 
-def window_subject(title: str, process: str = "", limit: int = 80) -> str:
-    """What is open *in* the app, as opposed to which app it is.
+def window_fields(title: str, process: str = "", limit: int = 80) -> Tuple[str, str]:
+    """(subject, project) -- what is open, and what it belongs to.
 
-    Returns "" when the title says nothing the process does not already --
-    "Discord" in Discord.exe is not information, and a caller that gets ""
-    should fall back to the app name rather than print an empty phrase.
+    A title is fielded: "brain.py - A.S.H - Visual Studio Code" is a file, a
+    project and an app. Keeping only the first of those threw away the half
+    that says what the work *was*: "40 minutes on brain.py" is a fact about a
+    file, "40 minutes on brain.py in A.S.H" is a fact about a project.
+
+    Either field can come back empty. "Discord" in Discord.exe says nothing
+    the process does not already, so it yields ("", "") rather than repeating
+    the app back at the caller.
     """
     cleaned = _TITLE_NOISE.sub("", title or "").strip()
     if not cleaned:
-        return ""
+        return "", ""
 
     parts = [p.strip() for p in _TITLE_SEP.split(cleaned) if p.strip()]
     if not parts:
-        return ""
+        return "", ""
     bare = len(parts) == 1      # a title with no fields at all
 
     # Drop trailing segments that are just the application naming itself.
@@ -101,8 +111,14 @@ def window_subject(title: str, process: str = "", limit: int = 80) -> str:
     if bare and stem:
         sq = _squash(subject)
         if sq and (stem in sq or sq in stem):
-            return ""
-    return subject[:limit]
+            return "", ""
+    project = parts[1] if len(parts) > 1 else ""
+    return subject[:limit], project[:limit]
+
+
+def window_subject(title: str, process: str = "", limit: int = 80) -> str:
+    """Just the subject. window_fields() is the whole of it."""
+    return window_fields(title, process, limit)[0]
 
 
 def _ahash(img, size: int = 8) -> int:
@@ -242,7 +258,7 @@ class ActiveWindowSensor(Sensor):
         shown = "[redacted window]" if blocked else title
         # A blocked window gets no subject either -- the title is exactly what
         # the blocklist exists to keep out, and the subject is made of it.
-        subject = "" if blocked else window_subject(title, proc)
+        subject, project = ("", "") if blocked else window_fields(title, proc)
         text = f"switched to {shown}" + (f" (was on {prev[:60]} for {dwell:.0f}s)" if prev else "")
 
         # A rapid flurry of switches is a different signal from settling into
@@ -253,10 +269,10 @@ class ActiveWindowSensor(Sensor):
             source=self.name, modality=Modality.TEXT, text=text,
             salience=salience,
             data={"title": None if blocked else title, "process": proc,
-                  "subject": subject, "dwell": dwell},
+                  "subject": subject, "project": project, "dwell": dwell},
             persistable=not blocked,
-            meta={"process": proc, "subject": subject, "blocked": blocked,
-                  "dwell_s": round(dwell, 1)},
+            meta={"process": proc, "subject": subject, "project": project,
+                  "blocked": blocked, "dwell_s": round(dwell, 1)},
         )]
 
 
@@ -281,15 +297,47 @@ class ScreenshotSensor(Sensor):
     def __init__(self, interval: Optional[float] = None, enabled: bool = False,
                  window_sensor: Optional[ActiveWindowSensor] = None,
                  hamming_threshold: int = 6, save_frames: bool = False,
-                 max_frames: int = 500):
+                 max_frames: int = 500, read_text: bool = False,
+                 describe: bool = True, read_text_every_s: float = 120.0):
         self._grab = None
         self.window_sensor = window_sensor
         self.hamming_threshold = hamming_threshold
         self.save_frames = save_frames
         self.max_frames = max_frames
+        # Two switches, because the two layers cost very differently.
+        # `describe` is eight numpy statistics and is on when captures are:
+        # it cannot leak anything, since it only ever emits a word from its
+        # own small vocabulary. `read_text` is OCR -- seconds of CPU and the
+        # actual contents of the screen turned into text that gets journaled
+        # -- so it stays off until asked for, the same way capture itself
+        # does.
+        self.read_text_enabled = read_text
+        self.describe_enabled = describe
+        self.read_text_every_s = float(read_text_every_s)
+        self._reader = None
+        # OCR measured 6.6s on a 1600px frame of a 1080p screen on this
+        # machine. read() is called from the ambient loop's own polling
+        # thread, so doing that inline would freeze sensing for six seconds
+        # every time the screen changed -- a third of a core, continuously,
+        # on a project that targets Pi-class hardware. It runs on a worker
+        # instead and the result rides the next event out, which is why the
+        # meta carries how old the reading is.
+        self._ocr_lock = threading.Lock()
+        self._ocr_text = ""
+        self._ocr_at = 0.0
+        self._ocr_started = 0.0
+        self._ocr_busy = False
         self._last_hash: Optional[int] = None
         self._dropped = 0
         super().__init__(interval=interval, enabled=enabled)
+
+    @property
+    def reader(self):
+        """Built on first use, so a daemon with captures off never loads it."""
+        if self._reader is None and self.read_text_enabled:
+            from .screenread import ScreenReader
+            self._reader = ScreenReader()
+        return self._reader
 
     def probe(self) -> Tuple[bool, str]:
         try:
@@ -338,16 +386,73 @@ class ScreenshotSensor(Sensor):
         if self.save_frames:
             path = self._save(img)
 
+        from . import screenread
+
+        # OCR runs BEFORE the downscale, and the two layers want different
+        # sizes. Reading 12px terminal text out of a 640px-wide thumbnail
+        # returns "fspesed 4 actator(s) to the clasifler" -- recognisably
+        # "exposed 4 actuator(s) to the classifier", and recognisably
+        # useless. 1600px is wide enough for ordinary UI text without
+        # paying for OCR across a full 4K frame.
+        self._maybe_read(img)
+        with self._ocr_lock:
+            on_screen, read_at = self._ocr_text, self._ocr_at
+
         # Downscale before handing to the vision extractor: the ViT resizes to
         # 224px anyway, and a 4K frame in the event queue is pure waste.
         img.thumbnail((640, 400))
 
+        scene = screenread.describe(img) if self.describe_enabled else {}
+
+        # "screen changed while in X" said only that something moved. With
+        # either layer on it says what sort of screen it is and, if OCR is
+        # available, what it actually says -- which is the whole reason to
+        # pay for a capture rather than read the window title for free.
+        where = f" while in {title[:60]}" if title else ""
+        what = screenread.phrase(scene, on_screen)
+        text = f"screen changed{where}" + (f" -- {what}" if what else "")
+
         return [SensorEvent(
             source=self.name, modality=Modality.VISION,
-            text=f"screen changed while in {title[:60]}" if title else "screen changed",
+            text=text,
             data=img, salience=0.4,
-            meta={"ahash": h, "path": path, "dropped_since": self._dropped},
+            meta={"ahash": h, "path": path, "dropped_since": self._dropped,
+                  "scene": scene.get("kind", ""), "on_screen": on_screen,
+                  "on_screen_age_s": (round(time.time() - read_at, 1)
+                                      if read_at else None)},
         )]
+
+    def _maybe_read(self, img):
+        """Kick off an OCR pass if one is due and none is running.
+
+        Never blocks: the caller is the ambient loop's polling thread, and a
+        six-second read there stops ASH sensing anything at all for six
+        seconds.
+        """
+        reader = self.reader
+        if reader is None:
+            return
+        now = time.time()
+        with self._ocr_lock:
+            if self._ocr_busy or now - self._ocr_at < self.read_text_every_s:
+                return
+            self._ocr_busy = True
+            self._ocr_started = now
+
+        legible = img.copy()
+        if legible.width > OCR_MAX_WIDTH:
+            legible.thumbnail((OCR_MAX_WIDTH, OCR_MAX_WIDTH))
+
+        def _run():
+            text = ""
+            try:
+                text = reader.read_text(legible)
+            finally:
+                with self._ocr_lock:
+                    self._ocr_text, self._ocr_at = text, time.time()
+                    self._ocr_busy = False
+
+        threading.Thread(target=_run, name="ash-screen-ocr", daemon=True).start()
 
     def _save(self, img) -> Optional[str]:
         try:
@@ -377,6 +482,10 @@ class ScreenshotSensor(Sensor):
     def status(self) -> Dict[str, Any]:
         d = super().status()
         d["dropped_duplicates"] = self._dropped
+        d["describes"] = self.describe_enabled
+        d["reads_text"] = self.read_text_enabled
+        if self._reader is not None:
+            d["ocr"] = self._reader.status()
         return d
 
 
