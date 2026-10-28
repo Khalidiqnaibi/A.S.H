@@ -140,15 +140,29 @@ class Journal:
         start, end = block[0]["ts"], block[-1]["ts"]
         by_source = Counter(r["source"] for r in block)
 
-        # What the user was actually in. Window titles are the most
-        # informative field by a wide margin.
+        # What the user was actually in, and what they had open in it. This
+        # comment used to say window titles were the most informative field
+        # by a wide margin, directly above code that counted the process name
+        # and only looked at the title when the process was missing -- which
+        # on Windows it never is. So every rolled-up episode said "mostly in
+        # Code.exe" and the file being edited was dropped at exactly the
+        # point where ASH forms its memory of the day.
+        #
+        # Both are kept now: the process, because "mostly in VS Code" is the
+        # honest summary of four hours, and the subject, because "on brain.py
+        # and system2.py" is the part worth remembering.
         apps = Counter()
+        subjects = Counter()
         for r in block:
-            proc = (r.get("meta") or {}).get("process")
+            meta = r.get("meta") or {}
+            proc = meta.get("process")
             if proc:
                 apps[proc] += 1
             elif r["source"] == "active_window":
                 apps[r["text"][:40]] += 1
+            subject = meta.get("subject")
+            if subject:
+                subjects[subject] += 1
 
         spoken = [r["text"] for r in block if r["source"] == "microphone"][:12]
         alerts = [r["text"] for r in block if r.get("urgency", 0) >= 0.5][:8]
@@ -163,6 +177,9 @@ class Journal:
         if apps:
             top = ", ".join(f"{a}" for a, _ in apps.most_common(4))
             parts.append(f"mostly in {top}")
+        if subjects:
+            on = ", ".join(s for s, _ in subjects.most_common(4))
+            parts.append(f"on {on}")
         if spoken:
             parts.append(f"heard: {' / '.join(s[:70] for s in spoken[:3])}")
         if alerts:
@@ -175,6 +192,7 @@ class Journal:
             "events": len(block),
             "sources": dict(by_source),
             "apps": [a for a, _ in apps.most_common(6)],
+            "subjects": [s for s, _ in subjects.most_common(6)],
             "summary": " | ".join(parts),
             # Importance drives whether the episode survives pruning. A block
             # with speech or alerts in it mattered; forty window switches did

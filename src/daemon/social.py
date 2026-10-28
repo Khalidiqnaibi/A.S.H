@@ -116,24 +116,43 @@ def friendly_app(process: str) -> str:
     return _APPS.get(p.lower(), p[:1].upper() + p[1:])
 
 
+def where_phrase(process: str = "", subject: str = "") -> str:
+    """" in VS Code", " on brain.py in VS Code", or nothing.
+
+    The subject leads because it is the part that says what the work was. An
+    hour "in Code" is a fact about a window; an hour "on brain.py" is a fact
+    about the evening.
+    """
+    app = friendly_app(process)
+    subject = (subject or "").strip()
+    if subject and app:
+        return f" on {subject} in {app}"
+    if subject:
+        return f" on {subject}"
+    return f" in {app}" if app else ""
+
+
 def is_generic_checkin(text: str) -> bool:
     t = (text or "").strip()
     return (not t or len(t) > 220 or t.count("?") > 1 or bool(_GENERIC.search(t)))
 
 
-def compose_check_in(minutes: float, process: str = "", hour: Optional[int] = None) -> str:
+def compose_check_in(minutes: float, process: str = "", hour: Optional[int] = None,
+                     subject: str = "") -> str:
     """A short, specific line from the facts alone: used when the model has
     nothing better than a generic one."""
     m = max(1, int(round(minutes)))
     unit = "minute" if m == 1 else "minutes"
-    app = friendly_app(process)
-    where = f" in {app}" if app else ""
+    where = where_phrase(process, subject)
     late = hour is not None and (hour >= 23 or hour < 5)
     if m >= 90:
         h = m / 60.0
         line = f"That's about {h:.1f} hours straight{where}. Worth a stretch and some water?"
     elif m >= 30:
-        line = f"You've been at it{where} for about {m} {unit} -- a short break might do you good."
+        # "at it" only when there is nothing more specific to name: "You've
+        # been at it on brain.py" reads like two openings stapled together.
+        line = (f"You've been{where or ' at it'} for about {m} {unit} "
+                f"-- a short break might do you good.")
     elif m >= 8:
         line = f"That was a solid {m} {unit}{where}. I'm around if you want a second opinion on anything."
     else:
@@ -430,6 +449,7 @@ class FlowDetector:
         self.error_text: Dict[str, str] = {}
         self.queries: Deque[Tuple[float, frozenset]] = deque(maxlen=32)
         self.process = ""
+        self.subject = ""       # what is open in it: the file, the document
         self.since = 0.0
         self.burst_start: Optional[float] = None
         self.last_active: float = 0.0
@@ -455,8 +475,13 @@ class FlowDetector:
             dwell = float(meta.get("dwell_s", 0.0) or 0.0)
             if proc != self.process:
                 self.process, self.since = str(proc), now - dwell
+                self.subject = ""
             elif dwell:
                 self.since = min(self.since, now - dwell)
+            # The subject moves within a stretch of work -- switching file is
+            # not switching task -- so it tracks the latest one and does not
+            # restart the dwell clock the way a process change does.
+            self.subject = str(meta.get("subject") or "") or self.subject
         if text and _ERROR.search(text):
             sig = error_signature(text)
             self.errors.setdefault(sig, deque(maxlen=16)).append(now)
@@ -550,15 +575,15 @@ class FlowDetector:
 
     def _free_event(self, now) -> SensorEvent:
         mins = (self.last_active - (self.burst_start or self.last_active)) / 60.0
-        where = f" in {friendly_app(self.process)}" if self.process else ""
+        where = where_phrase(self.process, self.subject)
         return SensorEvent(
             source="flow", modality=Modality.TEXT, ts=now, persistable=False, addressed=False,
             text=f"the user just finished about {mins:.0f} minutes of work{where} and paused",
             salience=0.5,
             meta={"offer": "free_moment", "offer_strength": round(min(0.8, 0.6 + 0.01 * mins), 3),
-                  "minutes": round(mins, 1), "process": self.process,
+                  "minutes": round(mins, 1), "process": self.process, "subject": self.subject,
                   "accept_context": f"You had just checked in after {mins:.0f} minutes of their work{where}."})
 
     def status(self) -> Dict[str, Any]:
         return {"emitted": dict(self.emitted), "process": self.process,
-                "tracked_errors": len(self.errors)}
+                "subject": self.subject, "tracked_errors": len(self.errors)}

@@ -31,6 +31,7 @@ from __future__ import annotations
 import logging
 import os
 import platform
+import re
 import subprocess
 import time
 from typing import Any, Dict, List, Optional, Tuple
@@ -47,6 +48,61 @@ DEFAULT_BLOCKLIST = [
     "banking", "bank of", "paypal", "stripe dashboard", "wallet", "seed phrase",
     "private browsing", "incognito", "authenticator", "2fa", "recovery code",
 ]
+
+
+# A window title is "<what you are looking at> - <maybe a project> - <App>",
+# near enough universally: "brain.py - A.S.H - Visual Studio Code",
+# "Trust-Weighted Retrieval - Google Docs - Google Chrome", "todo.txt -
+# Notepad". The first field is the only one that says what the user is
+# actually doing, and it was being thrown away everywhere downstream in
+# favour of the process name, so ASH knew you had been in Code for forty
+# minutes and never which file.
+_TITLE_SEP = re.compile(r"\s+[-–—|·•:]\s+")
+# Leading junk: VS Code's unsaved dot, a modified marker, Chrome's unread
+# count, a browser's muted/playing glyph.
+_TITLE_NOISE = re.compile(r"^\s*(?:[●•*]\s*|\(\d+\)\s*|[▶\U0001F507\U0001F508]\s*)+")
+
+
+def _squash(s: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+
+def window_subject(title: str, process: str = "", limit: int = 80) -> str:
+    """What is open *in* the app, as opposed to which app it is.
+
+    Returns "" when the title says nothing the process does not already --
+    "Discord" in Discord.exe is not information, and a caller that gets ""
+    should fall back to the app name rather than print an empty phrase.
+    """
+    cleaned = _TITLE_NOISE.sub("", title or "").strip()
+    if not cleaned:
+        return ""
+
+    parts = [p.strip() for p in _TITLE_SEP.split(cleaned) if p.strip()]
+    if not parts:
+        return ""
+    bare = len(parts) == 1      # a title with no fields at all
+
+    # Drop trailing segments that are just the application naming itself.
+    # Trailing only, and never the last one standing: a document really
+    # called "code" is still a document.
+    stem = _squash(re.sub(r"\.(?:exe|app|bin)$", "", (process or "").strip(), flags=re.I))
+    while len(parts) > 1 and stem:
+        tail = _squash(parts[-1])
+        if tail and (stem in tail or tail in stem):
+            parts.pop()
+        else:
+            break
+
+    subject = parts[0]
+    # "Discord" in Discord.exe, "Visual Studio Code" in Code.exe: a title with
+    # no fields that only names the app. Checked only for a bare title, so a
+    # file genuinely called Code.md in Code.exe survives.
+    if bare and stem:
+        sq = _squash(subject)
+        if sq and (stem in sq or sq in stem):
+            return ""
+    return subject[:limit]
 
 
 def _ahash(img, size: int = 8) -> int:
@@ -184,6 +240,9 @@ class ActiveWindowSensor(Sensor):
         self._last_title, self._since = title, now
 
         shown = "[redacted window]" if blocked else title
+        # A blocked window gets no subject either -- the title is exactly what
+        # the blocklist exists to keep out, and the subject is made of it.
+        subject = "" if blocked else window_subject(title, proc)
         text = f"switched to {shown}" + (f" (was on {prev[:60]} for {dwell:.0f}s)" if prev else "")
 
         # A rapid flurry of switches is a different signal from settling into
@@ -193,9 +252,11 @@ class ActiveWindowSensor(Sensor):
         return [SensorEvent(
             source=self.name, modality=Modality.TEXT, text=text,
             salience=salience,
-            data={"title": None if blocked else title, "process": proc, "dwell": dwell},
+            data={"title": None if blocked else title, "process": proc,
+                  "subject": subject, "dwell": dwell},
             persistable=not blocked,
-            meta={"process": proc, "blocked": blocked, "dwell_s": round(dwell, 1)},
+            meta={"process": proc, "subject": subject, "blocked": blocked,
+                  "dwell_s": round(dwell, 1)},
         )]
 
 

@@ -50,7 +50,7 @@ from .attention import AttentionGate, Disposition
 from .journal import Journal
 from .privacy import PrivacyPolicy
 from .social import (FlowDetector, ReactionTracker, SocialLearner, classify_reply,
-                     compose_check_in, friendly_app, is_generic_checkin)
+                     compose_check_in, friendly_app, is_generic_checkin, where_phrase)
 
 try:
     from src.brain.memory_engine import is_failure_text
@@ -365,7 +365,10 @@ class AmbientRuntime:
             say = str(meta["say"])
             prompt = ""
         elif offer == "free_moment":
-            where = friendly_app(str(meta.get("process", "")))
+            # The subject ("brain.py") says more about the stretch of work
+            # than the app ("VS Code") ever does, so it leads.
+            where = where_phrase(str(meta.get("process", "")),
+                                 str(meta.get("subject", ""))).strip()
             prompt = (
                 f"[FREE MOMENT -- the user did not ask you anything. Fact: {ev.text}"
                 f"{' (' + where + ')' if where else ''}. Reply with ONE short sentence, under 25 "
@@ -407,7 +410,8 @@ class AmbientRuntime:
             # Needs no model: a plain line from how long they worked and in what.
             text = compose_check_in(float(meta.get("minutes", 5) or 5),
                                     str(meta.get("process", "")),
-                                    time.localtime(self.clock()).tm_hour)
+                                    time.localtime(self.clock()).tm_hour,
+                                    subject=str(meta.get("subject", "")))
             pathway, degraded = "offer", False
         elif degraded:
             self._model_unavailable(ev, decision)

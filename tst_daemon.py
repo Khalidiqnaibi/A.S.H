@@ -144,6 +144,66 @@ def main():
         ok = ok and cond
 
     # ---------------------------------------------------------------
+    print("\n=== 0b. What is open in the app, not just which app ===")
+    from src.daemon.social import compose_check_in, where_phrase
+    from src.senses.screen import window_subject
+
+    # The title carries the only field that says what the work was, and it
+    # was being dropped for the process name everywhere downstream: ASH knew
+    # you had been in Code for forty minutes and never which file.
+    for title, proc, want in [
+        ("brain.py - A.S.H - Visual Studio Code", "Code.exe", "brain.py"),
+        ("● system2.py - A.S.H - Visual Studio Code", "Code.exe", "system2.py"),
+        ("Trust-Weighted Retrieval — Google Docs - Google Chrome", "chrome.exe",
+         "Trust-Weighted Retrieval"),
+        ("todo.txt - Notepad", "notepad.exe", "todo.txt"),
+        ("Downloads", "explorer.exe", "Downloads"),
+        ("README.md • A.S.H", "Code.exe", "README.md"),
+        ("Code.md - Visual Studio Code", "Code.exe", "Code.md"),
+    ]:
+        got = window_subject(title, proc)
+        check(f"{title[:34]!r} -> the subject", got == want, repr(got))
+
+    # A title that only names the app is not information.
+    for title, proc in [("Discord", "Discord.exe"), ("Visual Studio Code", "Code.exe"),
+                        ("", "Code.exe")]:
+        check(f"{title!r} says nothing the process does not",
+              window_subject(title, proc) == "", repr(window_subject(title, proc)))
+
+    check("the subject leads, because it is the part that says what the work was",
+          where_phrase("Code.exe", "brain.py") == " on brain.py in VS Code")
+    check("...and the app alone still reads properly",
+          where_phrase("Code.exe", "") == " in VS Code")
+    check("...and with neither, nothing is invented", where_phrase("", "") == "")
+    check("a check-in names the file",
+          "on brain.py" in compose_check_in(95, "Code.exe", 14, subject="brain.py"))
+    check("...and still reads when there is no file",
+          compose_check_in(40, "Code.exe", 14).startswith("You've been in VS Code"),
+          compose_check_in(40, "Code.exe", 14))
+
+    # The rollup is where the day's memory is formed; the subject has to
+    # survive that or it may as well not have been captured.
+    rolled = Journal.summarize_block([
+        {"ts": 1000.0 + i * 60, "source": "active_window", "salience": 0.3,
+         "text": f"switched to {t}", "meta": {"process": "Code.exe", "subject": s}}
+        for i, (t, s) in enumerate([("brain.py - A.S.H - VSC", "brain.py"),
+                                    ("system2.py - A.S.H - VSC", "system2.py"),
+                                    ("brain.py - A.S.H - VSC", "brain.py")])])
+    check("a rolled-up episode remembers the files, not just the editor",
+          "on brain.py, system2.py" in rolled["summary"]
+          and "mostly in Code.exe" in rolled["summary"], rolled["summary"])
+    check("...and they are queryable, not only prose",
+          rolled["subjects"] == ["brain.py", "system2.py"], str(rolled["subjects"]))
+
+    blocked = Journal.summarize_block([
+        {"ts": 1000.0, "source": "active_window", "salience": 0.3,
+         "text": "switched to [redacted window]",
+         "meta": {"process": "chrome.exe", "subject": "", "blocked": True}}])
+    check("a blocklisted window contributes no subject",
+          " on " not in blocked["summary"] and blocked["subjects"] == [],
+          blocked["summary"])
+
+    # ---------------------------------------------------------------
     print("\n=== 0a. ashctl waits as long as the command needs ===")
     from src.daemon.service import CTL_SLOW_TIMEOUT, CTL_TIMEOUT, ctl_timeout
 
