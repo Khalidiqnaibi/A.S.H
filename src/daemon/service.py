@@ -107,6 +107,13 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "runtime": {
         "tick_seconds": 1.0,
         "sleep_after_idle_s": 1500,
+        # Say the unprompted things out loud, not just on screen. This was an
+        # undocumented key defaulting to off, which meant the free-moment
+        # question and the offer of help -- the two features whose whole point
+        # is speaking up unasked -- arrived in silence, and nothing in the
+        # config file hinted that there was a switch. Set false for the quiet
+        # channel; the attention gate's budgets still ration what gets here.
+        "speak_unprompted": True,
     },
     "face": {
         "enabled": True,

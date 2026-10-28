@@ -99,11 +99,35 @@ def find_model_file(name: str) -> str:
 def build_response_sink(periphery, prefer_speech: bool = True, window_open=None):
     """How ASH actually reaches the user.
 
-    Notification first, speech second. A notification is glanceable and
-    ignorable; synthesized speech in a room with other people in it is not,
-    which is why an unprompted remark should default to the quiet channel.
-    When the console window is open it already shows the line, so the
-    notification is skipped rather than doubled.
+    Notification first, speech second. When the console window is open it
+    already shows the line, so the notification is skipped rather than
+    doubled.
+
+    `prefer_speech` decides whether the things ASH says *unprompted* are
+    spoken as well as shown -- the free-moment question, the offer of help
+    when you look stuck, an observation worth a sentence. It used to default
+    to off here, on the reasoning that a notification is glanceable and
+    ignorable while synthesized speech in a room with other people in it is
+    not.
+
+    That was the wrong place to make that decision, and the effect was worse
+    than the problem it avoided. ASH would decide a moment was right, compose
+    a question, put it on screen with quick replies -- and say nothing. The
+    one feature whose whole point is that it speaks up without being asked
+    did it silently, which reads less like tact than like a thing that cannot
+    talk unless spoken to.
+
+    Everything that gets here unprompted has already been rationed hard by
+    the attention gate: six unsolicited remarks an hour at most, three offers,
+    none during quiet hours, none while the refractory timer is up, none while
+    the user is typing, and the whole lot down-weighted by what the social
+    learner has seen them dismiss. Suppressing the voice here is a second
+    veto on a decision that machinery already made carefully. So it defaults
+    to on, and anyone who wants the quiet channel sets runtime.speak_unprompted
+    to false.
+
+    What is still never spoken: a notice that the model is down. That is ASH
+    apologising for being broken, and it goes to the quiet channel only.
     """
     notify = periphery.actuators.get("notify")
     speak = periphery.actuators.get("speak")
@@ -118,9 +142,9 @@ def build_response_sink(periphery, prefer_speech: bool = True, window_open=None)
             if r.get("ok"):
                 delivered.append("notify")
 
-        # Speak when spoken to. Volunteered remarks stay silent unless the
-        # user has explicitly asked for a talkative ASH.
-        # ...and never an apology for being broken: that goes to the quiet channel only.
+        # Spoken when spoken to, and -- unless runtime.speak_unprompted says
+        # otherwise -- when ASH decided on its own that this was worth saying.
+        # Never an apology for being broken.
         if (speak is not None and speak.state.value == "active"
                 and (addressed or prefer_speech) and not meta.get("degraded")):
             r = speak(text)
@@ -252,7 +276,7 @@ def main() -> int:
                     "social.json"),
             ),
             response_sink=build_response_sink(periphery,
-                                              prefer_speech=rcfg.get("speak_unprompted", False),
+                                              prefer_speech=rcfg.get("speak_unprompted", True),
                                               window_open=(lambda: bus.clients > 0) if bus else None),
         )
 

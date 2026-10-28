@@ -999,6 +999,40 @@ def s9_lines_and_outages():
         sink(NO_MODEL_TEXT, {"addressed": True, "degraded": True})
         check("the daemon's sink: an answer is notified and spoken, a degraded notice only notified",
               notified == ["an answer", NO_MODEL_TEXT] and spoken == ["an answer"], f"{notified} {spoken}")
+
+        # The default. An offer that is shown and not said is the one feature
+        # whose whole point is speaking up unasked, done silently.
+        said, shown = [], []
+
+        class P2:
+            actuators = {"notify": Act(shown), "speak": Act(said)}
+
+        loud = ashd.build_response_sink(P2())
+        loud("ready for a break?", {"addressed": False,
+                                    "attention": {"kind": "free_moment"}})
+        loud("want a hand with that?", {"addressed": False,
+                                        "attention": {"kind": "stuck_help"}})
+        loud("that build has been running a while", {"addressed": False})
+        check("by default an offer is spoken, not just shown",
+              said == ["ready for a break?", "want a hand with that?",
+                       "that build has been running a while"], str(said))
+        loud(NO_MODEL_TEXT, {"addressed": False, "degraded": True})
+        check("...but never the apology for being broken",
+              NO_MODEL_TEXT not in said and NO_MODEL_TEXT in shown, str(said[-1:]))
+
+        # And the quiet channel is still one setting away.
+        quiet_said = []
+
+        class P3:
+            actuators = {"notify": Act([]), "speak": Act(quiet_said)}
+
+        ashd.build_response_sink(P3(), prefer_speech=False)(
+            "ready for a break?", {"addressed": False})
+        check("runtime.speak_unprompted=false still buys silence", quiet_said == [])
+
+        from src.daemon.service import DEFAULT_CONFIG
+        check("and the switch is in the config file, not just in the code",
+              DEFAULT_CONFIG["runtime"].get("speak_unprompted") is True)
     except Exception as e:  # noqa: BLE001
         check("the daemon's sink can be exercised", False, repr(e)[:120])
 
