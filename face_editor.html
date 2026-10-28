@@ -78,17 +78,24 @@
 
 <header>
   <h1>A.S.H FACE</h1>
-  <select id="libsel" title="Load a built-in animation"></select>
-  <button onclick="loadBuiltin()">Load</button>
-  <input type="text" id="animname" value="untitled" size="14" title="Animation name">
+  <select id="libsel" title="Pick an animation"></select>
+  <button onclick="loadSelected()">Load</button>
+  <button onclick="newAnim()">New</button>
+  <input type="text" id="animname" value="untitled" size="14" title="Animation name (lowercase letters, digits, _ or -)"
+         onchange="pushHistory('name'); render()">
+  <button class="primary" onclick="saveAnim()" id="savebtn" title="Save into animations/ (Ctrl+S)">Save</button>
+  <button class="danger" onclick="deleteSaved()" id="delbtn" title="Delete the saved file; a builtin of the same name comes back">Delete file</button>
+  <button onclick="undo()" title="Ctrl+Z">↶</button>
+  <button onclick="redo()" title="Ctrl+Y">↷</button>
   <button class="primary" onclick="togglePlay()" id="playbtn">▶ Play</button>
-  <label class="hint"><input type="checkbox" id="loop"> loop</label>
+  <label class="hint"><input type="checkbox" id="loop" onchange="pushHistory('props'); render()"> loop</label>
   <label class="hint"><input type="checkbox" id="blinker" checked> auto-blink</label>
   <button onclick="addKey()">+ Key</button>
   <button class="danger" onclick="delKey()">− Key</button>
-  <button onclick="exportJSON()">Export</button>
+  <button onclick="exportJSON()" title="Download the JSON">Export</button>
   <button onclick="document.getElementById('file').click()">Import</button>
   <input type="file" id="file" accept=".json" style="display:none" onchange="importJSON(event)">
+  <span id="dirty" class="hint"></span>
   <span id="status"></span>
 </header>
 
@@ -102,6 +109,11 @@
   <div class="row"><label>time (s)</label>
     <input type="number" id="kftime" step="0.01" min="0" style="width:70px" onchange="setKeyTime()">
     <select id="kfease" onchange="setKeyEase()" style="flex:1"></select>
+  </div>
+  <div class="split" style="margin-bottom:5px">
+    <button onclick="dupKey()" title="Copy this keyframe 0.2s later">Dup</button>
+    <button onclick="copyPose()" title="Remember this keyframe's values">Copy</button>
+    <button onclick="pastePose()" title="Write the remembered values into this keyframe">Paste</button>
   </div>
   <div class="split">
     <button onclick="setTarget('both')" id="tb-both" class="chip sel">both</button>
@@ -117,6 +129,24 @@
   <h3>Face</h3>
   <div id="facectl"></div>
 
+  <h3>Animation</h3>
+  <div class="row"><label>priority</label>
+    <input type="number" id="prio" min="0" max="1000" step="1" value="50" style="width:70px"
+           onchange="pushHistory('props'); render()"></div>
+  <label class="hint"><input type="checkbox" id="interr" checked onchange="pushHistory('props'); render()"> interruptible</label><br>
+  <label class="hint"><input type="checkbox" id="bsup" onchange="pushHistory('props'); render()"> suppress auto-blink</label><br>
+  <label class="hint"><input type="checkbox" id="hold" checked onchange="pushHistory('props'); render()"> hold last pose</label>
+  <div class="row"><label>tags</label>
+    <input type="text" id="tags" placeholder="comma, separated" style="flex:1;min-width:0"
+           onchange="pushHistory('props'); render()"></div>
+  <div class="row"><label>time ×</label>
+    <input type="number" id="tscale" value="1.5" step="0.1" min="0.1" style="width:70px">
+    <button onclick="scaleTime()">Scale</button>
+    <button onclick="mirrorAnim()" title="Swap left and right, flip look/tilt/x/rotation">Mirror</button></div>
+  <div class="split" style="margin-top:6px">
+    <button onclick="checkRobot()" id="chkbtn" title="Ask the Python interpolator for the same poses and compare">Check vs robot</button>
+  </div>
+
   <h3>Export</h3>
   <div class="split">
     <button onclick="copyJSON()">Copy JSON</button>
@@ -129,7 +159,7 @@
   <div class="row">
     <label>duration</label>
     <input type="number" id="duration" step="0.1" min="0.1" value="1.0" style="width:70px"
-           onchange="render()">
+           onchange="pushHistory('props'); render()">
     <label style="width:auto">scrub</label>
     <input type="range" id="scrub" min="0" max="1000" value="0" oninput="scrubTo()">
     <span class="val" id="tlabel">0.00</span>
@@ -172,6 +202,7 @@ const FACE_DEFAULTS = { look_x:0, look_y:0, gap:20, scale:1, brightness:1, tilt:
 // opinion about UI; the model clamps where it matters (radius, lids).
 const EYE_CTL = [
   ["w",4,64,1],["h",4,64,1],["radius",0,32,1],
+  ["radius_tl",0,32,1],["radius_tr",0,32,1],["radius_br",0,32,1],["radius_bl",0,32,1],
   ["lid_top",0,1,0.01],["lid_bottom",0,1,0.01],["lid_angle",-40,40,1],
   ["open",0,1,0.01],["x",-30,30,1],["y",-20,20,1],["rotation",-30,30,1],
 ];
@@ -240,14 +271,17 @@ function sample(anim, t){
    ==================================================================== */
 const cv = document.getElementById("face"), ctx = cv.getContext("2d");
 
+/* r is one radius or [tl,tr,br,bl]; each is clamped to half the shorter
+   side exactly as render.py clamps it. */
 function roundRect(c,x,y,w,h,r){
-  const rr = Math.max(0, Math.min(r, Math.min(w,h)/2));
+  const m = Math.min(w,h)/2;
+  const [tl,tr,br,bl] = (Array.isArray(r)?r:[r,r,r,r]).map(v=>Math.max(0,Math.min(v,m)));
   c.beginPath();
-  c.moveTo(x+rr,y);
-  c.lineTo(x+w-rr,y); c.quadraticCurveTo(x+w,y,x+w,y+rr);
-  c.lineTo(x+w,y+h-rr); c.quadraticCurveTo(x+w,y+h,x+w-rr,y+h);
-  c.lineTo(x+rr,y+h); c.quadraticCurveTo(x,y+h,x,y+h-rr);
-  c.lineTo(x,y+rr); c.quadraticCurveTo(x,y,x+rr,y);
+  c.moveTo(x+tl,y);
+  c.lineTo(x+w-tr,y); c.quadraticCurveTo(x+w,y,x+w,y+tr);
+  c.lineTo(x+w,y+h-br); c.quadraticCurveTo(x+w,y+h,x+w-br,y+h);
+  c.lineTo(x+bl,y+h); c.quadraticCurveTo(x,y+h,x,y+h-bl);
+  c.lineTo(x,y+tl); c.quadraticCurveTo(x,y,x+tl,y);
   c.closePath();
 }
 
@@ -279,7 +313,9 @@ function drawFace(pose){
     ctx.translate(ecx,ecy); ctx.rotate(e.rotation*Math.PI/180); ctx.translate(-ecx,-ecy);
 
     ctx.fillStyle=fg;
-    roundRect(ctx,x0,y0,ew,eh,e.radius*pose.scale); ctx.fill();
+    const rs = pose.scale;
+    roundRect(ctx,x0,y0,ew,eh,[e.radius_tl??e.radius, e.radius_tr??e.radius,
+                               e.radius_br??e.radius, e.radius_bl??e.radius].map(v=>v*rs)); ctx.fill();
 
     ctx.fillStyle="#000";
     if(e.lid_top>0.001 || Math.abs(e.lid_angle)>0.01){
@@ -309,6 +345,11 @@ let anim = { name:"untitled", duration:1.0, loop:false, hold_last:true,
              priority:50, keyframes:[ {t:0, both:{}, left:{}, right:{}, face:{}, ease:"in_out"} ] };
 let sel = 0, target = "both", playing = false, playT = 0, lastFrame = 0;
 let blinkPhase = 0, nextBlink = 2;
+let hasServer = false;        // true when served by `python -m src.face edit`
+let library = [];             // [{name, source, ...}] from the server
+let snapshot = "";            // serialised text at last load/save, for the dirty flag
+let history = [], future = [], lastPush = {tag:"", at:0};
+let clip = null;              // copied keyframe values
 
 const BUILTIN_NAMES = ["blink","double_blink","wink","idle","look_around","sleepy",
   "sleeping","happy","very_happy","sad","angry","annoyed","surprised","confused",
@@ -361,8 +402,52 @@ function init(){
     const o=document.createElement("option"); o.value=n; o.textContent=n; es.appendChild(o);
   });
   buildControls();
+  writeProps();
+  snapshot = JSON.stringify(serialise());
   render();
   requestAnimationFrame(tick);
+  detectServer();
+}
+
+/* ---- server (optional) ------------------------------------------------ */
+async function api(method, path, body){
+  const r = await fetch(path, {method, headers: body?{"Content-Type":"application/json"}:{},
+                               body: body?JSON.stringify(body):undefined});
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok) throw Object.assign(new Error((j.errors||[j.error||r.statusText]).join("; ")), {status:r.status});
+  return j;
+}
+
+async function detectServer(){
+  if(/^https?:$/.test(location.protocol)){
+    try { await api("GET","/api/ping"); hasServer = true; }
+    catch(e){ hasServer = false; }
+  }
+  document.getElementById("delbtn").style.display = hasServer ? "" : "none";
+  document.getElementById("chkbtn").style.display = hasServer ? "" : "none";
+  document.getElementById("savebtn").title = hasServer
+    ? "Save into animations/ (Ctrl+S)"
+    : "No server: downloads the JSON (run python -m src.face edit to save into animations/)";
+  await refreshLibrary();
+  flash(hasServer ? "connected: saving to animations/" : "standalone: Save downloads a file");
+}
+
+async function refreshLibrary(keep){
+  const ls = document.getElementById("libsel");
+  const want = keep || ls.value;
+  if(hasServer){
+    try { library = (await api("GET","/api/library")).animations; } catch(e){ library = []; }
+  } else {
+    library = BUILTIN_NAMES.map(n=>({name:n, source:"builtin"}));
+  }
+  ls.innerHTML = "";
+  library.forEach(a=>{
+    const o=document.createElement("option"); o.value=a.name;
+    o.textContent = a.name + (a.source==="user"?"   ★ saved":a.source==="override"?"   ✎ edited":
+                              (!hasServer && !INLINE[a.name]?"   (import)":""));
+    ls.appendChild(o);
+  });
+  if(want && library.some(a=>a.name===want)) ls.value = want;
 }
 
 function buildControls(){
@@ -370,13 +455,16 @@ function buildControls(){
     host.innerHTML = "";
     list.forEach(([k,min,max,step])=>{
       const row = document.createElement("div"); row.className="row";
-      row.innerHTML = `<label>${k}</label>
+      row.innerHTML = `<label id="lab-${k}" title="${k}">${k}</label>
         <input type="range" min="${min}" max="${max}" step="${step}" id="ctl-${k}">
-        <span class="val" id="val-${k}">0</span>`;
+        <span class="val" id="val-${k}">0</span>
+        <button class="chip" title="Unset in this keyframe (inherit from earlier)" id="un-${k}"
+                style="padding:0 5px">✕</button>`;
       host.appendChild(row);
       row.querySelector("input").addEventListener("input", e=>{
         setParam(k, parseFloat(e.target.value), isFace);
       });
+      row.querySelector("button").addEventListener("click", ()=>unsetParam(k, isFace));
     });
   };
   mk(EYE_CTL, document.getElementById("eyectl"), false);
@@ -386,6 +474,7 @@ function buildControls(){
 function kf(){ return anim.keyframes[sel]; }
 
 function setParam(k, v, isFace){
+  pushHistory("param:"+k);
   const f = kf();
   if(isFace){ f.face = f.face||{}; f.face[k]=v; }
   else if(target==="both"){ f.both=f.both||{}; f.both[k]=v; delete (f.left||{})[k]; delete (f.right||{})[k]; }
@@ -394,18 +483,44 @@ function setParam(k, v, isFace){
   render();
 }
 
+function isSetHere(k, isFace){
+  const f = kf();
+  if(isFace) return !!f.face && k in f.face;
+  if(target==="both") return [f.both,f.left,f.right].some(o=>o && k in o);
+  return (!!f[target] && k in f[target]) || (!!f.both && k in f.both);
+}
+
+function unsetParam(k, isFace){
+  pushHistory("unset");
+  const f = kf();
+  if(isFace) delete (f.face||{})[k];
+  else if(target==="both"){ for(const o of [f.both,f.left,f.right]) if(o) delete o[k]; }
+  else { delete (f[target]||{})[k];
+         // a shared `both` value would still apply: keep it on the other eye only
+         if(f.both && k in f.both){ const o=target==="left"?"right":"left";
+           f[o]=f[o]||{}; if(!(k in f[o])) f[o][k]=f.both[k]; delete f.both[k]; } }
+  render();
+}
+
 function syncControls(){
   const pose = sample(anim, playT);
   const eye = pose[target==="right"?"right":"left"];
   EYE_CTL.forEach(([k])=>{
     const el=document.getElementById("ctl-"+k); if(!el) return;
-    el.value = eye[k] ?? EYE_DEFAULTS[k] ?? 0;
-    document.getElementById("val-"+k).textContent = (+el.value).toFixed(2);
+    const eff = eye[k] ?? (k.startsWith("radius_") ? eye.radius : EYE_DEFAULTS[k]) ?? 0;
+    el.value = eff;
+    document.getElementById("val-"+k).textContent = (+eff).toFixed(2);
+    const set = isSetHere(k,false);
+    document.getElementById("lab-"+k).style.color = set ? "var(--accent)" : "";
+    document.getElementById("un-"+k).style.visibility = set ? "visible" : "hidden";
   });
   FACE_CTL.forEach(([k])=>{
     const el=document.getElementById("ctl-"+k); if(!el) return;
     el.value = pose[k] ?? FACE_DEFAULTS[k] ?? 0;
     document.getElementById("val-"+k).textContent = (+el.value).toFixed(2);
+    const set = isSetHere(k,true);
+    document.getElementById("lab-"+k).style.color = set ? "var(--accent)" : "";
+    document.getElementById("un-"+k).style.visibility = set ? "visible" : "hidden";
   });
   document.getElementById("kftime").value = kf().t.toFixed(2);
   document.getElementById("kfease").value = kf().ease || "in_out";
@@ -415,6 +530,7 @@ function render(){
   anim.duration = parseFloat(document.getElementById("duration").value)||1;
   anim.loop = document.getElementById("loop").checked;
   anim.name = document.getElementById("animname").value || "untitled";
+  readProps();
 
   let pose = sample(anim, playT);
 
@@ -440,7 +556,59 @@ function render(){
   document.getElementById("stageinfo").textContent =
     `${anim.name}  ·  ${anim.keyframes.length} keys  ·  ${anim.duration.toFixed(2)}s` +
     (anim.loop?"  ·  loop":"");
-  document.getElementById("json").value = JSON.stringify(serialise(), null, 2);
+  const txt = JSON.stringify(serialise(), null, 2);
+  const ta = document.getElementById("json");
+  if(ta.value !== txt) ta.value = txt;
+  const dirty = JSON.stringify(serialise()) !== snapshot;
+  document.getElementById("dirty").textContent = dirty ? "● unsaved" : "";
+  document.title = (dirty?"* ":"") + "A.S.H Face Editor";
+}
+
+function readProps(){
+  anim.priority = parseInt(document.getElementById("prio").value);
+  if(!Number.isFinite(anim.priority)) anim.priority = 50;
+  anim.interruptible = document.getElementById("interr").checked;
+  anim.blink_suppress = document.getElementById("bsup").checked;
+  anim.hold_last = document.getElementById("hold").checked;
+  anim.tags = document.getElementById("tags").value.split(",").map(t=>t.trim()).filter(Boolean);
+}
+function writeProps(){
+  document.getElementById("animname").value = anim.name;
+  document.getElementById("duration").value = anim.duration;
+  document.getElementById("loop").checked = !!anim.loop;
+  document.getElementById("prio").value = anim.priority ?? 50;
+  document.getElementById("interr").checked = anim.interruptible !== false;
+  document.getElementById("bsup").checked = !!anim.blink_suppress;
+  document.getElementById("hold").checked = anim.hold_last !== false;
+  document.getElementById("tags").value = (anim.tags||[]).join(", ");
+}
+
+/* ---- undo / redo ----------------------------------------------------- */
+function pushHistory(tag){
+  const now = performance.now();
+  // a slider drag fires many input events: one undo step for the whole drag
+  if(tag && tag===lastPush.tag && now-lastPush.at < 700){ lastPush.at = now; return; }
+  lastPush = {tag, at: now};
+  history.push(JSON.stringify({anim, sel}));
+  if(history.length > 200) history.shift();
+  future = [];
+}
+function restore(str){
+  const d = JSON.parse(str);
+  anim = d.anim; sel = Math.min(d.sel, anim.keyframes.length-1);
+  writeProps(); playT = Math.min(playT, anim.duration); render();
+}
+function undo(){
+  if(!history.length){ flash("nothing to undo","warn"); return; }
+  future.push(JSON.stringify({anim, sel}));
+  lastPush = {tag:"", at:0};
+  restore(history.pop());
+}
+function redo(){
+  if(!future.length){ flash("nothing to redo","warn"); return; }
+  history.push(JSON.stringify({anim, sel}));
+  lastPush = {tag:"", at:0};
+  restore(future.pop());
 }
 
 function drawTrack(){
@@ -452,7 +620,9 @@ function drawTrack(){
     d.className = "kf" + (i===sel?" sel":"");
     d.style.left = (w * k.t/(anim.duration||1)) + "px";
     d.title = `t=${k.t.toFixed(2)} ${k.ease}`;
-    d.onclick = ev => { ev.stopPropagation(); sel=i; playT=k.t; render(); };
+    d.onclick = ev => ev.stopPropagation();
+    d.onmousedown = ev => { ev.stopPropagation(); ev.preventDefault();
+      sel=i; playT=k.t; playing=false; drag={k, moved:false}; render(); };
     track.appendChild(d);
   });
   document.getElementById("playhead").style.left =
@@ -467,6 +637,152 @@ function drawTrack(){
     c.onclick = ()=>{ sel=i; playT=k.t; render(); };
     list.appendChild(c);
   });
+}
+
+/* Drag a keyframe along the track. Snaps to 10 ms; hold Alt for free. */
+let drag = null;
+document.addEventListener("mousemove", ev=>{
+  if(!drag) return;
+  const tr = document.getElementById("track").getBoundingClientRect();
+  let t = Math.max(0, Math.min(anim.duration, ((ev.clientX-tr.left)/tr.width)*anim.duration));
+  if(!ev.altKey) t = Math.round(t*100)/100;
+  if(t === drag.k.t) return;
+  if(!drag.moved){ pushHistory("drag"); drag.moved = true; }
+  drag.k.t = t;
+  anim.keyframes.sort((a,b)=>a.t-b.t);
+  sel = anim.keyframes.indexOf(drag.k); playT = t; render();
+});
+document.addEventListener("mouseup", ()=>{ drag = null; });
+
+function dupKey(){
+  pushHistory("dup");
+  const src = kf();
+  const copy = JSON.parse(JSON.stringify(src));
+  copy.t = Math.round((src.t+0.2)*100)/100;
+  while(anim.keyframes.some(k=>Math.abs(k.t-copy.t)<0.005)) copy.t = Math.round((copy.t+0.05)*100)/100;
+  if(copy.t > anim.duration){ anim.duration = copy.t; document.getElementById("duration").value = copy.t; }
+  anim.keyframes.push(copy); anim.keyframes.sort((a,b)=>a.t-b.t);
+  sel = anim.keyframes.indexOf(copy); playT = copy.t;
+  flash("keyframe duplicated"); render();
+}
+function copyPose(){ clip = JSON.parse(JSON.stringify(kf())); flash("keyframe values copied"); }
+function pastePose(){
+  if(!clip){ flash("nothing copied","warn"); return; }
+  pushHistory("paste");
+  const f = kf(), c = JSON.parse(JSON.stringify(clip));
+  for(const part of ["both","left","right","face"]) f[part] = c[part]||{};
+  f.ease = c.ease||f.ease; flash("pasted"); render();
+}
+function scaleTime(){
+  const m = parseFloat(document.getElementById("tscale").value);
+  if(!(m>0)){ flash("bad factor","warn"); return; }
+  pushHistory("scale");
+  anim.keyframes.forEach(k=>{ k.t = Math.round(k.t*m*1000)/1000; });
+  anim.duration = Math.round(anim.duration*m*1000)/1000;
+  document.getElementById("duration").value = anim.duration;
+  playT = Math.min(playT*m, anim.duration); flash(`time ×${m}`); render();
+}
+const FLIP = ["x","rotation"], FLIP_FACE = ["look_x","tilt"];
+function mirrorAnim(){
+  pushHistory("mirror");
+  const flip = (o,keys)=>{ for(const k of keys) if(o && k in o) o[k] = -o[k]; };
+  anim.keyframes.forEach(k=>{
+    [k.left, k.right] = [k.right||{}, k.left||{}];
+    for(const part of [k.both,k.left,k.right]) flip(part, FLIP);   // lid_angle is anatomical: unchanged
+    flip(k.face, FLIP_FACE);
+  });
+  flash("mirrored"); render();
+}
+
+/* ---- new / load / save ------------------------------------------------ */
+function slug(n){
+  return (n||"").toLowerCase().replace(/[^a-z0-9_-]+/g,"_").replace(/^[^a-z0-9]+/,"").slice(0,48).replace(/[_-]+$/,"") || "untitled";
+}
+function confirmDiscard(){
+  return JSON.stringify(serialise())===snapshot || confirm("Discard unsaved changes?");
+}
+function loadAnim(d){
+  anim = { name:d.name||"imported", duration:d.duration||1, loop:!!d.loop,
+           priority:d.priority??50, interruptible:d.interruptible!==false,
+           blink_suppress:!!d.blink_suppress, hold_last:d.hold_last!==false,
+           tags:d.tags||[],
+           keyframes:(d.keyframes||[]).map(k=>({
+             t:k.t||0, both:{...(k.both||{})}, left:{...(k.left||{})}, right:{...(k.right||{})},
+             face:{...(k.face||{})}, ease:k.ease||"in_out"})) };
+  if(!anim.keyframes.length) anim.keyframes=[{t:0,both:{},left:{},right:{},face:{},ease:"in_out"}];
+  anim.keyframes.sort((a,b)=>a.t-b.t);
+  sel=0; playT=0; playing=false; drag=null;
+  document.getElementById("playbtn").textContent = "▶ Play";
+  history=[]; future=[]; lastPush={tag:"",at:0};
+  writeProps();
+  snapshot = JSON.stringify(serialise());
+  render();
+}
+function newAnim(){
+  if(!confirmDiscard()) return;
+  loadAnim({name:"untitled", duration:1.0, keyframes:[{t:0, ease:"in_out"}]});
+  flash("new animation");
+}
+
+async function loadSelected(){
+  const n = document.getElementById("libsel").value;
+  if(!confirmDiscard()) return;
+  if(hasServer){
+    try { loadAnim(await api("GET","/api/animation/"+encodeURIComponent(n))); flash("loaded "+n); }
+    catch(e){ flash("load failed: "+e.message,"warn"); }
+    return;
+  }
+  const d = INLINE[n];
+  if(!d){ flash(`'${n}' is not inlined — import animations/builtin/${n}.json or run: python -m src.face edit`,"warn"); return; }
+  loadAnim(d); flash("loaded "+n);
+}
+
+async function saveAnim(){
+  render();
+  const d = serialise();
+  d.name = slug(d.name);
+  if(d.name !== anim.name){ anim.name = d.name; document.getElementById("animname").value = d.name; }
+  if(!hasServer){ exportJSON(); snapshot = JSON.stringify(serialise()); render(); return; }
+  try {
+    const r = await api("PUT","/api/animation/"+d.name, d);
+    snapshot = JSON.stringify(serialise());
+    await refreshLibrary(d.name);
+    flash(`saved animations/${r.saved}`); render();
+  } catch(e){ flash("save failed: "+e.message,"warn"); }
+}
+
+async function deleteSaved(){
+  const n = slug(document.getElementById("animname").value);
+  const row = library.find(a=>a.name===n);
+  if(!row || row.source==="builtin"){ flash("no saved file with that name","warn"); return; }
+  if(!confirm(`Delete the saved file for '${n}'?` + (row.source==="override"?" The builtin comes back.":""))) return;
+  try { await api("DELETE","/api/animation/"+n); await refreshLibrary(n); flash("deleted "+n); }
+  catch(e){ flash("delete failed: "+e.message,"warn"); }
+}
+
+/* Compare this file's JS interpolator with the Python one the robot runs. */
+function poseDiff(a, b, path=""){
+  if(a===null || b===null || typeof a!=="object" || typeof b!=="object"){
+    if(a===null || b===null) return a===b ? null : `${path}: ${a} vs ${b}`;
+    return Math.abs(a-b) < 1e-6 ? null : `${path}: js ${a} vs robot ${b}`;
+  }
+  for(const k of new Set([...Object.keys(a),...Object.keys(b)])){
+    const r = poseDiff(a[k], b[k], path?path+"."+k:k); if(r) return r;
+  }
+  return null;
+}
+async function checkRobot(){
+  render();
+  const d = serialise(), N = 48, times = [];
+  for(let i=0;i<=N;i++) times.push(+(d.duration*1.25*i/N).toFixed(4));
+  try {
+    const {poses} = await api("POST","/api/sample",{animation:d, times});
+    for(let i=0;i<times.length;i++){
+      const bad = poseDiff(sample(d, times[i]), poses[i]);
+      if(bad){ flash(`MISMATCH at t=${times[i]}: ${bad}`,"warn"); return; }
+    }
+    flash(`matches the robot (${times.length} poses)`);
+  } catch(e){ flash("check failed: "+e.message,"warn"); }
 }
 
 /* -------------------------------------------------------------- */
@@ -509,6 +825,7 @@ function addKey(){
   const t = Math.round(playT*100)/100;
   const existing = anim.keyframes.findIndex(k=>Math.abs(k.t-t)<0.005);
   if(existing >= 0){ sel = existing; render(); return; }
+  pushHistory("addkey");
   anim.keyframes.push({t, both:{}, left:{}, right:{}, face:{}, ease:"in_out"});
   anim.keyframes.sort((a,b)=>a.t-b.t);
   sel = anim.keyframes.findIndex(k=>k.t===t);
@@ -517,18 +834,20 @@ function addKey(){
 
 function delKey(){
   if(anim.keyframes.length<=1){ flash("need at least one keyframe","warn"); return; }
+  pushHistory("delkey");
   anim.keyframes.splice(sel,1);
   sel = Math.max(0, sel-1);
   flash("keyframe removed"); render();
 }
 
 function setKeyTime(){
+  pushHistory("keytime");
   kf().t = Math.max(0, parseFloat(document.getElementById("kftime").value)||0);
   anim.keyframes.sort((a,b)=>a.t-b.t);
   sel = anim.keyframes.indexOf(kf());
   render();
 }
-function setKeyEase(){ kf().ease = document.getElementById("kfease").value; render(); }
+function setKeyEase(){ pushHistory("ease"); kf().ease = document.getElementById("kfease").value; render(); }
 
 function setTarget(t){
   target = t;
@@ -570,41 +889,17 @@ function copyJSON(){
 
 function importJSON(ev){
   const f = ev.target.files[0]; if(!f) return;
+  ev.target.value = "";
   const r = new FileReader();
   r.onload = e => {
     try {
       const d = JSON.parse(e.target.result);
-      anim = { name:d.name||"imported", duration:d.duration||1, loop:!!d.loop,
-               priority:d.priority??50, interruptible:d.interruptible!==false,
-               blink_suppress:!!d.blink_suppress, hold_last:d.hold_last!==false,
-               tags:d.tags||[],
-               keyframes:(d.keyframes||[]).map(k=>({
-                 t:k.t||0, both:k.both||{}, left:k.left||{}, right:k.right||{},
-                 face:k.face||{}, ease:k.ease||"in_out"})) };
-      if(!anim.keyframes.length) anim.keyframes=[{t:0,both:{},left:{},right:{},face:{},ease:"in_out"}];
-      sel=0; playT=0;
-      document.getElementById("animname").value = anim.name;
-      document.getElementById("duration").value = anim.duration;
-      document.getElementById("loop").checked = anim.loop;
-      flash("imported "+anim.name); render();
+      if(!confirmDiscard()) return;
+      loadAnim(d);
+      flash("imported "+anim.name);
     } catch(err){ flash("bad JSON: "+err.message,"warn"); }
   };
   r.readAsText(f);
-}
-
-function loadBuiltin(){
-  const n = document.getElementById("libsel").value;
-  const d = INLINE[n];
-  if(!d){ flash(`'${n}' is not inlined — run: python -m src.face export`,"warn"); return; }
-  anim = { name:d.name, duration:d.duration, loop:!!d.loop, hold_last:true,
-           priority:50, keyframes:d.keyframes.map(k=>({
-             t:k.t, both:k.both||{}, left:k.left||{}, right:k.right||{},
-             face:k.face||{}, ease:k.ease||"in_out"})) };
-  sel=0; playT=0;
-  document.getElementById("animname").value = anim.name;
-  document.getElementById("duration").value = anim.duration;
-  document.getElementById("loop").checked = anim.loop;
-  flash("loaded "+n); render();
 }
 
 function recordGIF(){
@@ -632,12 +927,24 @@ function flash(msg, kind){
 }
 
 document.addEventListener("keydown", e=>{
-  if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA") return;
+  const typing = /^(INPUT|TEXTAREA)$/.test(e.target.tagName);
+  if(e.ctrlKey||e.metaKey){
+    const k = e.key.toLowerCase();
+    if(k==="s"){ e.preventDefault(); saveAnim(); }
+    else if(k==="z" && !typing){ e.preventDefault(); e.shiftKey?redo():undo(); }
+    else if(k==="y" && !typing){ e.preventDefault(); redo(); }
+    return;
+  }
+  if(typing||e.target.tagName==="SELECT") return;
   if(e.code==="Space"){ e.preventDefault(); togglePlay(); }
   if(e.key==="k") addKey();
   if(e.key==="Delete"||e.key==="Backspace") delKey();
   if(e.key==="ArrowRight"){ sel=Math.min(anim.keyframes.length-1,sel+1); playT=kf().t; render(); }
   if(e.key==="ArrowLeft"){ sel=Math.max(0,sel-1); playT=kf().t; render(); }
+});
+
+window.addEventListener("beforeunload", e=>{
+  if(JSON.stringify(serialise())!==snapshot){ e.preventDefault(); e.returnValue=""; }
 });
 
 init();

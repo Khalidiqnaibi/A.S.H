@@ -15,6 +15,7 @@ CLI:
     python -m src.face export           dump builtins to animations/builtin/
     python -m src.face gif <name>       render an animation to a GIF
     python -m src.face list             list available animations
+    python -m src.face edit             open the editor with save-to-animations/
 """
 
 from .model import (

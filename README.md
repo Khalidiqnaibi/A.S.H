@@ -822,19 +822,37 @@ screen-space directions for left and right. Authors never mirror by hand.
 python -m src.face list              # 27 builtins
 python -m src.face preview thinking  # ANSI preview, works over SSH
 python -m src.face gif happy         # render to happy.gif
-python -m src.face export            # dump builtins for the editor
-open face_editor.html                # author new ones
+python -m src.face export            # dump builtins as JSON files
+python -m src.face edit              # author new ones (or: open face_editor.html)
 ```
 
 ## The editor
 
-`face_editor.html` — single file, zero dependencies, double-click to open.
-Canvas preview, draggable keyframe timeline, per-eye or both-eye targeting,
-ten easing curves, live auto-blink preview, JSON import/export.
+```bash
+python -m src.face edit              # editor + save-to-animations/ (opens your browser)
+```
 
-Files exported from the editor drop into `animations/` and **override the
-builtin of the same name** at load time. Tweak `happy.json`, restart, done —
-no code change.
+`face_editor.html` is a single file with no dependencies. Opened with a double
+click it still works (Save downloads the JSON); run through `python -m src.face
+edit` it also reads and writes the `animations/` folder directly.
+
+* **Every animation is editable**: all builtins plus your saved ones, in one
+  list (`★ saved` = your own, `✎ edited` = overrides a builtin). Load one,
+  change it, **Save**. The file lands in `animations/` and the robot picks it up
+  on its next start. **Delete file** removes your copy and the builtin returns.
+* **Everything a file can hold**: per-eye or both-eye values, per-corner radii,
+  lids and slant, look/tilt/gap/scale/brightness, ten easings, priority,
+  interruptible, suppress-auto-blink, hold-last-pose, loop, tags.
+* **Editing tools**: drag keyframes on the track, duplicate, copy/paste a pose,
+  unset a value (✕ - it then inherits from earlier keys), scale time, mirror
+  left/right, undo/redo (Ctrl+Z / Ctrl+Y), Ctrl+S to save, an unsaved marker.
+* **Check vs robot** sends the current animation to the Python interpolator and
+  compares 49 poses with the editor's JS copy, so "looks right here" is checked,
+  not assumed.
+
+Files in `animations/` **override the builtin of the same name** at load time.
+The server only listens on 127.0.0.1, refuses other sites and hosts, validates
+every file before writing it, and writes atomically.
 
 The editor reimplements the interpolator and renderer in JS so preview is
 instant. That duplication is the one real maintenance hazard here: if the two
