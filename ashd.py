@@ -271,6 +271,8 @@ def main() -> int:
                 sleep_after_idle_s=rcfg.get("sleep_after_idle_s", 1500),
                 learn_social=rcfg.get("learn_social", True),
                 flow_offers=rcfg.get("flow_offers", True),
+                check_in_with_model=rcfg.get("check_in_with_model", False),
+                flow_min_burst_s=rcfg.get("flow_min_burst_s", 600.0),
                 social_path=os.path.join(
                     os.environ.get("ASH_BRAIN_STATE", os.path.join(os.getcwd(), "state", "brain")),
                     "social.json"),
@@ -279,6 +281,24 @@ def main() -> int:
                                               prefer_speech=rcfg.get("speak_unprompted", True),
                                               window_open=(lambda: bus.clients > 0) if bus else None),
         )
+
+        # ---- "what do you see" ----------------------------------------------
+        # The screen tool holds no sensor of its own; it is handed this one's
+        # look function, behind the same privacy pause that stops the sensor.
+        try:
+            from tools import screen_tool  # noqa: E402
+
+            shot = periphery.sensors.get("screenshot")
+            if shot is not None:
+                def _look(_shot=shot):
+                    if not privacy.allows(_shot):
+                        return {"ok": True, "withheld": "paused"}
+                    if _shot.state.value == "disabled":
+                        return {"ok": True, "withheld": "off"}
+                    return _shot.look_now()
+                screen_tool.set_looker(_look)
+        except Exception:
+            logger.exception("Could not attach the screen tool -- continuing without it")
 
         # ---- face -----------------------------------------------------------
         # Attached by wrapping the runtime's hooks, so the ambient loop has no

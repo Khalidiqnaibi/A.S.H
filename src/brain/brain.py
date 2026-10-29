@@ -595,12 +595,22 @@ class Brain:
             trace.gist = gist.as_dict()
 
         t0 = time.perf_counter()
-        text = self.system2.narrate(
-            self.name, query, facts, ctx, self.memory.working_block(),
-            drives, modulation_block, trace_note=note, context=context,
-            gist=gist, embed_fn=(self._embed_text if gist is not None else None),
-            user=self.user,
-        )
+        if isinstance(tool_out, dict) and tool_out.get("verbatim") and tool_out.get("result"):
+            # A tool that has already said it in words is not retold. Asked
+            # what it could see, ASH ran the screen tool, was handed "You're
+            # in VS Code, on brain.py..." and had the model narrate it -- and
+            # the model, reading its own earlier episodes, said "I can't
+            # capture your screen as I don't have a graphical user interface"
+            # in front of the real answer. Nothing a model adds to a
+            # deterministic sentence is an improvement.
+            text = str(tool_out["result"])
+        else:
+            text = self.system2.narrate(
+                self.name, query, facts, ctx, self.memory.working_block(),
+                drives, modulation_block, trace_note=note, context=context,
+                gist=gist, embed_fn=(self._embed_text if gist is not None else None),
+                user=self.user,
+            )
         if gist is not None:
             trace.notes.append(f"narration: {self.system2.last_narration['mode']}"
                                f" ({self.system2.last_narration['calls']} model call(s))")
@@ -903,6 +913,54 @@ class Brain:
             tool_success=tool_success,
             memory_hits=memory_hits,
         )
+
+    # ==================================================================
+    # Volunteering -- saying something nobody asked for
+    # ==================================================================
+    def volunteer(self, situation: str, context: str = "") -> BrainResponse:
+        """A remark ASH decided to make, as opposed to an answer to someone.
+
+        The ambient loop used to do this by calling think() with an
+        instruction written as though the user had said it -- "[FREE MOMENT
+        -- the user did not ask you anything. Fact: ...]". think() cannot tell
+        the difference, so for every unprompted remark ASH:
+
+          * stored that instruction in episodic memory as "<user>: [FREE
+            MOMENT -- ...", a thing you never said, which the narrator then
+            read back to you as your own history;
+          * pushed it into working memory as your last turn, so the next real
+            question was answered against it -- a bare "mm-hmm" after a
+            remark got a recital of every window you had switched between;
+          * ran it through intent classification, where a sentence about
+            memory at 94% is one keyword away from running a tool;
+          * cached it as a reflex, trained the concept graph on it, and
+            scored your next message as your *reaction* to it.
+
+        None of that is right for something ASH said on its own initiative.
+        This goes straight to the narrator with the situation described as a
+        situation, retrieves nothing, routes nothing, learns nothing from it,
+        and commits one thing to memory: what ASH said, as ASH.
+        """
+        trace = BrainTrace(query=situation)
+        drives = self.homeostasis.drives
+        emo = self.homeostasis.last_emotion_result
+        modulation_block = (
+            emo.modulation.as_prompt_block() if emo else "[EMOTIONAL STATE] neutral"
+        )
+        t0 = time.perf_counter()
+        text = self.system2.narrate(
+            self.name, situation, {}, {}, "", drives, modulation_block,
+            context=context, user=self.user,
+            query_label="Situation (nobody has asked you anything)")
+        text = (text or "").strip()
+        trace.timings_ms["total"] = (time.perf_counter() - t0) * 1000.0
+        trace.pathway = Pathway.SLOW
+
+        if text and not is_failure_text(text):
+            self.memory.push("ash", text, salience=0.3)
+            self.memory.commit_utterance(text, source="ash", importance=0.3,
+                                         actor=self.name)
+        return BrainResponse(text=text, trace=trace, pathway=Pathway.SLOW)
 
     def _finish_cycle(self, pathway: Pathway, trace: BrainTrace):
         self._last_cycle_cost = CYCLE_COST.get(pathway, 0.5)

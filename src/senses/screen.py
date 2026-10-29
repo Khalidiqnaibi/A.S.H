@@ -74,8 +74,53 @@ DEFAULT_BLOCKLIST = [
     "meet - ", "meet.google", "google meet", "zoom meeting", "zoom.us",
     "- zoom", "microsoft teams", "teams meeting", "webex", "gotomeeting",
     "bluejeans", "jitsi", "skype", "is sharing", "screen sharing",
-    "whatsapp", "signal", "telegram", "messenger", "facetime",
+    "whatsapp", "telegram", "messenger", "facetime",
 ]
+
+# Apps whose CONTENTS ASH never reads, though it may still know they are open.
+#
+# DEFAULT_BLOCKLIST above is all-or-nothing: a match redacts the title
+# everywhere and nothing is captured. That is right for a password manager
+# and wrong for Discord, where "you have been in Discord for an hour" is fair
+# game and the conversation is not. This is the second tier: no capture, no
+# OCR, and no subject or project taken from the title -- because for a chat
+# or a mailbox the title IS the content ("<friend's name> - Discord",
+# "<subject line> - Gmail"), and the subject is what ASH now says out loud.
+#
+# Added after the first full day with OCR on, in which ASH read and journaled
+# a private Discord conversation, a mailbox, and a business-registration
+# dashboard, none of which the blocklist said anything about.
+PRIVATE_CONTENT_TITLES = [
+    "- discord", "discord |", "| discord", "slack", "gmail", "mail.google",
+    "outlook", "proton mail", "protonmail", "yahoo mail", "icloud mail",
+    "thunderbird", "sent mail", "inbox (", "microsoft teams",
+]
+PRIVATE_CONTENT_PROCESSES = [
+    "discord", "slack", "outlook", "olk", "thunderbird", "teams", "ms-teams",
+    "skype", "signal", "whatsapp", "telegram",
+]
+
+
+def is_private_content(title: str, process: str = "") -> bool:
+    """True where the title or the process says this window is a chat or a
+    mailbox. Substring on titles, stem on processes."""
+    low = (title or "").lower()
+    if any(t in low for t in PRIVATE_CONTENT_TITLES):
+        return True
+    stem = re.sub(r"\.(?:exe|app|bin)$", "", (process or "").strip().lower())
+    return bool(stem) and any(stem == p or stem.startswith(p) for p in PRIVATE_CONTENT_PROCESSES)
+
+
+# ASH's own windows. Reading them was a feedback loop: the 12:44 and 12:49
+# readings were ASH's own answer, OCR'd off its own console and journaled as
+# something it had perceived.
+SELF_TITLES = ("a.s.h",)
+SELF_TITLE_FRAGMENTS = ("ashd.py", "python ashd", "ashctl")
+
+
+def is_self_window(title: str) -> bool:
+    low = (title or "").strip().lower()
+    return low in SELF_TITLES or any(f in low for f in SELF_TITLE_FRAGMENTS)
 # A substring list will always trail whatever the next application decides to
 # call its windows, and it only ever sees the focused one. It is the cheap
 # layer. The structural protections are capturing just that focused window
@@ -105,6 +150,23 @@ def _squash(s: str) -> str:
     return re.sub(r"[^a-z0-9]", "", (s or "").lower())
 
 
+def clean_title(title: str) -> str:
+    """Make a window title something that can be said aloud.
+
+    Titles carry decoration that means nothing spoken: a speaker emoji, a
+    unicode "font" (a Discord channel called "General" arrives as
+    mathematical script capitals), circled digits. NFKC folds the fonts back
+    to ordinary letters; whatever is still a symbol, a format character or
+    unassigned after that is dropped. Without it, a spoken line read out
+    "Just finished working on speaker-high-volume, script capital G..."
+    """
+    import unicodedata
+    folded = unicodedata.normalize("NFKC", title or "")
+    kept = "".join(c for c in folded
+                   if unicodedata.category(c) not in ("So", "Sk", "Cs", "Co", "Cf", "Cn"))
+    return re.sub(r"\s+", " ", kept).strip()
+
+
 def window_fields(title: str, process: str = "", limit: int = 80) -> Tuple[str, str]:
     """(subject, project) -- what is open, and what it belongs to.
 
@@ -117,9 +179,11 @@ def window_fields(title: str, process: str = "", limit: int = 80) -> Tuple[str, 
     the process does not already, so it yields ("", "") rather than repeating
     the app back at the caller.
     """
-    cleaned = _TITLE_NOISE.sub("", title or "").strip()
+    cleaned = _TITLE_NOISE.sub("", clean_title(title)).strip()
     if not cleaned:
         return "", ""
+    if is_private_content(cleaned, process):
+        return "", ""        # the title is the content: see PRIVATE_CONTENT_TITLES
 
     parts = [p.strip() for p in _TITLE_SEP.split(cleaned) if p.strip()]
     if not parts:
@@ -351,7 +415,8 @@ class ActiveWindowSensor(Sensor):
                   "subject": subject, "project": project, "dwell": dwell},
             persistable=not blocked,
             meta={"process": proc, "subject": subject, "project": project,
-                  "blocked": blocked, "dwell_s": round(dwell, 1)},
+                  "blocked": blocked, "dwell_s": round(dwell, 1),
+                  "private": is_private_content(title, proc)},
         )]
 
 
@@ -412,6 +477,9 @@ class ScreenshotSensor(Sensor):
         self._last_hash: Optional[int] = None
         self._dropped = 0
         self._cropped = False
+        self._withheld = 0
+        self._last_read = ""
+        self._last_view: Optional[Dict[str, Any]] = None
         super().__init__(interval=interval, enabled=enabled)
 
     @property
@@ -490,11 +558,16 @@ class ScreenshotSensor(Sensor):
             ))
 
         # Blocklist check happens BEFORE capture -- see module docstring.
-        title = ""
+        title = proc = ""
         if self.window_sensor is not None:
-            title, _ = self.window_sensor.current()
+            title, proc = self.window_sensor.current()
             if self.window_sensor.is_blocked(title):
                 self._dropped += 1
+                return out
+            if is_private_content(title, proc):
+                # A chat or a mailbox: not captured, not read, and counted
+                # separately so "why is nothing being captured" has an answer.
+                self._withheld += 1
                 return out
 
         img = self._capture()
@@ -525,7 +598,8 @@ class ScreenshotSensor(Sensor):
         img.thumbnail((640, 400))
 
         scene = screenread.describe(img) if self.describe_enabled else {}
-        self._maybe_read(legible, title, scene.get("kind", ""), h)
+        if not is_self_window(title):
+            self._maybe_read(legible, title, scene.get("kind", ""), h)
 
         # "screen changed while in X" said only that something moved; the
         # scene says what sort of screen it is. What it *says* is a separate
@@ -542,6 +616,71 @@ class ScreenshotSensor(Sensor):
                   "scene": scene.get("kind", "")},
         ))
         return out
+
+    def look_now(self) -> Dict[str, Any]:
+        """Look at the screen because someone asked, and say what is there.
+
+        ASH told its user "I can't capture your screen because I don't have a
+        graphical user interface" while running a screenshot sensor and an OCR
+        engine -- nothing could answer "what do you see", so the model made up
+        a reason it couldn't. This is the thing that answers it.
+
+        Synchronous and several seconds with OCR, which is fine: the user is
+        waiting on exactly this. The same refusals apply as for ambient
+        capture, and each is reported rather than silently returning less:
+        a blocked window, a chat or a mailbox, a paused privacy policy. If
+        ASH's own window has focus -- the usual case when the question was
+        typed into the console -- there is nothing to capture but ASH, so it
+        reports the last thing it read elsewhere, with how old that is.
+        """
+        from . import screenread
+
+        title = proc = ""
+        if self.window_sensor is not None:
+            title, proc = self.window_sensor.current()
+        subject, project = window_fields(title, proc)
+        base: Dict[str, Any] = {"ok": True, "title": clean_title(title), "process": proc,
+                                "subject": subject, "project": project,
+                                "scene": "", "text": "", "fresh": True, "age_s": 0.0,
+                                "withheld": None}
+
+        if self.window_sensor is not None and self.window_sensor.is_blocked(title):
+            return {**base, "withheld": "blocked", "subject": "", "project": ""}
+        if is_private_content(title, proc):
+            return {**base, "withheld": "private", "subject": "", "project": ""}
+
+        if is_self_window(title) or not title:
+            last = self._last_view
+            if last and last.get("text"):
+                return {**base, "title": clean_title(last.get("title", "")), "fresh": False,
+                        "scene": last.get("scene", ""), "text": last["text"],
+                        "age_s": round(time.time() - last["at"], 1),
+                        "subject": "", "project": ""}
+            return {**base, "withheld": "self", "subject": "", "project": ""}
+
+        if not self._grab:
+            ok, why = self.probe()
+            if not ok:
+                return {**base, "ok": False, "error": why}
+
+        img = self._capture()
+        legible = img
+        if legible.width > OCR_MAX_WIDTH:
+            legible = legible.copy()
+            legible.thumbnail((OCR_MAX_WIDTH, OCR_MAX_WIDTH))
+        small = img.copy()
+        small.thumbnail((640, 400))
+        scene = screenread.describe(small).get("kind", "")
+
+        # Asking is explicit consent to read, so this does not wait for the
+        # ambient switch; it still needs an engine that is installed.
+        reader = self._reader or screenread.ScreenReader()
+        text = reader.read_text(legible) if reader.available else ""
+        base.update({"scene": scene, "text": text, "reader": reader.available})
+        if text:
+            self._last_view = {"title": title, "scene": scene, "text": text,
+                               "at": time.time()}
+        return base
 
     def _maybe_read(self, img, title: str, scene: str, ahash: int):
         """Kick off an OCR pass if one is due and none is running.
@@ -571,7 +710,17 @@ class ScreenshotSensor(Sensor):
             finally:
                 with self._ocr_lock:
                     self._ocr_at, self._ocr_busy = time.time(), False
+                    # An unchanged page reads the same every two minutes, and
+                    # journaling it each time was most of an hour of the same
+                    # lecture slide. Only a page that has changed is news.
+                    from .screenread import similar
+                    repeat = bool(text) and similar(text, self._last_read)
                     if text:
+                        # Even a repeat is the freshest look at this page.
+                        self._last_view = {"title": title, "scene": scene, "text": text,
+                                           "at": time.time()}
+                    if text and not repeat:
+                        self._last_read = text
                         self._ocr_pending = {
                             "text": text, "title": title, "scene": scene,
                             "ahash": ahash, "took": round(time.time() - started, 2),
@@ -608,6 +757,7 @@ class ScreenshotSensor(Sensor):
         d = super().status()
         d["dropped_duplicates"] = self._dropped
         d["captures"] = "focused window" if self._cropped else "whole monitor"
+        d["withheld_private"] = self._withheld
         d["describes"] = self.describe_enabled
         d["reads_text"] = self.read_text_enabled
         if self._reader is not None:

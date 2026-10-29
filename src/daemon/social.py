@@ -454,6 +454,7 @@ class FlowDetector:
         self.process = ""
         self.subject = ""       # what is open in it: the file, the document
         self.project = ""       # and what that belongs to
+        self.private = False    # a chat or a mailbox: never "a stretch of work"
         self.since = 0.0
         self.burst_start: Optional[float] = None
         self.last_active: float = 0.0
@@ -482,6 +483,7 @@ class FlowDetector:
                 self.subject = self.project = ""
             elif dwell:
                 self.since = min(self.since, now - dwell)
+            self.private = bool(meta.get("private"))
             # The subject moves within a stretch of work -- switching file is
             # not switching task -- so it tracks the latest one and does not
             # restart the dwell clock the way a process change does.
@@ -553,6 +555,7 @@ class FlowDetector:
                     return [self._stuck_event(score, reasons, topic, best, now)]
 
         if (self.burst_start is not None and not self.free_emitted
+                and not self.private
                 and self.free_idle_s <= idle_s < self.free_max_idle_s
                 and self.last_active - self.burst_start >= self.min_burst_s
                 and now - self.last_free >= self.free_cooldown_s):

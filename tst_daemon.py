@@ -305,6 +305,122 @@ def main():
           and DEFAULT_CONFIG["sensors"]["screenshot"]["read_text"] is False)
 
     # ---------------------------------------------------------------
+    print("\n=== 0d. A noise made to show someone is listening is not a request ===")
+    # "Mm-hmm" arrived a second after ASH spoke, scored 0.34 as
+    # "mid-conversation", cleared the 0.32 bar, and got a full model answer:
+    # a recital of every window the user had switched between, to a sound.
+    from src.senses import address
+    convo = address.Conversation()
+    t0 = time.time()
+    convo.note_ash_spoke(t0, asked=False)
+    for noise in ["Mm-hmm", "Uh-huh.", "Hmm", "yeah", "okay", "right", "cool", "I see", "got it"]:
+        v = address.score(noise, now=t0 + 1, convo=convo)
+        check(f"{noise!r} after a statement is acknowledged, not answered",
+              v.confidence < address.LIKELY_AT, f"{v.confidence:.2f} {','.join(v.reasons)}")
+
+    convo.note_ash_spoke(t0, asked=True)
+    for answer in ["yeah", "yes", "sure", "Mm-hmm"]:
+        v = address.score(answer, now=t0 + 1, convo=convo)
+        check(f"{answer!r} after a question IS the answer", v.addressed,
+              f"{v.confidence:.2f} {','.join(v.reasons)}")
+
+    convo.note_ash_spoke(t0, asked=False)
+    check("a real question after a statement is still addressed",
+          address.score("what about tomorrow", now=t0 + 1, convo=convo).addressed)
+    check("...and 'thanks' is still worth a reply",
+          address.score("thanks", now=t0 + 1, convo=convo).likely)
+    check("the name always wins: 'ash, yeah' is spoken to ASH",
+          address.score("ash, yeah", now=t0 + 1, convo=convo).addressed)
+    convo.close()
+    check("closing the exchange also forgets that ASH had asked", not convo.expects_reply(t0 + 1))
+
+    # ---------------------------------------------------------------
+    print("\n=== 0e. Chat and mail are never read, and a title is said aloud cleanly ===")
+    from src.senses.screen import (clean_title, is_private_content, is_self_window,
+                                   window_fields)
+    from src.senses.screenread import _gist, similar
+
+    # The first day with OCR on, ASH read and journaled a private chat, a
+    # mailbox and a company dashboard, and the blocklist said nothing.
+    for title, proc in [("General - Some Server - Discord", "Discord.exe"),
+                        ("Sent Mail - someone@example.com - Gmail - Opera", "opera.exe"),
+                        ("Inbox (12) - Outlook", "olk.exe"), ("Slack | general", "slack.exe"),
+                        ("Microsoft Teams", "ms-teams.exe"), ("Signal", "Signal.exe")]:
+        check(f"{title[:36]!r} is withheld", is_private_content(title, proc))
+    for title, proc in [("brain.py - A.S.H - Visual Studio Code", "Code.exe"),
+                        ("Signal processing - Wikipedia - Opera", "opera.exe"),
+                        ("Thermodynamics notes - Google Gemini - Opera", "opera.exe")]:
+        check(f"{title[:36]!r} is ordinary", not is_private_content(title, proc))
+    check("a private window yields no subject or project to be spoken or remembered",
+          window_fields("Canceling subscription - a@b.co - Gmail - Opera", "opera.exe") == ("", ""))
+    check("ASH's own windows are recognised, so it does not read its own answers",
+          is_self_window("A.S.H") and is_self_window("C:\\Windows\\cmd.exe - python  ashd.py")
+          and not is_self_window("brain.py - A.S.H - Visual Studio Code"))
+
+    # A title with decoration spoken aloud read "speaker-high-volume, script
+    # capital G...". NFKC folds the fonts back; symbols are dropped.
+    spoken = clean_title("\U0001F50A \U0001D4A2\U0001D438\U0001D4C3 \u2461 | Server - Discord")
+    check("emoji and font decoration are not spoken", "\U0001F50A" not in spoken
+          and "\U0001D4A2" not in spoken and "Server" in spoken, spoken)
+
+    check("two reads of an unchanged page are one reading, spacing jitter and all",
+          similar("To teach the network to do something useful, the energy function is designed to accept an",
+                  "To teachthe networktodo something useful,the energyfunctionis designed to accept an"))
+    check("a different page is news",
+          not similar("To teach the network to do something useful, the energy function",
+                      "Your Starter plan is active and set to renew automatically on October"))
+    check("an address bar is not a sentence worth keeping",
+          "compose=" not in _gist(["mail.google.com/mail/u/2/#sent?compose=DmwnWrRvwLqDcSPRrTCb",
+                                   "To teach the network to do something useful the energy"]))
+
+    # ---------------------------------------------------------------
+    print("\n=== 0f. 'What do you see' is answered by looking ===")
+    from tools import screen_tool
+
+    # ASH told its user "I can't capture your screen because I don't have a
+    # graphical user interface" while running a screenshot sensor and an OCR
+    # engine. Nothing could answer the question, so the model invented a
+    # reason it couldn't.
+    screen_tool.set_looker(None)
+    out = screen_tool.screen_view_tool("what do you see")
+    check("with no sensor it says so, truthfully", out["ok"] is False
+          and "screen sensor" in out["error"], str(out))
+
+    screen_tool.set_looker(lambda: {
+        "ok": True, "title": "brain.py - A.S.H - Visual Studio Code", "process": "Code.exe",
+        "subject": "brain.py", "project": "A.S.H", "scene": "text", "fresh": True,
+        "age_s": 0.0, "withheld": None, "reader": True,
+        "text": "def volunteer(self, situation, context): / return text"})
+    out = screen_tool.screen_view_tool("what do you see")
+    check("a look reports the window, the project and the words",
+          out["ok"] and "VS Code" in out["result"] and "brain.py" in out["result"]
+          and "A.S.H" in out["result"] and "volunteer" in out["result"], out.get("result", "")[:200])
+    check("the tool marks its answer as already said, so the brain does not retell it",
+          out.get("verbatim") is True)
+    check("...as sentences, not a data dump", out["result"].count(". ") >= 2
+          and "{" not in out["result"], out["result"][:160])
+
+    for why, needle in [("blocked", "blocked list"), ("private", "chat or a mailbox"),
+                        ("paused", "privacy pause"), ("off", "switched off"),
+                        ("self", "my own window")]:
+        screen_tool.set_looker(lambda w=why: {"ok": True, "withheld": w})
+        got = screen_tool.screen_view_tool("what do you see")
+        check(f"a {why} window is refused, with the reason in words",
+              got["ok"] and needle in got["result"], got.get("result", ""))
+
+    screen_tool.set_looker(lambda: {
+        "ok": True, "title": "Notes", "process": "notepad.exe", "subject": "todo.txt",
+        "project": "", "scene": "text", "fresh": False, "age_s": 70.0, "withheld": None,
+        "reader": True, "text": "buy milk"})
+    got = screen_tool.screen_view_tool("what do you see")
+    check("a stale look says how stale", "ago" in got["result"], got["result"][:120])
+
+    screen_tool.set_looker(lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+    got = screen_tool.screen_view_tool("what do you see")
+    check("a failing sensor cannot take the brain down", got["ok"] is False, str(got))
+    screen_tool.set_looker(None)
+
+    # ---------------------------------------------------------------
     print("\n=== 0a. ashctl waits as long as the command needs ===")
     from src.daemon.service import CTL_SLOW_TIMEOUT, CTL_TIMEOUT, ctl_timeout
 

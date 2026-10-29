@@ -348,11 +348,29 @@ def _apply_priors(query: str, scored):
     return out
 
 
+# Asking ASH to look at the screen. "what you see" with no noun is a real
+# request ("Yo ash, what you see?"), so this is phrases, not just "screen".
+#
+# It is a veto as well as a boost, for the same reason the small-talk one is:
+# MiniLM puts "what do you think" (0.28) and "see you later" (0.28) close
+# enough to "what do you see" to fire a tool, and this tool takes a screenshot
+# of the user's screen. A conversational sentence must not do that on a
+# near-miss in embedding space.
+_SCREEN_ASK = re.compile(
+    r"\b(?:screens?|screenshots?|monitor|desktop)\b"
+    r"|\bwhat(?:'?s|\s+is|\s+am\s+i|\s+are\s+you|\s+do\s+you|\s+can\s+you|\s+you)?\s+"
+    r"(?:you\s+)?(?:see(?:ing)?|looking\s+at)\b"
+    r"|\bwhat'?s\s+open\b", re.I)
+
+
 def _ranked(query: str, top_k: int):
     """Catalog candidates for `query`, with the structural priors applied."""
     cat = _INTENT_CATALOG
     wide = max(top_k, len(set(cat.labels)))          # priors may promote a lower-ranked intent
-    return _apply_priors(query, cat.most_similar(query, top_k=wide))[:top_k]
+    ranked = _apply_priors(query, cat.most_similar(query, top_k=wide))
+    if not _SCREEN_ASK.search(query or ""):
+        ranked = [(i, sc) for i, sc in ranked if i != "screen_view"]
+    return ranked[:top_k]
 
 
 def classify_intent(query: str) -> Dict[str, Any]:

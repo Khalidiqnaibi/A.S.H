@@ -148,6 +148,17 @@ _REPLY_TOKENS = re.compile(
 # my calendar". Nobody says this to the room.
 _FIRST_PERSON_OBJECT = re.compile(r"\b(?:me|my|mine|us|our)\b", re.I)
 
+# Backchannel: the noises a listener makes to show they are listening. They
+# are a response TO speech, not a request, and the right reply is almost
+# always none. "Mm-hmm" arriving a second after ASH spoke scored 0.34 --
+# "mid-conversation" -- which cleared the 0.32 bar and got a full model
+# answer: a recital of every window the user had switched between, to a
+# sound. Unless ASH just asked something, these are not addressed to it.
+_BACKCHANNEL = re.compile(
+    r"^\s*(?:m+[\s-]*h?m+|uh[\s-]*huh|uh[\s-]*uh|hm+|huh|ah+|oh+|ok(?:ay)?|"
+    r"yeah|yep|yup|yes|right|sure|cool|nice|alright|i\s+see|got\s+it|gotcha|"
+    r"true|exactly|indeed)[\s.!,?]*$", re.I)
+
 # Plain narration about oneself, with nobody else in it.
 _FIRST_PERSON_ONLY = re.compile(r"^\s*(?:i|i'm|im|i've|ive|my|we|we're)\b", re.I)
 
@@ -193,10 +204,21 @@ class Conversation:
         self._lock = threading.Lock()
         self._ash_spoke: float = 0.0
         self._user_turn: float = 0.0
+        self._asked: bool = False
 
-    def note_ash_spoke(self, ts: Optional[float] = None) -> None:
+    def note_ash_spoke(self, ts: Optional[float] = None, asked: bool = False) -> None:
+        """`asked` is whether what ASH said invites an answer -- a question,
+        or an offer. It is what separates "yeah" meaning yes from "yeah"
+        meaning go on."""
         with self._lock:
             self._ash_spoke = ts or time.time()
+            self._asked = bool(asked)
+
+    def expects_reply(self, now: Optional[float] = None) -> bool:
+        """ASH asked something and the exchange is still open."""
+        with self._lock:
+            asked = self._asked
+        return asked and self.openness(now) > 0.02
 
     def note_user_turn(self, ts: Optional[float] = None) -> None:
         """The user addressed ASH. Holds the window open for their next
@@ -208,6 +230,7 @@ class Conversation:
         """The exchange is over (muted, paused, or told to stop)."""
         with self._lock:
             self._ash_spoke = self._user_turn = 0.0
+            self._asked = False
 
     def openness(self, now: Optional[float] = None) -> float:
         """0..1: how live the exchange is right now. Decays smoothly -- a hard
@@ -244,6 +267,13 @@ def score(text: str, now: Optional[float] = None,
     polite = bool(_POLITE_OPENER.search(raw))
     vocative = bool(_VOCATIVE.search(raw))
     open_now = convo.openness(now)
+
+    # ---- a noise made to show someone is listening -----------------------
+    if _BACKCHANNEL.match(raw) and not vocative:
+        if convo.expects_reply(now):
+            conf = 0.45 + 0.20 * open_now
+            return AddressVerdict(min(1.0, conf), ["answering what was just asked"])
+        return AddressVerdict(0.0, ["just acknowledging"])
 
     # ---- the name ------------------------------------------------------
     if _NAME_ANYWHERE.search(raw) and not _NAME_AS_NOUN.search(raw):

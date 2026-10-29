@@ -79,6 +79,11 @@ MAX_CHARS = 240
 # furniture, not text someone is reading.
 _WORDY = re.compile(r"[A-Za-z]{3,}")
 _WHITESPACE = re.compile(r"\s+")
+# A URL, or a long opaque token: an address bar OCRs into a line like
+# "mail.google.com/mail/u/2/#sent?compose=DmwnWrRvwLqDcSPRrTCb..." which is
+# not something anyone is reading, and the token in it is a session handle.
+_URLISH = re.compile(r"://|www\.|\.(?:com|org|net|io|dev|app)/|[#?]\w+=", re.I)
+_OPAQUE = re.compile(r"\S{28,}")
 
 
 def _gist(lines: List[str]) -> str:
@@ -87,6 +92,8 @@ def _gist(lines: List[str]) -> str:
     for i, raw in enumerate(lines):
         line = _WHITESPACE.sub(" ", (raw or "").strip())
         if len(line) < MIN_LINE_CHARS:
+            continue
+        if _URLISH.search(line) or _OPAQUE.search(line):
             continue
         words = _WORDY.findall(line)
         if len(words) < 2:
@@ -102,6 +109,27 @@ def _gist(lines: List[str]) -> str:
         out.append(line)
         total += len(line) + 1
     return " / ".join(out)
+
+
+def _trigrams(text: str) -> set:
+    flat = re.sub(r"[^a-z0-9]", "", (text or "").lower())
+    return {flat[i:i + 3] for i in range(len(flat) - 2)}
+
+
+def similar(a: str, b: str, threshold: float = 0.5) -> bool:
+    """Are two readings of the same screen?
+
+    Character trigrams over the text with every space and symbol removed,
+    because the way OCR differs from itself between two reads of an unchanged
+    page is mostly in the spaces -- "teach the network to do" one time,
+    "teachthe networktodo" the next -- which makes a word-set comparison call
+    the same lecture slide two different pages. Trigrams do not care where
+    the gaps fell.
+    """
+    ta, tb = _trigrams(a), _trigrams(b)
+    if not ta or not tb:
+        return False
+    return len(ta & tb) / float(len(ta | tb)) >= threshold
 
 
 class ScreenReader:

@@ -615,6 +615,11 @@ class FakeIdle:
 
 
 def rig(**cfg):
+    # The daemon's defaults are a ten-minute stretch and a composed check-in;
+    # most of what these tests are about is a two-minute one and what to do
+    # with the model's line, so those are what the rig has unless told.
+    cfg.setdefault("flow_min_burst_s", 120.0)
+    cfg.setdefault("check_in_with_model", True)
     clock = [T0]
     delivered = []
     ash = Ash()
@@ -1037,6 +1042,71 @@ def s9_lines_and_outages():
         check("the daemon's sink can be exercised", False, repr(e)[:120])
 
 
+def s10_volunteering():
+    print("\n=== S10. Saying something unprompted is not a thing the user said ===")
+    from src.daemon.ambient import clip_reply
+
+    # --- a free-moment check-in is composed, not generated ---------------
+    h = rig(check_in_with_model=False)
+    h.say("", addressed=False, source="screen",
+          meta={"process": "Code.exe", "dwell_s": 0, "subject": "brain.py", "project": "A.S.H"})
+    got = free_moment(h)
+    check("a check-in with no model: one line is still said", len(got) == 1, str(h.out))
+    check("...without calling the model at all (it froze the loop for a minute)",
+          not h.ash.calls, str(h.ash.calls[:1]))
+    check("...naming what the work was, not just the editor",
+          "brain.py" in got[0][0] and "A.S.H" in got[0][0], got[0][0])
+    check("...and not claiming it did the work itself",
+          "wrapped up" not in got[0][0].lower(), got[0][0])
+
+    # --- an unprompted remark goes through volunteer(), not think() --------
+    class Volunteering(Ash):
+        def __init__(self):
+            super().__init__()
+            self.volunteered, self.thought = [], []
+
+        def think(self, query, image=None, context=""):
+            self.thought.append(query)
+            return Resp("Sure.")
+
+        def volunteer(self, situation, context=""):
+            self.volunteered.append(situation)
+            return Resp("Heads up, the battery is low.")
+
+    h = rig()
+    h.rt.ash = Volunteering()
+    h.rt.submit(SensorEvent(source="system", modality=Modality.TEXT, text="battery low at 12%",
+                            salience=0.9, urgency=0.9))
+    for _ in range(4):
+        h.rt._tick()
+    check("an unprompted remark is volunteered", len(h.rt.ash.volunteered) == 1,
+          str(h.rt.ash.volunteered))
+    check("...and never passed to think() as though the user had said it",
+          not h.rt.ash.thought, str(h.rt.ash.thought))
+
+    # --- a real question still goes through think() ---------------------------
+    h = rig()
+    h.rt.ash = Volunteering()
+    h.say("what time is it", addressed=True)
+    for _ in range(4):
+        h.rt._tick()
+    check("a question from the user is still thought about, not volunteered",
+          h.rt.ash.thought and not h.rt.ash.volunteered)
+
+    # --- replies are cut at a sentence ------------------------------------------
+    long = ("To create a data model for the energy of a neuromorphic device you would need "
+            "to consider the requirements. Here is a general approach. 1. Define the structure: "
+            "decide on the data elements that will be required to represent the consumption of "
+            "the device. Then think about timing.")
+    for n in (120, 200, 300):
+        out = clip_reply(long, n)
+        check(f"a reply clipped to {n} ends at a sentence or a word, never in the middle of one",
+              out.endswith((".", "!", "?", "...")) and len(out) <= n + 3, repr(out[-30:]))
+    check("a list marker is not the end of a sentence",
+          not clip_reply(long, 200).rstrip().endswith("1."), clip_reply(long, 200)[-24:])
+    check("a short reply is untouched", clip_reply("Fine.", 600) == "Fine.")
+
+
 def main():
     s1_replies()
     s2_context()
@@ -1047,6 +1117,7 @@ def main():
     s7_runtime()
     s8_switches()
     s9_lines_and_outages()
+    s10_volunteering()
     print("\n" + ("ALL CHECKS PASSED" if OK else "SOME CHECKS FAILED"))
     return 0 if OK else 1
 

@@ -449,7 +449,7 @@ class System2Deliberator:
     def narrate(self, name: str, query: str, facts: Dict[str, Any], memory: Dict[str, str],
                 working: str, drives: Drives, modulation_block: str,
                 trace_note: str = "", context: str = "", gist=None, embed_fn=None,
-                user: str = "") -> str:
+                user: str = "", query_label: str = "User query") -> str:
         """Render the reply.
 
         With a `gist` (the content already decided) the plain cases are
@@ -466,7 +466,7 @@ class System2Deliberator:
                 return text
         system_content = persona(name, user, modulation_block)
 
-        parts = [f"User query: {query}\n"]
+        parts = [f"{query_label}: {query}\n"]
         if working and working.strip() and working.strip() != "empty":
             parts.append(f"Recent conversation:\n{working}\n")
         for key in ("core", "episodic", "entity"):

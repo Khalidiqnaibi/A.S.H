@@ -306,6 +306,24 @@ def main():
         got = classify_intent(q)["intent"]
         check(f"{q!r} routes as before", got == want, got)
 
+    print("\n=== Asking ASH to look at the screen ===")
+    # ASH said "I can't capture your screen because I don't have a graphical
+    # user interface" while running a screenshot sensor and an OCR engine.
+    for q in ["what you see?", "Can you capture the screen and tell me what you see exactly?",
+              "what do you see", "what's on my screen", "what am I looking at",
+              "look at my screen", "can you see my screen", "describe my screen",
+              "yo what you see", "take a screenshot"]:
+        got = classify_intent(q)["intent"]
+        check(f"{q[:52]!r} looks at the screen", got == "screen_view", got)
+
+    # It takes a screenshot, so a near-miss in embedding space must not fire
+    # it: "what do you think" and "see you later" both scored 0.28 for it.
+    for q in ["what do you think", "see you later", "do you see what I mean",
+              "I see", "let me see", "how are you", "what's up", "what time is it",
+              "what's in this folder", "show me the weather"]:
+        got = classify_intent(q)["intent"]
+        check(f"{q!r} does not take a screenshot", got != "screen_view", got)
+
     print("\n=== Speech: the reply goes in as one utterance ===")
     from tools.tts import MAX_SEGMENT_CHARS, clean_for_speech, segment
 

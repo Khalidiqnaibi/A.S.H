@@ -39,6 +39,7 @@ effects at all.
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 from collections import deque
@@ -63,6 +64,26 @@ logger = logging.getLogger("ash.daemon.ambient")
 # Said out loud, to someone who asked a real question, so: what is wrong and
 # nothing else. No apology (it is not ASH's fault and saying sorry twice for
 # the same outage is worse than the outage) and no jargon dressed up as one.
+def clip_reply(text: str, limit: int) -> str:
+    """Cut a reply to `limit` characters at the end of a sentence.
+
+    This used to be text[:limit], which ended a long answer in the middle of
+    a word -- "...represent the en" -- and that string was then spoken aloud.
+    A sentence boundary if one falls in the back half of the allowance, else
+    the last space with an ellipsis, so it never stops mid-word.
+    """
+    text = (text or "").strip()
+    if len(text) <= limit:
+        return text
+    head = text[:limit]
+    # A list marker ("1.") is a full stop that is not the end of anything.
+    ends = [m.end() for m in re.finditer(r"[.!?](?:[\"')\]]*)(?=\s|$)", head)
+            if not re.search(r"(?:^|\s)\d{1,2}$", head[:m.start()])]
+    if ends and ends[-1] >= limit * 0.4:
+        return head[:ends[-1]].rstrip()
+    return head.rsplit(" ", 1)[0].rstrip(" ,;:") + "..."
+
+
 NO_MODEL_TEXT = "My model isn't answering right now, so I've got nothing for you on that."
 
 
@@ -72,7 +93,12 @@ class AmbientConfig:
     queue_limit: int = 256
     sleep_after_idle_s: float = 25 * 60
     sleep_min_interval_s: float = 60 * 60
-    watchdog_stall_s: float = 120.0
+    # Longer than the model is allowed to take. At 120 this fired "ambient loop
+    # unhealthy -- restarting" a dozen times in a morning, every time the
+    # brain was simply inside a 60-100s generation on a CPU-bound model; the
+    # restart could not do anything (the old thread was still running) and
+    # the log filled with errors about a loop that was working.
+    watchdog_stall_s: float = 360.0
     context_window_s: float = 1800.0
     max_response_chars: int = 600
     follow_plans: bool = True        # carry on a multi-step plan between ticks
@@ -81,6 +107,20 @@ class AmbientConfig:
     social_path: Optional[str] = None    # where the learned record lives (None: in memory)
     reaction_window_s: float = 120.0     # how long to wait for a reaction to a remark
     no_reply_notice_s: float = 600.0     # how often to say the model is down, at most
+    # Say the free-moment check-in with the language model, rather than from
+    # the facts. Off: it was a ~60s CPU generation that froze the whole
+    # ambient loop (the watchdog restarted it at 13:16, 13:37 and 13:57 --
+    # exactly the three check-ins that day) to produce lines like "Just
+    # finished a bit of work in Opera, if you needed me." The composed ones
+    # are specific, vary, and cost nothing.
+    check_in_with_model: bool = False
+    # How long a stretch of continuous activity has to be before a pause after
+    # it is worth remarking on. It was 120s, which made "about 2 minutes of
+    # work" a thing ASH said aloud four times in an hour and a half -- two
+    # minutes in a chat window, two minutes of a song. Ten minutes is a stretch
+    # of work. (A watchdog restart is not one of the costs; the check-in is
+    # composed now, with no model call to stall the loop.)
+    flow_min_burst_s: float = 600.0
 
 
 class AmbientRuntime:
@@ -120,7 +160,8 @@ class AmbientRuntime:
         # The social loop: what was said, how it landed, and when to speak.
         self.learner: Optional[SocialLearner] = None
         self.reactions: Optional[ReactionTracker] = None
-        self.flow: Optional[FlowDetector] = FlowDetector() if self.cfg.flow_offers else None
+        self.flow: Optional[FlowDetector] = (
+            FlowDetector(min_burst_s=self.cfg.flow_min_burst_s) if self.cfg.flow_offers else None)
         if self.cfg.learn_social:
             self.learner = getattr(self.gate, "learner", None) or SocialLearner(
                 path=self.cfg.social_path)
@@ -364,15 +405,25 @@ class AmbientRuntime:
         elif offer == "stuck_help" and meta.get("say"):
             say = str(meta["say"])
             prompt = ""
+        elif offer == "free_moment" and not self.cfg.check_in_with_model:
+            # From the facts, no model: see AmbientConfig.check_in_with_model.
+            say = compose_check_in(float(meta.get("minutes", 5) or 5),
+                                   str(meta.get("process", "")),
+                                   time.localtime(self.clock()).tm_hour,
+                                   subject=str(meta.get("subject", "")),
+                                   project=str(meta.get("project", "")))
+            prompt = ""
         elif offer == "free_moment":
             # The subject ("brain.py") says more about the stretch of work
-            # than the app ("VS Code") ever does, so it leads.
+            # than the app ("VS Code") ever does, so it leads. It is not
+            # repeated in the fact line, which already carries it.
             where = where_phrase(str(meta.get("process", "")),
                                  str(meta.get("subject", "")),
                                  str(meta.get("project", ""))).strip()
+            fact = ev.text if (not where or where in ev.text) else f"{ev.text} ({where})"
             prompt = (
-                f"[FREE MOMENT -- the user did not ask you anything. Fact: {ev.text}"
-                f"{' (' + where + ')' if where else ''}. Reply with ONE short sentence, under 25 "
+                f"[FREE MOMENT -- the user did not ask you anything. Fact: {fact}. "
+                f"Reply with ONE short sentence, under 25 "
                 f"words, that mentions what they were doing or for how long -- a natural remark "
                 f"from a colleague who noticed, e.g. about the stretch of work or a break. Do NOT "
                 f"ask how you can help, do NOT say 'hey there', do NOT offer assistance in "
@@ -389,12 +440,18 @@ class AmbientRuntime:
 
         pathway = "offer"
         if say is not None:
-            text = say[: self.cfg.max_response_chars]
+            text = clip_reply(say, self.cfg.max_response_chars)
         else:
             try:
                 image = ev.data if getattr(ev.modality, "value", ev.modality) == "vision" else None
-                response = self.ash.think(prompt, image=image, context=context)
-                text = (response.text or "").strip()[: self.cfg.max_response_chars]
+                if not to_ash and hasattr(self.ash, "volunteer"):
+                    # Something ASH is saying on its own initiative is not a
+                    # question from the user and must not be stored, routed
+                    # or learned from as one. See Brain.volunteer.
+                    response = self.ash.volunteer(prompt, context=context)
+                else:
+                    response = self.ash.think(prompt, image=image, context=context)
+                text = clip_reply(response.text, self.cfg.max_response_chars)
                 pathway = response.pathway.value
             except Exception:
                 logger.exception("Response cycle failed")
@@ -437,9 +494,13 @@ class AmbientRuntime:
             self.gate.note_user_turn()
             # The exchange is now open: the next sentence is read as the other
             # half of it, with no need to say the name again.
-            address.conversation.note_ash_spoke(self.clock())
+            address.conversation.note_ash_spoke(self.clock(), asked=text.rstrip().endswith("?"))
         elif self.reactions is not None:
             # Something was volunteered: watch what the user does with it.
+            # And if it asked something, the next "yeah" is an answer to it
+            # rather than a noise made to show someone is listening.
+            address.conversation.note_ash_spoke(
+                self.clock(), asked=bool(offer) or text.rstrip().endswith("?"))
             self.reactions.register(
                 getattr(decision, "kind", "") or ev.source, getattr(decision, "ctx", ""),
                 text, self.clock(),

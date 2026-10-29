@@ -119,6 +119,15 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         # config file hinted that there was a switch. Set false for the quiet
         # channel; the attention gate's budgets still ration what gets here.
         "speak_unprompted": True,
+        # Write the free-moment check-in with the language model instead of
+        # composing it from the facts. Off: it froze the whole ambient loop
+        # for a minute at a time and produced lines like "Just finished a bit
+        # of work in Opera, if you needed me."
+        "check_in_with_model": False,
+        # Minutes of continuous activity (in seconds) before a pause after it is
+        # worth a remark. 120 made "about 2 minutes of work" a four-times-an-hour
+        # thing to say aloud.
+        "flow_min_burst_s": 600.0,
     },
     "face": {
         "enabled": True,

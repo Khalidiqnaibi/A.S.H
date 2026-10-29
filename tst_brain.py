@@ -583,6 +583,61 @@ def main():
     check("the hard rules come before the style rules",
           cap.system.index("never do") < cap.system.index("How you talk"))
 
+    print("\n=== Volunteering is not a thing the user said ===")
+    # Every unprompted remark used to go through think() with an instruction
+    # written as though the user had said it, so memory held "<user>: [FREE
+    # MOMENT -- ...", the next real question was answered against it, and a
+    # bare "mm-hmm" got a recital of every window the user had switched
+    # between.
+    recorded = []
+
+    class Recording(StubRouter):
+        def route_utterance(self, text, source="chat", importance=0.5, actor=None):
+            recorded.append((actor, source, text))
+            return {"stored": True}
+
+    brain.memory.router = Recording()
+    cycles_before = brain.cycles
+    instruction = ("[FREE MOMENT -- the user did not ask you anything. "
+                   "Fact: 12 minutes on brain.py]")
+    said = brain.volunteer(instruction)
+    check("a volunteered remark comes back as a remark", bool((said.text or "").strip()), repr(said.text))
+    check("...and the instruction is stored nowhere as a thing anyone said",
+          all("FREE MOMENT" not in t for _a, _s, t in recorded), str(recorded)[:160])
+    check("...what is stored is what ASH said, as ASH",
+          any(a == "A.S.H" and t == said.text for a, _s, t in recorded), str(recorded)[:160])
+    check("...and nothing is attributed to the user", not any(a == "tester" for a, _s, _t in recorded))
+    check("working memory does not hold the instruction as the last turn",
+          "FREE MOMENT" not in brain.memory.working_block())
+    check("it was not a cognitive cycle: no routing, no learning, no reflex",
+          brain.cycles == cycles_before)
+
+    print("\n=== A tool that has already said it in words is not retold ===")
+    # Asked what it could see, ASH ran the screen tool, was handed a finished
+    # sentence, and had the model narrate it -- and the model, reading its own
+    # earlier episodes, put "I can't capture your screen as I don't have a
+    # graphical user interface" in front of the real answer.
+    SAID = "You're in VS Code, on brain.py in A.S.H. It's mostly text."
+    INTENTS["screen_view"] = ["on my screen", "capture the screen"]
+
+    def fresh_brain_with(result):
+        # A fresh brain, because the first question it is ever asked is novel
+        # and so deliberates: the slow path is the one that narrates.
+        b = build_brain(tempfile.mkdtemp())
+        b.system1.registry.add("screen", lambda q: result, ["screen_view"])
+        return b
+
+    r = fresh_brain_with({"ok": True, "verbatim": True, "result": SAID}).think(
+        "what is on my screen, capture the screen")
+    check("deliberated, as a novel question does", r.pathway == Pathway.SLOW,
+          f"{r.pathway.value} tool={r.tool_used}")
+    check("...and a verbatim result is spoken as it is, not retold", r.text == SAID, repr(r.text))
+
+    r = fresh_brain_with({"ok": True, "result": SAID}).think(
+        "what is on my screen, capture the screen")
+    check("an ordinary result on the same path is still phrased by the model",
+          r.pathway == Pathway.SLOW and r.text != SAID, f"{r.pathway.value}: {r.text!r}")
+
     print("\n=== Pathway mix over the session ===")
     for k, v in brain.status()["pathways"].items():
         if v:

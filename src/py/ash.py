@@ -328,6 +328,14 @@ class ASH:
             _print_log(f"  escalated from {t.escalated_from}: {'; '.join(t.notes[:2])}")
         return response
 
+    def volunteer(self, situation: str, context: str = ""):
+        """Say something unprompted. Unlike think(), nothing here pretends
+        the user said it: see Brain.volunteer."""
+        response = self.brain.volunteer(situation, context=context)
+        if response.text:
+            self._append_history("ash", response.text)
+        return response
+
     def run(self, query: str, image: Any = None) -> str:
         """Backward-compatible entry point. Returns just the response text."""
         return self.think(query, image=image).text

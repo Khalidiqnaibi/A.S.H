@@ -1,0 +1,24 @@
+{
+  "tag": "screen_view",
+  "description": "User wants ASH to look at their screen right now and say what is on it -- what window is open, what kind of thing it is, what it says.",
+  "action_class": "retrieval",
+  "reversible": true,
+  "patterns": [
+    "what do you see",
+    "what can you see",
+    "what do you see on my screen",
+    "what's on my screen",
+    "what's on the screen",
+    "what am I looking at",
+    "look at my screen",
+    "can you see my screen",
+    "capture the screen and tell me what you see",
+    "take a screenshot and tell me what's on it",
+    "describe my screen",
+    "read my screen",
+    "tell me what you see",
+    "what are you seeing right now",
+    "what's open on my screen"
+  ],
+  "tool": { "module": "tools.screen_tool", "function": "screen_view_tool" }
+}
