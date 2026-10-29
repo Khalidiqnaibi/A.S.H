@@ -43,11 +43,16 @@ def build_periphery(config: dict, tts_engine=None, registry=None) -> PeripheryRe
     s = config.get("sensors", {})
     a = config.get("actuators", {})
 
+    priv = config.get("privacy", {})
+    from .screen import set_private_content_protection
+    set_private_content_protection(priv.get("protect_private_content", True))
+
     win_cfg = s.get("active_window", {})
     window = ActiveWindowSensor(
         interval=win_cfg.get("interval", 3.0),
         enabled=win_cfg.get("enabled", True),
-        blocklist=(config.get("privacy", {}).get("blocked_apps") or None),
+        blocklist=(priv.get("blocked_apps") or None),
+        use_default_blocklist=priv.get("use_default_blocklist", True),
     )
     reg.add_sensor(window)
 

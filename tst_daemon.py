@@ -357,6 +357,45 @@ def main():
           is_self_window("A.S.H") and is_self_window("C:\\Windows\\cmd.exe - python  ashd.py")
           and not is_self_window("brain.py - A.S.H - Visual Studio Code"))
 
+    # The protections are general, and a switch for the one person who does
+    # not want them: everything ASH does is local.
+    from src.senses import build_periphery
+    from src.senses.screen import (DEFAULT_BLOCKLIST, looks_private,
+                                   set_private_content_protection)
+    from src.senses.base import PeripheryRegistry
+
+    sensor = ActiveWindowSensor(enabled=False)
+    check("by default the built-in blocklist is on", sensor.is_blocked("1Password - Vault"))
+    check("...and a user's own entry is added to it, not instead of it",
+          ActiveWindowSensor(enabled=False, blocklist=["my crm"]).is_blocked("1Password")
+          and ActiveWindowSensor(enabled=False, blocklist=["my crm"]).is_blocked("My CRM - Acme"))
+    off = ActiveWindowSensor(enabled=False, use_default_blocklist=False)
+    check("it can be turned off, and then nothing is blocked",
+          not any(off.is_blocked(b) for b in DEFAULT_BLOCKLIST))
+    check("...while the user's own entries still apply",
+          ActiveWindowSensor(enabled=False, blocklist=["my crm"],
+                             use_default_blocklist=False).is_blocked("My CRM"))
+
+    check("the chat/mail protection is on by default", is_private_content("x - Discord", "Discord.exe"))
+    set_private_content_protection(False)
+    check("...and off when asked: contents may be read",
+          not is_private_content("x - Discord", "Discord.exe")
+          and window_fields("brain notes - Gmail - Opera", "opera.exe")[0] == "brain notes")
+    check("...though a chat is still not worth a 'nice focus' remark",
+          looks_private("x - Discord", "Discord.exe"))
+    set_private_content_protection(True)
+
+    cfg = DEFAULT_CONFIG["privacy"]
+    check("both protections default to on in the config",
+          cfg["use_default_blocklist"] is True and cfg["protect_private_content"] is True)
+    reg = build_periphery({"privacy": {"use_default_blocklist": False,
+                                       "protect_private_content": False}},
+                          registry=PeripheryRegistry())
+    check("a config that turns them off is honoured end to end",
+          not reg.sensors["active_window"].is_blocked("1Password")
+          and not is_private_content("x - Discord", "Discord.exe"))
+    set_private_content_protection(True)
+
     # A title with decoration spoken aloud read "speaker-high-volume, script
     # capital G...". NFKC folds the fonts back; symbols are dropped.
     spoken = clean_title("\U0001F50A \U0001D4A2\U0001D438\U0001D4C3 \u2461 | Server - Discord")

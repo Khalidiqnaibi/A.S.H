@@ -101,14 +101,35 @@ PRIVATE_CONTENT_PROCESSES = [
 ]
 
 
-def is_private_content(title: str, process: str = "") -> bool:
-    """True where the title or the process says this window is a chat or a
-    mailbox. Substring on titles, stem on processes."""
+def looks_private(title: str, process: str = "") -> bool:
+    """Whether the title or the process says this window is a chat or a
+    mailbox, regardless of any privacy setting. Substring on titles, stem on
+    processes. Used where it is about what is worth *saying* (no "nice focus
+    in Discord"), not about what may be read."""
     low = (title or "").lower()
     if any(t in low for t in PRIVATE_CONTENT_TITLES):
         return True
     stem = re.sub(r"\.(?:exe|app|bin)$", "", (process or "").strip().lower())
     return bool(stem) and any(stem == p or stem.startswith(p) for p in PRIVATE_CONTENT_PROCESSES)
+
+
+# Whether chat and mail contents are withheld at all. On by default, because
+# ASH is meant to be run by people other than its author, some of whom share
+# a machine, sit in calls, or just would rather it did not read their DMs.
+# Everything ASH does is local, so for someone who does not mind it reading
+# their own screen it is a switch, privacy.protect_private_content.
+_PROTECT_PRIVATE_CONTENT = True
+
+
+def set_private_content_protection(on: bool) -> None:
+    global _PROTECT_PRIVATE_CONTENT
+    _PROTECT_PRIVATE_CONTENT = bool(on)
+
+
+def is_private_content(title: str, process: str = "") -> bool:
+    """True where this is a chat or a mailbox AND the protection is on: no
+    capture, no OCR, no subject or project taken from the title."""
+    return _PROTECT_PRIVATE_CONTENT and looks_private(title, process)
 
 
 # ASH's own windows. Reading them was a feedback loop: the 12:44 and 12:49
@@ -257,9 +278,16 @@ class ActiveWindowSensor(Sensor):
     modality = Modality.TEXT
 
     def __init__(self, interval: Optional[float] = None, enabled: bool = True,
-                 blocklist: Optional[List[str]] = None):
+                 blocklist: Optional[List[str]] = None,
+                 use_default_blocklist: bool = True):
         self._backend: Optional[str] = None
-        self.blocklist = [b.lower() for b in (blocklist or DEFAULT_BLOCKLIST)]
+        # The user's own entries are added to the built-in list, not instead of
+        # it: it used to be `blocklist or DEFAULT_BLOCKLIST`, so naming one app
+        # silently dropped all 36 defaults. The built-ins are the general
+        # protection for whoever runs ASH, and are off only by saying so
+        # (privacy.use_default_blocklist) -- an empty list is not "off".
+        entries = list(blocklist or []) + (DEFAULT_BLOCKLIST if use_default_blocklist else [])
+        self.blocklist = list(dict.fromkeys(b.lower() for b in entries))
         self._last_title: Optional[str] = None
         self._since: float = time.time()
         # Why the last rect() lookup came back empty. Cropping to the
@@ -416,7 +444,7 @@ class ActiveWindowSensor(Sensor):
             persistable=not blocked,
             meta={"process": proc, "subject": subject, "project": project,
                   "blocked": blocked, "dwell_s": round(dwell, 1),
-                  "private": is_private_content(title, proc)},
+                  "private": looks_private(title, proc)},
         )]
 
 

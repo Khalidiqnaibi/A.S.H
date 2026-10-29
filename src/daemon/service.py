@@ -107,7 +107,17 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "frame_days": 2,
         "audio_days": 0,
         "require_local_asr": True,
+        # Your own entries, added to the built-in ones below.
         "blocked_apps": [],
+        # The general protections, on because ASH is meant to be run by people
+        # other than its author. Everything here is local, so someone who does
+        # not mind ASH reading their own screen can turn either off:
+        #   use_default_blocklist     passwords, banking, calls... : no capture,
+        #                             and the title is redacted everywhere
+        #   protect_private_content   chat and mail apps: no capture, no OCR,
+        #                             and no file/subject taken from the title
+        "use_default_blocklist": True,
+        "protect_private_content": True,
     },
     "runtime": {
         "tick_seconds": 1.0,
