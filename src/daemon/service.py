@@ -163,6 +163,17 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "kinds": {"person": True, "role": True, "between": True, "term": True,
                   "fact": True, "ambiguous": True, "intent": True},
     },
+    # A free moment (a pause after real work) can hold several things: closing
+    # a gap (see wondering), a light joke, asking how the user is, a note on how
+    # ASH is running. They compete on value x fit; this is their shared budget.
+    "free_moments": {
+        "enabled": True,
+        "min_gap_s": 600,
+        "max_per_hour": 2,
+        "disabled": [],          # by name: gap_closure joke mood_check system_assessment
+        "jokes": True,
+        "mood_check": True,
+    },
     "control": {"enabled": True, "host": "127.0.0.1", "port": 8787},
     "ui": {
         "enabled": True,

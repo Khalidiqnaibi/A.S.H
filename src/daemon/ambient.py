@@ -51,6 +51,7 @@ from src.senses.base import Modality, SensorEvent
 from .attention import AttentionGate, Disposition
 from .journal import Journal
 from .privacy import PrivacyPolicy
+from .freemoment import FreeMoments, ProviderActivity, default_moments
 from .wondering import Environment, Knowledge, Wonderer, WonderingConfig
 from .social import (FlowDetector, ReactionTracker, SocialLearner,
                      compose_check_in, is_generic_checkin, where_phrase)
@@ -130,6 +131,10 @@ class AmbientConfig:
     wonder_cfg: Optional[Dict[str, Any]] = None
     wonder_path: Optional[str] = None        # state/wonder/wonders.json
     knowledge_path: Optional[str] = None     # state/wonder/knowledge.json
+    # Free moments: choose among gap closure, a joke, a mood check, a note on
+    # how ASH is running... Needs wonder for the first. Off on a bare runtime.
+    moments: bool = False
+    moments_cfg: Optional[Dict[str, Any]] = None
 
 
 class AmbientRuntime:
@@ -192,6 +197,17 @@ class AmbientRuntime:
                 wc, Knowledge(self.cfg.knowledge_path, entity_manager=ent),
                 path=self.cfg.wonder_path, clock=lambda: self.clock(),
                 scrub=self.privacy.scrub)
+        # Free moments: what to do with a pause, chosen among several things.
+        self.moments: Optional[FreeMoments] = None
+        self._moment_inflight: Optional[str] = None
+        self._errors_told = 0
+        if self.cfg.moments:
+            mc = dict(self.cfg.moments_cfg or {})
+            self.moments = default_moments(
+                mc, wonderer=self.wonder, clock=lambda: self.clock(),
+                jokes=bool(mc.get("jokes", True)), mood_check=bool(mc.get("mood_check", True)))
+            self.moments.register(ProviderActivity(
+                "system_assessment", self._system_note, cooldown_s=6 * 3600.0, weight=0.9))
         self.stats["wonders_asked"] = 0
         self._reaction = None            # the reaction the event being handled carried
         self.stats["offers"] = 0
@@ -349,15 +365,60 @@ class AmbientRuntime:
                 if (offer.meta or {}).get("offer") == "free_moment":
                     # A pause after real work: the moment for whatever has
                     # been saved up. A question beats "you worked a while".
-                    self._free_until = now + (self.wonder.cfg.free_moment_s if self.wonder else 0)
-                    if self._wonder_step(now, idle_s):
+                    self._free_until = now + (self.wonder.cfg.free_moment_s if self.wonder else 180.0)
+                    if self._moment_step(now, idle_s) or self._wonder_step(now, idle_s):
                         continue
                 self.stats["offers"] += 1
                 self.submit(offer)
-            self._wonder_step(now, idle_s)
+            if not self._moment_step(now, idle_s):
+                self._wonder_step(now, idle_s)
         except Exception:
             self.stats["errors"] += 1
             logger.exception("Social step failed")
+
+    # ------------------------------------------------------------------
+    # Free moments
+    # ------------------------------------------------------------------
+    def _system_note(self, env, now):
+        """ASH's own state, as a thing to say in a free moment: only when
+        something went wrong since it was last mentioned."""
+        n = int(self.stats.get("errors", 0))
+        if n <= self._errors_told:
+            return None
+        self._errors_told = n
+        return ("I ran into some internal errors recently. Nothing you need to do, "
+                "but the logs have the details.", 0.5)
+
+    def _moment_step(self, now: float, idle_s: Optional[float]) -> bool:
+        """In a free moment, pick the best thing to do with it and offer it.
+        True if something was submitted."""
+        m = self.moments
+        if m is None or self._moment_inflight is not None or self._wonder_inflight is not None:
+            return False
+        try:
+            env = self._wonder_env(now, idle_s)
+            c = m.pick(env, now)
+            if c is None:
+                return False
+            q = c.data.get("wonder")
+            if q is not None:
+                self._wonder_inflight = q.id
+                self.stats["wonders_asked"] += 1
+                meta = {"offer": "wonder", "offer_strength": round(0.7 + 0.15 * q.urgency, 3),
+                        "say": c.text, "wonder_id": q.id, "topic": q.kind,
+                        "accept_context": f"You had just asked the user: {c.text}"}
+            else:
+                self._moment_inflight = c.activity
+                meta = {"offer": "moment", "offer_strength": round(0.5 + 0.2 * c.score, 3),
+                        "say": c.text, "moment": c.activity, "topic": c.activity,
+                        "accept_context": f"You had just said: {c.text}"}
+            self.submit(SensorEvent(source="flow", modality=Modality.TEXT, text=c.text,
+                                    salience=0.5, ts=now, persistable=False, meta=meta))
+            return True
+        except Exception:
+            self.stats["errors"] += 1
+            logger.exception("Free-moment step failed")
+            return False
 
     # ------------------------------------------------------------------
     # Wondering
@@ -368,6 +429,8 @@ class AmbientRuntime:
             mood = self.mood_fn() if self.mood_fn else None
         except Exception:
             logger.exception("mood_fn failed")
+        if mood is None and self.moments is not None:
+            mood = self.moments.mood(now)       # what a mood check last heard
         flow = self.flow
         return Environment(
             idle_s=idle_s, muted=bool(self.gate.muted),
@@ -487,6 +550,16 @@ class AmbientRuntime:
                     self._wonder_say(ev, rep)
                 return
 
+        # An answer to a free-moment remark (how are you?) is spent the same way.
+        if self.moments is not None and getattr(ev, "source", "") != "flow":
+            try:
+                said = self.moments.hear(getattr(ev, "text", "") or "", now)
+            except Exception:
+                said = None
+            if said:
+                self._wonder_say(ev, type("R", (), {"say": said, "outcome": "moment"})())
+                return
+
         novelty = 0.5
         try:
             drives = self.brain.homeostasis.drives
@@ -496,6 +569,9 @@ class AmbientRuntime:
             logger.exception("Attention gate failed; defaulting to observe")
             decision = None
 
+        if (ev.meta or {}).get("offer") == "moment" and (
+                decision is None or decision.disposition != Disposition.RESPOND):
+            self._moment_inflight = None         # not let through: nothing was said
         wid = (ev.meta or {}).get("wonder_id") if (ev.meta or {}).get("offer") == "wonder" else None
         if wid and (decision is None or decision.disposition != Disposition.RESPOND):
             # The gate would not let the question through: keep it, try later.
@@ -530,6 +606,8 @@ class AmbientRuntime:
         finally:
             if (ev.meta or {}).get("offer") == "wonder":
                 self._wonder_inflight = None
+            elif (ev.meta or {}).get("offer") == "moment":
+                self._moment_inflight = None
 
     def _respond(self, ev, decision):
         """Full cognitive cycle, with ambient context attached."""
@@ -558,7 +636,7 @@ class AmbientRuntime:
         elif offer == "stuck_help" and meta.get("say"):
             say = str(meta["say"])
             prompt = ""
-        elif offer == "wonder" and meta.get("say"):
+        elif offer in ("wonder", "moment") and meta.get("say"):
             say = str(meta["say"])
             prompt = ""
         elif offer == "free_moment" and not self.cfg.check_in_with_model:
@@ -650,6 +728,12 @@ class AmbientRuntime:
             self._wonder_inflight = None
             if self.wonder is not None:
                 self.wonder.mark_asked(str(meta.get("wonder_id", "")), self.clock())
+            if self.moments is not None:
+                self.moments.mark_spoken("gap_closure", self.clock())
+        elif offer == "moment":
+            self._moment_inflight = None
+            if self.moments is not None:
+                self.moments.mark_spoken(str(meta.get("moment", "")), self.clock())
 
         if to_ash:
             self.gate.note_user_turn()
@@ -833,6 +917,7 @@ class AmbientRuntime:
                         "reactions": self.reactions.status() if self.reactions else None,
                         "flow": self.flow.status() if self.flow else None}),
             "wondering": self.wonder.status() if self.wonder else None,
+            "free_moments": self.moments.status() if self.moments else None,
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),
             "periphery": self.periphery.status(),

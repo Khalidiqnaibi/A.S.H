@@ -275,6 +275,8 @@ def main() -> int:
                 flow_min_burst_s=rcfg.get("flow_min_burst_s", 600.0),
                 wonder=bool(cfg.get("wondering", {}).get("enabled", True)),
                 wonder_cfg=cfg.get("wondering", {}),
+                moments=bool(cfg.get("free_moments", {}).get("enabled", True)),
+                moments_cfg=cfg.get("free_moments", {}),
                 wonder_path=os.path.join(os.getcwd(), "state", "wonder", "wonders.json"),
                 knowledge_path=os.path.join(os.getcwd(), "state", "wonder", "knowledge.json"),
                 social_path=os.path.join(
