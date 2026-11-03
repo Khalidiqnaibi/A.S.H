@@ -47,9 +47,11 @@ from dataclasses import dataclass
 from typing import Any, Callable, Deque, Dict, List, Optional
 
 from src.senses import address
+from src.senses.base import Modality, SensorEvent
 from .attention import AttentionGate, Disposition
 from .journal import Journal
 from .privacy import PrivacyPolicy
+from .wondering import Environment, Knowledge, Wonderer, WonderingConfig
 from .social import (FlowDetector, ReactionTracker, SocialLearner,
                      compose_check_in, is_generic_checkin, where_phrase)
 
@@ -121,6 +123,13 @@ class AmbientConfig:
     # of work. (A watchdog restart is not one of the costs; the check-in is
     # composed now, with no model call to stall the loop.)
     flow_min_burst_s: float = 600.0
+    # Wondering: notice what is not known and ask, at a good moment. Off here
+    # so a bare AmbientRuntime behaves as it always did; the daemon turns it
+    # on from daemon.json ("wondering").
+    wonder: bool = False
+    wonder_cfg: Optional[Dict[str, Any]] = None
+    wonder_path: Optional[str] = None        # state/wonder/wonders.json
+    knowledge_path: Optional[str] = None     # state/wonder/knowledge.json
 
 
 class AmbientRuntime:
@@ -168,6 +177,22 @@ class AmbientRuntime:
             self.gate.learner = self.learner
             self.learner.clock = lambda: self.clock()
             self.reactions = ReactionTracker(self.learner, window_s=self.cfg.reaction_window_s)
+        # Wondering: gaps noticed in what the user says, kept until a good moment.
+        self.wonder: Optional[Wonderer] = None
+        self.mood_fn: Optional[Callable[[], Optional[float]]] = None   # -1..1, or None
+        self._free_until = 0.0
+        self._wonder_inflight: Optional[str] = None
+        if self.cfg.wonder:
+            wc = WonderingConfig.from_dict(self.cfg.wonder_cfg)
+            ent = getattr(self.ash, "entity_memory", None)
+            user = str(getattr(self.brain, "user", "") or "")
+            if user and user.lower() not in {x.lower() for x in wc.ignore_names}:
+                wc.ignore_names = tuple(wc.ignore_names) + (user,)
+            self.wonder = Wonderer(
+                wc, Knowledge(self.cfg.knowledge_path, entity_manager=ent),
+                path=self.cfg.wonder_path, clock=lambda: self.clock(),
+                scrub=self.privacy.scrub)
+        self.stats["wonders_asked"] = 0
         self._reaction = None            # the reaction the event being handled carried
         self.stats["offers"] = 0
         self.stats["no_reply"] = 0
@@ -313,18 +338,125 @@ class AmbientRuntime:
         try:
             if self.reactions is not None:
                 self.reactions.expire(now)
-            if self.flow is None:
-                return
             if idle_s is None:
                 idle_s = self._idle_seconds()
+            if self.flow is None:
+                self._wonder_step(now, idle_s)
+                return
             if idle_s is None:
                 return                   # no way to tell when they pause: say nothing
             for offer in self.flow.poll(idle_s, now):
+                if (offer.meta or {}).get("offer") == "free_moment":
+                    # A pause after real work: the moment for whatever has
+                    # been saved up. A question beats "you worked a while".
+                    self._free_until = now + (self.wonder.cfg.free_moment_s if self.wonder else 0)
+                    if self._wonder_step(now, idle_s):
+                        continue
                 self.stats["offers"] += 1
                 self.submit(offer)
+            self._wonder_step(now, idle_s)
         except Exception:
             self.stats["errors"] += 1
             logger.exception("Social step failed")
+
+    # ------------------------------------------------------------------
+    # Wondering
+    # ------------------------------------------------------------------
+    def _wonder_env(self, now: float, idle_s: Optional[float]) -> Environment:
+        mood = None
+        try:
+            mood = self.mood_fn() if self.mood_fn else None
+        except Exception:
+            logger.exception("mood_fn failed")
+        flow = self.flow
+        return Environment(
+            idle_s=idle_s, muted=bool(self.gate.muted),
+            quiet_hours=bool(self.gate._in_quiet_hours(now)), paused=bool(self.privacy.paused),
+            conversation_open=address.conversation.openness(now) > 0.02,
+            plan_active=self._plan_active(),
+            free_moment=now < self._free_until, mood=mood,
+            activity=(f"{getattr(flow, 'subject', '')} {getattr(flow, 'process', '')}".strip()
+                      if flow is not None else ""))
+
+    def _wonder_step(self, now: float, idle_s: Optional[float]) -> bool:
+        """Submit the next question as an offer, if the moment allows. True if
+        one was submitted."""
+        w = self.wonder
+        if w is None or self._wonder_inflight is not None:
+            return False
+        try:
+            q = w.next_question(self._wonder_env(now, idle_s), now)
+            if q is None:
+                return False
+            text = w.render(q, now)
+            self._wonder_inflight = q.id
+            self.stats["wonders_asked"] += 1
+            self.submit(SensorEvent(
+                source="flow", modality=Modality.TEXT, text=text, salience=0.6, ts=now,
+                persistable=False,
+                meta={"offer": "wonder", "offer_strength": round(0.7 + 0.15 * q.urgency, 3),
+                      "say": text, "wonder_id": q.id, "topic": q.kind,
+                      "accept_context": f"You had just asked the user: {text}"}))
+            return True
+        except Exception:
+            self.stats["errors"] += 1
+            logger.exception("Wonder step failed")
+            return False
+
+    def _wonder_hear(self, ev, now: float):
+        """Read a user utterance. Returns the Reply if the event is spent."""
+        w = self.wonder
+        if w is None:
+            return None
+        meta = getattr(ev, "meta", None) or {}
+        try:
+            if meta.get("dismissed"):
+                return w.hear("", now, dismissed=True)
+            if getattr(ev, "source", "") == "flow" or not w.hears(getattr(ev, "source", "")):
+                return None
+            text = getattr(ev, "text", "") or ""
+            rep = w.hear(text, now, addressed=bool(getattr(ev, "addressed", False)))
+            if not rep.consumed:
+                # Not an answer: learn what it states, note what it leaves open.
+                rep.learned = w.observe(text, ev.source, now).learned
+            self._wonder_learn(rep.learned)
+            if rep.consumed:
+                self._wonder_reaction(rep, now)
+            return rep
+        except Exception:
+            logger.exception("Wondering failed on an utterance")
+            return None
+
+    def _wonder_reaction(self, rep, now: float):
+        """The user's reply to a question is a reaction to it. An addressed
+        reply was already read by the reaction tracker; one heard without
+        the name was not, and would otherwise be counted as silence."""
+        rt = self.reactions
+        if rt is None or rep.outcome == "followup":
+            return
+        if rt.pending and rt.pending[-1].kind == "wonder":
+            outcome = {"answered": "engaged", "unclear": "engaged", "deferred": "deferred",
+                       }.get(rep.outcome, "rejected")
+            rt._resolve(rt.pending.pop(), outcome, now)
+        if rep.outcome in ("muted", "snoozed", "dismissed") and self.learner is not None:
+            self.learner.snooze("wonder", now)
+
+    def _wonder_learn(self, sentences):
+        """What was learned also goes to the concept network, as a perception."""
+        for sent in sentences or []:
+            try:
+                self.brain.observe(text=sent, source="wonder", salience=0.6)
+            except Exception:
+                logger.exception("brain.observe failed on a learned fact")
+
+    def _wonder_say(self, ev, rep):
+        try:
+            self.response_sink(rep.say, {"addressed": True, "source": "wonder",
+                                         "attention": None, "pathway": "wonder"})
+            address.conversation.note_ash_spoke(self.clock(), asked=rep.outcome == "followup")
+            self.gate.note_user_turn()
+        except Exception:
+            logger.exception("Response sink failed")
 
     def _handle(self, ev):
         self.journal.append(ev)
@@ -345,6 +477,16 @@ class AmbientRuntime:
             except Exception:
                 logger.exception("Reading the reaction failed")
 
+        # A reply to a question ASH asked, or a request about the questions
+        # ("not now", "stop asking"), is spent here and not run as a new query.
+        if self.wonder is not None:
+            rep = self._wonder_hear(ev, now)
+            if rep is not None and rep.consumed:
+                self.stats["wonders_answered"] = self.stats.get("wonders_answered", 0) + 1
+                if rep.say:
+                    self._wonder_say(ev, rep)
+                return
+
         novelty = 0.5
         try:
             drives = self.brain.homeostasis.drives
@@ -353,6 +495,13 @@ class AmbientRuntime:
         except Exception:
             logger.exception("Attention gate failed; defaulting to observe")
             decision = None
+
+        wid = (ev.meta or {}).get("wonder_id") if (ev.meta or {}).get("offer") == "wonder" else None
+        if wid and (decision is None or decision.disposition != Disposition.RESPOND):
+            # The gate would not let the question through: keep it, try later.
+            self._wonder_inflight = None
+            if self.wonder is not None:
+                self.wonder.note_held(wid, now)
 
         if decision is None or decision.disposition == Disposition.IGNORE:
             self.stats["ignored"] += 1
@@ -376,7 +525,11 @@ class AmbientRuntime:
         # RESPOND
         self.stats["responded"] += 1
         self._last_activity = time.time()
-        self._respond(ev, decision)
+        try:
+            self._respond(ev, decision)
+        finally:
+            if (ev.meta or {}).get("offer") == "wonder":
+                self._wonder_inflight = None
 
     def _respond(self, ev, decision):
         """Full cognitive cycle, with ambient context attached."""
@@ -403,6 +556,9 @@ class AmbientRuntime:
                 context = (f"{context}\n[{react.offer.accept_context} "
                            f"The user's message is their answer to that.]").strip()
         elif offer == "stuck_help" and meta.get("say"):
+            say = str(meta["say"])
+            prompt = ""
+        elif offer == "wonder" and meta.get("say"):
             say = str(meta["say"])
             prompt = ""
         elif offer == "free_moment" and not self.cfg.check_in_with_model:
@@ -489,6 +645,11 @@ class AmbientRuntime:
             })
         except Exception:
             logger.exception("Response sink failed")
+
+        if offer == "wonder":
+            self._wonder_inflight = None
+            if self.wonder is not None:
+                self.wonder.mark_asked(str(meta.get("wonder_id", "")), self.clock())
 
         if to_ash:
             self.gate.note_user_turn()
@@ -671,6 +832,7 @@ class AmbientRuntime:
             "social": ({"learner": self.learner.status() if self.learner else None,
                         "reactions": self.reactions.status() if self.reactions else None,
                         "flow": self.flow.status() if self.flow else None}),
+            "wondering": self.wonder.status() if self.wonder else None,
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),
             "periphery": self.periphery.status(),

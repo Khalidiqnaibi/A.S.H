@@ -273,6 +273,10 @@ def main() -> int:
                 flow_offers=rcfg.get("flow_offers", True),
                 check_in_with_model=rcfg.get("check_in_with_model", False),
                 flow_min_burst_s=rcfg.get("flow_min_burst_s", 600.0),
+                wonder=bool(cfg.get("wondering", {}).get("enabled", True)),
+                wonder_cfg=cfg.get("wondering", {}),
+                wonder_path=os.path.join(os.getcwd(), "state", "wonder", "wonders.json"),
+                knowledge_path=os.path.join(os.getcwd(), "state", "wonder", "knowledge.json"),
                 social_path=os.path.join(
                     os.environ.get("ASH_BRAIN_STATE", os.path.join(os.getcwd(), "state", "brain")),
                     "social.json"),

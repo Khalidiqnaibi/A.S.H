@@ -14,3 +14,6 @@ data/embeddings_intents.pkl
 /state/ui-window/
 /state/ui.json
 /state/brain/requests.npz
+
+# what ASH is wondering about, and what it was told
+/state/wonder/

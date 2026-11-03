@@ -146,6 +146,23 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "animations_dir": "animations",
         "source": "drives",      # drives | emotions
     },
+    # Wondering: ASH notices what it does not know (who "my brother" is, what
+    # an acronym means) and asks. Urgent gaps may be asked at an ordinary
+    # pause; the rest are saved for a free moment. Master switch: enabled.
+    "wondering": {
+        "enabled": True,
+        "max_per_hour": 2,
+        "max_per_day": 8,
+        "min_gap_s": 600,
+        "subject_cooldown_s": 21600,
+        "expire_s": 259200,
+        "urgent_at": 0.75,
+        "keep_evidence": True,
+        "sources": ["console", "microphone", "mic"],   # add "screen" to wonder about on-screen text
+        "ignore_names": [],
+        "kinds": {"person": True, "role": True, "between": True, "term": True,
+                  "fact": True, "ambiguous": True, "intent": True},
+    },
     "control": {"enabled": True, "host": "127.0.0.1", "port": 8787},
     "ui": {
         "enabled": True,
@@ -357,13 +374,45 @@ class ControlServer:
                 return {"ok": False, "error": f"no peripheral named {arg!r}"}
             target.enable() if cmd == "enable" else target.disable()
             return {"ok": True, "peripheral": target.status()}
+        if cmd in ("wonders", "wonder"):
+            return self._wonders(arg if cmd == "wonder" else "")
         if cmd == "shutdown":
             threading.Thread(target=rt.stop, daemon=True).start()
             return {"ok": True, "stopping": True}
         return {"ok": False, "error": f"unknown command {cmd!r}",
                 "commands": ["status", "pause", "resume", "mute", "unmute", "say",
-                             "why", "history", "sleep", "rollup", "sensors", "face",
+                             "why", "history", "sleep", "rollup", "sensors", "face", "wonders", "wonder",
                              "enable", "disable", "simulate", "shutdown"]}
+
+    # ------------------------------------------------------------------
+    def _wonders(self, arg: str) -> Dict[str, Any]:
+        """wonders                list what ASH is wondering about
+        wonder on|off          master switch (kept across restarts)
+        wonder dismiss <id>    drop one
+        wonder snooze [min]    no questions for a while
+        wonder clear           drop everything pending"""
+        w = getattr(self.runtime, "wonder", None)
+        if w is None:
+            return {"ok": False, "error": "wondering is not enabled (daemon.json: wondering.enabled)"}
+        parts = arg.split()
+        sub = parts[0].lower() if parts else ""
+        if sub in ("on", "off"):
+            w.set_enabled(sub == "on")
+        elif sub == "dismiss" and len(parts) > 1:
+            if not w.dismiss(parts[1]):
+                return {"ok": False, "error": f"no open wonder {parts[1]!r}"}
+        elif sub == "snooze":
+            try:
+                mins = float(parts[1]) if len(parts) > 1 else None
+            except ValueError:
+                mins = None
+            w.snooze_all(None if mins is None else mins * 60)
+        elif sub == "clear":
+            w.clear()
+        elif sub:
+            return {"ok": False, "error": f"unknown wonder command {sub!r}",
+                    "commands": ["on", "off", "dismiss <id>", "snooze [min]", "clear"]}
+        return {"ok": True, "report": w.report(), "pending": w.pending(), "status": w.status()}
 
     # ------------------------------------------------------------------
     def _simulate(self, arg: str) -> Dict[str, Any]:

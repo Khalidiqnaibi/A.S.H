@@ -12,6 +12,7 @@ from .attention import AttentionGate, Disposition, AttentionDecision
 from .journal import Journal
 from .privacy import PrivacyPolicy
 from .ambient import AmbientRuntime, AmbientConfig
+from .wondering import Wonderer, Knowledge, WonderingConfig, Environment
 from .social import SocialLearner, ReactionTracker, FlowDetector
 from .service import (
     load_config, DEFAULT_CONFIG, SingleInstance, ControlServer,
@@ -21,7 +22,7 @@ from .service import (
 __all__ = [
     "AttentionGate", "Disposition", "AttentionDecision", "Journal",
     "PrivacyPolicy", "AmbientRuntime", "AmbientConfig", "load_config",
-    "SocialLearner", "ReactionTracker", "FlowDetector",
+    "Wonderer", "Knowledge", "WonderingConfig", "Environment", "SocialLearner", "ReactionTracker", "FlowDetector",
     "DEFAULT_CONFIG", "SingleInstance", "ControlServer", "control_client",
     "setup_logging", "Watchdog", "install_signal_handlers",
 ]

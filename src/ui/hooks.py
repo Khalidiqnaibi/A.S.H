@@ -29,13 +29,14 @@ from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger("ash.ui.hooks")
 
-OFFER_KINDS = ("free_moment", "stuck_help")
+OFFER_KINDS = ("free_moment", "stuck_help", "wonder")
 SPEECH_CHARS_PER_S = 14.0          # Kokoro at speed 1.0, roughly
 REOPEN_MIN_S = 30.0                # never pop the window more often than this
 PRESENCE_S = 300.0                 # reading the console counts as being here this long
 QUICK_REPLIES = {
     "free_moment": ["Sure, let's chat", "Later", "No thanks"],
     "stuck_help": ["Yes, help me", "Not now", "No thanks"],
+    "wonder": ["Not now", "Stop asking about that"],
 }
 
 
