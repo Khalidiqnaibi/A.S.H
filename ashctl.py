@@ -20,6 +20,8 @@ ashctl.py -- talk to a running ASH daemon.
     python ashctl.py wonder off|on         # master switch
     python ashctl.py wonder dismiss <id>   # drop one question
     python ashctl.py wonder snooze 120     # no questions for 2 hours
+    python ashctl.py activity              # what it has learned you do, and what it connects to
+    python ashctl.py activity forget       # clear it
     python ashctl.py shutdown
 
     python ashctl.py simulate mic hey ash what time is it

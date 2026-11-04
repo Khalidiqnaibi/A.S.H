@@ -51,6 +51,7 @@ from src.senses.base import Modality, SensorEvent
 from .attention import AttentionGate, Disposition
 from .journal import Journal
 from .privacy import PrivacyPolicy
+from .activity import ActivityConfig, ActivityMemory
 from .freemoment import FreeMoments, ProviderActivity, default_moments
 from .wondering import Environment, Knowledge, Wonderer, WonderingConfig
 from .social import (FlowDetector, ReactionTracker, SocialLearner,
@@ -135,6 +136,12 @@ class AmbientConfig:
     # how ASH is running... Needs wonder for the first. Off on a bare runtime.
     moments: bool = False
     moments_cfg: Optional[Dict[str, Any]] = None
+    # Activity memory: what the user does, kept like a conversation, with the
+    # parts that connect to something known saved and asked about at a free
+    # moment (activity.py). Off on a bare runtime; the daemon turns it on.
+    activity: bool = False
+    activity_cfg: Optional[Dict[str, Any]] = None
+    activity_path: Optional[str] = None      # state/activity/topics.json
 
 
 class AmbientRuntime:
@@ -197,6 +204,16 @@ class AmbientRuntime:
                 wc, Knowledge(self.cfg.knowledge_path, entity_manager=ent),
                 path=self.cfg.wonder_path, clock=lambda: self.clock(),
                 scrub=self.privacy.scrub)
+        # Activity memory: what the user does, kept like a conversation.
+        self.activity: Optional[ActivityMemory] = None
+        if self.cfg.activity:
+            self.activity = ActivityMemory(
+                ActivityConfig.from_dict(self.cfg.activity_cfg), path=self.cfg.activity_path,
+                entities=getattr(self.ash, "entity_memory", None),
+                episodic=getattr(self.ash, "episodic_memory", None),
+                wonder=self.wonder, knowledge=(self.wonder.kb if self.wonder else None),
+                user=str(getattr(self.brain, "user", "") or ""),
+                clock=lambda: self.clock(), scrub=self.privacy.scrub)
         # Free moments: what to do with a pause, chosen among several things.
         self.moments: Optional[FreeMoments] = None
         self._moment_inflight: Optional[str] = None
@@ -254,6 +271,14 @@ class AmbientRuntime:
         if self._thread:
             self._thread.join(timeout=timeout)
         self.journal.flush()
+        if self.activity is not None:
+            try:
+                # A stretch still open is real time the user spent: close it
+                # where it last had them, and write the file.
+                self.activity.tick(self.clock(), idle_s=1e9)
+                self.activity.save(force=True)
+            except Exception:
+                logger.exception("Could not flush activity memory")
         self.periphery.close_all()
         logger.info("Ambient runtime stopped. %s", self.stats)
 
@@ -356,6 +381,11 @@ class AmbientRuntime:
                 self.reactions.expire(now)
             if idle_s is None:
                 idle_s = self._idle_seconds()
+            if self.activity is not None:
+                try:
+                    self.activity.tick(now, idle_s)
+                except Exception:
+                    logger.exception("Activity memory failed on a tick")
             if self.flow is None:
                 self._wonder_step(now, idle_s)
                 return
@@ -534,6 +564,11 @@ class AmbientRuntime:
         self._reaction = None
         if self.flow is not None:
             self.flow.observe(ev, now)
+        if self.activity is not None:
+            try:
+                self.activity.observe(ev, now)
+            except Exception:
+                logger.exception("Activity memory failed on an event")
         if self.reactions is not None:
             try:
                 self._reaction = self.reactions.on_user_event(ev, now)
@@ -917,6 +952,7 @@ class AmbientRuntime:
                         "reactions": self.reactions.status() if self.reactions else None,
                         "flow": self.flow.status() if self.flow else None}),
             "wondering": self.wonder.status() if self.wonder else None,
+            "activity": self.activity.status() if self.activity else None,
             "free_moments": self.moments.status() if self.moments else None,
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),

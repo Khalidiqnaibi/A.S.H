@@ -17,3 +17,4 @@ data/embeddings_intents.pkl
 
 # what ASH is wondering about, and what it was told
 /state/wonder/
+/state/activity/

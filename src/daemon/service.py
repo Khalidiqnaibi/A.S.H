@@ -166,6 +166,21 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # A free moment (a pause after real work) can hold several things: closing
     # a gap (see wondering), a light joke, asking how the user is, a note on how
     # ASH is running. They compete on value x fit; this is their shared budget.
+    # What the user does, kept like a conversation: a sentence per real stretch
+    # of work in episodic memory, the parts that connect to something already
+    # known saved as entities, and the ones that stay unexplained asked about
+    # at a free moment (see activity.py). Reads window title fields and a few
+    # keywords from the screen reader, never the text; withheld windows give
+    # it nothing to learn from.
+    "activity": {
+        "enabled": True,
+        "remember": True,        # the sentence per stretch
+        "ask": True,             # wonder about connected, unexplained topics
+        "keep_terms": True,      # keep keywords read off the screen
+        "min_stretch_s": 180.0,  # shorter than this is a glance
+        "episode_min_s": 300.0,  # a stretch this long earns a sentence
+        "max_episodes_per_hour": 6,
+    },
     "free_moments": {
         "enabled": True,
         "min_gap_s": 600,
@@ -387,12 +402,21 @@ class ControlServer:
             return {"ok": True, "peripheral": target.status()}
         if cmd in ("wonders", "wonder"):
             return self._wonders(arg if cmd == "wonder" else "")
+        if cmd == "activity":
+            a = getattr(rt, "activity", None)
+            if a is None:
+                return {"ok": False, "error": "activity memory is not enabled "
+                                              "(daemon.json: activity.enabled)"}
+            if arg.strip() == "forget":
+                a.forget()
+                return {"ok": True, "report": "activity memory cleared"}
+            return {"ok": True, "report": a.report(), "status": a.status()}
         if cmd == "shutdown":
             threading.Thread(target=rt.stop, daemon=True).start()
             return {"ok": True, "stopping": True}
         return {"ok": False, "error": f"unknown command {cmd!r}",
                 "commands": ["status", "pause", "resume", "mute", "unmute", "say",
-                             "why", "history", "sleep", "rollup", "sensors", "face", "wonders", "wonder",
+                             "why", "history", "sleep", "rollup", "sensors", "face", "wonders", "wonder", "activity",
                              "enable", "disable", "simulate", "shutdown"]}
 
     # ------------------------------------------------------------------

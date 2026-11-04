@@ -214,15 +214,19 @@ def _title(name: str) -> str:
 # ----------------------------------------------------------------------------
 # Wonders
 # ----------------------------------------------------------------------------
-KINDS = ("person", "role", "between", "term", "fact", "ambiguous", "intent")
+# "activity" is a gap noticed in what the user DOES rather than what they said:
+# a project they keep returning to that ASH has no idea about (see activity.py).
+KINDS = ("person", "role", "between", "term", "fact", "ambiguous", "intent", "activity")
 BASE_PRIORITY = {"ambiguous": 0.90, "intent": 0.80, "role": 0.70, "person": 0.60,
-                 "between": 0.50, "term": 0.50, "fact": 0.40}
+                 "between": 0.50, "term": 0.50, "fact": 0.40, "activity": 0.35}
 # How much each kind of gap matters RIGHT NOW, before repetition adds to it.
 # High: ASH cannot act well without the answer (two people fit, a request it
 # could not read). Low: it would merely like to know. Only the high ones are
 # worth interrupting a pause for; the rest wait for a free moment.
 BASE_URGENCY = {"ambiguous": 0.85, "intent": 0.80, "role": 0.45, "person": 0.35,
-                "term": 0.30, "between": 0.25, "fact": 0.20}
+                "term": 0.30, "between": 0.25, "fact": 0.20, "activity": 0.10}
+# Replies that are noise, not an answer, wherever a definition is wanted.
+_FILLER = frozenset("hm hmm mm mmm um uh ok okay yes yeah yep yup no nope nah sure idk maybe".split())
 OPEN = ("pending", "asked")
 TERMINAL = ("answered", "dismissed", "unclear", "expired")
 # Closed for good: never asked again, whatever is said later.
@@ -1044,6 +1048,23 @@ class Wonderer:
             self._make("term", t, q, f"term:{nt}", [nt], {"term": t, "how": how}, sent, source, now,
                        strong=strong)
 
+    def raise_wonder(self, kind: str, subject: str, question: str, key: str,
+                     data: Optional[Dict[str, Any]] = None, now: Optional[float] = None,
+                     source: str = "activity") -> Optional[Wonder]:
+        """Add a wonder from something other than a sentence the user said --
+        what they have been doing, say. Everything that makes a question
+        worth asking at a good moment (dedupe, rate caps, cool-downs, never
+        again once answered) applies exactly as for the sentence detectors."""
+        now = self.clock() if now is None else now
+        if not self.cfg.enabled or self.off:
+            return None
+        with self._lock:
+            w = self._make(kind, subject, question, key, [norm(subject)], dict(data or {}),
+                           "", source, now)
+            if w is not None:
+                self._touch()
+            return w
+
     @staticmethod
     def _or_list(items: List[str]) -> str:
         items = items[:4]
@@ -1081,6 +1102,11 @@ class Wonderer:
         for w in sorted((w for w in self.wonders.values() if w.status == "asked"),
                         key=lambda w: -w.asked_at):
             if now - w.asked_at > self.cfg.late_answer_s:
+                continue
+            if w.kind == "activity":
+                # Only the next reply answers one of these. A later "open
+                # brain.py" names the subject without being an answer to
+                # "what is brain.py for?".
                 continue
             if any(s and re.search(r"\b" + re.escape(s) + r"\b", t) for s in w.subjects):
                 return w
@@ -1285,10 +1311,12 @@ class Wonderer:
             if label:
                 return {"label": label, "ack": f"Got it -- {w.data['a']} and {w.data['b']} are {label}."}
             return None
-        if k in ("term",):
+        if k in ("term", "activity"):
             t = self._strip_lead(text)
             t = re.sub(r"^(?:stands for|means|mean|is short for|refers to|is an? acronym for|is)\s+", "", t, flags=re.I)
             n = len(t.split())
+            if k == "activity" and (len(t) < 3 or t.lower().strip(" .!?") in _FILLER):
+                return None              # "hm", "ok", a bare "yes": not a definition
             if 1 <= n <= 30 and len(t) >= 2 and not _DONT_KNOW.search(t):
                 return {"definition": _clean(t, 200), "ack": f"Got it -- {w.subject} is {_clean(t, 60)}."}
             return None
@@ -1319,7 +1347,7 @@ class Wonderer:
         if k == "between":
             self.kb.store_between(d["a"], d["b"], v["label"])
             return f"{d['a']} and {d['b']}: {v['label']}."
-        if k == "term":
+        if k in ("term", "activity"):
             self.kb.store_term(d["term"], v["definition"])
             return f"{d['term']} means {v['definition']}."
         if k == "fact":
@@ -1341,7 +1369,7 @@ class Wonderer:
             return f"Sorry, I didn't catch that. Is {w.subject} family, a friend, or a colleague?"
         if k == "between":
             return f"Sorry, I missed that. Are {d['a']} and {d['b']} family, friends, or colleagues?"
-        if k == "term":
+        if k in ("term", "activity"):
             return f"Sorry, I didn't get that. In a few words, what is {w.subject}?"
         if k == "fact":
             return f"Sorry, I missed the date. When is {w.subject}?"

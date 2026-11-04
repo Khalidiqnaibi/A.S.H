@@ -582,6 +582,7 @@ class ScreenshotSensor(Sensor):
                 text=f"read the screen{seen}: {done['text']}",
                 salience=0.45,
                 meta={"on_screen": done["text"], "scene": done.get("scene", ""),
+                      "title": done.get("title", ""),
                       "ahash": done.get("ahash"), "read_s": done.get("took", 0.0)},
             ))
 

@@ -277,6 +277,9 @@ def main() -> int:
                 wonder_cfg=cfg.get("wondering", {}),
                 moments=bool(cfg.get("free_moments", {}).get("enabled", True)),
                 moments_cfg=cfg.get("free_moments", {}),
+                activity=bool(cfg.get("activity", {}).get("enabled", True)),
+                activity_cfg=cfg.get("activity", {}),
+                activity_path=os.path.join(os.getcwd(), "state", "activity", "topics.json"),
                 wonder_path=os.path.join(os.getcwd(), "state", "wonder", "wonders.json"),
                 knowledge_path=os.path.join(os.getcwd(), "state", "wonder", "knowledge.json"),
                 social_path=os.path.join(
