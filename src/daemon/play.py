@@ -8,6 +8,7 @@ Playing: quick games, and ASH saying when it would like to.
                people    a quiz about the user's own people, from what ASH has
                          been told ("Who is Omar to you?"): fun, and a check
                          that ASH remembered right
+               words, twenty questions, riddle, trivia   (games.py)
              A game holds the conversation until it ends, "stop" ends it, and
              nothing said during one is taken for anything else.
     wanting  when it has been quiet for a while, the user's mood is good and
@@ -34,11 +35,15 @@ from .freemoment import Activity, Candidate
 
 logger = logging.getLogger("ash.daemon.play")
 
+_WHICH = (r"number|guessing|guess the number|people quiz|people|quiz|trivia|word association|words?|"
+          r"twenty questions|20 questions|riddles?")
 _START = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:let'?s|can we|could we|wanna|want to|i want to)\s+play"
-                    r"(?:\s+(?:a|another|some)\s+game|\s+something)?(?:\s+the)?(?:\s+(?P<which>number|guessing|guess the number|people quiz|"
-                    r"people|quiz|trivia))?(?:\s+game)?\s*[.!?]?\s*$"
-                    r"|^\s*(?:play|start)\s+(?:a\s+|the\s+)?(?P<which2>number|guessing|guess the number|people quiz|people|quiz|trivia)"
-                    r"(?:\s+game)?\s*[.!]?\s*$", re.I)
+                    r"(?:\s+(?:a|another|some)\s+game|\s+something)?(?:\s+(?:the|a))?(?:\s+(?P<which>" + _WHICH + r"))?"
+                    r"(?:\s+game)?\s*[.!?]?\s*$"
+                    r"|^\s*(?:play|start)\s+(?:a\s+|the\s+)?(?P<which2>" + _WHICH + r")"
+                    r"(?:\s+game)?\s*[.!]?\s*$"
+                    r"|^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:tell|give|ask)\s+me\s+(?:a|another|today'?s)\s+"
+                    r"(?P<which3>riddle|trivia(?:\s+question)?)\s*[.!?]?\s*$", re.I)
 _STOP = re.compile(r"^\s*(?:stop|quit|enough|i'?m done|end (?:the )?game|let'?s stop|i give up|give up)\b", re.I)
 _YES = re.compile(r"^\s*(?:yes|yeah|yep|sure|ok(?:ay)?|why not|go on|let'?s|alright|please)\b", re.I)
 _NO = re.compile(r"^\s*(?:no|nope|nah|not now|maybe later|later)\b", re.I)
@@ -48,15 +53,7 @@ _WORDNUM = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "sev
             "fifty": 50, "twenty five": 25}
 
 
-class Game:
-    name = "game"
-
-    def start(self) -> str:
-        raise NotImplementedError
-
-    def hear(self, text: str) -> Tuple[str, bool]:
-        """(what to say, whether the game is over)."""
-        raise NotImplementedError
+from .games import DailyTrivia, Game, IdleRiddle, Riddle, Trivia, TwentyQuestions, WordAssociation, daily_index  # noqa: E402,F401
 
 
 class NumberGame(Game):
@@ -143,11 +140,26 @@ class Play:
 
     def _new_game(self, which: str = "") -> Game:
         people = self._people()
-        w = (which or "").lower()
-        if w in ("people", "people quiz", "quiz", "trivia") and PeopleQuiz.possible(people):
+        w = re.sub(r"\s+", " ", (which or "").lower()).strip()
+        if w in ("people", "people quiz", "quiz") and PeopleQuiz.possible(people):
             return PeopleQuiz(self.rng, people)
-        if not w and PeopleQuiz.possible(people) and self.rng.random() < 0.5:
-            return PeopleQuiz(self.rng, people)
+        if w in ("word association", "words", "word"):
+            return WordAssociation(self.rng)
+        if w in ("twenty questions", "20 questions"):
+            return TwentyQuestions(self.rng)
+        if w in ("riddle", "riddles"):
+            return Riddle(self.rng)
+        if w in ("trivia", "trivia question"):
+            return Trivia(self.rng)
+        if w == "daily trivia":
+            return Trivia(self.rng, which=daily_index(datetime.fromtimestamp(self.clock()).date()))
+        if w in ("number", "guessing", "guess the number"):
+            return NumberGame(self.rng)
+        if not w:
+            # Any game: the people quiz half the time when it can be played.
+            if PeopleQuiz.possible(people) and self.rng.random() < 0.5:
+                return PeopleQuiz(self.rng, people)
+            return self.rng.choice((NumberGame, WordAssociation, TwentyQuestions))(self.rng)
         return NumberGame(self.rng)
 
     def start(self, which: str = "") -> str:
@@ -186,12 +198,12 @@ class Play:
                 if off[0] == "story":
                     self.stats["stories"] += 1
                     return {"story": True}
-                return {"say": self.start()}
+                return {"say": self.start({"trivia": "daily trivia", "riddle": "riddle"}.get(off[0], ""))}
             if _NO.match(t):
                 return {"say": "Okay, another time."}
         m = _START.match(t)
         if m:
-            return {"say": self.start(m.group("which") or m.group("which2") or "")}
+            return {"say": self.start(m.group("which") or m.group("which2") or m.group("which3") or "")}
         return None
 
     def offer(self, kind: str, now: float):

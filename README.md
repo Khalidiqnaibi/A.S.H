@@ -574,6 +574,43 @@ drive is up, it may say "I'm a bit bored. Want a quick game?"; in the
 evening it may offer a short story, which the language model then tells.
 Neither comes to someone who is low.
 
+### More games
+
+`src/daemon/games.py`. Besides the number game and the people quiz:
+
+- **Word association.** "Let's play word association": ASH says a word, you
+  say the first one it brings to mind, and it answers yours. After six
+  rounds it reads back the chain.
+- **Twenty questions.** ASH thinks of a thing. You ask yes-or-no questions
+  (alive? bigger than a breadbox? can you eat it?) and guess with "is it
+  a ...?".
+- **Riddles.** "Tell me a riddle": "hint" for a hint, "I give up" for the
+  answer.
+- **Trivia.** "Ask me a trivia question". There is also one question a day,
+  offered at a free moment. A riddle is offered now and then when things are
+  going well.
+
+All of them are read by rule, with no model.
+
+### Good moments and celebrations
+
+`cheer` in `daemon.json`, `src/daemon/cheer.py`.
+
+**Good moments.** A follow-up that ended well ("how did the interview go?"
+"great!") is remembered. Say you're nervous or worried about something, and
+ASH brings one back: "You've done this before -- remember your interview in
+March? That went well." It picks the same kind of thing first. "Tell me
+something good" lists the recent ones.
+
+**Celebrations,** each said once at a free moment:
+- your birthday (from the fact you told it), or first thing in the morning
+  briefing;
+- streaks of 5, 7, 10, 14... days in a row on one project;
+- a stretch of two hours or more finished.
+
+What was celebrated is kept in `state/cheer.json`, so a restart doesn't
+repeat it.
+
 ## Music, sounds and photos
 
 `media` in `daemon.json`, `src/daemon/media.py`. "Pause the music", "play",

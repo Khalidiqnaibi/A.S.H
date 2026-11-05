@@ -65,7 +65,7 @@ from .calendar_ics import Calendar, CalendarConfig
 from .smarthome import SmartHome, SmartHomeConfig
 from .voiceid import VoiceID, VoiceIDConfig
 from .reminders import Reminders
-from .play import Bored, Play, Story
+from .play import Bored, DailyTrivia, IdleRiddle, Play, Story
 from .media import Media, MediaConfig
 from .remarks import RemarkLog
 from .speech import SpeechControl, wants_brief, wants_short, wants_stop
@@ -75,6 +75,7 @@ from .focus import Focus
 from .weather import Weather, WeatherConfig
 from .inbox import Inbox, InboxConfig
 from .weekly import Weekly
+from .cheer import Celebrate, Cheer
 from .forget import (UndoStack, entity_ids, forget_subject, restorer, snapshot, wants_forget,
                      wants_undo)
 from src.brain.corrections import default as _corrections, read_correction
@@ -254,6 +255,9 @@ class AmbientConfig:
     weekly: bool = False
     weekly_path: Optional[str] = None        # state/weekly.json
     weekly_day: str = "sunday"
+    # Good moments brought back, and celebrations (cheer.py). Off on a bare runtime.
+    cheer: bool = False
+    cheer_path: Optional[str] = None         # state/cheer.json
     # Interruptible speech: "stop" / "shh" cut ASH off, "the short version",
     # "keep it short" (speech.py). On by default: it only ever says less.
     speech: bool = True
@@ -415,6 +419,8 @@ class AmbientRuntime:
                 drives = getattr(getattr(self.brain, "homeostasis", None), "drives", None)
                 self.moments.register(Bored(self.play, curiosity=lambda: float(getattr(drives, "curiosity", 0.5))))
                 self.moments.register(Story(self.play))
+                self.moments.register(DailyTrivia(self.play))
+                self.moments.register(IdleRiddle(self.play))
         self.media: Optional[Media] = None
         if self.cfg.media:
             self.media = Media(MediaConfig.from_dict(self.cfg.media_cfg),
@@ -434,6 +440,14 @@ class AmbientRuntime:
             self.weekly = Weekly(self.cfg.weekly_path, clock=lambda: self.clock(), activity=self.activity,
                                  followups=self.followups, wonder=self.wonder, reminders=self.reminders,
                                  day=self.cfg.weekly_day)
+        self.cheer: Optional[Cheer] = None
+        if self.cfg.cheer:
+            self.cheer = Cheer(self.cfg.cheer_path, clock=lambda: self.clock(), followups=self.followups,
+                               knowledge=self.wonder.kb if self.wonder is not None else None, activity=self.activity)
+            if self.activity is not None:
+                self.activity.on_stretch = self.cheer.stretch
+            if self.moments is not None:
+                self.moments.register(Celebrate(self.cheer))
         # Briefings, from what the parts above keep.
         self.briefings: Optional[Briefings] = None
         self._briefing_inflight: Optional[str] = None
@@ -448,6 +462,8 @@ class AmbientRuntime:
                 self.briefings.add_provider(self.inbox.briefing_part)
             if self.weekly is not None:
                 self.briefings.add_provider(self.weekly.briefing_part)
+            if self.cheer is not None:
+                self.briefings.add_provider(self.cheer.briefing_part)
             if self.calendar is not None:
                 self.briefings.add_provider(self.calendar.briefing_part)
             if self.reminders is not None:
@@ -694,6 +710,11 @@ class AmbientRuntime:
                     self.weekly.save()
                 except Exception:
                     logger.exception("Weekly save failed")
+            if self.cheer is not None:
+                try:
+                    self.cheer.tick(now)
+                except Exception:
+                    logger.exception("Celebrations failed on a tick")
             if self.calendar is not None and now - self._calendar_at >= 60.0:
                 self._calendar_at = now
                 try:
@@ -1034,6 +1055,21 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
 
+    def _cheer_request(self, ev, now: float) -> bool:
+        """"I'm nervous about the interview": a good moment brought back."""
+        c = self.cheer
+        if c is None or not self._user_source(ev):
+            return False
+        try:
+            say = c.hear(str(getattr(ev, "text", "") or ""), now)
+        except Exception:
+            logger.exception("Good moments failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
+        return True
+
     def _weekly_request(self, ev, now: float) -> bool:
         """"How was my week?": from what ASH keeps, no model."""
         w = self.weekly
@@ -1337,6 +1373,8 @@ class AmbientRuntime:
         if self._email_request(ev, now):
             return
         if self._weekly_request(ev, now):
+            return
+        if self._cheer_request(ev, now):
             return
 
         # An answer to a free-moment remark (how are you?) is spent the same way.
@@ -2102,6 +2140,7 @@ class AmbientRuntime:
             "weather": self.weather.status() if self.weather else None,
             "email": self.inbox.status() if self.inbox else None,
             "weekly": self.weekly.status() if self.weekly else None,
+            "cheer": self.cheer.status() if self.cheer else None,
             "speech": self.speech.status() if self.speech else None,
             "tasks": self.tasks.status() if self.tasks else None,
             "context": self.context.status() if self.context else None,

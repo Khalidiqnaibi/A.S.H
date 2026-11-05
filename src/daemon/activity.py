@@ -214,6 +214,9 @@ class ActivityMemory:
         self._dirty = False
         self._saved_at = 0.0
         self.stats = {"stretches": 0, "episodes": 0, "saved": 0, "asked": 0, "ignored": 0}
+        # Told of each stretch recorded: (what it was on, start, end). The
+        # celebrations (cheer.py) join the pieces of a long one back up.
+        self.on_stretch: Optional[Callable[[str, float, float], None]] = None
         self._load()
 
     # ---- persistence ---------------------------------------------------
@@ -322,6 +325,11 @@ class ActivityMemory:
     # ---- recording -------------------------------------------------------
     def _record(self, st: _Stretch, end: float, dur: float):
         self.stats["stretches"] += 1
+        if self.on_stretch is not None:
+            try:
+                self.on_stretch(clean(st.project or st.subject or ""), st.start, end)
+            except Exception:
+                logger.debug("on_stretch failed", exc_info=True)
         minutes = max(1, int(round(dur / 60.0)))
         day = datetime.fromtimestamp(st.start).strftime("%Y-%m-%d")
         app = friendly_app(st.process)

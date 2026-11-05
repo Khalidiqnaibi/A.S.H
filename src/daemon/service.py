@@ -256,6 +256,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # app password. Bodies are never read, nothing is marked read or sent.
     # "How was my week?" -- and in the evening briefing on this day ("" for never).
     "weekly": {"enabled": True, "day": "sunday"},
+    # Good moments brought back when you're worried; birthday, streaks and
+    # long stretches celebrated.
+    "cheer": {"enabled": True},
     "email": {"enabled": True, "host": "", "port": 993, "user": "", "password": "", "folder": "INBOX"},
     # The weather in the briefings and for "what's the weather like today",
     # from Open-Meteo (no account or key). Set city (or lat and lon); until
