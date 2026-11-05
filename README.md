@@ -557,6 +557,17 @@ off even in quiet hours; muted, they wait. They survive a restart, one missed
 while ASH was off is said late ("I was off when this was due at 14:10"), and
 today's are in the morning briefing.
 
+## Playing
+
+`play` in `daemon.json`, `src/daemon/play.py`. "Let's play a game" starts a
+number game (higher / lower) or a quiz on your own people, built from what
+ASH has been told ("Who is Omar to you?" -- and it says when its memory
+disagrees with you). A game holds the conversation until it ends or you say
+"stop". At a free moment, when your mood is good and ASH's own curiosity
+drive is up, it may say "I'm a bit bored. Want a quick game?"; in the
+evening it may offer a short story, which the language model then tells.
+Neither comes to someone who is low.
+
 ## Research on request
 
 `research` in `daemon.json`, `src/daemon/research.py`. "Look into the Raft

@@ -65,6 +65,7 @@ from .calendar_ics import Calendar, CalendarConfig
 from .smarthome import SmartHome, SmartHomeConfig
 from .voiceid import VoiceID, VoiceIDConfig
 from .reminders import Reminders
+from .play import Bored, Play, Story
 from src.brain.corrections import default as _corrections, read_correction
 from .wondering import Environment, Knowledge, Wonderer, WonderingConfig
 from .social import (FlowDetector, ReactionTracker, SocialLearner,
@@ -216,6 +217,9 @@ class AmbientConfig:
     # runtime; the daemon turns it on.
     reminders: bool = False
     reminders_path: Optional[str] = None     # state/reminders.json
+    # Play (play.py): quick games on request, and at a free moment ASH may
+    # say it is bored, or offer an evening story. Off on a bare runtime.
+    play: bool = False
 
 
 class AmbientRuntime:
@@ -348,6 +352,13 @@ class AmbientRuntime:
         self._reminder_pending: List[str] = []
         if self.cfg.reminders:
             self.reminders = Reminders(path=self.cfg.reminders_path, clock=lambda: self.clock())
+        self.play: Optional[Play] = None
+        if self.cfg.play:
+            self.play = Play(knowledge=(self.wonder.kb if self.wonder else None), clock=lambda: self.clock())
+            if self.moments is not None:
+                drives = getattr(getattr(self.brain, "homeostasis", None), "drives", None)
+                self.moments.register(Bored(self.play, curiosity=lambda: float(getattr(drives, "curiosity", 0.5))))
+                self.moments.register(Story(self.play))
         self.calendar: Optional[Calendar] = None
         self._calendar_at = -1e18
         if self.cfg.calendar:
@@ -764,6 +775,25 @@ class AmbientRuntime:
                                             "outcome": "desktop"})())
         return True
 
+    def _play_step(self, ev, now: float) -> bool:
+        """A game line, a request to play, or a yes to a game or a story.
+        True if spent; a story accepted is passed on to the brain to tell."""
+        if not self._user_source(ev):
+            return False
+        try:
+            r = self.play.hear(str(getattr(ev, "text", "") or ""), now)
+        except Exception:
+            logger.exception("Play failed")
+            return False
+        if not r:
+            return False
+        if r.get("story"):
+            ev.text = "Tell me a short, gentle story -- about two minutes to read aloud."
+            ev.addressed = True
+            return False
+        self._wonder_say(ev, type("R", (), {"say": r["say"], "outcome": "desktop"})())
+        return True
+
     def _reminder_step(self, now: float):
         """Say the reminders that are due. Asked for, so quiet hours do not
         hold them (an alarm at 7 is meant to wake you); muted or paused does."""
@@ -1006,6 +1036,9 @@ class AmbientRuntime:
 
         # A reply to a question ASH asked, or a request about the questions
         # ("not now", "stop asking"), is spent here and not run as a new query.
+        if self.play is not None and self._play_step(ev, now):
+            return
+
         if self.wonder is not None and not guest:
             rep = self._wonder_hear(ev, now)
             if rep is not None and rep.consumed:
@@ -1540,6 +1573,7 @@ class AmbientRuntime:
             "smarthome": self.smarthome.status() if self.smarthome else None,
             "voice": self.voice.status() if self.voice else None,
             "reminders": self.reminders.status() if self.reminders else None,
+            "play": self.play.status() if self.play else None,
             "corrections": {"heard": self.stats.get("corrections", 0), **_corrections().status()},
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),

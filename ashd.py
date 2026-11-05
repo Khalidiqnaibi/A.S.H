@@ -285,6 +285,7 @@ def main() -> int:
                 activity_cfg=cfg.get("activity", {}),
                 activity_path=os.path.join(os.getcwd(), "state", "activity", "topics.json"),
                 corrections=bool(cfg.get("corrections", {}).get("enabled", True)),
+                play=bool(cfg.get("play", {}).get("enabled", True)),
                 reminders=bool(cfg.get("reminders", {}).get("enabled", True)),
                 reminders_path=os.path.join(os.getcwd(), "state", "reminders.json"),
                 smarthome=bool(cfg.get("smarthome", {}).get("enabled", True)),

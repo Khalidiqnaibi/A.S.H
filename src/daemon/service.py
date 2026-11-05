@@ -234,6 +234,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # mom in 20 minutes", "set a timer for 5 minutes", "wake me up at 7"),
     # snoozable, kept across restarts, and listed in the morning briefing.
     "reminders": {"enabled": True},
+    # Play: "let's play a game" (a number game, or a quiz on your own people);
+    # at a free moment ASH may say it is bored (only when your mood is good)
+    # or offer an evening story. free_moments.disabled can drop bored/story.
+    "play": {"enabled": True},
     # Voice match: nothing is compared until you say "learn my voice". After
     # that a clearly different voice is a guest: answered, but not allowed to
     # act for you or teach ASH about you. A rough match, not security.
