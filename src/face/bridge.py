@@ -45,9 +45,11 @@ MOOD_SWITCH_MARGIN = 1.2
 class FaceBridge:
     """Translates ASH's internal state into animation requests."""
 
-    def __init__(self, player, enabled: bool = True):
+    def __init__(self, player, enabled: bool = True, sounds: bool = False):
+        from .sounds import FaceSounds
         self.player = player
         self.enabled = enabled
+        self.sounds = FaceSounds(enabled=sounds)        # a chime with some expressions (off by default)
         self._mood: Optional[str] = None
         self._mood_since: float = 0.0
         self._thinking_since: Optional[float] = None
@@ -143,6 +145,10 @@ class FaceBridge:
         anim = self.expression_for(text, meta or {})
         if anim:
             self._play(anim)
+            try:
+                self.sounds.maybe(anim, volunteered=not (meta or {}).get("addressed"), quiet=self._quiet)
+            except Exception:
+                logger.debug("Face sound failed", exc_info=True)
 
     @staticmethod
     def expression_for(text: str, meta: Dict[str, Any]) -> Optional[str]:
@@ -279,7 +285,7 @@ class FaceBridge:
 
 
 # ----------------------------------------------------------------------
-def attach_to_daemon(runtime, player, enabled: bool = True) -> FaceBridge:
+def attach_to_daemon(runtime, player, enabled: bool = True, sounds: bool = False) -> FaceBridge:
     """Wire a FaceBridge into a running AmbientRuntime.
 
     Done by wrapping rather than by editing the daemon: the ambient loop has
@@ -287,7 +293,7 @@ def attach_to_daemon(runtime, player, enabled: bool = True) -> FaceBridge:
     it. Every hook is individually guarded for the same reason -- an always-on
     process must not die because a display went away.
     """
-    bridge = FaceBridge(player, enabled=enabled)
+    bridge = FaceBridge(player, enabled=enabled, sounds=sounds)
 
     original_handle = runtime._handle
     original_respond = runtime._respond

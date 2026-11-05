@@ -76,6 +76,8 @@ from .weather import Weather, WeatherConfig
 from .inbox import Inbox, InboxConfig
 from .weekly import Weekly
 from .cheer import Celebrate, Cheer
+from .care import Care
+from .storybook import StoryBook
 from .forget import (UndoStack, entity_ids, forget_subject, restorer, snapshot, wants_forget,
                      wants_undo)
 from src.brain.corrections import default as _corrections, read_correction
@@ -258,6 +260,12 @@ class AmbientConfig:
     # Good moments brought back, and celebrations (cheer.py). Off on a bare runtime.
     cheer: bool = False
     cheer_path: Optional[str] = None         # state/cheer.json
+    # Caring nudges (care.py). Off on a bare runtime.
+    care: bool = False
+    # Where the evening story got to (storybook.py), with play on.
+    story_path: Optional[str] = None         # state/story.json
+    # The voice game lines are spoken in ("" for the usual one).
+    game_voice: str = ""
     # Interruptible speech: "stop" / "shh" cut ASH off, "the short version",
     # "keep it short" (speech.py). On by default: it only ever says less.
     speech: bool = True
@@ -413,12 +421,14 @@ class AmbientRuntime:
         if self.cfg.reminders:
             self.reminders = Reminders(path=self.cfg.reminders_path, clock=lambda: self.clock())
         self.play: Optional[Play] = None
+        self.storybook: Optional[StoryBook] = (StoryBook(self.cfg.story_path, clock=lambda: self.clock())
+                                               if self.cfg.play else None)
         if self.cfg.play:
             self.play = Play(knowledge=(self.wonder.kb if self.wonder else None), clock=lambda: self.clock())
             if self.moments is not None:
                 drives = getattr(getattr(self.brain, "homeostasis", None), "drives", None)
                 self.moments.register(Bored(self.play, curiosity=lambda: float(getattr(drives, "curiosity", 0.5))))
-                self.moments.register(Story(self.play))
+                self.moments.register(Story(self.play, book=self.storybook))
                 self.moments.register(DailyTrivia(self.play))
                 self.moments.register(IdleRiddle(self.play))
         self.media: Optional[Media] = None
@@ -440,6 +450,11 @@ class AmbientRuntime:
             self.weekly = Weekly(self.cfg.weekly_path, clock=lambda: self.clock(), activity=self.activity,
                                  followups=self.followups, wonder=self.wonder, reminders=self.reminders,
                                  day=self.cfg.weekly_day)
+        self.care: Optional[Care] = None
+        if self.cfg.care:
+            self.care = Care(clock=lambda: self.clock())
+            if self.moments is not None:
+                self.moments.register(self.care)
         self.cheer: Optional[Cheer] = None
         if self.cfg.cheer:
             self.cheer = Cheer(self.cfg.cheer_path, clock=lambda: self.clock(), followups=self.followups,
@@ -523,6 +538,11 @@ class AmbientRuntime:
                 self.context.said(text)
             except Exception:
                 logger.exception("Context failed")
+        if self.storybook is not None and text and self.storybook.waiting and meta.get("addressed"):
+            try:
+                self.storybook.told(text)                # the part of the story just told
+            except Exception:
+                logger.exception("Storybook failed")
         if self.speech is not None and text:
             try:
                 self.speech.said(text, meta)
@@ -715,6 +735,11 @@ class AmbientRuntime:
                     self.cheer.tick(now)
                 except Exception:
                     logger.exception("Celebrations failed on a tick")
+            if self.care is not None:
+                try:
+                    self.care.tick(now, idle_s)
+                except Exception:
+                    logger.exception("Caring nudges failed on a tick")
             if self.calendar is not None and now - self._calendar_at >= 60.0:
                 self._calendar_at = now
                 try:
@@ -964,15 +989,25 @@ class AmbientRuntime:
         True if spent; a story accepted is passed on to the brain to tell."""
         if not self._user_source(ev):
             return False
+        text = str(getattr(ev, "text", "") or "")
+        sb = self.storybook
+        if sb is not None and not self.play.playing:
+            # "What happens next?" / "tell me a new story": to the brain, with
+            # where the story got to.
+            p = sb.hear(text, now)
+            if p:
+                ev.text, ev.addressed = p, True
+                return False
         try:
-            r = self.play.hear(str(getattr(ev, "text", "") or ""), now)
+            r = self.play.hear(text, now)
         except Exception:
             logger.exception("Play failed")
             return False
         if not r:
             return False
         if r.get("story"):
-            ev.text = "Tell me a short, gentle story -- about two minutes to read aloud."
+            ev.text = (sb.prompt(now) if sb is not None
+                       else "Tell me a short, gentle story -- about two minutes to read aloud.")
             ev.addressed = True
             return False
         self._wonder_say(ev, type("R", (), {"say": r["say"], "outcome": "play"})())
@@ -1264,9 +1299,11 @@ class AmbientRuntime:
             self._last_why = {"kind": "correction"}
         else:
             self._last_why = {"kind": "answered"}
+        meta = {"addressed": True, "source": "wonder", "attention": None, "pathway": "wonder", "outcome": outcome}
+        if outcome == "play" and self.cfg.game_voice:
+            meta["voice"] = self.cfg.game_voice          # games in a character voice
         try:
-            self.response_sink(rep.say, {"addressed": True, "source": "wonder",
-                                         "attention": None, "pathway": "wonder", "outcome": outcome})
+            self.response_sink(rep.say, meta)
             address.conversation.note_ash_spoke(self.clock(), asked=rep.outcome == "followup")
             self.gate.note_user_turn()
         except Exception:
@@ -1376,6 +1413,11 @@ class AmbientRuntime:
             return
         if self._cheer_request(ev, now):
             return
+        if self.care is not None and self._user_source(ev):
+            said = self.care.hear(str(getattr(ev, "text", "") or ""), now)
+            if said:
+                self._wonder_say(ev, type("R", (), {"say": said, "outcome": "moment"})())
+                return
 
         # An answer to a free-moment remark (how are you?) is spent the same way.
         if self.moments is not None and getattr(ev, "source", "") != "flow":
@@ -2141,6 +2183,8 @@ class AmbientRuntime:
             "email": self.inbox.status() if self.inbox else None,
             "weekly": self.weekly.status() if self.weekly else None,
             "cheer": self.cheer.status() if self.cheer else None,
+            "care": self.care.status() if self.care else None,
+            "story": self.storybook.status() if self.storybook else None,
             "speech": self.speech.status() if self.speech else None,
             "tasks": self.tasks.status() if self.tasks else None,
             "context": self.context.status() if self.context else None,

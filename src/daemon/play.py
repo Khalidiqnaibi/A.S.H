@@ -246,9 +246,10 @@ class Story(Activity):
     weight = 0.6
     cooldown_s = 20 * 3600.0
 
-    def __init__(self, play: Play, clock: Callable[[], float] = time.time):
+    def __init__(self, play: Play, clock: Callable[[], float] = time.time, book=None):
         self.play = play
         self.clock = clock
+        self.book = book                 # storybook.py: "the next part of last night's story"
 
     def propose(self, env, now):
         if not self.play.enabled or self.play.playing:
@@ -257,7 +258,9 @@ class Story(Activity):
             return None
         if not 19 <= datetime.fromtimestamp(now).hour < 23:
             return None
-        return Candidate(self.name, "Want a short story before you wrap up for the night?", 0.3)
+        text = (self.book.offer_text(now) if self.book is not None
+                else "Want a short story before you wrap up for the night?")
+        return Candidate(self.name, text, 0.35 if self.book is not None and self.book.ongoing(now) else 0.3)
 
     def spoken(self, now):
         self.play.offer("story", now)

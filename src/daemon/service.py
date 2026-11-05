@@ -145,6 +145,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "width": 128, "height": 64, "fps": 30,
         "animations_dir": "animations",
         "source": "drives",      # drives | emotions
+        "sounds": False,         # a small chime with some expressions, on lines ASH volunteers
     },
     # Wondering: ASH notices what it does not know (who "my brother" is, what
     # an acronym means) and asks. Urgent gaps may be asked at an ordinary
@@ -237,7 +238,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # Play: "let's play a game" (a number game, or a quiz on your own people);
     # at a free moment ASH may say it is bored (only when your mood is good)
     # or offer an evening story. free_moments.disabled can drop bored/story.
-    "play": {"enabled": True},
+    # voice: the TTS voice game lines are spoken in ("" for the usual one).
+    "play": {"enabled": True, "voice": "bm_george"},
     # The remark log: everything ASH says and how it landed, kept two weeks
     # under state/remarks/, read back by `ashctl review [days]` with tips on
     # what to tune. keep_text false keeps only the kind and the reaction.
@@ -259,6 +261,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # Good moments brought back when you're worried; birthday, streaks and
     # long stretches celebrated.
     "cheer": {"enabled": True},
+    # Water, a stretch, "you've been at it three hours" -- at a free moment,
+    # only when the mood is fine, at most once an hour.
+    "care": {"enabled": True},
     "email": {"enabled": True, "host": "", "port": 993, "user": "", "password": "", "folder": "INBOX"},
     # The weather in the briefings and for "what's the weather like today",
     # from Open-Meteo (no account or key). Set city (or lat and lon); until

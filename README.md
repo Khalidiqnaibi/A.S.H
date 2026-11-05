@@ -611,6 +611,39 @@ something good" lists the recent ones.
 What was celebrated is kept in `state/cheer.json`, so a restart doesn't
 repeat it.
 
+### A story that continues, and a voice for games
+
+`src/daemon/storybook.py`. The evening story is told by the brain. ASH keeps
+where it got to, and the next evening offers "Want the next part of last
+night's story?". The brain is then given the words it ended on and asked to
+carry on, not start over. "What happens next?" asks for the next part right
+away; "tell me a new story" starts fresh, and so does a story left for a
+week. It is kept in `state/story.json`.
+
+Game lines are spoken in a character voice: `play.voice`, Kokoro's
+`bm_george` by default, or "" for the usual voice. If that voice fails, the
+usual one is used.
+
+### Caring nudges
+
+`care` in `daemon.json`, `src/daemon/care.py`. ASH adds up how long you've
+been at the machine; ten minutes away resets it. At a free moment it may
+say:
+- after 90 minutes, "maybe stand up and stretch";
+- at 2 hours, "have you had some water lately?";
+- at 3 hours, "you've been at it for three hours straight".
+
+Each is said once a stretch, at most one an hour, and only when your mood
+is fine. "No more nudges" turns them off until the next restart.
+
+### Face sounds
+
+`face.sounds` in `daemon.json`, off by default. You can turn it on in the
+console's settings. Curious, happy, very happy and alert get a small chime,
+synthesized on the spot. It plays only on lines ASH volunteers, never in
+quiet hours, and at most one every 20 seconds. When you're away, the face
+already goes sleepy.
+
 ## Music, sounds and photos
 
 `media` in `daemon.json`, `src/daemon/media.py`. "Pause the music", "play",

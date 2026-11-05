@@ -28,7 +28,7 @@ PART = {
     "wondering": "wonder", "follow_ups": "followups", "research": "research", "calendar": "calendar",
     "smarthome": "smarthome", "reminders": "reminders", "play": "play", "focus": "focus",
     "weather": "weather", "watch": "watcher", "briefings": "briefings", "routines": "routines",
-    "free_moments": "moments", "desktop": "desktop", "remarks": "remarks", "tasks": "tasks", "email": "inbox",
+    "free_moments": "moments", "desktop": "desktop", "remarks": "remarks", "tasks": "tasks", "email": "inbox", "face": "face",
 }
 
 # key -> (type, label, group). Types: bool, str, secret, list (comma separated).
@@ -40,6 +40,7 @@ SETTINGS: Dict[str, Tuple[str, str, str]] = {
     "briefings.enabled": ("bool", "Morning and evening briefings", "Talking"),
     "routines.enabled": ("bool", "Notice routines", "Talking"),
     "focus.enabled": ("bool", "Focus mode", "Talking"),
+    "face.sounds": ("bool", "A small chime with some expressions", "Talking"),
     "remarks.enabled": ("bool", "Keep a log of what it says", "Talking"),
     "reminders.enabled": ("bool", "Reminders and timers", "Helping"),
     "watch.enabled": ("bool", "Watch downloads, battery, disk", "Helping"),
@@ -151,7 +152,9 @@ def current(runtime, key: str, saved: Optional[Dict[str, Any]] = None) -> Any:
     name = _name(key)
     part = _part(runtime, key)
     val: Any = None
-    if part is not None:
+    if key == "face.sounds" and part is not None:
+        val = bool(getattr(getattr(part, "sounds", None), "enabled", False))
+    elif part is not None:
         cfg = getattr(part, "cfg", None)
         if name == "enabled" and not hasattr(cfg, "enabled") and hasattr(part, "enabled"):
             val = part.enabled
@@ -180,6 +183,11 @@ def apply(runtime, key: str, value: Any) -> bool:
     if part is None:
         return False
     cfg = getattr(part, "cfg", None)
+    if key == "face.sounds":
+        if getattr(part, "sounds", None) is None:
+            return False
+        part.sounds.enabled = bool(value)
+        return True
     if name == "enabled":
         if cfg is not None and hasattr(cfg, "enabled"):
             cfg.enabled = bool(value)

@@ -147,7 +147,8 @@ def build_response_sink(periphery, prefer_speech: bool = True, window_open=None)
         # Never an apology for being broken.
         if (speak is not None and speak.state.value == "active"
                 and (addressed or prefer_speech) and not meta.get("degraded")):
-            r = speak(meta.get("spoken") or text)      # in brief mode, long answers are spoken short
+            said = meta.get("spoken") or text              # in brief mode, long answers are spoken short
+            r = speak({"text": said, "voice": meta["voice"]} if meta.get("voice") else said)
             if r.get("ok"):
                 delivered.append("speak")
 
@@ -289,6 +290,9 @@ def main() -> int:
                              if cfg.get("remarks", {}).get("enabled", True) else None),
                 remarks_keep_text=bool(cfg.get("remarks", {}).get("keep_text", True)),
                 cheer=bool(cfg.get("cheer", {}).get("enabled", True)),
+                care=bool(cfg.get("care", {}).get("enabled", True)),
+                story_path=os.path.join(os.getcwd(), "state", "story.json"),
+                game_voice=str(cfg.get("play", {}).get("voice", "bm_george") or ""),
                 cheer_path=os.path.join(os.getcwd(), "state", "cheer.json"),
                 weekly=bool(cfg.get("weekly", {}).get("enabled", True)),
                 weekly_path=os.path.join(os.getcwd(), "state", "weekly.json"),
@@ -378,7 +382,7 @@ def main() -> int:
                     animations_dir=fcfg.get("animations_dir", "animations"),
                 )
                 player.start()
-                runtime.face = attach_to_daemon(runtime, player)
+                runtime.face = attach_to_daemon(runtime, player, sounds=bool(fcfg.get("sounds", False)))
                 logger.info("Face: %d animation(s) on %s",
                             len(player.library), type(player.driver).__name__)
             except Exception:

@@ -140,7 +140,12 @@ class SpeakActuator(Actuator):
         return was
 
     def act(self, args: Any) -> Dict[str, Any]:
-        text = args if isinstance(args, str) else str(args)
+        # A line, or {"text": ..., "voice": ...} for a character voice (games).
+        voice = None
+        if isinstance(args, dict):
+            text, voice = str(args.get("text", "")), (args.get("voice") or None)
+        else:
+            text = args if isinstance(args, str) else str(args)
         if self.tts is None or getattr(self.tts, "engine", True) is None:
             return {"ok": False, "error": "no TTS engine attached"}
         # A new line replaces whatever is still being said.
@@ -172,7 +177,14 @@ class SpeakActuator(Actuator):
         def _play():
             n = 0
             try:
-                for wav_bytes in self.tts.stream_audio(text):
+                chunks = None
+                if voice:
+                    try:
+                        chunks = list(self.tts.stream_audio(text, voice=voice))
+                    except Exception:
+                        logger.warning("Voice %r failed; using the usual one", voice)
+                        chunks = None
+                for wav_bytes in (chunks if chunks else self.tts.stream_audio(text)):
                     n += 1
                     if stop.is_set():
                         break
