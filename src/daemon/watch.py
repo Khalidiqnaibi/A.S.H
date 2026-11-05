@@ -219,6 +219,7 @@ class Watcher:
         self.watches: Dict[str, Watch] = {}
         self.disk_samples: Deque[Tuple[float, float]] = deque(maxlen=48)
         self.disk_warned = 0.0
+        self.fired_what: Dict[str, str] = {}      # what was said -> what was being watched, for "why?"
         self.stats = {"set": 0, "fired": 0, "expired": 0, "cancelled": 0, "trend_warnings": 0}
         self._load()
 
@@ -365,6 +366,11 @@ class Watcher:
                     w.status = "done"
                     self.stats["fired"] += 1
                     out.append(say)
+                    self.fired_what[say] = {"process": f"{w.what} closes",
+                                            "download": "the download finishes"}.get(w.kind, w.what)
+                    if len(self.fired_what) > 50:
+                        for k in list(self.fired_what)[:30]:
+                            del self.fired_what[k]
                     changed = True
             trend = self._disk_trend(now)
             if trend:

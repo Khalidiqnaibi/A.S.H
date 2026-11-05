@@ -499,6 +499,16 @@ Builds are out of reach and it says so: "tell me the program's name, like
 'tell me when npm finishes'". Separately, disk use is sampled hourly, and if
 at the current rate it will be full within two days, ASH says so, once a day.
 
+## "Why did you say that?"
+
+`src/daemon/explain.py`. Everything ASH says leaves a small note of why, and
+"why did you say that?", "why are you asking?" or "why did you do that?" is
+answered from it in plain words, without the model: an answer says what it
+read your request as and which tool it used; a question says what it did not
+know and how it noticed ("you'd mentioned Omar 3 times"); a remark says what
+made the moment seem right; a watch or an action says you asked for it. The
+full decision trace is still there for debugging (`ashctl.py why`).
+
 ## Research on request
 
 `research` in `daemon.json`, `src/daemon/research.py`. "Look into the Raft

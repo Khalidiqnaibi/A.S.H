@@ -60,6 +60,7 @@ from .briefing import BriefingConfig, Briefings, asked_for_briefing
 from .watch import WatchConfig, Watcher
 from .desktop import Desktop, DesktopConfig
 from .research import Research, ResearchActivity, ResearchConfig
+from .explain import asked_why, explain
 from src.brain.corrections import default as _corrections, read_correction
 from .wondering import Environment, Knowledge, Wonderer, WonderingConfig
 from .social import (FlowDetector, ReactionTracker, SocialLearner,
@@ -335,6 +336,7 @@ class AmbientRuntime:
         self.stats["wonders_asked"] = 0
         self.stats["corrections"] = 0
         self._last_turn: Optional[Dict[str, Any]] = None     # what ASH last answered, and as what
+        self._last_why: Optional[Dict[str, Any]] = None      # why ASH said its last thing ("why?")
         self._awaiting_meaning: Optional[Dict[str, Any]] = None
         self._pending_correction: Optional[Dict[str, Any]] = None
         self._reaction = None            # the reaction the event being handled carried
@@ -626,6 +628,7 @@ class AmbientRuntime:
             return
         while self._watch_pending:
             text = self._watch_pending.pop(0)
+            self._last_why = {"kind": "watch", "what": w.fired_what.get(text, "that happened")}
             try:
                 self.response_sink(text, {"addressed": False, "source": "watch",
                                           "attention": None, "pathway": "watch"})
@@ -786,6 +789,13 @@ class AmbientRuntime:
                 logger.exception("brain.observe failed on a learned fact")
 
     def _wonder_say(self, ev, rep):
+        outcome = getattr(rep, "outcome", "")
+        if outcome in ("watch", "desktop", "research", "briefing", "batch"):
+            self._last_why = {"kind": "asked", "query": str(getattr(ev, "text", "") or "")[:80]}
+        elif outcome == "followup" and self._awaiting_meaning is not None:
+            self._last_why = {"kind": "correction"}
+        else:
+            self._last_why = {"kind": "answered"}
         try:
             self.response_sink(rep.say, {"addressed": True, "source": "wonder",
                                          "attention": None, "pathway": "wonder"})
@@ -841,6 +851,8 @@ class AmbientRuntime:
 
         # "No, I meant ..." right after a reply is a correction of how ASH read
         # the last request, not a new one about nothing.
+        if self._explain_request(ev, now):
+            return
         if self.cfg.corrections and self._correction_step(ev, now):
             return
         if self._briefing_request(ev, now):
@@ -1082,6 +1094,8 @@ class AmbientRuntime:
         except Exception:
             logger.exception("Response sink failed")
 
+        if not to_ash:
+            self._last_why = self._why_volunteered(ev, decision, offer, meta)
         if offer == "wonder":
             self._wonder_inflight = None
             if self.wonder is not None:
@@ -1128,6 +1142,40 @@ class AmbientRuntime:
                 logger.exception("Recording a correction failed")
         self._last_turn = {"query": prompt, "intent": intent,
                            "tool": getattr(response, "tool_used", None), "t": now}
+        pw = getattr(response, "pathway", None)
+        self._last_why = {"kind": "answer", "query": prompt[:80], "intent": intent,
+                          "tool": getattr(response, "tool_used", None),
+                          "pathway": str(getattr(pw, "value", pw or ""))}
+
+    def _why_volunteered(self, ev, decision, offer, meta) -> Dict[str, Any]:
+        """The facts behind something ASH said unasked, for "why did you say that?"."""
+        if offer == "wonder":
+            w = self.wonder.wonders.get(str(meta.get("wonder_id", ""))) if self.wonder else None
+            return {"kind": "wonder", "free": self.clock() < self._free_until,
+                    "wonder": ({"kind": w.kind, "subject": w.subject, "mentions": w.mentions} if w else {})}
+        if offer == "moment":
+            return {"kind": "moment", "moment": str(meta.get("moment", ""))}
+        if offer == "briefing":
+            return {"kind": "briefing", "briefing": str(meta.get("briefing", ""))}
+        if offer == "free_moment":
+            return {"kind": "check_in", "minutes": meta.get("minutes")}
+        reasons = list(getattr(decision, "reasons", []) or [])
+        return {"kind": "observation", "noticed": str(getattr(ev, "text", "") or "")[:80], "reasons": reasons}
+
+    def _explain_request(self, ev, now: float) -> bool:
+        """"Why did you say that?": answered from the note left when it was
+        said, without the model. The explanation itself leaves no note, so
+        asking twice explains the same thing."""
+        if not self._user_source(ev) or not asked_why(str(getattr(ev, "text", "") or "")):
+            return False
+        try:
+            self.response_sink(explain(self._last_why), {"addressed": True, "source": "explain",
+                                                         "attention": None, "pathway": "explain"})
+            address.conversation.note_ash_spoke(self.clock(), asked=False)
+            self.gate.note_user_turn()
+        except Exception:
+            logger.exception("Explaining failed")
+        return True
 
     def _model_unavailable(self, ev, decision):
         """The brain had no real reply (the model is down or said nothing).
