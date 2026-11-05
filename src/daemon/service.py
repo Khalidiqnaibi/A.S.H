@@ -222,6 +222,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # files under wondering.lookup.roots, what you said before) and told at a
     # free moment or in the evening briefing.
     "research": {"enabled": True},
+    # Calendar, read-only, from iCalendar: exported .ics files, or a private
+    # feed URL (Google: "secret address in iCal format"; Outlook: "publish
+    # calendar"). Used in the briefings and for "what's on my calendar today".
+    "calendar": {"enabled": True, "files": [], "urls": [], "refresh_s": 1800},
     "watch": {"enabled": True, "downloads_dir": "~/Downloads", "expire_s": 86400, "disk_trend": True},
     # Briefings: a short summary the first time you are at the computer in
     # the morning (today's events, yesterday's work, questions waiting) and

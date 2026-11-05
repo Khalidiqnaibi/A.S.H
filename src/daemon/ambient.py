@@ -61,6 +61,7 @@ from .watch import WatchConfig, Watcher
 from .desktop import Desktop, DesktopConfig
 from .research import Research, ResearchActivity, ResearchConfig
 from .explain import asked_why, explain
+from .calendar_ics import Calendar, CalendarConfig
 from src.brain.corrections import default as _corrections, read_correction
 from .wondering import Environment, Knowledge, Wonderer, WonderingConfig
 from .social import (FlowDetector, ReactionTracker, SocialLearner,
@@ -195,6 +196,10 @@ class AmbientConfig:
     research: bool = False
     research_cfg: Optional[Dict[str, Any]] = None
     research_path: Optional[str] = None      # state/research.json
+    # Calendar: .ics files and feeds, read-only (calendar_ics.py). Off on a
+    # bare runtime; the daemon turns it on (it does nothing with no sources).
+    calendar: bool = False
+    calendar_cfg: Optional[Dict[str, Any]] = None
 
 
 class AmbientRuntime:
@@ -314,6 +319,10 @@ class AmbientRuntime:
                                      path=self.cfg.research_path, clock=lambda: self.clock())
             if self.moments is not None:
                 self.moments.register(ResearchActivity(self.research))
+        self.calendar: Optional[Calendar] = None
+        self._calendar_at = -1e18
+        if self.cfg.calendar:
+            self.calendar = Calendar(CalendarConfig.from_dict(self.cfg.calendar_cfg), clock=lambda: self.clock())
         # Briefings, from what the parts above keep.
         self.briefings: Optional[Briefings] = None
         self._briefing_inflight: Optional[str] = None
@@ -322,6 +331,8 @@ class AmbientRuntime:
                                        path=self.cfg.briefings_path, followups=self.followups,
                                        activity=self.activity, wonder=self.wonder,
                                        clock=lambda: self.clock())
+            if self.calendar is not None:
+                self.briefings.add_provider(self.calendar.briefing_part)
             if self.research is not None:
                 self.briefings.add_provider(self.research.briefing_part)
         # Watches the user asked for; what they find is said even unasked.
@@ -508,6 +519,12 @@ class AmbientRuntime:
                 except Exception:
                     logger.exception("Routines failed on a tick")
             self._watch_step(now)
+            if self.calendar is not None and now - self._calendar_at >= 60.0:
+                self._calendar_at = now
+                try:
+                    self.calendar.refresh(now)
+                except Exception:
+                    logger.exception("Calendar refresh failed")
             if self._briefing_step(now, idle_s):
                 return
             if self.flow is None:
@@ -671,6 +688,21 @@ class AmbientRuntime:
             return False
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "followup" if say.endswith("close it.")
                                              else "desktop"})())
+        return True
+
+    def _calendar_request(self, ev, now: float) -> bool:
+        """"What's on my calendar today?": read from the .ics sources, no model."""
+        c = self.calendar
+        if c is None or not self._user_source(ev):
+            return False
+        try:
+            say = c.hear(str(getattr(ev, "text", "") or ""), now)
+        except Exception:
+            logger.exception("Calendar request failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "research"})())
         return True
 
     def _research_request(self, ev, now: float) -> bool:
@@ -865,6 +897,8 @@ class AmbientRuntime:
         if self._desktop_request(ev, now):
             return
         if self._research_request(ev, now):
+            return
+        if self._calendar_request(ev, now):
             return
 
         # An answer to a free-moment remark (how are you?) is spent the same way.
@@ -1366,6 +1400,7 @@ class AmbientRuntime:
             "watch": self.watcher.status() if self.watcher else None,
             "desktop": self.desktop.status() if self.desktop else None,
             "research": self.research.status() if self.research else None,
+            "calendar": self.calendar.status() if self.calendar else None,
             "corrections": {"heard": self.stats.get("corrections", 0), **_corrections().status()},
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),

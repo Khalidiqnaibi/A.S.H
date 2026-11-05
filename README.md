@@ -509,6 +509,18 @@ know and how it noticed ("you'd mentioned Omar 3 times"); a remark says what
 made the moment seem right; a watch or an action says you asked for it. The
 full decision trace is still there for debugging (`ashctl.py why`).
 
+## Calendar
+
+`calendar` in `daemon.json`, `src/daemon/calendar_ics.py`. Read-only, from
+iCalendar: exported `.ics` files (`files`) or a private feed address
+(`urls`: Google's "secret address in iCal format", Outlook's "publish
+calendar"), with no account access and no extra library. One-off, all-day and
+repeating events (daily, weekly on given days, monthly, yearly, with counts,
+end dates, intervals and exceptions) go into the briefings ("On your calendar
+today: 10:00 Standup, 14:30 Design review") and answer "what's on my calendar
+today / tomorrow" without the model. Files are re-read when they change;
+feeds are fetched every half hour on their own thread.
+
 ## Research on request
 
 `research` in `daemon.json`, `src/daemon/research.py`. "Look into the Raft

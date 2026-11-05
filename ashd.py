@@ -285,6 +285,8 @@ def main() -> int:
                 activity_cfg=cfg.get("activity", {}),
                 activity_path=os.path.join(os.getcwd(), "state", "activity", "topics.json"),
                 corrections=bool(cfg.get("corrections", {}).get("enabled", True)),
+                calendar=bool(cfg.get("calendar", {}).get("enabled", True)),
+                calendar_cfg=cfg.get("calendar", {}),
                 research=bool(cfg.get("research", {}).get("enabled", True)),
                 research_cfg=cfg.get("research", {}),
                 research_path=os.path.join(os.getcwd(), "state", "research.json"),
