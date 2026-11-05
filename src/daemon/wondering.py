@@ -132,6 +132,35 @@ def definitions_differ(old: str, new: str) -> bool:
     return len(a & b) / len(a | b) < 0.5
 
 
+# The company a name keeps. Sara mentioned three times next to a meeting, a
+# deadline and the team is probably a colleague; asking "Is Sara a colleague?"
+# is easier to answer than "Who is Sara to you?". Only a guess: it is put as a
+# yes/no question, and only a yes stores it.
+CONTEXT_CUES: Dict[str, Tuple[str, str, "re.Pattern[str]"]] = {
+    "work": ("colleague", "around work", re.compile(
+        r"\b(?:meetings?|stand-?ups?|projects?|office|team|deadlines?|clients?|sprints?|reviews?|"
+        r"pull requests?|PRs?|deploy(?:ment)?s?|reports?|presentations?|work|job|shift|slack|jira|"
+        r"tickets?|code|release|manager|boss)\b", re.I)),
+    "school": ("classmate", "around your classes", re.compile(
+        r"\b(?:class(?:es)?|lectures?|homework|assignments?|exams?|course|professor|campus|semester|"
+        r"labs?|university|uni|school|study(?:ing)?|thesis|tutorial)\b", re.I)),
+    "family": ("family", "with your family", re.compile(
+        r"\b(?:family|parents|mom|mum|dad|grandma|grandpa|relatives|eid|family dinner|at home|"
+        r"wedding|cousins)\b", re.I)),
+}
+GUESS_MIN_CUES = 2
+
+
+def context_of(sent: str) -> Dict[str, int]:
+    """Which kinds of company a sentence keeps, by cue words."""
+    out = {}
+    for k, (_r, _w, rx) in CONTEXT_CUES.items():
+        n = len(rx.findall(sent))
+        if n:
+            out[k] = n
+    return out
+
+
 # What a relation between two people can be said as, to one label.
 BETWEEN_CANON: List[Tuple[str, str]] = [
     (r"\b(?:married|husband and wife|wife and husband|spouses|newlyweds?)\b", "married"),
@@ -259,16 +288,18 @@ def _title(name: str) -> str:
 # "conflict" is two answers that cannot both be true ("Omar is my cousin", later
 # "Omar is my brother"); "stale" is an answer old enough to check again ("is
 # Dana still your boss?"). Both come from what ASH already knows.
+# "routine" is a habit noticed in what the user does (routines.py): whether
+# to keep it as something ASH can do for them.
 KINDS = ("person", "role", "between", "term", "fact", "ambiguous", "intent", "activity",
-         "conflict", "stale")
-BASE_PRIORITY = {"conflict": 0.75, "stale": 0.30,
+         "conflict", "stale", "routine")
+BASE_PRIORITY = {"conflict": 0.75, "stale": 0.30, "routine": 0.32,
                  "ambiguous": 0.90, "intent": 0.80, "role": 0.70, "person": 0.60,
                  "between": 0.50, "term": 0.50, "fact": 0.40, "activity": 0.35}
 # How much each kind of gap matters RIGHT NOW, before repetition adds to it.
 # High: ASH cannot act well without the answer (two people fit, a request it
 # could not read). Low: it would merely like to know. Only the high ones are
 # worth interrupting a pause for; the rest wait for a free moment.
-BASE_URGENCY = {"conflict": 0.55, "stale": 0.12,
+BASE_URGENCY = {"conflict": 0.55, "stale": 0.12, "routine": 0.10,
                 "ambiguous": 0.85, "intent": 0.80, "role": 0.45, "person": 0.35,
                 "term": 0.30, "between": 0.25, "fact": 0.20, "activity": 0.10}
 # Replies that are noise, not an answer, wherever a definition is wanted.
@@ -431,6 +462,7 @@ class Knowledge:
         self.terms: Dict[str, Dict[str, str]] = {}      # norm term -> {term, definition}
         self.facts: Dict[str, str] = {}
         self.aliases: Dict[str, str] = {}               # bare name -> full name chosen
+        self.procedures: Dict[str, Dict[str, Any]] = {}  # norm name -> {name, steps}
         self._load()
 
     # -- persistence ---------------------------------------------------
@@ -445,6 +477,7 @@ class Knowledge:
             self.terms = dict(raw.get("terms") or {})
             self.facts = dict(raw.get("facts") or {})
             self.aliases = dict(raw.get("aliases") or {})
+            self.procedures = dict(raw.get("procedures") or {})
         except Exception:
             logger.exception("Knowledge file unreadable; starting empty")
             _quarantine(self.path)
@@ -453,7 +486,8 @@ class Knowledge:
         if not self.path:
             return
         _atomic_write(self.path, {"people": self.people, "roles": self.roles, "terms": self.terms,
-                                  "facts": self.facts, "aliases": self.aliases})
+                                  "facts": self.facts, "aliases": self.aliases,
+                                  "procedures": self.procedures})
 
     # -- entity memory as a source ----------------------------------------
     def _entity_people(self) -> List[Any]:
@@ -615,6 +649,21 @@ class Knowledge:
             self.facts[key] = _clean(value, 80)
             self.save()
 
+    def store_procedure(self, name: str, steps: List[str]) -> None:
+        """A routine the user agreed to keep: a name and its steps (apps)."""
+        name = _clean(name, 40)
+        steps = [_clean(s, 40) for s in steps if s][:8]
+        if not name or not steps:
+            return
+        with self._lock:
+            self.procedures[norm(name)] = {"name": name, "steps": steps, "t": self.clock()}
+            self.save()
+        self._mirror("procedure", name, {"steps": steps, "description": "opens " + ", then ".join(steps)})
+
+    def procedure(self, name: str) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            return self.procedures.get(norm(name))
+
     def store_alias(self, bare: str, full: str) -> None:
         with self._lock:
             self.aliases[norm(bare)] = full
@@ -633,7 +682,8 @@ class Knowledge:
     def status(self) -> Dict[str, Any]:
         with self._lock:
             return {"people": len(self.people), "roles": len(self.roles),
-                    "terms": len(self.terms), "facts": len(self.facts)}
+                    "terms": len(self.terms), "facts": len(self.facts),
+                    "procedures": len(self.procedures)}
 
 
 def _atomic_write(path: str, obj: Any):
@@ -1137,6 +1187,12 @@ class Wonderer:
                 continue
             named.append(pm.name)
             key = f"person:{norm(pm.name)}"
+            ctx = context_of(sent)
+            if ctx:
+                m = self.mentions.setdefault(key, {"n": 0, "t": now})
+                acc = m.setdefault("ctx", {})
+                for k2, n2 in ctx.items():
+                    acc[k2] = acc.get(k2, 0) + n2
             self._make("person", pm.name, f"Who is {pm.name} to you?", key, [norm(pm.name)],
                        {"name": pm.name}, sent, source, now, strong=pm.strong)
 
@@ -1250,7 +1306,7 @@ class Wonderer:
                         key=lambda w: -w.asked_at):
             if now - w.asked_at > self.cfg.late_answer_s:
                 continue
-            if w.kind in ("activity", "conflict", "stale"):
+            if w.kind in ("activity", "conflict", "stale", "routine"):
                 # Only the next reply answers one of these. A later "open
                 # brain.py" names the subject without being an answer to
                 # "what is brain.py for?".
@@ -1451,6 +1507,22 @@ class Wonderer:
             if not name:
                 return None
             return {"name": name, "ack": f"Got it -- {name} is your {d['role']}."}
+        if k == "person" and d.get("guess"):
+            g = d["guess"]
+            role = self._parse_role(text)
+            if role:
+                return {"role": role, "ack": f"Got it -- {w.subject} is your {role}."}
+            if _YES.match(text):
+                if g == "family":
+                    return {"desc": "family", "ack": f"Got it -- {w.subject} is family."}
+                return {"role": g, "ack": f"Got it -- {w.subject} is your {g}."}
+            m = _NO.match(text)
+            if m:
+                rest = self._strip_lead(m.group("rest") or "")
+                rest = re.sub(r"^(?:(?:a|an|the|just|my|someone|somebody|one of)\s+)+", "", rest, flags=re.I)
+                if 1 <= len(rest.split()) <= 7 and re.fullmatch(r"[\w' \-,]+", rest) and not _DONT_KNOW.search(rest):
+                    return {"desc": rest, "ack": f"Got it -- {w.subject} is {_clean(rest, 50)}."}
+                return None
         if k == "person":
             role = self._parse_role(text)
             if role:
@@ -1494,6 +1566,23 @@ class Wonderer:
                 v = _clean(self._strip_lead(text), 40)
                 return {"value": v, "ack": f"Got it -- {w.subject} is {v}."}
             return None
+        if k == "routine":
+            if _NO.match(text) and not _YES.match(text):
+                return {"decline": True, "ack": "Okay, I won't."}
+            m = re.search(r"\b(?:call it|name it|call that|it'?s (?:my|the|our)|as)\s+(?:my\s+|the\s+|a\s+)?"
+                          r"([\w' \-]{2,30})", text, re.I)
+            name = m.group(1) if m else ""
+            if not name and _YES.match(text):
+                rest = re.sub(r"^\s*(?:yes|yeah|yep|yup|sure|right|ok(?:ay)?|please|go ahead)\b[\s,.!:-]*", "",
+                              text, flags=re.I).strip(" .!")
+                rest = re.sub(r"^(?:please|sure)\b[\s,]*", "", rest, flags=re.I)
+                if rest and len(rest.split()) <= 4 and not re.search(r"\b(?:that|this|it|so|please)\b$", rest, re.I):
+                    name = rest
+            if not name and not _YES.match(text) and not re.search(r"\b(?:sure|please|go ahead|ok(?:ay)?)\b",
+                                                                   text, re.I):
+                return None
+            name = _clean(re.sub(r"^(?:my|the|a)\s+", "", name or "usual start", flags=re.I), 30) or "usual start"
+            return {"name": name, "ack": f"Got it -- I'll remember \"{name}\": " + ", then ".join(d["steps"]) + "."}
         if k == "conflict":
             if d.get("what") == "role":
                 if _YES.match(text):
@@ -1588,6 +1677,11 @@ class Wonderer:
                 return f"{subj} means {choice}."
             self.kb.store_fact(subj, choice)
             return f"The user's {subj} is {choice}."
+        if k == "routine":
+            if v.get("decline"):
+                return ""
+            self.kb.store_procedure(v["name"], d["steps"])
+            return f"The user's routine \"{v['name']}\" is opening " + ", then ".join(d["steps"]) + "."
         if k == "stale":
             name, role = d["name"], d["role"]
             if v.get("confirm"):
@@ -1608,6 +1702,8 @@ class Wonderer:
         k, d = w.kind, w.data
         if k == "role":
             return f"Sorry, I didn't catch the name -- what do you call your {d['role']}?"
+        if k == "person" and d.get("guess"):
+            return f"Okay -- who is {w.subject} to you, then?"
         if k == "person":
             return f"Sorry, I didn't catch that. Is {w.subject} family, a friend, or a colleague?"
         if k == "between":
@@ -1620,6 +1716,8 @@ class Wonderer:
             return f"Sorry, I missed the date. When is {w.subject}?"
         if k == "stale":
             return f"Okay -- what is {d['name']} to you now?"
+        if k == "routine":
+            return "Sorry -- shall I remember it, yes or no?"
         if k == "conflict" and d.get("what") == "role":
             return f"Sorry -- is {d['new']} your {d['role']} now, yes or no?"
         opts = d.get("options") or []
@@ -1739,6 +1837,9 @@ class Wonderer:
         """Look a term up once, just before it is asked. A guess becomes the
         question ("I think X means Y. Is that right?"); nothing found, or a
         lookup that fails, leaves the plain question."""
+        if w.kind == "person" and not w.data.get("guessed"):
+            self._guess_person(w)
+            return
         if self.lookup is None or w.kind not in ("term", "activity") or w.data.get("looked_up"):
             return
         w.data["looked_up"] = True
@@ -1751,6 +1852,23 @@ class Wonderer:
             w.data["guess"] = _clean(str(g["guess"]), 140)
             w.data["guess_source"] = str(g.get("source", ""))
             w.question = _clean(str(g["question"]), 240)
+        self._touch()
+
+    def _guess_person(self, w: Wonder):
+        """If the company a name keeps points one way, ask a yes/no question."""
+        w.data["guessed"] = True
+        ctx = dict((self.mentions.get(w.key) or {}).get("ctx") or {})
+        if not ctx:
+            return
+        best = max(ctx, key=lambda k: ctx[k])
+        rest = max([v for k, v in ctx.items() if k != best] or [0])
+        if ctx[best] < GUESS_MIN_CUES or ctx[best] < 2 * rest:
+            return
+        role, where, _rx = CONTEXT_CUES[best]
+        name = w.subject
+        w.data["guess"] = role
+        art = "" if role == "family" else "a "
+        w.question = f"You often mention {name} {where}. Is {name} {art}{role}?"
         self._touch()
 
     def render(self, w: Wonder, now: Optional[float] = None) -> str:

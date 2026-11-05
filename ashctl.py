@@ -26,6 +26,7 @@ ashctl.py -- talk to a running ASH daemon.
     python ashctl.py followups dismiss <id>
     python ashctl.py corrections           # readings you corrected ("no, I meant ...")
     python ashctl.py corrections forget
+    python ashctl.py routines              # openings it noticed, and the routines you kept
     python ashctl.py shutdown
 
     python ashctl.py simulate mic hey ash what time is it

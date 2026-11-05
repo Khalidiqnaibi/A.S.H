@@ -209,6 +209,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # the reading that was wrong is remembered and nudged down for the same
     # wording next time, the meant one up. Kept in state/corrections.json.
     "corrections": {"enabled": True},
+    # Routines: the apps opened at the start of a sitting, in order. One that
+    # repeats on min_days different days is offered as a routine to keep
+    # ("Outlook, then Teams, then Jira"). Only app names are kept.
+    "routines": {"enabled": True, "min_days": 3, "window_s": 600, "away_s": 1800},
     "free_moments": {
         "enabled": True,
         "min_gap_s": 600,
@@ -430,6 +434,18 @@ class ControlServer:
             return {"ok": True, "peripheral": target.status()}
         if cmd in ("wonders", "wonder"):
             return self._wonders(arg if cmd == "wonder" else "")
+        if cmd == "routines":
+            r = getattr(rt, "routines", None)
+            if r is None:
+                return {"ok": False, "error": "routines are not enabled (daemon.json: routines.enabled)"}
+            if arg.strip() == "forget":
+                r.forget()
+            elif arg.strip():
+                return {"ok": False, "error": f"unknown routines command {arg.strip()!r}", "commands": ["forget"]}
+            kb = rt.wonder.kb if getattr(rt, "wonder", None) else None
+            kept = [f"  {p['name']}: " + ", then ".join(p["steps"]) for p in (kb.procedures.values() if kb else [])]
+            return {"ok": True, "report": r.report() + ("\nKept:\n" + "\n".join(kept) if kept else ""),
+                    "status": r.status()}
         if cmd == "corrections":
             from src.brain import corrections
             c = corrections.default()
@@ -465,7 +481,7 @@ class ControlServer:
             return {"ok": True, "stopping": True}
         return {"ok": False, "error": f"unknown command {cmd!r}",
                 "commands": ["status", "pause", "resume", "mute", "unmute", "say",
-                             "why", "history", "sleep", "rollup", "sensors", "face", "wonders", "wonder", "activity", "followups", "corrections",
+                             "why", "history", "sleep", "rollup", "sensors", "face", "wonders", "wonder", "activity", "followups", "corrections", "routines",
                              "enable", "disable", "simulate", "shutdown"]}
 
     # ------------------------------------------------------------------

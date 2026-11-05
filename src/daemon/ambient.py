@@ -55,6 +55,7 @@ from .activity import ActivityConfig, ActivityMemory
 from .followups import FollowUpActivity, FollowUps, FollowUpsConfig
 from .freemoment import FreeMoments, ProviderActivity, default_moments
 from .lookup import Lookup, LookupConfig
+from .routines import Routines, RoutinesConfig
 from src.brain.corrections import default as _corrections, read_correction
 from .wondering import Environment, Knowledge, Wonderer, WonderingConfig
 from .social import (FlowDetector, ReactionTracker, SocialLearner,
@@ -160,6 +161,12 @@ class AmbientConfig:
     followups: bool = False
     followups_cfg: Optional[Dict[str, Any]] = None
     followups_path: Optional[str] = None     # state/followups/followups.json
+    # Routines: the apps the user opens at the start of a sitting, in order;
+    # one that repeats over days is offered as a routine to keep (routines.py).
+    # Needs wonder. Off on a bare runtime; the daemon turns it on.
+    routines: bool = False
+    routines_cfg: Optional[Dict[str, Any]] = None
+    routines_path: Optional[str] = None      # state/routines/routines.json
 
 
 class AmbientRuntime:
@@ -237,6 +244,12 @@ class AmbientRuntime:
                 wonder=self.wonder, knowledge=(self.wonder.kb if self.wonder else None),
                 user=str(getattr(self.brain, "user", "") or ""),
                 clock=lambda: self.clock(), scrub=self.privacy.scrub)
+        # Routines: openings that repeat, offered to keep.
+        self.routines: Optional[Routines] = None
+        if self.cfg.routines:
+            self.routines = Routines(RoutinesConfig.from_dict(self.cfg.routines_cfg),
+                                     path=self.cfg.routines_path, wonder=self.wonder,
+                                     clock=lambda: self.clock())
         # Free moments: what to do with a pause, chosen among several things.
         self.moments: Optional[FreeMoments] = None
         self._moment_inflight: Optional[str] = None
@@ -423,6 +436,11 @@ class AmbientRuntime:
                     self.activity.tick(now, idle_s)
                 except Exception:
                     logger.exception("Activity memory failed on a tick")
+            if self.routines is not None:
+                try:
+                    self.routines.tick(now)
+                except Exception:
+                    logger.exception("Routines failed on a tick")
             if self.flow is None:
                 self._wonder_step(now, idle_s)
                 return
@@ -606,7 +624,13 @@ class AmbientRuntime:
                 self.activity.observe(ev, now)
             except Exception:
                 logger.exception("Activity memory failed on an event")
-        if self.followups is not None and getattr(ev, "source", "") != "flow"                 and self.followups.hears(getattr(ev, "source", "")):
+        if self.routines is not None:
+            try:
+                self.routines.observe(ev, now)
+            except Exception:
+                logger.exception("Routines failed on an event")
+        if (self.followups is not None and getattr(ev, "source", "") != "flow"
+                and self.followups.hears(getattr(ev, "source", ""))):
             try:
                 self._wonder_learn(self.followups.observe(getattr(ev, "text", "") or "", now))
             except Exception:
@@ -1068,6 +1092,7 @@ class AmbientRuntime:
             "activity": self.activity.status() if self.activity else None,
             "free_moments": self.moments.status() if self.moments else None,
             "followups": self.followups.status() if self.followups else None,
+            "routines": self.routines.status() if self.routines else None,
             "corrections": {"heard": self.stats.get("corrections", 0), **_corrections().status()},
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),

@@ -503,6 +503,16 @@ urgent. Each part can be switched off in `daemon.json`.
   the correction is kept as a bounded nudge on the classifier for the same
   wording next time. `ashctl.py corrections` lists them; `corrections forget`
   clears them.
+* **Guesses about people.** When a name keeps coming up next to work words
+  (a meeting, a deadline, the team), classes or family, "Who is Sara to you?"
+  becomes "You often mention Sara around work. Is Sara a colleague?". A yes
+  keeps it; a no asks the open question. No pronoun is ever guessed.
+* **Routines** (`routines`, `src/daemon/routines.py`). The first apps opened
+  at the start of a sitting, in order. One that repeats on three different
+  days is offered once: "You often start your morning by opening Outlook,
+  then Teams, then Jira. Want me to remember that as a routine?". "Yes, call
+  it morning check" keeps it under that name. Only app names are kept.
+  `ashctl.py routines` lists what it noticed and what you kept.
 
 ## Ambient memory: two-stage consolidation
 
