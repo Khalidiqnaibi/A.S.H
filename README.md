@@ -478,6 +478,12 @@ summary at the edges of the day instead of scattered remarks:
 * **On request** -- "brief me", "what's my day look like", "what did I do
   today".
 
+The weather is part of both once a place is set (`weather.city`, or `lat` and
+`lon`): today's in the morning, tomorrow's in the evening, from Open-Meteo
+(no account or key; only the place is sent, at most hourly), and "what's the
+weather like today?" is answered from it without the model -- another place
+is left to the brain's weather tool.
+
 Once a day each, never while muted or in quiet hours, and nothing at all on
 a day with nothing to say. Extra parts (reminders, weather) are one function
 each (`Briefings.add_provider`). `ashctl.py briefing` shows what it would say.

@@ -288,6 +288,8 @@ def main() -> int:
                 remarks_dir=(os.path.join(os.getcwd(), "state", "remarks")
                              if cfg.get("remarks", {}).get("enabled", True) else None),
                 remarks_keep_text=bool(cfg.get("remarks", {}).get("keep_text", True)),
+                weather=bool(cfg.get("weather", {}).get("enabled", True)),
+                weather_cfg=cfg.get("weather", {}),
                 focus=bool(cfg.get("focus", {}).get("enabled", True)),
                 media=bool(cfg.get("media", {}).get("enabled", True)),
                 media_cfg=cfg.get("media", {}),

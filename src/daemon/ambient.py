@@ -69,6 +69,7 @@ from .play import Bored, Play, Story
 from .media import Media, MediaConfig
 from .remarks import RemarkLog
 from .focus import Focus
+from .weather import Weather, WeatherConfig
 from .forget import (UndoStack, entity_ids, forget_subject, restorer, snapshot, wants_forget,
                      wants_undo)
 from src.brain.corrections import default as _corrections, read_correction
@@ -236,6 +237,9 @@ class AmbientConfig:
     # Focus mode: "I'm focusing for an hour" -- nothing volunteered until
     # then, a summary of what was held after (focus.py). Off on a bare runtime.
     focus: bool = False
+    # The weather (weather.py), once a place is set. Off on a bare runtime.
+    weather: bool = False
+    weather_cfg: Optional[Dict[str, Any]] = None
 
 
 def _as_you(sentence: str) -> str:
@@ -391,6 +395,9 @@ class AmbientRuntime:
         if self.cfg.media:
             self.media = Media(MediaConfig.from_dict(self.cfg.media_cfg),
                                episodic=getattr(self.ash, "episodic_memory", None), clock=lambda: self.clock())
+        self.weather: Optional[Weather] = None
+        if self.cfg.weather:
+            self.weather = Weather(WeatherConfig.from_dict(self.cfg.weather_cfg), clock=lambda: self.clock())
         self.calendar: Optional[Calendar] = None
         self._calendar_at = -1e18
         if self.cfg.calendar:
@@ -403,6 +410,8 @@ class AmbientRuntime:
                                        path=self.cfg.briefings_path, followups=self.followups,
                                        activity=self.activity, wonder=self.wonder,
                                        clock=lambda: self.clock())
+            if self.weather is not None:
+                self.briefings.add_provider(self.weather.briefing_part)
             if self.calendar is not None:
                 self.briefings.add_provider(self.calendar.briefing_part)
             if self.reminders is not None:
@@ -607,6 +616,11 @@ class AmbientRuntime:
                     logger.exception("Routines failed on a tick")
             self._watch_step(now)
             self._reminder_step(now)
+            if self.weather is not None:
+                try:
+                    self.weather.refresh(now)
+                except Exception:
+                    logger.exception("Weather refresh failed")
             if self.calendar is not None and now - self._calendar_at >= 60.0:
                 self._calendar_at = now
                 try:
@@ -932,6 +946,22 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
 
+    def _weather_request(self, ev, now: float) -> bool:
+        """"What's the weather like today?" for the place set, without the model.
+        Another place, or no place set, is left to the brain's weather tool."""
+        w = self.weather
+        if w is None or not self._user_source(ev):
+            return False
+        try:
+            say = w.hear(str(getattr(ev, "text", "") or ""), now)
+        except Exception:
+            logger.exception("Weather request failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "research"})())
+        return True
+
     def _calendar_request(self, ev, now: float) -> bool:
         """"What's on my calendar today?": read from the .ics sources, no model."""
         c = self.calendar
@@ -1167,6 +1197,8 @@ class AmbientRuntime:
         if self._research_request(ev, now):
             return
         if self._calendar_request(ev, now):
+            return
+        if self._weather_request(ev, now):
             return
 
         # An answer to a free-moment remark (how are you?) is spent the same way.
@@ -1770,6 +1802,7 @@ class AmbientRuntime:
             "media": self.media.status() if self.media else None,
             "remarks": {"logging": self.remarks is not None},
             "focus": self.focus.status() if self.focus else None,
+            "weather": self.weather.status() if self.weather else None,
             "corrections": {"heard": self.stats.get("corrections", 0), **_corrections().status()},
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),
