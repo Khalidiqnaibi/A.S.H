@@ -209,6 +209,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # the reading that was wrong is remembered and nudged down for the same
     # wording next time, the meant one up. Kept in state/corrections.json.
     "corrections": {"enabled": True},
+    # Watches: "tell me when the download finishes / chrome closes / the
+    # battery is charged / the CPU calms down / report.docx changes", checked
+    # every few seconds and let go after a day; plus a warning when the disk
+    # will be full within two days at the rate it is filling.
+    "watch": {"enabled": True, "downloads_dir": "~/Downloads", "expire_s": 86400, "disk_trend": True},
     # Briefings: a short summary the first time you are at the computer in
     # the morning (today's events, yesterday's work, questions waiting) and
     # at a free moment in the evening (what the day went on, tomorrow's
@@ -440,6 +445,15 @@ class ControlServer:
             return {"ok": True, "peripheral": target.status()}
         if cmd in ("wonders", "wonder"):
             return self._wonders(arg if cmd == "wonder" else "")
+        if cmd == "watches":
+            wt = getattr(rt, "watcher", None)
+            if wt is None:
+                return {"ok": False, "error": "watches are not enabled (daemon.json: watch.enabled)"}
+            if arg.strip() in ("stop", "clear", "cancel"):
+                wt.cancel("", rt.clock())
+            elif arg.strip():
+                return {"ok": False, "error": f"unknown watches command {arg.strip()!r}", "commands": ["stop"]}
+            return {"ok": True, "report": wt.report(), "status": wt.status()}
         if cmd == "briefing":
             b = getattr(rt, "briefings", None)
             if b is None:
@@ -493,7 +507,7 @@ class ControlServer:
             return {"ok": True, "stopping": True}
         return {"ok": False, "error": f"unknown command {cmd!r}",
                 "commands": ["status", "pause", "resume", "mute", "unmute", "say",
-                             "why", "history", "sleep", "rollup", "sensors", "face", "wonders", "wonder", "activity", "followups", "corrections", "routines", "briefing",
+                             "why", "history", "sleep", "rollup", "sensors", "face", "wonders", "wonder", "activity", "followups", "corrections", "routines", "briefing", "watches",
                              "enable", "disable", "simulate", "shutdown"]}
 
     # ------------------------------------------------------------------

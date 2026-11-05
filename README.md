@@ -482,6 +482,23 @@ Once a day each, never while muted or in quiet hours, and nothing at all on
 a day with nothing to say. Extra parts (reminders, weather) are one function
 each (`Briefings.add_provider`). `ashctl.py briefing` shows what it would say.
 
+## Watching things for you
+
+`watch` in `daemon.json`, `src/daemon/watch.py`. Say "tell me when the
+download finishes", "...when chrome closes", "...when the battery is
+charged" (or "at 80%"), "...when the CPU calms down", or "...when
+report.docx changes". It is checked against the machine first ("I don't see
+firefox running right now"), acknowledged without the model, checked every
+few seconds, said once when it happens -- even unprompted, since you asked --
+and let go after a day if it never does. A download counts once it has
+settled and nothing is still downloading. Muted or paused, the news is kept
+and said afterwards. "Stop watching" or "never mind the download" drops
+them; `ashctl.py watches` lists them.
+
+Builds are out of reach and it says so: "tell me the program's name, like
+'tell me when npm finishes'". Separately, disk use is sampled hourly, and if
+at the current rate it will be full within two days, ASH says so, once a day.
+
 ## Questions ASH asks
 
 Everything here is rule-based, paced by the same budget, quiet hours and

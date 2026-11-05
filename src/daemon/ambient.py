@@ -57,6 +57,7 @@ from .freemoment import FreeMoments, ProviderActivity, default_moments
 from .lookup import Lookup, LookupConfig
 from .routines import Routines, RoutinesConfig
 from .briefing import BriefingConfig, Briefings, asked_for_briefing
+from .watch import WatchConfig, Watcher
 from src.brain.corrections import default as _corrections, read_correction
 from .wondering import Environment, Knowledge, Wonderer, WonderingConfig
 from .social import (FlowDetector, ReactionTracker, SocialLearner,
@@ -174,6 +175,12 @@ class AmbientConfig:
     briefings: bool = False
     briefings_cfg: Optional[Dict[str, Any]] = None
     briefings_path: Optional[str] = None     # state/briefing.json
+    # Watches: "tell me when the download finishes" and the like, and a
+    # warning when the disk will fill up soon (watch.py). Off on a bare
+    # runtime; the daemon turns it on.
+    watch: bool = False
+    watch_cfg: Optional[Dict[str, Any]] = None
+    watch_path: Optional[str] = None         # state/watches.json
 
 
 class AmbientRuntime:
@@ -286,6 +293,12 @@ class AmbientRuntime:
                                        path=self.cfg.briefings_path, followups=self.followups,
                                        activity=self.activity, wonder=self.wonder,
                                        clock=lambda: self.clock())
+        # Watches the user asked for; what they find is said even unasked.
+        self.watcher: Optional[Watcher] = None
+        self._watch_pending: List[str] = []
+        if self.cfg.watch:
+            self.watcher = Watcher(WatchConfig.from_dict(self.cfg.watch_cfg), path=self.cfg.watch_path,
+                                   clock=lambda: self.clock())
         self.stats["wonders_asked"] = 0
         self.stats["corrections"] = 0
         self._last_turn: Optional[Dict[str, Any]] = None     # what ASH last answered, and as what
@@ -456,6 +469,7 @@ class AmbientRuntime:
                     self.routines.tick(now)
                 except Exception:
                     logger.exception("Routines failed on a tick")
+            self._watch_step(now)
             if self._briefing_step(now, idle_s):
                 return
             if self.flow is None:
@@ -560,6 +574,46 @@ class AmbientRuntime:
             self.stats["errors"] += 1
             logger.exception("Briefing step failed")
             return False
+
+    def _watch_step(self, now: float):
+        """Say what a watch found. The user asked for it, so neither the
+        hourly budget nor a pause is needed -- but muted, paused or quiet
+        hours keep it until they are over, rather than losing it."""
+        w = self.watcher
+        if w is None:
+            return
+        try:
+            self._watch_pending.extend(w.tick(now))
+        except Exception:
+            self.stats["errors"] += 1
+            logger.exception("Watch tick failed")
+        if not self._watch_pending:
+            return
+        if self.gate.muted or self.privacy.paused or self.gate._in_quiet_hours(now):
+            return
+        while self._watch_pending:
+            text = self._watch_pending.pop(0)
+            try:
+                self.response_sink(text, {"addressed": False, "source": "watch",
+                                          "attention": None, "pathway": "watch"})
+            except Exception:
+                logger.exception("Response sink failed")
+
+    def _watch_request(self, ev, now: float) -> bool:
+        """"Tell me when the download finishes": set up, and acknowledged
+        without the model."""
+        w = self.watcher
+        if w is None or not self._user_source(ev):
+            return False
+        try:
+            say = w.hear(str(getattr(ev, "text", "") or ""), now)
+        except Exception:
+            logger.exception("Reading a watch request failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "watch"})())
+        return True
 
     def _briefing_request(self, ev, now: float) -> bool:
         """"Brief me" / "what's my day look like": composed and said there and
@@ -723,6 +777,8 @@ class AmbientRuntime:
         if self.cfg.corrections and self._correction_step(ev, now):
             return
         if self._briefing_request(ev, now):
+            return
+        if self._watch_request(ev, now):
             return
 
         # An answer to a free-moment remark (how are you?) is spent the same way.
@@ -1172,6 +1228,7 @@ class AmbientRuntime:
             "followups": self.followups.status() if self.followups else None,
             "routines": self.routines.status() if self.routines else None,
             "briefings": self.briefings.status() if self.briefings else None,
+            "watch": self.watcher.status() if self.watcher else None,
             "corrections": {"heard": self.stats.get("corrections", 0), **_corrections().status()},
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),
