@@ -218,6 +218,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # morning check". Only known app names; add yours under apps, e.g.
     # "apps": {"jira": "https://jira.example.com", "blender": "C:/Program Files/Blender/blender.exe"}.
     "desktop": {"enabled": True, "confirm_close": True, "apps": {}},
+    # Research: "look into X" -- looked up in the background (Wikipedia, your
+    # files under wondering.lookup.roots, what you said before) and told at a
+    # free moment or in the evening briefing.
+    "research": {"enabled": True},
     "watch": {"enabled": True, "downloads_dir": "~/Downloads", "expire_s": 86400, "disk_trend": True},
     # Briefings: a short summary the first time you are at the computer in
     # the morning (today's events, yesterday's work, questions waiting) and

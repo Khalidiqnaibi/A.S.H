@@ -499,6 +499,16 @@ Builds are out of reach and it says so: "tell me the program's name, like
 'tell me when npm finishes'". Separately, disk use is sampled hourly, and if
 at the current rate it will be full within two days, ASH says so, once a day.
 
+## Research on request
+
+`research` in `daemon.json`, `src/daemon/research.py`. "Look into the Raft
+algorithm", "research ZXQ", "find out about WebGPU when you can" is
+acknowledged and done on its own thread: a Wikipedia summary, a strong
+definition in your own files or in something you said, which of your files
+mention it, and how often you have. The report is told at the next free
+moment (ahead of a joke) or in the evening briefing, once, crediting where
+each part came from -- and says plainly when nothing was found.
+
 ## Desktop control
 
 `desktop` in `daemon.json`, `src/daemon/desktop.py`. "Open Outlook",

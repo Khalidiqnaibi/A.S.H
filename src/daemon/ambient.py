@@ -59,6 +59,7 @@ from .routines import Routines, RoutinesConfig
 from .briefing import BriefingConfig, Briefings, asked_for_briefing
 from .watch import WatchConfig, Watcher
 from .desktop import Desktop, DesktopConfig
+from .research import Research, ResearchActivity, ResearchConfig
 from src.brain.corrections import default as _corrections, read_correction
 from .wondering import Environment, Knowledge, Wonderer, WonderingConfig
 from .social import (FlowDetector, ReactionTracker, SocialLearner,
@@ -187,6 +188,12 @@ class AmbientConfig:
     # turns it on.
     desktop: bool = False
     desktop_cfg: Optional[Dict[str, Any]] = None
+    # Research: "look into X" is done in the background and told at a free
+    # moment or in the evening briefing (research.py), with the lookup
+    # sources set under wondering.lookup. Off on a bare runtime.
+    research: bool = False
+    research_cfg: Optional[Dict[str, Any]] = None
+    research_path: Optional[str] = None      # state/research.json
 
 
 class AmbientRuntime:
@@ -249,9 +256,14 @@ class AmbientRuntime:
                 wc, Knowledge(self.cfg.knowledge_path, entity_manager=ent),
                 path=self.cfg.wonder_path, clock=lambda: self.clock(),
                 scrub=self.privacy.scrub)
-            lc = dict((self.cfg.wonder_cfg or {}).get("lookup") or {})
+        lc = dict((self.cfg.wonder_cfg or {}).get("lookup") or {})
+        self.lookup_engine: Optional[Lookup] = None
+        if self.cfg.research or (self.wonder is not None and self.cfg.lookup and lc.get("enabled", True)):
+            self.lookup_engine = Lookup(LookupConfig.from_dict(lc),
+                                        episodic=getattr(self.ash, "episodic_memory", None))
+        if self.wonder is not None:
             if self.cfg.lookup and lc.get("enabled", True):
-                lk = Lookup(LookupConfig.from_dict(lc), episodic=getattr(self.ash, "episodic_memory", None))
+                lk = self.lookup_engine
                 self.wonder.lookup = lk.for_wonder
                 self.wonder.lookup_status = lk.status
         # Activity memory: what the user does, kept like a conversation.
@@ -291,6 +303,14 @@ class AmbientRuntime:
                 self.moments.register(FollowUpActivity(
                     self.followups, learn=lambda s: self._wonder_learn([s]),
                     mood=lambda v: moments.set_mood(v, self.clock())))
+        # Research the user asked for, told when it is ready.
+        self.research: Optional[Research] = None
+        if self.cfg.research:
+            self.research = Research(ResearchConfig.from_dict(self.cfg.research_cfg), lookup=self.lookup_engine,
+                                     episodic=getattr(self.ash, "episodic_memory", None),
+                                     path=self.cfg.research_path, clock=lambda: self.clock())
+            if self.moments is not None:
+                self.moments.register(ResearchActivity(self.research))
         # Briefings, from what the parts above keep.
         self.briefings: Optional[Briefings] = None
         self._briefing_inflight: Optional[str] = None
@@ -299,6 +319,8 @@ class AmbientRuntime:
                                        path=self.cfg.briefings_path, followups=self.followups,
                                        activity=self.activity, wonder=self.wonder,
                                        clock=lambda: self.clock())
+            if self.research is not None:
+                self.briefings.add_provider(self.research.briefing_part)
         # Watches the user asked for; what they find is said even unasked.
         self.watcher: Optional[Watcher] = None
         self._watch_pending: List[str] = []
@@ -645,6 +667,21 @@ class AmbientRuntime:
                                              else "desktop"})())
         return True
 
+    def _research_request(self, ev, now: float) -> bool:
+        """"Look into X": a job started, acknowledged without the model."""
+        r = self.research
+        if r is None or not self._user_source(ev):
+            return False
+        try:
+            say = r.hear(str(getattr(ev, "text", "") or ""), now)
+        except Exception:
+            logger.exception("Research request failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "research"})())
+        return True
+
     def _briefing_request(self, ev, now: float) -> bool:
         """"Brief me" / "what's my day look like": composed and said there and
         then, without the model."""
@@ -811,6 +848,8 @@ class AmbientRuntime:
         if self._watch_request(ev, now):
             return
         if self._desktop_request(ev, now):
+            return
+        if self._research_request(ev, now):
             return
 
         # An answer to a free-moment remark (how are you?) is spent the same way.
@@ -1262,6 +1301,7 @@ class AmbientRuntime:
             "briefings": self.briefings.status() if self.briefings else None,
             "watch": self.watcher.status() if self.watcher else None,
             "desktop": self.desktop.status() if self.desktop else None,
+            "research": self.research.status() if self.research else None,
             "corrections": {"heard": self.stats.get("corrections", 0), **_corrections().status()},
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),
