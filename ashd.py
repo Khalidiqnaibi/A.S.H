@@ -275,6 +275,7 @@ def main() -> int:
                 flow_min_burst_s=rcfg.get("flow_min_burst_s", 600.0),
                 wonder=bool(cfg.get("wondering", {}).get("enabled", True)),
                 wonder_cfg=cfg.get("wondering", {}),
+                lookup=bool((cfg.get("wondering", {}).get("lookup") or {}).get("enabled", True)),
                 moments=bool(cfg.get("free_moments", {}).get("enabled", True)),
                 moments_cfg=cfg.get("free_moments", {}),
                 activity=bool(cfg.get("activity", {}).get("enabled", True)),

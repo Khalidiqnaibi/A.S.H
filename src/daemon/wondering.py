@@ -177,6 +177,11 @@ _STOP_ALL = re.compile(
     r"ask(?:ing)? me (?:anything|things|stuff|questions))\b", re.I)
 _RESUME = re.compile(r"\b(?:you can|feel free to|go ahead and|please)\b.{0,12}\b(?:ask|wonder)\b.{0,20}\b(?:again|questions|me things)\b",
                      re.I)
+# A reply to "I think X means Y -- is that right?".
+_YES = re.compile(r"^\s*(?:yes|yeah|yep|yup|yea|right|correct|exactly|true|indeed|sure|mhm|uh-huh|"
+                  r"that'?s (?:it|right|correct)|you got it|spot on)\b(?!\s*,?\s*but\b)", re.I)
+_NO = re.compile(r"^\s*(?:no|nope|nah|not quite|not really|not exactly|wrong|incorrect)\b[\s,.:;!-]*"
+                 r"(?:it'?s|it is|it means|that'?s|that is|actually)?[\s,]*(?P<rest>.*)$", re.I)
 _THAT = re.compile(r"\b(?:that|this|it|him|her|them|those|these|about (?:that|this|it))\b", re.I)
 _ORDINALS = {"first": 0, "1st": 0, "one": 0, "1": 0, "former": 0, "second": 1, "2nd": 1, "two": 1, "2": 1,
              "latter": 1, "third": 2, "3rd": 2, "three": 2, "3": 2}
@@ -679,6 +684,11 @@ class Wonderer:
         self.clock = clock
         self.scrub = scrub or (lambda s: s)
         self.fits: List[FitFn] = [mood_fit, activity_fit]
+        # Before asking what a term means, look it up (see lookup.py): a
+        # function of the wonder returning {"guess", "question", "source"} or
+        # None. A guess turns the question into one to confirm.
+        self.lookup: Optional[Callable[[Wonder], Optional[Dict[str, Any]]]] = None
+        self.lookup_status: Optional[Callable[[], Dict[str, Any]]] = None
         self._lock = threading.RLock()
 
         self.wonders: Dict[str, Wonder] = {}
@@ -1312,6 +1322,17 @@ class Wonderer:
                 return {"label": label, "ack": f"Got it -- {w.data['a']} and {w.data['b']} are {label}."}
             return None
         if k in ("term", "activity"):
+            g = d.get("guess")
+            if g:
+                if _YES.match(text):
+                    return {"definition": g, "ack": f"Great, noted: {w.subject} is {_clean(g, 60)}."}
+                m = _NO.match(text)
+                if m:
+                    rest = self._strip_lead(m.group("rest") or "")
+                    rest = re.sub(r"^(?:stands for|means|mean|is short for|refers to|is)\s+", "", rest, flags=re.I)
+                    if len(rest) >= 2 and not _DONT_KNOW.search(rest) and rest.lower().strip(" .!") not in _FILLER:
+                        return {"definition": _clean(rest, 200), "ack": f"Got it -- {w.subject} is {_clean(rest, 60)}."}
+                    return None
             t = self._strip_lead(text)
             t = re.sub(r"^(?:stands for|means|mean|is short for|refers to|is an? acronym for|is)\s+", "", t, flags=re.I)
             n = len(t.split())
@@ -1370,6 +1391,8 @@ class Wonderer:
         if k == "between":
             return f"Sorry, I missed that. Are {d['a']} and {d['b']} family, friends, or colleagues?"
         if k in ("term", "activity"):
+            if d.get("guess"):
+                return f"Okay -- what does {w.subject} mean, then?"
             return f"Sorry, I didn't get that. In a few words, what is {w.subject}?"
         if k == "fact":
             return f"Sorry, I missed the date. When is {w.subject}?"
@@ -1482,7 +1505,27 @@ class Wonderer:
                     scored.append(((0.6 * w.urgency + 0.4 * w.priority) * f, -w.created, w))
             if not scored:
                 return None
-            return max(scored, key=lambda x: (x[0], x[1]))[2]
+            best = max(scored, key=lambda x: (x[0], x[1]))[2]
+            self._prepare(best, now)
+            return best
+
+    def _prepare(self, w: Wonder, now: float):
+        """Look a term up once, just before it is asked. A guess becomes the
+        question ("I think X means Y. Is that right?"); nothing found, or a
+        lookup that fails, leaves the plain question."""
+        if self.lookup is None or w.kind not in ("term", "activity") or w.data.get("looked_up"):
+            return
+        w.data["looked_up"] = True
+        try:
+            g = self.lookup(w)
+        except Exception:
+            logger.exception("Looking a term up failed; asking plainly")
+            g = None
+        if g and g.get("guess") and g.get("question"):
+            w.data["guess"] = _clean(str(g["guess"]), 140)
+            w.data["guess_source"] = str(g.get("source", ""))
+            w.question = _clean(str(g["question"]), 240)
+        self._touch()
 
     def render(self, w: Wonder, now: Optional[float] = None) -> str:
         """The question as it is said: a lead-in when it has been a while."""
@@ -1494,8 +1537,9 @@ class Wonderer:
                     "between": "Earlier you mentioned them both. ",
                     "term": f"Earlier you said {w.subject}. "}[w.kind]
             q = lead + q
-        if w.asked_count:
-            q = "Still curious: " + q[:1].lower() + q[1:] if not q.startswith("Earlier") else q
+        if w.asked_count and not q.startswith("Earlier"):
+            keep = q.startswith(("I ", "I'"))          # "I think..." keeps its capital
+            q = "Still curious: " + (q if keep else q[:1].lower() + q[1:])
         return q
 
     def mark_asked(self, wid: str, now: Optional[float] = None) -> Optional[Wonder]:
@@ -1585,4 +1629,5 @@ class Wonderer:
                 "asked_last_day": sum(1 for t in self.asked_times if now - t <= DAY),
                 "stats": dict(self.stats),
                 "knowledge": self.kb.status(),
+                **({"lookup": self.lookup_status()} if self.lookup_status else {}),
             }

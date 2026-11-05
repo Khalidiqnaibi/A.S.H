@@ -477,6 +477,14 @@ urgent. Each part can be switched off in `daemon.json`.
   not yet, didn't happen). Moving or cancelling the event updates it, and
   saying how it went first means it is never asked. An exam outranks a
   routine meeting. `ashctl.py followups` lists what it is waiting to ask.
+* **Look it up first** (`wondering.lookup`, `src/daemon/lookup.py`). Before
+  asking what a term means, ASH checks episodic memory, text files under
+  `roots`, and, for acronyms and quoted terms only, a Wikipedia summary
+  (only the term is sent; set `web: false` air-gapped). Whatever it finds is a
+  guess to confirm: "I think ZXQ means Zone eXchange Queue. Is that right?".
+  A yes keeps it, "no, it's ..." keeps the correction, a bare no asks once
+  what it is, then. For a file it keeps seeing (`brain.py`), it reads what the
+  file says about itself first.
 
 ## Ambient memory: two-stage consolidation
 

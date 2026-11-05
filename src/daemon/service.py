@@ -162,6 +162,17 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "ignore_names": [],
         "kinds": {"person": True, "role": True, "between": True, "term": True,
                   "fact": True, "ambiguous": True, "intent": True},
+        # Before asking what a term means, look it up and ask to confirm the
+        # guess. memory: past sentences; files: text files under roots (add
+        # your project folders); web: a Wikipedia summary, only for acronyms
+        # and quoted terms, only the term is sent. Set web false air-gapped.
+        "lookup": {
+            "enabled": True,
+            "memory": True,
+            "files": True,
+            "roots": ["~/Documents", "~/Desktop"],
+            "web": True,
+        },
     },
     # A free moment (a pause after real work) can hold several things: closing
     # a gap (see wondering), a light joke, asking how the user is, a note on how

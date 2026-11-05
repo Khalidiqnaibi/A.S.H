@@ -54,6 +54,7 @@ from .privacy import PrivacyPolicy
 from .activity import ActivityConfig, ActivityMemory
 from .followups import FollowUpActivity, FollowUps, FollowUpsConfig
 from .freemoment import FreeMoments, ProviderActivity, default_moments
+from .lookup import Lookup, LookupConfig
 from .wondering import Environment, Knowledge, Wonderer, WonderingConfig
 from .social import (FlowDetector, ReactionTracker, SocialLearner,
                      compose_check_in, is_generic_checkin, where_phrase)
@@ -133,6 +134,10 @@ class AmbientConfig:
     wonder_cfg: Optional[Dict[str, Any]] = None
     wonder_path: Optional[str] = None        # state/wonder/wonders.json
     knowledge_path: Optional[str] = None     # state/wonder/knowledge.json
+    # Look a term up (memory, files, the web) before asking what it means,
+    # and ask to confirm the guess (lookup.py). Settings under
+    # wondering.lookup. Off on a bare runtime; the daemon turns it on.
+    lookup: bool = False
     # Free moments: choose among gap closure, a joke, a mood check, a note on
     # how ASH is running... Needs wonder for the first. Off on a bare runtime.
     moments: bool = False
@@ -211,6 +216,11 @@ class AmbientRuntime:
                 wc, Knowledge(self.cfg.knowledge_path, entity_manager=ent),
                 path=self.cfg.wonder_path, clock=lambda: self.clock(),
                 scrub=self.privacy.scrub)
+            lc = dict((self.cfg.wonder_cfg or {}).get("lookup") or {})
+            if self.cfg.lookup and lc.get("enabled", True):
+                lk = Lookup(LookupConfig.from_dict(lc), episodic=getattr(self.ash, "episodic_memory", None))
+                self.wonder.lookup = lk.for_wonder
+                self.wonder.lookup_status = lk.status
         # Activity memory: what the user does, kept like a conversation.
         self.activity: Optional[ActivityMemory] = None
         if self.cfg.activity:
