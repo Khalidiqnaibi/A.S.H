@@ -10,20 +10,25 @@ worth it, and what in ASH it would build on.
 
 ---
 
-## Suggested order
+## Where things stand
 
-1. Follow-ups on remembered events
-2. Look it up before asking
-3. Contradictions in memory
-4. Morning and evening briefings
-5. Alerts that watch for you
-6. Games at a free moment
+The first round (sections 1-3) is built, apart from email, typing into
+windows, per-expression sounds and pretend play; each entry below says
+what was built and what is left. Sections 4-6 are the next round.
 
-The first three make wondering much smarter with no new hardware or accounts.
-Briefings and alerts are the most useful JARVIS-style behaviour and build on
-activity memory and system stats that already exist. Games are the cheapest
-way to make ASH feel like a companion, and slot straight into the free-moment
-registry.
+## Suggested order for the next round
+
+1. A live tuning run (4.1)
+2. "Undo that" / "forget that" (4.3)
+3. The face reacting to what happens (4.4)
+4. Focus mode (5.4)
+5. Weather in the briefing (5.6)
+6. Talking less, by learning (4.6)
+
+The live run comes first because every threshold added in the first round
+(mood confidence, free-moment values, the voice match, guess cues) is a
+guess until it meets a real day. The rest are cheap, build on what exists,
+and are what would be noticed day to day.
 
 ---
 
@@ -180,3 +185,113 @@ Using the face and voice rather than a plain beep.
 **Status: built** (`src/daemon/media.py`).
 On request, saved as an episode ASH can bring up later.
 *Builds on:* episodic memory; needs a camera sense.
+
+---
+
+## 4. UX: making it pleasant to live with
+
+### 4.1 A live tuning run
+Run the daemon for a day or two with everything on, log every remark and how
+it landed, and tune from that: when ASH spoke, what it said, what was
+dismissed. Most first-round thresholds were set on synthetic data.
+*Builds on:* the journal, the social learner's reaction counts, `ashctl status`.
+
+### 4.2 One place for settings and status
+About twenty features are now configured across `daemon.json` and `ashctl`.
+A settings page in the console (toggles, the Home Assistant token, calendar
+URLs, lookup folders) and a "what is ASH up to" panel: open questions,
+watches, reminders, routines, recent corrections.
+*Builds on:* the console UI, each feature's `status()` and `report()`.
+
+### 4.3 "Undo that" / "forget that"
+Take back anything just learned or kept -- a fact, a relation, a routine, a
+correction, a voice -- by voice, right after or later ("forget what I said
+about Omar").
+*Builds on:* Knowledge, corrections, routines, voice ID (each already has a
+forget or a store to delete from).
+
+### 4.4 The face shows what is happening
+A curious look when asking, alert for watches and reminders, happy on a game
+win, sleepy in quiet hours, attentive while waiting for an answer.
+*Builds on:* the face bridge and its animations; the new features' pathways.
+
+### 4.5 Interruptible speech
+"Stop" or "shh" cuts ASH off mid-sentence; "the short version" asks for less.
+*Builds on:* TTS, the mic sensor.
+
+### 4.6 Talking less, by learning
+A kind of remark dismissed three times (jokes, briefings, guesses) backs off
+for a while on its own.
+*Builds on:* the social learner and reaction tracker, extended to the new
+activities.
+
+### 4.7 A visible "waiting for you" state
+When ASH is waiting on an answer ("Close Word?", a game, a question), the
+console shows it, so a stray "yes" never surprises anyone.
+*Builds on:* the console UI; the pending states in desktop, play, wondering.
+
+---
+
+## 5. From JARVIS, round two
+
+### 5.1 Multi-step tasks with a plan to approve
+"Get me ready for the meeting": open the doc, mute Slack, set a 25-minute
+timer -- shown as steps, confirmed once, then done.
+*Builds on:* the planner and plan follower; desktop, reminders, media as steps.
+
+### 5.2 Context carry-over
+"Open it", "remind me about that later", "who was that?" resolved against
+what was just on screen or just said.
+*Builds on:* activity memory, the journal, the conversation state.
+
+### 5.3 Email, carefully
+Read-only first (unread count and senders in the briefing), then drafts, with
+sending always confirmed.
+*Builds on:* briefings; needs an IMAP or account connector.
+
+### 5.4 Focus mode
+"I'm focusing for an hour": questions held, chat apps muted, a summary of what
+was held afterwards.
+*Builds on:* the attention gate, wondering's snooze, desktop control.
+
+### 5.5 Help when stuck
+The stuck detector offers to look up the error on screen, or find where it
+was solved before in the user's files.
+*Builds on:* the flow detector's stuck offer, lookup, research.
+
+### 5.6 Weather in the briefing
+*Builds on:* the weather tool over MCP; a briefing provider.
+
+### 5.7 A weekly review
+"This week: 9 hours on A.S.H, three follow-ups closed, Omar came up most."
+*Builds on:* activity memory's per-day time, follow-ups, wondering.
+
+---
+
+## 6. From BMO, round two
+
+### 6.1 Remembering the good moments
+Callbacks to past wins ("like the time you aced that interview").
+*Builds on:* follow-up outcomes, episodic memory.
+
+### 6.2 Celebrations
+The user's birthday (already a stored fact), streaks, a long stretch finished.
+*Builds on:* Knowledge facts, activity memory, the face.
+
+### 6.3 More games
+Word association, twenty questions, a daily trivia question, a riddle when idle.
+*Builds on:* `src/daemon/play.py`.
+
+### 6.4 Pretend play and voices
+A story that continues across evenings; a character voice for games.
+*Builds on:* the story offer, TTS voices.
+
+### 6.5 Caring nudges
+Water, a stretch, "you've been at it for three hours" -- only when the mood is
+fine, at most once an hour.
+*Builds on:* free moments, activity memory, the mood from the sentiment model.
+
+### 6.6 Sounds and small animations
+A sound per face expression; a sleepy face when the user goes idle.
+*Builds on:* the face player, `src/daemon/media.py`.
+
