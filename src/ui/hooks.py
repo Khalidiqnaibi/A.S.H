@@ -50,7 +50,8 @@ def _channel(ev) -> str:
 
 
 def attach_ui(runtime, bus, opener: Optional[Callable[[], Any]] = None,
-              open_on_message: bool = True, status_every_s: float = 3.0):
+              open_on_message: bool = True, status_every_s: float = 3.0,
+              config_path: Optional[str] = None):
     """Wire `bus` into a running AmbientRuntime. Returns (on_say, on_control,
     state_extra) for the ConsoleServer."""
     orig_handle = runtime._handle
@@ -177,6 +178,23 @@ def attach_ui(runtime, bus, opener: Optional[Callable[[], Any]] = None,
             if face is None:
                 return {"ok": False, "error": "face not enabled"}
             return {"ok": bool(face.player.play(arg, force=True))}
+        elif cmd == "settings":
+            from . import settings
+            return {"ok": True, "settings": settings.listing(runtime, config_path)}
+        elif cmd == "setting":
+            from . import settings
+            key, sep, value = arg.partition("=")
+            if not sep:
+                return {"ok": False, "error": "use key=value"}
+            res = settings.change(runtime, config_path, key.strip(), value)
+            if res.get("ok"):
+                label = settings.SETTINGS[res["key"]][1]
+                shown = "set" if settings.SETTINGS[res["key"]][0] == "secret" else value.strip() or "(empty)"
+                bus.publish("system", text=f"Setting: {label} -> {shown}"
+                            + (" (after a restart)" if res["restart"] else ""))
+                bus.broadcast("status", **_status(runtime))
+                res["settings"] = settings.listing(runtime, config_path)
+            return res
         elif cmd in ("enable", "disable"):
             p = runtime.periphery
             target = p.sensors.get(arg) or p.actuators.get(arg)
@@ -190,7 +208,13 @@ def attach_ui(runtime, bus, opener: Optional[Callable[[], Any]] = None,
         return {"ok": True}
 
     def state_extra() -> Dict[str, Any]:
-        return {"status": _status(runtime)}
+        from . import settings
+        out: Dict[str, Any] = {"status": _status(runtime)}
+        try:
+            out["settings"] = settings.listing(runtime, config_path)
+        except Exception:
+            logger.debug("settings listing failed", exc_info=True)
+        return out
 
     return on_say, on_control, state_extra
 
@@ -292,11 +316,24 @@ def _status(runtime) -> Dict[str, Any]:
     acts = [{"name": a.name, "on": getattr(getattr(a, "state", None), "value", "") == "active",
              "dry": bool(getattr(a, "dry_run", False))} for a in p.actuators.values()]
     gate = runtime.gate
+    from . import settings
+    try:
+        waiting = settings.waiting(runtime)
+    except Exception:
+        logger.debug("waiting failed", exc_info=True)
+        waiting = None
+    try:
+        up_to = settings.up_to(runtime)
+    except Exception:
+        logger.debug("up_to failed", exc_info=True)
+        up_to = []
     return {
         "sensors": sensors, "actuators": acts,
         "paused": bool(getattr(runtime.privacy, "paused", False)),
         "muted": bool(getattr(gate, "muted", False)),
         "busy": round(float(getattr(runtime, "_user_busy", 0.0) or 0.0), 2),
+        "waiting": waiting,          # what the next thing you say would answer
+        "up_to": up_to,              # what ASH is keeping track of
     }
 
 

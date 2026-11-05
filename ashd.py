@@ -378,6 +378,7 @@ def main() -> int:
         console = None
         if bus is not None:
             try:
+                from src.daemon.service import CONFIG_FILE  # noqa: E402
                 from src.ui import ConsoleServer, attach_ui, open_window  # noqa: E402
                 state_dir = os.environ.get("ASH_BRAIN_STATE",
                                            os.path.join(os.getcwd(), "state", "brain"))
@@ -388,7 +389,8 @@ def main() -> int:
                 opener = lambda: open_window(console.url, profile_dir=profile)  # noqa: E731
                 console.on_say, console.on_control, console.state_extra = attach_ui(
                     runtime, bus, opener=opener,
-                    open_on_message=ucfg.get("open_on_message", True))
+                    open_on_message=ucfg.get("open_on_message", True),
+                    config_path=args.config or CONFIG_FILE)
                 if not console.start():
                     console = None
             except Exception:

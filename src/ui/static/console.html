@@ -241,8 +241,8 @@ ul, ol { list-style: none; margin: 0; padding: 0; }
 .swatch small { display: block; color: var(--muted); font-size: var(--fs-xs); }
 
 /* ---- main: the conversation -------------------------------------------- */
-.transcript { position: relative; min-height: 0; }
-.scroller { height: 100%; overflow-y: auto; padding: var(--s2) var(--s1) var(--s5); scrollbar-gutter: stable; }
+.transcript { position: relative; min-height: 0; display: flex; flex-direction: column; }
+.scroller { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: var(--s2) var(--s1) var(--s5); scrollbar-gutter: stable; }
 .scroller::-webkit-scrollbar { width: 8px; }
 .scroller::-webkit-scrollbar-thumb { background: var(--line); border-radius: 8px; }
 .empty { text-align: center; color: var(--muted); margin: var(--s6) var(--s5); font-size: var(--fs-sm); line-height: 1.8; }
@@ -342,6 +342,44 @@ textarea::placeholder { color: var(--muted); }
           border-radius: 999px; background: var(--warn); color: #1a1300; font-size: var(--fs-sm); font-weight: 600;
           box-shadow: 0 4px 16px rgba(0,0,0,.25); animation: rise .3s both; }
 
+
+/* ---- waiting for you: what the next thing said would answer ------------- */
+.waiting {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--s2) var(--s3); margin: 0 var(--s1) var(--s2);
+  padding: var(--s2) var(--s3); border: 1px solid var(--accent2); border-radius: var(--radius);
+  background: var(--panel); font-size: var(--fs-sm); animation: rise .25s both;
+}
+.waiting .wlabel { color: var(--accent2); font-weight: 600; white-space: nowrap; }
+.waiting .wtext { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+
+/* ---- the status and settings drawer ------------------------------------- */
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 35; width: min(400px, 100vw);
+  overflow-y: auto; padding: var(--s4); background: var(--panel-solid); border-left: 1px solid var(--line);
+  box-shadow: -12px 0 32px rgba(0,0,0,.3); animation: rise .2s both;
+}
+.drawer h2 { font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+             margin: var(--s5) 0 var(--s2); }
+.drawer h2:first-of-type { margin-top: var(--s2); }
+.drawer .dhead { display: flex; justify-content: space-between; align-items: center; }
+.drawer .dhead strong { font-size: var(--fs); }
+.drawer ul.upto li { margin: 0 0 var(--s3); font-size: var(--fs-sm); }
+.drawer ul.upto b { display: block; color: var(--accent); font-weight: 600; margin-bottom: 2px; }
+.drawer ul.upto span { display: block; color: var(--text); overflow-wrap: anywhere; }
+.drawer .none { color: var(--muted); font-size: var(--fs-sm); }
+.drawer h3 { font-size: var(--fs-sm); margin: var(--s4) 0 var(--s2); color: var(--text); }
+.setrow { display: flex; align-items: center; gap: var(--s2); margin: 0 0 var(--s2); font-size: var(--fs-sm); flex-wrap: wrap; }
+.setrow label { flex: 1 1 160px; min-width: 0; }
+.setrow input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
+.setrow input[type="text"], .setrow input[type="password"] {
+  flex: 1 1 100%; min-width: 0; padding: 6px var(--s2); font: inherit; color: var(--text);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+}
+.setrow input:focus-visible { outline: none; border-color: var(--accent); }
+.setrow .later { color: var(--muted); font-size: var(--fs-xs); }
+.setmsg { flex: 1 1 100%; font-size: var(--fs-xs); color: var(--ok); }
+.setmsg.bad { color: var(--bad); }
+
 /* ---- background effects --------------------------------------------- */
 .petal { position: absolute; top: -30px; width: 14px; height: 11px; border-radius: 80% 10% 80% 10%;
          background: linear-gradient(135deg, #ffc2d8, #ff8fb8); opacity: .75; animation: fall linear infinite; }
@@ -399,6 +437,9 @@ textarea::placeholder { color: var(--muted); }
       <button type="button" class="btn" id="muteBtn" aria-pressed="false" title="Stop ASH volunteering remarks and offers">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
         <span>Mute</span></button>
+      <button type="button" class="btn" id="statusBtn" aria-expanded="false" aria-controls="drawer" title="What ASH is up to, and settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+        <span>Status</span></button>
       <div class="theme-menu">
         <button type="button" class="btn" id="themeBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="picker" title="Change the look">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.3A5.6 5.6 0 0 0 22 10c0-4.4-4.5-8-10-8z"/></svg>
@@ -409,6 +450,10 @@ textarea::placeholder { color: var(--muted); }
   </nav>
 
   <main class="transcript">
+    <div class="waiting" id="waiting" role="status" aria-live="polite" hidden>
+      <span class="wlabel">Waiting for you</span><span class="wtext" id="waitText"></span>
+      <div class="replies" id="waitReplies"></div>
+    </div>
     <div class="scroller" id="scroller">
       <p class="empty" id="empty">
         Say hi — type below, or say <b>“hey ASH”</b> out loud.<br>
@@ -433,6 +478,15 @@ textarea::placeholder { color: var(--muted); }
     </form>
   </footer>
 </div>
+
+<aside class="drawer" id="drawer" aria-label="Status and settings" hidden>
+  <div class="dhead"><strong>ASH</strong>
+    <button type="button" class="btn" id="drawerClose" aria-label="Close">✕</button></div>
+  <h2>Up to</h2>
+  <ul class="upto" id="upto"></ul>
+  <h2>Settings</h2>
+  <div id="settings"></div>
+</aside>
 
 <script>
 "use strict";
@@ -492,6 +546,7 @@ function onMessage(m) {
       Object.keys(cues).forEach(k => delete cues[k]);
       Object.assign(cues, m.cues || {});
       if (m.status) applyStatus(m.status);
+      if (m.settings) settingsList = m.settings;
       renderThinking(); updateStatePill();
       return;
   }
@@ -655,8 +710,97 @@ function applyStatus(s) {
   pb.querySelector("span").textContent = s.paused ? "Resume" : "Pause";
   const mb = $("muteBtn"); mb.setAttribute("aria-pressed", String(!!s.muted));
   mb.querySelector("span").textContent = s.muted ? "Unmute" : "Mute";
+  applyWaiting(s.waiting);
+  if (!$("drawer").hidden) renderUpTo();
   updateStatePill();
 }
+
+// ---- waiting for you -------------------------------------------------------
+let waitKey = "";
+function applyWaiting(w) {
+  const box = $("waiting");
+  const key = w ? w.kind + "|" + w.text : "";
+  if (key === waitKey) return;            // unchanged: keep the buttons as they are
+  waitKey = key;
+  box.hidden = !w;
+  if (!w) return;
+  $("waitText").textContent = w.text;
+  const r = $("waitReplies"); r.textContent = ""; r.classList.remove("used");
+  for (const t of w.replies || []) {
+    const b = el("button", "reply", t); b.type = "button";
+    b.onclick = () => { r.classList.add("used"); b.classList.add("picked"); say(t); };
+    r.appendChild(b);
+  }
+}
+
+// ---- status and settings drawer --------------------------------------------
+let settingsList = [];
+function renderUpTo() {
+  const ul = $("upto"); ul.textContent = "";
+  const rows = (status && status.up_to) || [];
+  if (!rows.length) { ul.appendChild(el("li", "none", "Nothing on its mind right now.")); return; }
+  for (const g of rows) {
+    const li = el("li"); li.appendChild(el("b", null, g.title));
+    for (const it of g.items) li.appendChild(el("span", null, it));
+    if (g.more) li.appendChild(el("span", "none", "and " + g.more + " more"));
+    ul.appendChild(li);
+  }
+}
+let lastNote = null;                   // {key, text, bad}: shown under the setting just changed
+function setMsg(key, text, bad) { lastNote = key ? { key, text, bad } : null; }
+async function changeSetting(key, value) {
+  const res = await post("/api/control", { cmd: "setting", arg: key + "=" + value });
+  if (!res.ok) { setMsg(key, res.error || "Could not change that.", true); renderSettings(); focusSetting(key); return; }
+  if (res.settings) settingsList = res.settings;
+  setMsg(key, res.restart ? "Saved. It takes effect after ASH restarts." : (res.saved ? "Saved." : "Changed (not saved to daemon.json)."));
+  renderSettings(); focusSetting(key);
+}
+function renderSettings() {
+  const box = $("settings"); box.textContent = "";
+  let group = null;
+  settingsList.forEach((s, i) => {
+    if (s.group !== group) { group = s.group; box.appendChild(el("h3", null, group)); }
+    const row = el("div", "setrow"), id = "set" + i;
+    const lab = el("label", null, s.label); lab.htmlFor = id;
+    let inp;
+    if (s.type === "bool") {
+      inp = el("input"); inp.type = "checkbox"; inp.checked = !!s.value;
+      inp.onchange = () => changeSetting(s.key, inp.checked ? "on" : "off");
+      row.append(lab, inp);
+    } else {
+      inp = el("input"); inp.type = s.type === "secret" ? "password" : "text";
+      inp.value = s.type === "secret" ? "" : Array.isArray(s.value) ? s.value.join(", ") : (s.value || "");
+      if (s.type === "secret") inp.placeholder = s.value ? "set -- type to replace" : "not set";
+      inp.autocomplete = "off"; inp.spellcheck = false;
+      const save = el("button", "btn", "Save"); save.type = "button";
+      save.onclick = () => changeSetting(s.key, inp.value);
+      inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); save.click(); } };
+      row.append(lab, inp, save);
+    }
+    inp.id = id;
+    inp.dataset.key = s.key;
+    if (!s.live) row.appendChild(el("span", "later", "applies after a restart"));
+    if (lastNote && lastNote.key === s.key) {
+      const n = el("span", "setmsg" + (lastNote.bad ? " bad" : ""), lastNote.text);
+      n.setAttribute("role", "status"); row.appendChild(n);
+    }
+    box.appendChild(row);
+  });
+}
+function focusSetting(key) {            // the list was rebuilt: keep the keyboard where it was
+  const i = [...$("settings").querySelectorAll("input")].find(x => x.dataset.key === key);
+  if (i) i.focus({ preventScroll: true });
+}
+function openDrawer(open) {
+  $("drawer").hidden = !open; $("statusBtn").setAttribute("aria-expanded", String(open));
+  if (!open) return;
+  setMsg(null); renderUpTo(); renderSettings();
+  post("/api/control", { cmd: "settings" }).then(r => { if (r && r.settings) { settingsList = r.settings; renderSettings(); } });
+  $("drawerClose").focus();
+}
+$("statusBtn").onclick = () => openDrawer($("drawer").hidden);
+$("drawerClose").onclick = () => { openDrawer(false); $("statusBtn").focus(); };
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("drawer").hidden) { openDrawer(false); $("statusBtn").focus(); } });
 $("pauseBtn").onclick = () => post("/api/control", { cmd: status && status.paused ? "resume" : "pause" });
 $("muteBtn").onclick = () => post("/api/control", { cmd: status && status.muted ? "unmute" : "mute" });
 

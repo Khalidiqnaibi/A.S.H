@@ -654,6 +654,29 @@ weeks under `state/remarks/`; `keep_text: false` keeps no words at all.
 `tst_remarks.py` also runs a whole simulated day through the runtime with
 everything on and checks the budgets, the quiet hours and repetition hold.
 
+## Status and settings in the console
+
+`src/ui/settings.py`. When ASH is waiting on an answer, a strip above the
+chat says so: "Close Word?", a question it just asked, a game in progress, an
+offer, what it didn't understand, or that you are focusing. It has buttons
+for the likely replies, so a stray "yes" never surprises anyone. The
+**Status** button opens a drawer with two parts:
+
+- **Up to.** The next reminders, watches, open questions, follow-ups,
+  look-ups in progress, routines it has noticed, what it is holding off on,
+  and recent corrections.
+- **Settings.** A fixed list:
+  - feature switches;
+  - the weather city;
+  - calendar feed links;
+  - the Home Assistant address and token;
+  - the folders to look terms up in.
+
+A change applies at once wherever that part of ASH is running. It is also
+saved to `daemon.json` (only that key, written atomically), so it survives a
+restart. A part that was off when ASH started says "applies after a
+restart". The token is never sent back to the page or written to the chat.
+
 ## Questions ASH asks
 
 Everything here is rule-based, paced by the same budget, quiet hours and
