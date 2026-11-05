@@ -68,6 +68,8 @@ from .reminders import Reminders
 from .play import Bored, Play, Story
 from .media import Media, MediaConfig
 from .remarks import RemarkLog
+from .forget import (UndoStack, entity_ids, forget_subject, restorer, snapshot, wants_forget,
+                     wants_undo)
 from src.brain.corrections import default as _corrections, read_correction
 from .wondering import Environment, Knowledge, Wonderer, WonderingConfig
 from .social import (FlowDetector, ReactionTracker, SocialLearner,
@@ -230,6 +232,14 @@ class AmbientConfig:
     # (remarks.py). Off on a bare runtime; the daemon turns it on.
     remarks_dir: Optional[str] = None        # state/remarks/
     remarks_keep_text: bool = True
+
+
+def _as_you(sentence: str) -> str:
+    """'Omar is the user's cousin.' as said back to the user."""
+    s = re.sub(r"\bThe user's\b", "Your", sentence)
+    s = re.sub(r"\bthe user's\b", "your", s)
+    s = re.sub(r"\bthe user\b", "you", s, flags=re.I)
+    return s
 
 
 class AmbientRuntime:
@@ -411,6 +421,7 @@ class AmbientRuntime:
         self._last_turn: Optional[Dict[str, Any]] = None     # what ASH last answered, and as what
         self._last_why: Optional[Dict[str, Any]] = None      # why ASH said its last thing ("why?")
         self._mood_seen: Any = None                          # the brain sentiment reading last folded in
+        self.undo = UndoStack(clock=lambda: self.clock())   # "undo that": what was last learned or set up
         self._awaiting_meaning: Optional[Dict[str, Any]] = None
         self._pending_correction: Optional[Dict[str, Any]] = None
         self._reaction = None            # the reaction the event being handled carried
@@ -735,12 +746,17 @@ class AmbientRuntime:
         if w is None or not self._user_source(ev):
             return False
         try:
+            before = set(w.watches)
             say = w.hear(str(getattr(ev, "text", "") or ""), now)
         except Exception:
             logger.exception("Reading a watch request failed")
             return False
         if not say:
             return False
+        for wid in set(w.watches) - before:
+            wt = w.watches[wid]
+            self.undo.push(f"watching for {wt.what}",
+                           lambda wt=wt: (setattr(wt, "status", "cancelled"), w.save()), now)
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "watch"})())
         return True
 
@@ -797,6 +813,7 @@ class AmbientRuntime:
         from .media import _PHOTO
         t = str(getattr(ev, "text", "") or "").strip()
         acts = (watch_req(t) is not None or research_req(t) is not None
+                or wants_undo(t) or wants_forget(t) is not None
                 or any(rx.match(t) for rx in (_OPEN, _CLOSE, _SWITCH, _ROUTINE, _ON_OFF, _DIM, _PHOTO))
                 or (self.calendar is not None and self.calendar._ASK.search(t)))
         if not acts:
@@ -870,6 +887,7 @@ class AmbientRuntime:
         r = self.reminders
         if r is None or not self._user_source(ev):
             return False
+        before = set(r.items)
         try:
             say = r.hear(str(getattr(ev, "text", "") or ""), now)
         except Exception:
@@ -877,6 +895,11 @@ class AmbientRuntime:
             return False
         if not say:
             return False
+        for rid in set(r.items) - before:
+            it = r.items[rid]
+            label = f"the {it.label} timer" if it.kind == "timer" else (
+                "the alarm" if it.kind == "alarm" else f"the reminder to {it.text}")
+            self.undo.push(label, lambda it=it: (setattr(it, "status", "cancelled"), r.save()), now)
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
 
@@ -994,10 +1017,14 @@ class AmbientRuntime:
             if getattr(ev, "source", "") == "flow" or not w.hears(getattr(ev, "source", "")):
                 return None
             text = getattr(ev, "text", "") or ""
+            ents = getattr(self.ash, "entity_memory", None)
+            snap, before = snapshot(w.kb), entity_ids(ents)
             rep = w.hear(text, now, addressed=bool(getattr(ev, "addressed", False)))
             if not rep.consumed:
                 # Not an answer: learn what it states, note what it leaves open.
                 rep.learned = w.observe(text, ev.source, now).learned
+            if rep.learned:
+                self.undo.push(_as_you(rep.learned[0]), restorer(w.kb, snap, ents, before), now)
             self._wonder_learn(rep.learned)
             if rep.consumed:
                 self._wonder_reaction(rep, now)
@@ -1073,7 +1100,11 @@ class AmbientRuntime:
         if (self.followups is not None and not guest and getattr(ev, "source", "") != "flow"
                 and self.followups.hears(getattr(ev, "source", ""))):
             try:
+                before = set(self.followups.items)
                 self._wonder_learn(self.followups.observe(getattr(ev, "text", "") or "", now))
+                for fid in set(self.followups.items) - before:
+                    f = self.followups.items[fid]
+                    self.undo.push(f"noting {f.what}", lambda fid=fid: self.followups.dismiss(fid), now)
             except Exception:
                 logger.exception("Follow-ups failed on an event")
         if self.reactions is not None:
@@ -1098,6 +1129,8 @@ class AmbientRuntime:
         # "No, I meant ..." right after a reply is a correction of how ASH read
         # the last request, not a new one about nothing.
         if guest and self._guest_action(ev):
+            return
+        if self._forget_request(ev, now):
             return
         if self._explain_request(ev, now):
             return
@@ -1226,7 +1259,9 @@ class AmbientRuntime:
             ev.addressed = True
             return False
         try:
-            _corrections().record(lt["query"], lt["intent"], "", now)
+            c = _corrections().record(lt["query"], lt["intent"], "", now)
+            if c is not None:
+                self.undo.push("the correction", lambda c=c: self._drop_correction(c), now)
         except Exception:
             logger.exception("Recording a correction failed")
         self._awaiting_meaning = rec
@@ -1393,7 +1428,9 @@ class AmbientRuntime:
             self._pending_correction = None
             right = intent if intent and intent != pc["wrong"] else ""
             try:
-                _corrections().record(pc["query"], pc["wrong"], right or "", now)
+                c = _corrections().record(pc["query"], pc["wrong"], right or "", now)
+                if c is not None:
+                    self.undo.push("the correction", lambda c=c: self._drop_correction(c), now)
             except Exception:
                 logger.exception("Recording a correction failed")
         self._last_turn = {"query": prompt, "intent": intent,
@@ -1430,6 +1467,33 @@ class AmbientRuntime:
             return {"kind": "check_in", "minutes": meta.get("minutes")}
         reasons = list(getattr(decision, "reasons", []) or [])
         return {"kind": "observation", "noticed": str(getattr(ev, "text", "") or "")[:80], "reasons": reasons}
+
+    def _drop_correction(self, c):
+        mem = _corrections()
+        with mem._lock:
+            if c in mem.items:
+                mem.items.remove(c)
+            mem.save()
+
+    def _forget_request(self, ev, now: float) -> bool:
+        """"Undo that" reverses what ASH last learned or set up; "forget what I
+        said about Omar" removes a subject from what ASH believes."""
+        if not self._user_source(ev):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        if wants_undo(text):
+            say = self.undo.undo(now)
+        else:
+            subject = wants_forget(text)
+            if subject is None:
+                return False
+            w = self.wonder
+            gone = forget_subject(subject, kb=(w.kb if w else None),
+                                  entities=getattr(self.ash, "entity_memory", None), wonderer=w, now=now)
+            say = (f"Forgotten: {', '.join(gone)} -- for {subject}." if gone
+                   else f"I don't have anything about {subject} to forget.")
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
 
     def _explain_request(self, ev, now: float) -> bool:
         """"Why did you say that?": answered from the note left when it was

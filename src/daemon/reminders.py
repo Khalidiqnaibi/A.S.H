@@ -304,5 +304,5 @@ class Reminders:
 
     def status(self) -> Dict[str, Any]:
         with self._lock:
-            return {"enabled": self.enabled, "set": sum(1 for r in self.items.values() if r.status == "set"),
+            return {"enabled": self.enabled, "active": sum(1 for r in self.items.values() if r.status == "set"),
                     **self.stats}

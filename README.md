@@ -599,6 +599,19 @@ as apps are taken -- "open the readme" or "run the tests" still go to the
 brain and its tools -- and you can add your own under `apps`. Nothing is
 typed into windows and nothing is deleted.
 
+## Undo and forget
+
+`src/daemon/forget.py`. Whatever ASH learned or set up on its own leaves an
+undo step: a relation or a definition picked up from a sentence, an answer to
+one of its questions, a follow-up, a reminder, a watch, a correction. "Undo
+that" (or "scratch that", "take that back") reverses the latest one within
+ten minutes and says what it undid ("Undone: Omar is your cousin."), entity
+memory included. "Forget what I said about Omar" (or "forget ZXQ", "forget my
+morning check") removes the subject from what ASH believes -- people, how
+they know others, roles, terms, routines, entity memory -- and closes the
+questions about it. Conversation history is not rewritten. A guest's voice
+can do neither.
+
 ## Reviewing what ASH said
 
 `remarks` in `daemon.json`, `src/daemon/remarks.py`. Everything ASH says is
