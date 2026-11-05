@@ -74,6 +74,7 @@ from .context import Context
 from .focus import Focus
 from .weather import Weather, WeatherConfig
 from .inbox import Inbox, InboxConfig
+from .weekly import Weekly
 from .forget import (UndoStack, entity_ids, forget_subject, restorer, snapshot, wants_forget,
                      wants_undo)
 from src.brain.corrections import default as _corrections, read_correction
@@ -248,6 +249,11 @@ class AmbientConfig:
     # an IMAP account is set. Off on a bare runtime.
     email: bool = False
     email_cfg: Optional[Dict[str, Any]] = None
+    # The weekly review (weekly.py): asked for, and in the Sunday evening
+    # briefing. Off on a bare runtime.
+    weekly: bool = False
+    weekly_path: Optional[str] = None        # state/weekly.json
+    weekly_day: str = "sunday"
     # Interruptible speech: "stop" / "shh" cut ASH off, "the short version",
     # "keep it short" (speech.py). On by default: it only ever says less.
     speech: bool = True
@@ -423,6 +429,11 @@ class AmbientRuntime:
         self._calendar_at = -1e18
         if self.cfg.calendar:
             self.calendar = Calendar(CalendarConfig.from_dict(self.cfg.calendar_cfg), clock=lambda: self.clock())
+        self.weekly: Optional[Weekly] = None
+        if self.cfg.weekly:
+            self.weekly = Weekly(self.cfg.weekly_path, clock=lambda: self.clock(), activity=self.activity,
+                                 followups=self.followups, wonder=self.wonder, reminders=self.reminders,
+                                 day=self.cfg.weekly_day)
         # Briefings, from what the parts above keep.
         self.briefings: Optional[Briefings] = None
         self._briefing_inflight: Optional[str] = None
@@ -435,6 +446,8 @@ class AmbientRuntime:
                 self.briefings.add_provider(self.weather.briefing_part)
             if self.inbox is not None:
                 self.briefings.add_provider(self.inbox.briefing_part)
+            if self.weekly is not None:
+                self.briefings.add_provider(self.weekly.briefing_part)
             if self.calendar is not None:
                 self.briefings.add_provider(self.calendar.briefing_part)
             if self.reminders is not None:
@@ -472,6 +485,8 @@ class AmbientRuntime:
                 apps = {proc: name.title() for name, (_t, proc) in self.desktop.apps.items()}
             self.context = Context(clock=lambda: self.clock(),
                                    knowledge=self.wonder.kb if self.wonder is not None else None, app_names=apps)
+            if self.weekly is not None:
+                self.context.on_name = self.weekly.named
         self._awaiting_meaning: Optional[Dict[str, Any]] = None
         self._pending_correction: Optional[Dict[str, Any]] = None
         self._reaction = None            # the reaction the event being handled carried
@@ -674,6 +689,11 @@ class AmbientRuntime:
                     self.inbox.refresh(now)
                 except Exception:
                     logger.exception("Inbox refresh failed")
+            if self.weekly is not None:
+                try:
+                    self.weekly.save()
+                except Exception:
+                    logger.exception("Weekly save failed")
             if self.calendar is not None and now - self._calendar_at >= 60.0:
                 self._calendar_at = now
                 try:
@@ -999,6 +1019,21 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
 
+    def _weekly_request(self, ev, now: float) -> bool:
+        """"How was my week?": from what ASH keeps, no model."""
+        w = self.weekly
+        if w is None or not self._user_source(ev):
+            return False
+        try:
+            say = w.hear(str(getattr(ev, "text", "") or ""), now)
+        except Exception:
+            logger.exception("Weekly review failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "briefing"})())
+        return True
+
     def _email_request(self, ev, now: float) -> bool:
         """"Any new email?": the unread count and senders, read-only, no model."""
         b = self.inbox
@@ -1285,6 +1320,8 @@ class AmbientRuntime:
         if self._weather_request(ev, now):
             return
         if self._email_request(ev, now):
+            return
+        if self._weekly_request(ev, now):
             return
 
         # An answer to a free-moment remark (how are you?) is spent the same way.
@@ -2048,6 +2085,7 @@ class AmbientRuntime:
             "focus": self.focus.status() if self.focus else None,
             "weather": self.weather.status() if self.weather else None,
             "email": self.inbox.status() if self.inbox else None,
+            "weekly": self.weekly.status() if self.weekly else None,
             "speech": self.speech.status() if self.speech else None,
             "tasks": self.tasks.status() if self.tasks else None,
             "context": self.context.status() if self.context else None,

@@ -288,6 +288,9 @@ def main() -> int:
                 remarks_dir=(os.path.join(os.getcwd(), "state", "remarks")
                              if cfg.get("remarks", {}).get("enabled", True) else None),
                 remarks_keep_text=bool(cfg.get("remarks", {}).get("keep_text", True)),
+                weekly=bool(cfg.get("weekly", {}).get("enabled", True)),
+                weekly_path=os.path.join(os.getcwd(), "state", "weekly.json"),
+                weekly_day=str(cfg.get("weekly", {}).get("day", "sunday")),
                 email=bool(cfg.get("email", {}).get("enabled", True)),
                 email_cfg=cfg.get("email", {}),
                 weather=bool(cfg.get("weather", {}).get("enabled", True)),

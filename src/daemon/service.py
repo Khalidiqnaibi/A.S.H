@@ -254,6 +254,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # Email, read-only: the unread count and who sent what, in the briefing
     # and when asked. Nothing happens until an IMAP account is set; use an
     # app password. Bodies are never read, nothing is marked read or sent.
+    # "How was my week?" -- and in the evening briefing on this day ("" for never).
+    "weekly": {"enabled": True, "day": "sunday"},
     "email": {"enabled": True, "host": "", "port": 993, "user": "", "password": "", "folder": "INBOX"},
     # The weather in the briefings and for "what's the weather like today",
     # from Open-Meteo (no account or key). Set city (or lat and lon); until

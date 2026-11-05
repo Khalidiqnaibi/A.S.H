@@ -616,6 +616,24 @@ ends, on time or with "I'm done focusing", ASH says in one line what it held
 back ("I held back 3 things; 2 questions are waiting; your research on Raft is
 ready."). It keeps ASH quiet; it does not silence other apps.
 
+## The weekly review
+
+`weekly` in `daemon.json`, `src/daemon/weekly.py`. "How was my week?" gets a
+line like this, built from what ASH already keeps:
+
+> This week: 9 hours on A.S.H and 2 hours on thesis. 3 follow-ups closed, 4
+> of my questions answered, 1 reminder. Omar came up most, then Sara.
+
+- **Time** is activity memory's per-day time, by project, for the last seven
+  days.
+- **The counts** are follow-ups closed, questions answered and reminders that
+  went off this week.
+- **Who came up** comes from names you said, counted per day. Only the names
+  are kept, for two weeks, in `state/weekly.json`.
+
+It is also part of the evening briefing on `weekly.day` (Sunday by
+default; set it to "" for never).
+
 ## Email, read-only
 
 `email` in `daemon.json`, `src/daemon/inbox.py`. Nothing happens until an
