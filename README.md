@@ -568,6 +568,16 @@ drive is up, it may say "I'm a bit bored. Want a quick game?"; in the
 evening it may offer a short story, which the language model then tells.
 Neither comes to someone who is low.
 
+## Music, sounds and photos
+
+`media` in `daemon.json`, `src/daemon/media.py`. "Pause the music", "play",
+"next song", "previous track", "turn it up / down" and "mute the sound" are
+sent as the keyboard's media keys, so they work with whatever is playing.
+A short system chime goes with reminders and watch alerts, so a spoken line
+is not the only sign. "Take a photo" saves one webcam frame to
+`~/Pictures/ASH` named by the time, and remembers it as an episode -- only
+on request, never while privacy is paused, never for a guest's voice.
+
 ## Research on request
 
 `research` in `daemon.json`, `src/daemon/research.py`. "Look into the Raft

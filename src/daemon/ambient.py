@@ -66,6 +66,7 @@ from .smarthome import SmartHome, SmartHomeConfig
 from .voiceid import VoiceID, VoiceIDConfig
 from .reminders import Reminders
 from .play import Bored, Play, Story
+from .media import Media, MediaConfig
 from src.brain.corrections import default as _corrections, read_correction
 from .wondering import Environment, Knowledge, Wonderer, WonderingConfig
 from .social import (FlowDetector, ReactionTracker, SocialLearner,
@@ -220,6 +221,10 @@ class AmbientConfig:
     # Play (play.py): quick games on request, and at a free moment ASH may
     # say it is bored, or offer an evening story. Off on a bare runtime.
     play: bool = False
+    # Music keys, a chime with reminders and alerts, and photos on request
+    # (media.py). Off on a bare runtime.
+    media: bool = False
+    media_cfg: Optional[Dict[str, Any]] = None
 
 
 class AmbientRuntime:
@@ -359,6 +364,10 @@ class AmbientRuntime:
                 drives = getattr(getattr(self.brain, "homeostasis", None), "drives", None)
                 self.moments.register(Bored(self.play, curiosity=lambda: float(getattr(drives, "curiosity", 0.5))))
                 self.moments.register(Story(self.play))
+        self.media: Optional[Media] = None
+        if self.cfg.media:
+            self.media = Media(MediaConfig.from_dict(self.cfg.media_cfg),
+                               episodic=getattr(self.ash, "episodic_memory", None), clock=lambda: self.clock())
         self.calendar: Optional[Calendar] = None
         self._calendar_at = -1e18
         if self.cfg.calendar:
@@ -689,6 +698,8 @@ class AmbientRuntime:
             return
         if self.gate.muted or self.privacy.paused or self.gate._in_quiet_hours(now):
             return
+        if self.media is not None:
+            self.media.cue("alert")
         while self._watch_pending:
             text = self._watch_pending.pop(0)
             self._last_why = {"kind": "watch", "what": w.fired_what.get(text, "that happened")}
@@ -764,9 +775,10 @@ class AmbientRuntime:
         from .research import parse_request as research_req
         from .smarthome import _DIM, _ON_OFF
         from .watch import parse_request as watch_req
+        from .media import _PHOTO
         t = str(getattr(ev, "text", "") or "").strip()
         acts = (watch_req(t) is not None or research_req(t) is not None
-                or any(rx.match(t) for rx in (_OPEN, _CLOSE, _SWITCH, _ROUTINE, _ON_OFF, _DIM))
+                or any(rx.match(t) for rx in (_OPEN, _CLOSE, _SWITCH, _ROUTINE, _ON_OFF, _DIM, _PHOTO))
                 or (self.calendar is not None and self.calendar._ASK.search(t)))
         if not acts:
             return False
@@ -794,6 +806,21 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": r["say"], "outcome": "desktop"})())
         return True
 
+    def _media_request(self, ev, now: float) -> bool:
+        """Music keys and "take a photo": done without the model."""
+        m = self.media
+        if m is None or not self._user_source(ev):
+            return False
+        try:
+            say = m.hear(str(getattr(ev, "text", "") or ""), privacy_paused=bool(self.privacy.paused))
+        except Exception:
+            logger.exception("Media request failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
     def _reminder_step(self, now: float):
         """Say the reminders that are due. Asked for, so quiet hours do not
         hold them (an alarm at 7 is meant to wake you); muted or paused does."""
@@ -807,6 +834,8 @@ class AmbientRuntime:
             logger.exception("Reminder tick failed")
         if not self._reminder_pending or self.gate.muted or self.privacy.paused:
             return
+        if self.media is not None:
+            self.media.cue("reminder")
         while self._reminder_pending:
             text = self._reminder_pending.pop(0)
             self._last_why = {"kind": "asked", "query": "a reminder you set"}
@@ -1060,6 +1089,8 @@ class AmbientRuntime:
         if self._watch_request(ev, now):
             return
         if self._reminder_request(ev, now):
+            return
+        if self._media_request(ev, now):
             return
         if self._desktop_request(ev, now):
             return
@@ -1574,6 +1605,7 @@ class AmbientRuntime:
             "voice": self.voice.status() if self.voice else None,
             "reminders": self.reminders.status() if self.reminders else None,
             "play": self.play.status() if self.play else None,
+            "media": self.media.status() if self.media else None,
             "corrections": {"heard": self.stats.get("corrections", 0), **_corrections().status()},
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),

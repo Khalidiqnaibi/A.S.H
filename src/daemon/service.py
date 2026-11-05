@@ -238,6 +238,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # at a free moment ASH may say it is bored (only when your mood is good)
     # or offer an evening story. free_moments.disabled can drop bored/story.
     "play": {"enabled": True},
+    # Media: "pause the music", "next song", "turn it up" (the media keys, any
+    # player); a chime with reminders and alerts; "take a photo" (one webcam
+    # frame to photo_dir, on request only, never while paused).
+    "media": {"enabled": True, "music": True, "sounds": True, "photos": True,
+              "photo_dir": "~/Pictures/ASH", "camera_index": 0},
     # Voice match: nothing is compared until you say "learn my voice". After
     # that a clearly different voice is a guest: answered, but not allowed to
     # act for you or teach ASH about you. A rough match, not security.
