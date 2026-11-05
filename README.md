@@ -496,6 +496,13 @@ urgent. Each part can be switched off in `daemon.json`.
   when the person comes up again after a long while: "Is Dana still your
   boss?". Yes refreshes it; "no, she's my friend now" or "not anymore" updates
   it. Family is never asked about.
+* **Being corrected** (`corrections`, `src/brain/corrections.py`). "No, I
+  meant search my files" right after a reply that used a tool is answered as
+  what was meant; a bare "that's not what I asked" gets "Sorry -- what did you
+  want?". The reading that was wrong counts as a failure for the brain, and
+  the correction is kept as a bounded nudge on the classifier for the same
+  wording next time. `ashctl.py corrections` lists them; `corrections forget`
+  clears them.
 
 ## Ambient memory: two-stage consolidation
 

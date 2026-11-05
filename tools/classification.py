@@ -368,6 +368,12 @@ def _ranked(query: str, top_k: int):
     cat = _INTENT_CATALOG
     wide = max(top_k, len(set(cat.labels)))          # priors may promote a lower-ranked intent
     ranked = _apply_priors(query, cat.most_similar(query, top_k=wide))
+    # What the user corrected before: the wrong reading down, the meant one up.
+    try:
+        from src.brain import corrections as _corrections
+        ranked = _corrections.default().adjust(query, ranked)
+    except Exception:
+        logger.exception("Correction priors unavailable")
     if not _SCREEN_ASK.search(query or ""):
         ranked = [(i, sc) for i, sc in ranked if i != "screen_view"]
     return ranked[:top_k]

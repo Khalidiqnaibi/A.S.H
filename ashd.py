@@ -260,6 +260,9 @@ def main() -> int:
             bus = UIBus()
 
         rcfg = cfg.get("runtime", {})
+        if cfg.get("corrections", {}).get("enabled", True):
+            from src.brain import corrections  # noqa: E402
+            corrections.configure(os.path.join(os.getcwd(), "state", "corrections.json"))
         runtime = AmbientRuntime(
             ash=ash,
             periphery=periphery,
@@ -281,6 +284,7 @@ def main() -> int:
                 activity=bool(cfg.get("activity", {}).get("enabled", True)),
                 activity_cfg=cfg.get("activity", {}),
                 activity_path=os.path.join(os.getcwd(), "state", "activity", "topics.json"),
+                corrections=bool(cfg.get("corrections", {}).get("enabled", True)),
                 followups=bool(cfg.get("follow_ups", {}).get("enabled", True)),
                 followups_cfg=cfg.get("follow_ups", {}),
                 followups_path=os.path.join(os.getcwd(), "state", "followups", "followups.json"),

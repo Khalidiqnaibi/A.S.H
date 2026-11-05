@@ -205,6 +205,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "window_s": 259200,      # how long after the event the question is still worth asking
         "max_open": 25,
     },
+    # Being corrected ("no, I meant ...") right after a reply that used a tool:
+    # the reading that was wrong is remembered and nudged down for the same
+    # wording next time, the meant one up. Kept in state/corrections.json.
+    "corrections": {"enabled": True},
     "free_moments": {
         "enabled": True,
         "min_gap_s": 600,
@@ -426,6 +430,15 @@ class ControlServer:
             return {"ok": True, "peripheral": target.status()}
         if cmd in ("wonders", "wonder"):
             return self._wonders(arg if cmd == "wonder" else "")
+        if cmd == "corrections":
+            from src.brain import corrections
+            c = corrections.default()
+            if arg.strip() == "forget":
+                c.forget()
+            elif arg.strip():
+                return {"ok": False, "error": f"unknown corrections command {arg.strip()!r}",
+                        "commands": ["forget"]}
+            return {"ok": True, "report": c.report(), "status": c.status()}
         if cmd == "followups":
             f = getattr(rt, "followups", None)
             if f is None:
@@ -452,7 +465,7 @@ class ControlServer:
             return {"ok": True, "stopping": True}
         return {"ok": False, "error": f"unknown command {cmd!r}",
                 "commands": ["status", "pause", "resume", "mute", "unmute", "say",
-                             "why", "history", "sleep", "rollup", "sensors", "face", "wonders", "wonder", "activity", "followups",
+                             "why", "history", "sleep", "rollup", "sensors", "face", "wonders", "wonder", "activity", "followups", "corrections",
                              "enable", "disable", "simulate", "shutdown"]}
 
     # ------------------------------------------------------------------

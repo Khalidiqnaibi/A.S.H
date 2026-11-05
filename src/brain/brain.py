@@ -1033,6 +1033,22 @@ class Brain:
         self._finish_cycle(Pathway.OBSERVE, trace)
         return trace
 
+    def note_misroute(self, intent: Optional[str]) -> None:
+        """The user said the last reply was for the wrong thing. That reading
+        failed, as surely as a tool that errored: the outcome model counts it
+        and the concept graph is punished for what led to it."""
+        if not intent or intent == "conversation":
+            return
+        try:
+            self.predictive.record_outcome(intent, False)
+        except Exception:
+            logger.exception("Recording a misroute failed")
+        if self.concepts is not None:
+            try:
+                self.concepts.reward(-0.8)
+            except Exception:
+                logger.exception("Punishing a misroute failed")
+
     def _concept_feedback(self, activation, bundle, proposal, tool_success=None,
                           summary: str = ""):
         """Close the loop: reward the graph, index the episode, feed the guard.

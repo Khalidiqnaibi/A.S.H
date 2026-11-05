@@ -55,6 +55,7 @@ from .activity import ActivityConfig, ActivityMemory
 from .followups import FollowUpActivity, FollowUps, FollowUpsConfig
 from .freemoment import FreeMoments, ProviderActivity, default_moments
 from .lookup import Lookup, LookupConfig
+from src.brain.corrections import default as _corrections, read_correction
 from .wondering import Environment, Knowledge, Wonderer, WonderingConfig
 from .social import (FlowDetector, ReactionTracker, SocialLearner,
                      compose_check_in, is_generic_checkin, where_phrase)
@@ -138,6 +139,11 @@ class AmbientConfig:
     # and ask to confirm the guess (lookup.py). Settings under
     # wondering.lookup. Off on a bare runtime; the daemon turns it on.
     lookup: bool = False
+    # Being corrected: "no, I meant ..." right after a reply that used a tool
+    # is answered as what was meant, and remembered so the router reads it
+    # that way next time (src/brain/corrections.py).
+    corrections: bool = True
+    correction_window_s: float = 120.0
     # Free moments: choose among gap closure, a joke, a mood check, a note on
     # how ASH is running... Needs wonder for the first. Off on a bare runtime.
     moments: bool = False
@@ -253,6 +259,10 @@ class AmbientRuntime:
                     self.followups, learn=lambda s: self._wonder_learn([s]),
                     mood=lambda v: moments.set_mood(v, self.clock())))
         self.stats["wonders_asked"] = 0
+        self.stats["corrections"] = 0
+        self._last_turn: Optional[Dict[str, Any]] = None     # what ASH last answered, and as what
+        self._awaiting_meaning: Optional[Dict[str, Any]] = None
+        self._pending_correction: Optional[Dict[str, Any]] = None
         self._reaction = None            # the reaction the event being handled carried
         self.stats["offers"] = 0
         self.stats["no_reply"] = 0
@@ -617,6 +627,11 @@ class AmbientRuntime:
                     self._wonder_say(ev, rep)
                 return
 
+        # "No, I meant ..." right after a reply is a correction of how ASH read
+        # the last request, not a new one about nothing.
+        if self.cfg.corrections and self._correction_step(ev, now):
+            return
+
         # An answer to a free-moment remark (how are you?) is spent the same way.
         if self.moments is not None and getattr(ev, "source", "") != "flow":
             try:
@@ -675,6 +690,55 @@ class AmbientRuntime:
                 self._wonder_inflight = None
             elif (ev.meta or {}).get("offer") == "moment":
                 self._moment_inflight = None
+
+    def _user_source(self, ev) -> bool:
+        s = str(getattr(ev, "source", "") or "").lower()
+        if s.startswith("sim:"):
+            s = s[4:]
+        return s in ("console", "microphone", "mic")
+
+    def _correction_step(self, ev, now: float) -> bool:
+        """Read a correction. True if the event is spent (ASH asked what was
+        meant); False lets it go on, possibly rewritten to what was meant."""
+        if not self._user_source(ev):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        aw = self._awaiting_meaning
+        if aw is not None:
+            self._awaiting_meaning = None
+            if now - aw["t"] <= self.cfg.correction_window_s and text.strip():
+                # This is what they meant: answer it, then learn its reading.
+                self._pending_correction = aw
+                ev.addressed = True
+                return False
+        lt = self._last_turn
+        if lt is None or now - lt["t"] > self.cfg.correction_window_s:
+            return False
+        if not lt.get("intent") or lt["intent"] == "conversation":
+            return False
+        meant = read_correction(text)
+        if meant is None:
+            return False
+        self._last_turn = None
+        self.stats["corrections"] += 1
+        try:
+            if hasattr(self.brain, "note_misroute"):
+                self.brain.note_misroute(lt["intent"])
+        except Exception:
+            logger.exception("note_misroute failed")
+        rec = {"query": lt["query"], "wrong": lt["intent"], "t": now}
+        if meant:
+            self._pending_correction = rec
+            ev.text = meant
+            ev.addressed = True
+            return False
+        try:
+            _corrections().record(lt["query"], lt["intent"], "", now)
+        except Exception:
+            logger.exception("Recording a correction failed")
+        self._awaiting_meaning = rec
+        self._wonder_say(ev, type("R", (), {"say": "Sorry -- what did you want?", "outcome": "followup"})())
+        return True
 
     def _respond(self, ev, decision):
         """Full cognitive cycle, with ambient context attached."""
@@ -754,6 +818,8 @@ class AmbientRuntime:
                     response = self.ash.think(prompt, image=image, context=context)
                 text = clip_reply(response.text, self.cfg.max_response_chars)
                 pathway = response.pathway.value
+                if to_ash:
+                    self._after_answer(prompt, response)
             except Exception:
                 logger.exception("Response cycle failed")
                 return
@@ -818,6 +884,21 @@ class AmbientRuntime:
                 text, self.clock(),
                 topic=str(meta.get("topic", "")),
                 accept_context=str(meta.get("accept_context") or f"You had just said: {text}"))
+
+    def _after_answer(self, prompt: str, response):
+        """Remember what was just answered, and as what; finish a correction."""
+        now = self.clock()
+        intent = getattr(response, "intent", None)
+        pc = self._pending_correction
+        if pc is not None:
+            self._pending_correction = None
+            right = intent if intent and intent != pc["wrong"] else ""
+            try:
+                _corrections().record(pc["query"], pc["wrong"], right or "", now)
+            except Exception:
+                logger.exception("Recording a correction failed")
+        self._last_turn = {"query": prompt, "intent": intent,
+                           "tool": getattr(response, "tool_used", None), "t": now}
 
     def _model_unavailable(self, ev, decision):
         """The brain had no real reply (the model is down or said nothing).
@@ -987,6 +1068,7 @@ class AmbientRuntime:
             "activity": self.activity.status() if self.activity else None,
             "free_moments": self.moments.status() if self.moments else None,
             "followups": self.followups.status() if self.followups else None,
+            "corrections": {"heard": self.stats.get("corrections", 0), **_corrections().status()},
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),
             "periphery": self.periphery.status(),
