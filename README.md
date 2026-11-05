@@ -499,6 +499,17 @@ Builds are out of reach and it says so: "tell me the program's name, like
 'tell me when npm finishes'". Separately, disk use is sampled hourly, and if
 at the current rate it will be full within two days, ASH says so, once a day.
 
+## Desktop control
+
+`desktop` in `daemon.json`, `src/daemon/desktop.py`. "Open Outlook",
+"launch Spotify", "switch to Chrome" and "run my morning check" (a routine
+you kept) are done at once, without the model. "Close Word" is asked first
+("Anything unsaved there may be lost. Say yes to close it.") and is a polite
+close the app can still interrupt to save, never a kill. Only names it knows
+as apps are taken -- "open the readme" or "run the tests" still go to the
+brain and its tools -- and you can add your own under `apps`. Nothing is
+typed into windows and nothing is deleted.
+
 ## Questions ASH asks
 
 Everything here is rule-based, paced by the same budget, quiet hours and

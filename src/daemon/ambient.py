@@ -58,6 +58,7 @@ from .lookup import Lookup, LookupConfig
 from .routines import Routines, RoutinesConfig
 from .briefing import BriefingConfig, Briefings, asked_for_briefing
 from .watch import WatchConfig, Watcher
+from .desktop import Desktop, DesktopConfig
 from src.brain.corrections import default as _corrections, read_correction
 from .wondering import Environment, Knowledge, Wonderer, WonderingConfig
 from .social import (FlowDetector, ReactionTracker, SocialLearner,
@@ -181,6 +182,11 @@ class AmbientConfig:
     watch: bool = False
     watch_cfg: Optional[Dict[str, Any]] = None
     watch_path: Optional[str] = None         # state/watches.json
+    # Desktop: "open Outlook", "switch to Chrome", "close Word" (asked first),
+    # "run my morning check" (desktop.py). Off on a bare runtime; the daemon
+    # turns it on.
+    desktop: bool = False
+    desktop_cfg: Optional[Dict[str, Any]] = None
 
 
 class AmbientRuntime:
@@ -298,6 +304,11 @@ class AmbientRuntime:
         self._watch_pending: List[str] = []
         if self.cfg.watch:
             self.watcher = Watcher(WatchConfig.from_dict(self.cfg.watch_cfg), path=self.cfg.watch_path,
+                                   clock=lambda: self.clock())
+        self.desktop: Optional[Desktop] = None
+        if self.cfg.desktop:
+            self.desktop = Desktop(DesktopConfig.from_dict(self.cfg.desktop_cfg),
+                                   knowledge=(self.wonder.kb if self.wonder else None),
                                    clock=lambda: self.clock())
         self.stats["wonders_asked"] = 0
         self.stats["corrections"] = 0
@@ -615,6 +626,25 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "watch"})())
         return True
 
+    def _desktop_request(self, ev, now: float) -> bool:
+        """"Open Outlook" / "close Word" / "run my morning check": done (or,
+        for closing, asked about) without the model."""
+        d = self.desktop
+        if d is None or not self._user_source(ev):
+            return False
+        try:
+            from src.senses.mic import MicrophoneSensor
+            text = MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or ""))
+            say = d.hear(text, now)
+        except Exception:
+            logger.exception("Desktop command failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "followup" if say.endswith("close it.")
+                                             else "desktop"})())
+        return True
+
     def _briefing_request(self, ev, now: float) -> bool:
         """"Brief me" / "what's my day look like": composed and said there and
         then, without the model."""
@@ -779,6 +809,8 @@ class AmbientRuntime:
         if self._briefing_request(ev, now):
             return
         if self._watch_request(ev, now):
+            return
+        if self._desktop_request(ev, now):
             return
 
         # An answer to a free-moment remark (how are you?) is spent the same way.
@@ -1229,6 +1261,7 @@ class AmbientRuntime:
             "routines": self.routines.status() if self.routines else None,
             "briefings": self.briefings.status() if self.briefings else None,
             "watch": self.watcher.status() if self.watcher else None,
+            "desktop": self.desktop.status() if self.desktop else None,
             "corrections": {"heard": self.stats.get("corrections", 0), **_corrections().status()},
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),

@@ -285,6 +285,8 @@ def main() -> int:
                 activity_cfg=cfg.get("activity", {}),
                 activity_path=os.path.join(os.getcwd(), "state", "activity", "topics.json"),
                 corrections=bool(cfg.get("corrections", {}).get("enabled", True)),
+                desktop=bool(cfg.get("desktop", {}).get("enabled", True)),
+                desktop_cfg=cfg.get("desktop", {}),
                 watch=bool(cfg.get("watch", {}).get("enabled", True)),
                 watch_cfg=cfg.get("watch", {}),
                 watch_path=os.path.join(os.getcwd(), "state", "watches.json"),

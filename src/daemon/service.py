@@ -213,6 +213,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # battery is charged / the CPU calms down / report.docx changes", checked
     # every few seconds and let go after a day; plus a warning when the disk
     # will be full within two days at the rate it is filling.
+    # Desktop: "open Outlook", "switch to Chrome", "close Word" (asked first,
+    # and a polite close the app can still interrupt to save), "run my
+    # morning check". Only known app names; add yours under apps, e.g.
+    # "apps": {"jira": "https://jira.example.com", "blender": "C:/Program Files/Blender/blender.exe"}.
+    "desktop": {"enabled": True, "confirm_close": True, "apps": {}},
     "watch": {"enabled": True, "downloads_dir": "~/Downloads", "expire_s": 86400, "disk_trend": True},
     # Briefings: a short summary the first time you are at the computer in
     # the morning (today's events, yesterday's work, questions waiting) and
