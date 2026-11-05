@@ -616,6 +616,24 @@ ends, on time or with "I'm done focusing", ASH says in one line what it held
 back ("I held back 3 things; 2 questions are waiting; your research on Raft is
 ready."). It keeps ASH quiet; it does not silence other apps.
 
+## Email, read-only
+
+`email` in `daemon.json`, `src/daemon/inbox.py`. Nothing happens until an
+IMAP account is set: server, account and an app password. You can set these
+in the console's settings panel. After that, ASH checks the inbox at most
+every ten minutes, on its own thread.
+
+- **The morning briefing** says "Email: 4 unread, from Sara, Omar and
+  GitHub."
+- **"Any new email?"** gives the same; **"who emailed me?"** and **"what are
+  they about?"** add the subjects.
+
+It only ever reads who sent what. The folder is opened read-only and only
+headers are fetched, with `BODY.PEEK`, so nothing is marked read. It never
+reads a message body, and never sends, moves or deletes. The password is
+kept in `daemon.json` in plain text, which is why an app password is
+recommended. It is never shown back in the console, the chat or the status.
+
 ## Help when stuck
 
 `src/daemon/stuck.py`. When the same error keeps coming back, ASH offers

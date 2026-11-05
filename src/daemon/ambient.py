@@ -73,6 +73,7 @@ from .tasks import Tasks
 from .context import Context
 from .focus import Focus
 from .weather import Weather, WeatherConfig
+from .inbox import Inbox, InboxConfig
 from .forget import (UndoStack, entity_ids, forget_subject, restorer, snapshot, wants_forget,
                      wants_undo)
 from src.brain.corrections import default as _corrections, read_correction
@@ -243,6 +244,10 @@ class AmbientConfig:
     # The weather (weather.py), once a place is set. Off on a bare runtime.
     weather: bool = False
     weather_cfg: Optional[Dict[str, Any]] = None
+    # Email, read-only (inbox.py): the unread count and who sent what, once
+    # an IMAP account is set. Off on a bare runtime.
+    email: bool = False
+    email_cfg: Optional[Dict[str, Any]] = None
     # Interruptible speech: "stop" / "shh" cut ASH off, "the short version",
     # "keep it short" (speech.py). On by default: it only ever says less.
     speech: bool = True
@@ -411,6 +416,9 @@ class AmbientRuntime:
         self.weather: Optional[Weather] = None
         if self.cfg.weather:
             self.weather = Weather(WeatherConfig.from_dict(self.cfg.weather_cfg), clock=lambda: self.clock())
+        self.inbox: Optional[Inbox] = None
+        if self.cfg.email:
+            self.inbox = Inbox(InboxConfig.from_dict(self.cfg.email_cfg), clock=lambda: self.clock())
         self.calendar: Optional[Calendar] = None
         self._calendar_at = -1e18
         if self.cfg.calendar:
@@ -425,6 +433,8 @@ class AmbientRuntime:
                                        clock=lambda: self.clock())
             if self.weather is not None:
                 self.briefings.add_provider(self.weather.briefing_part)
+            if self.inbox is not None:
+                self.briefings.add_provider(self.inbox.briefing_part)
             if self.calendar is not None:
                 self.briefings.add_provider(self.calendar.briefing_part)
             if self.reminders is not None:
@@ -659,6 +669,11 @@ class AmbientRuntime:
                     self.weather.refresh(now)
                 except Exception:
                     logger.exception("Weather refresh failed")
+            if self.inbox is not None:
+                try:
+                    self.inbox.refresh(now)
+                except Exception:
+                    logger.exception("Inbox refresh failed")
             if self.calendar is not None and now - self._calendar_at >= 60.0:
                 self._calendar_at = now
                 try:
@@ -984,6 +999,21 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
 
+    def _email_request(self, ev, now: float) -> bool:
+        """"Any new email?": the unread count and senders, read-only, no model."""
+        b = self.inbox
+        if b is None or not self._user_source(ev):
+            return False
+        try:
+            say = b.hear(str(getattr(ev, "text", "") or ""))
+        except Exception:
+            logger.exception("Email request failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
     def _weather_request(self, ev, now: float) -> bool:
         """"What's the weather like today?" for the place set, without the model.
         Another place, or no place set, is left to the brain's weather tool."""
@@ -1253,6 +1283,8 @@ class AmbientRuntime:
         if self._calendar_request(ev, now):
             return
         if self._weather_request(ev, now):
+            return
+        if self._email_request(ev, now):
             return
 
         # An answer to a free-moment remark (how are you?) is spent the same way.
@@ -2015,6 +2047,7 @@ class AmbientRuntime:
             "remarks": {"logging": self.remarks is not None},
             "focus": self.focus.status() if self.focus else None,
             "weather": self.weather.status() if self.weather else None,
+            "email": self.inbox.status() if self.inbox else None,
             "speech": self.speech.status() if self.speech else None,
             "tasks": self.tasks.status() if self.tasks else None,
             "context": self.context.status() if self.context else None,

@@ -28,7 +28,7 @@ PART = {
     "wondering": "wonder", "follow_ups": "followups", "research": "research", "calendar": "calendar",
     "smarthome": "smarthome", "reminders": "reminders", "play": "play", "focus": "focus",
     "weather": "weather", "watch": "watcher", "briefings": "briefings", "routines": "routines",
-    "free_moments": "moments", "desktop": "desktop", "remarks": "remarks", "tasks": "tasks",
+    "free_moments": "moments", "desktop": "desktop", "remarks": "remarks", "tasks": "tasks", "email": "inbox",
 }
 
 # key -> (type, label, group). Types: bool, str, secret, list (comma separated).
@@ -53,6 +53,10 @@ SETTINGS: Dict[str, Tuple[str, str, str]] = {
     "smarthome.enabled": ("bool", "Smart home", "Smart home"),
     "smarthome.url": ("str", "Home Assistant address", "Smart home"),
     "smarthome.token": ("secret", "Access token", "Smart home"),
+    "email.enabled": ("bool", "Email (read-only)", "Email"),
+    "email.host": ("str", "IMAP server (e.g. imap.gmail.com)", "Email"),
+    "email.user": ("str", "Account", "Email"),
+    "email.password": ("secret", "App password", "Email"),
     "wondering.lookup.roots": ("folders", "Folders to look terms up in, comma separated", "Looking things up"),
     "wondering.lookup.web": ("bool", "Look acronyms up on Wikipedia", "Looking things up"),
 }
@@ -202,6 +206,8 @@ def apply(runtime, key: str, value: Any) -> bool:
         part._fetched_at = -1e18
     if section == "smarthome":
         part._states_at = -1e18
+    if section == "email":
+        part.reset()                         # a new account: check it afresh
     return True
 
 
