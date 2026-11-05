@@ -616,6 +616,22 @@ ends, on time or with "I'm done focusing", ASH says in one line what it held
 back ("I held back 3 things; 2 questions are waiting; your research on Raft is
 ready."). It keeps ASH quiet; it does not silence other apps.
 
+## Help when stuck
+
+`src/daemon/stuck.py`. When the same error keeps coming back, ASH offers
+help ("That error keeps coming back (KeyError: 'id') -- want me to take a
+look?"). If you say yes, it does two things without the model:
+
+- It looks for that error in your own files, under the lookup folders
+  (`wondering.lookup.roots`), and says where it was met before, by file and
+  line.
+- It starts a background look-up of the error, and tells you when that is
+  ready.
+
+Only the error's own words are searched for. Paths, line numbers and
+addresses that change every run are left out. If you answer with a question
+of your own instead, the model answers as before.
+
 ## Multi-step tasks
 
 `tasks` in `daemon.json`, `src/daemon/tasks.py`.

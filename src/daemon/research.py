@@ -135,6 +135,13 @@ class Research:
         topic = parse_request(text)
         if topic is None:
             return None
+        return self.ask(topic, now)
+
+    def ask(self, topic: str, now: Optional[float] = None) -> Optional[str]:
+        """Start a look-up of `topic` (already parsed); what to say back."""
+        if not self.cfg.enabled or not (topic or "").strip():
+            return None
+        topic = topic.strip()
         now = self.clock() if now is None else now
         with self._lock:
             for j in self.jobs.values():

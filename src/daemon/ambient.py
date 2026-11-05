@@ -1400,6 +1400,11 @@ class AmbientRuntime:
                 # the offer's kind has already been snoozed.
                 say = ("Okay, I'll stay out of your way." if react.outcome == "rejected"
                        else "Okay, I'll check back later.")
+            elif (react is not None and react.outcome == "accepted" and react.offer.kind == "stuck_help"
+                  and react.offer.topic and (helped := self._stuck_help(react.offer.topic))):
+                # "Yes, help me" with an error: look in their files, start a look-up.
+                # Nothing to look in: the model is told what the offer was, below.
+                say = helped
             elif react is not None and react.offer.accept_context:
                 context = (f"{context}\n[{react.offer.accept_context} "
                            f"The user's message is their answer to that.]").strip()
@@ -1578,6 +1583,30 @@ class AmbientRuntime:
             return {"kind": "check_in", "minutes": meta.get("minutes")}
         reasons = list(getattr(decision, "reasons", []) or [])
         return {"kind": "observation", "noticed": str(getattr(ev, "text", "") or "")[:80], "reasons": reasons}
+
+    def _stuck_help(self, error: str) -> Optional[str]:
+        """Where this error was met before in the user's files, and a look-up
+        started; None (the model answers) if neither is possible."""
+        from . import stuck
+        roots = tuple(getattr(getattr(self.lookup_engine, "cfg", None), "roots", ()) or ())
+        try:
+            hits = stuck.find_in_files(error, roots) if roots else []
+        except Exception:
+            logger.exception("Searching files for the error failed")
+            hits = []
+        started = False
+        topic = stuck.research_topic(error)
+        if self.research is not None and topic:
+            try:
+                said = self.research.ask(topic, self.clock()) or ""
+                started = said.startswith(("Okay, I'll look into", "I'm already looking"))
+            except Exception:
+                logger.exception("Starting the look-up failed")
+        if not roots and not started:
+            return None
+        self.stats["stuck_helped"] = self.stats.get("stuck_helped", 0) + 1
+        self._last_stuck_hits = stuck.tidy_hits(hits)
+        return stuck.describe(error, hits, started)
 
     def _task_request(self, ev, now: float) -> bool:
         """A multi-step request: show the plan, run it on a yes."""
