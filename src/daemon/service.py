@@ -242,6 +242,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # under state/remarks/, read back by `ashctl review [days]` with tips on
     # what to tune. keep_text false keeps only the kind and the reaction.
     "remarks": {"enabled": True, "keep_text": True},
+    # Focus mode: "I'm focusing for an hour" / "do not disturb until 3" -- ASH
+    # volunteers nothing until then (reminders and watches still go off) and
+    # says what it held back when it ends.
+    "focus": {"enabled": True},
     # Media: "pause the music", "next song", "turn it up" (the media keys, any
     # player); a chime with reminders and alerts; "take a photo" (one webcam
     # frame to photo_dir, on request only, never while paused).

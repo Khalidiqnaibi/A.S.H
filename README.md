@@ -599,6 +599,17 @@ as apps are taken -- "open the readme" or "run the tests" still go to the
 brain and its tools -- and you can add your own under `apps`. Nothing is
 typed into windows and nothing is deleted.
 
+## Focus mode
+
+`focus` in `daemon.json`, `src/daemon/focus.py`. "I'm focusing for an
+hour", "focus mode for 45 minutes", "do not disturb until 3" or just "let me
+focus" (an hour): until then ASH volunteers nothing -- no questions, jokes,
+check-ins, briefings or unprompted remarks -- while what you asked for still
+happens (reminders and watches go off, questions to ASH are answered). When it
+ends, on time or with "I'm done focusing", ASH says in one line what it held
+back ("I held back 3 things; 2 questions are waiting; your research on Raft is
+ready."). It keeps ASH quiet; it does not silence other apps.
+
 ## Undo and forget
 
 `src/daemon/forget.py`. Whatever ASH learned or set up on its own leaves an

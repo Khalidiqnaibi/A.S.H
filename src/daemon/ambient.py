@@ -68,6 +68,7 @@ from .reminders import Reminders
 from .play import Bored, Play, Story
 from .media import Media, MediaConfig
 from .remarks import RemarkLog
+from .focus import Focus
 from .forget import (UndoStack, entity_ids, forget_subject, restorer, snapshot, wants_forget,
                      wants_undo)
 from src.brain.corrections import default as _corrections, read_correction
@@ -232,6 +233,9 @@ class AmbientConfig:
     # (remarks.py). Off on a bare runtime; the daemon turns it on.
     remarks_dir: Optional[str] = None        # state/remarks/
     remarks_keep_text: bool = True
+    # Focus mode: "I'm focusing for an hour" -- nothing volunteered until
+    # then, a summary of what was held after (focus.py). Off on a bare runtime.
+    focus: bool = False
 
 
 def _as_you(sentence: str) -> str:
@@ -422,6 +426,8 @@ class AmbientRuntime:
         self._last_why: Optional[Dict[str, Any]] = None      # why ASH said its last thing ("why?")
         self._mood_seen: Any = None                          # the brain sentiment reading last folded in
         self.undo = UndoStack(clock=lambda: self.clock())   # "undo that": what was last learned or set up
+        self.focus: Optional[Focus] = Focus(clock=lambda: self.clock()) if self.cfg.focus else None
+        self._focus_was = False
         self._awaiting_meaning: Optional[Dict[str, Any]] = None
         self._pending_correction: Optional[Dict[str, Any]] = None
         self._reaction = None            # the reaction the event being handled carried
@@ -607,6 +613,14 @@ class AmbientRuntime:
                     self.calendar.refresh(now)
                 except Exception:
                     logger.exception("Calendar refresh failed")
+            if self.focus is not None:
+                self._focus_tick(now)
+                if self.focus.active(now):
+                    # Keep the flow detector's picture current, but say nothing.
+                    if self.flow is not None and idle_s is not None:
+                        for offer in self.flow.poll(idle_s, now):
+                            self.focus.hold(str((offer.meta or {}).get("offer", "remark")))
+                    return
             if self._briefing_step(now, idle_s):
                 return
             if self.flow is None:
@@ -1130,6 +1144,8 @@ class AmbientRuntime:
         # the last request, not a new one about nothing.
         if guest and self._guest_action(ev):
             return
+        if self._focus_request(ev, now):
+            return
         if self._forget_request(ev, now):
             return
         if self._explain_request(ev, now):
@@ -1187,6 +1203,15 @@ class AmbientRuntime:
 
         if decision is None or decision.disposition == Disposition.IGNORE:
             self.stats["ignored"] += 1
+            return
+
+        if (self.focus is not None and self.focus.active(now) and decision.disposition == Disposition.RESPOND
+                and not getattr(ev, "addressed", False) and not getattr(decision, "likely", False)):
+            # Focusing: an unprompted remark is held, not said.
+            self.focus.hold(str(getattr(decision, "kind", "") or "remark"))
+            for attr in ("_wonder_inflight", "_moment_inflight", "_briefing_inflight"):
+                setattr(self, attr, None)
+            self.stats["observed"] += 1
             return
 
         if decision.disposition == Disposition.OBSERVE:
@@ -1468,6 +1493,56 @@ class AmbientRuntime:
         reasons = list(getattr(decision, "reasons", []) or [])
         return {"kind": "observation", "noticed": str(getattr(ev, "text", "") or "")[:80], "reasons": reasons}
 
+    def _focus_request(self, ev, now: float) -> bool:
+        """"I'm focusing for an hour" / "I'm done focusing"."""
+        f = self.focus
+        if f is None or not self._user_source(ev):
+            return False
+        was = f.active(now)
+        say = f.hear(str(getattr(ev, "text", "") or ""), now)
+        if say is None and was and not f.active(now):
+            say = self._focus_summary()
+            self._focus_was = False
+        if not say:
+            return False
+        if f.active(now):
+            self._focus_was = True
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
+    def _focus_summary(self) -> str:
+        extra = []
+        w = self.wonder
+        if w is not None:
+            n = sum(1 for x in w.wonders.values() if x.status == "pending")
+            if n:
+                extra.append(f"{n} question{'s are' if n != 1 else ' is'} waiting")
+        r = self.research
+        if r is not None:
+            j = r.ready(self.clock())
+            if j is not None:
+                extra.append(f"your research on {j.topic} is ready")
+        fu = self.followups
+        if fu is not None:
+            due = fu.status(self.clock()).get("due", 0)
+            if due:
+                extra.append(f"{due} follow-up{'s' if due != 1 else ''} to ask about")
+        return self.focus.summary(extra)
+
+    def _focus_tick(self, now: float):
+        """Focus that ran out on its own: say the summary once."""
+        f = self.focus
+        if self._focus_was and not f.active(now):
+            self._focus_was = False
+            if self.gate.muted or self.privacy.paused:
+                return
+            self._last_why = {"kind": "asked", "query": "focus mode"}
+            try:
+                self.response_sink(self._focus_summary(), {"addressed": False, "source": "focus",
+                                                            "attention": None, "pathway": "focus"})
+            except Exception:
+                logger.exception("Response sink failed")
+
     def _drop_correction(self, c):
         mem = _corrections()
         with mem._lock:
@@ -1694,6 +1769,7 @@ class AmbientRuntime:
             "play": self.play.status() if self.play else None,
             "media": self.media.status() if self.media else None,
             "remarks": {"logging": self.remarks is not None},
+            "focus": self.focus.status() if self.focus else None,
             "corrections": {"heard": self.stats.get("corrections", 0), **_corrections().status()},
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),
