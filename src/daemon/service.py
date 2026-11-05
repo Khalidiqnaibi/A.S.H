@@ -209,6 +209,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # the reading that was wrong is remembered and nudged down for the same
     # wording next time, the meant one up. Kept in state/corrections.json.
     "corrections": {"enabled": True},
+    # Briefings: a short summary the first time you are at the computer in
+    # the morning (today's events, yesterday's work, questions waiting) and
+    # at a free moment in the evening (what the day went on, tomorrow's
+    # events). "Brief me" asks for one any time.
+    "briefings": {"enabled": True, "morning": True, "evening": True,
+                  "morning_from": 5, "morning_until": 12, "evening_from": 18, "evening_until": 23},
     # Routines: the apps opened at the start of a sitting, in order. One that
     # repeats on min_days different days is offered as a routine to keep
     # ("Outlook, then Teams, then Jira"). Only app names are kept.
@@ -434,6 +440,12 @@ class ControlServer:
             return {"ok": True, "peripheral": target.status()}
         if cmd in ("wonders", "wonder"):
             return self._wonders(arg if cmd == "wonder" else "")
+        if cmd == "briefing":
+            b = getattr(rt, "briefings", None)
+            if b is None:
+                return {"ok": False, "error": "briefings are not enabled (daemon.json: briefings.enabled)"}
+            kind = arg.strip() if arg.strip() in ("morning", "evening") else ""
+            return {"ok": True, "report": b.compose(kind) or "(nothing to brief)", "status": b.status()}
         if cmd == "routines":
             r = getattr(rt, "routines", None)
             if r is None:
@@ -481,7 +493,7 @@ class ControlServer:
             return {"ok": True, "stopping": True}
         return {"ok": False, "error": f"unknown command {cmd!r}",
                 "commands": ["status", "pause", "resume", "mute", "unmute", "say",
-                             "why", "history", "sleep", "rollup", "sensors", "face", "wonders", "wonder", "activity", "followups", "corrections", "routines",
+                             "why", "history", "sleep", "rollup", "sensors", "face", "wonders", "wonder", "activity", "followups", "corrections", "routines", "briefing",
                              "enable", "disable", "simulate", "shutdown"]}
 
     # ------------------------------------------------------------------

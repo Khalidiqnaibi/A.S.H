@@ -56,6 +56,7 @@ from .followups import FollowUpActivity, FollowUps, FollowUpsConfig
 from .freemoment import FreeMoments, ProviderActivity, default_moments
 from .lookup import Lookup, LookupConfig
 from .routines import Routines, RoutinesConfig
+from .briefing import BriefingConfig, Briefings, asked_for_briefing
 from src.brain.corrections import default as _corrections, read_correction
 from .wondering import Environment, Knowledge, Wonderer, WonderingConfig
 from .social import (FlowDetector, ReactionTracker, SocialLearner,
@@ -167,6 +168,12 @@ class AmbientConfig:
     routines: bool = False
     routines_cfg: Optional[Dict[str, Any]] = None
     routines_path: Optional[str] = None      # state/routines/routines.json
+    # Briefings: one short summary at the start of the morning and at a free
+    # moment in the evening, and on request ("brief me"). Off on a bare
+    # runtime; the daemon turns it on.
+    briefings: bool = False
+    briefings_cfg: Optional[Dict[str, Any]] = None
+    briefings_path: Optional[str] = None     # state/briefing.json
 
 
 class AmbientRuntime:
@@ -271,6 +278,14 @@ class AmbientRuntime:
                 self.moments.register(FollowUpActivity(
                     self.followups, learn=lambda s: self._wonder_learn([s]),
                     mood=lambda v: moments.set_mood(v, self.clock())))
+        # Briefings, from what the parts above keep.
+        self.briefings: Optional[Briefings] = None
+        self._briefing_inflight: Optional[str] = None
+        if self.cfg.briefings:
+            self.briefings = Briefings(BriefingConfig.from_dict(self.cfg.briefings_cfg),
+                                       path=self.cfg.briefings_path, followups=self.followups,
+                                       activity=self.activity, wonder=self.wonder,
+                                       clock=lambda: self.clock())
         self.stats["wonders_asked"] = 0
         self.stats["corrections"] = 0
         self._last_turn: Optional[Dict[str, Any]] = None     # what ASH last answered, and as what
@@ -441,6 +456,8 @@ class AmbientRuntime:
                     self.routines.tick(now)
                 except Exception:
                     logger.exception("Routines failed on a tick")
+            if self._briefing_step(now, idle_s):
+                return
             if self.flow is None:
                 self._wonder_step(now, idle_s)
                 return
@@ -451,7 +468,8 @@ class AmbientRuntime:
                     # A pause after real work: the moment for whatever has
                     # been saved up. A question beats "you worked a while".
                     self._free_until = now + (self.wonder.cfg.free_moment_s if self.wonder else 180.0)
-                    if self._moment_step(now, idle_s) or self._wonder_step(now, idle_s):
+                    if (self._briefing_step(now, idle_s) or self._moment_step(now, idle_s)
+                            or self._wonder_step(now, idle_s)):
                         continue
                 self.stats["offers"] += 1
                 self.submit(offer)
@@ -508,6 +526,55 @@ class AmbientRuntime:
     # ------------------------------------------------------------------
     # Wondering
     # ------------------------------------------------------------------
+    def _briefing_step(self, now: float, idle_s: Optional[float]) -> bool:
+        """Offer the briefing that is owed: the morning one as soon as the
+        user is back at the computer and pauses, the evening one at a free
+        moment. True if one was submitted."""
+        b = self.briefings
+        if (b is None or idle_s is None or self._briefing_inflight is not None
+                or self._moment_inflight is not None or self._wonder_inflight is not None):
+            return False
+        try:
+            kind = b.due(now)
+            if not kind:
+                return False
+            env = self._wonder_env(now, idle_s)
+            if env.muted or env.quiet_hours or env.paused or env.conversation_open or env.plan_active:
+                return False
+            if kind == "morning" and not (5.0 <= idle_s <= 120.0):
+                return False                     # not typing, and not away
+            if kind == "evening" and not env.free_moment:
+                return False
+            text = b.compose(kind, now)
+            if not text:
+                b.mark(kind, now, said=False)    # nothing to say today: not again
+                return False
+            self._briefing_inflight = kind
+            self.submit(SensorEvent(source="flow", modality=Modality.TEXT, text=text, salience=0.6, ts=now,
+                                    persistable=False,
+                                    meta={"offer": "briefing", "offer_strength": 0.9, "say": text,
+                                          "briefing": kind, "topic": "briefing",
+                                          "accept_context": f"You had just said: {text}"}))
+            return True
+        except Exception:
+            self.stats["errors"] += 1
+            logger.exception("Briefing step failed")
+            return False
+
+    def _briefing_request(self, ev, now: float) -> bool:
+        """"Brief me" / "what's my day look like": composed and said there and
+        then, without the model."""
+        b = self.briefings
+        if b is None or not self._user_source(ev):
+            return False
+        kind = asked_for_briefing(str(getattr(ev, "text", "") or ""))
+        if kind is None:
+            return False
+        text = b.compose(kind, now) or "Nothing much to report: no events I know of, and no questions waiting."
+        b.stats["asked"] += 1
+        self._wonder_say(ev, type("R", (), {"say": text, "outcome": "briefing"})())
+        return True
+
     def _wonder_env(self, now: float, idle_s: Optional[float]) -> Environment:
         mood = None
         try:
@@ -655,6 +722,8 @@ class AmbientRuntime:
         # the last request, not a new one about nothing.
         if self.cfg.corrections and self._correction_step(ev, now):
             return
+        if self._briefing_request(ev, now):
+            return
 
         # An answer to a free-moment remark (how are you?) is spent the same way.
         if self.moments is not None and getattr(ev, "source", "") != "flow":
@@ -678,6 +747,9 @@ class AmbientRuntime:
         if (ev.meta or {}).get("offer") == "moment" and (
                 decision is None or decision.disposition != Disposition.RESPOND):
             self._moment_inflight = None         # not let through: nothing was said
+        if (ev.meta or {}).get("offer") == "briefing" and (
+                decision is None or decision.disposition != Disposition.RESPOND):
+            self._briefing_inflight = None       # held back: offered again later
         wid = (ev.meta or {}).get("wonder_id") if (ev.meta or {}).get("offer") == "wonder" else None
         if wid and (decision is None or decision.disposition != Disposition.RESPOND):
             # The gate would not let the question through: keep it, try later.
@@ -714,6 +786,8 @@ class AmbientRuntime:
                 self._wonder_inflight = None
             elif (ev.meta or {}).get("offer") == "moment":
                 self._moment_inflight = None
+            elif (ev.meta or {}).get("offer") == "briefing":
+                self._briefing_inflight = None
 
     def _user_source(self, ev) -> bool:
         s = str(getattr(ev, "source", "") or "").lower()
@@ -791,7 +865,7 @@ class AmbientRuntime:
         elif offer == "stuck_help" and meta.get("say"):
             say = str(meta["say"])
             prompt = ""
-        elif offer in ("wonder", "moment") and meta.get("say"):
+        elif offer in ("wonder", "moment", "briefing") and meta.get("say"):
             say = str(meta["say"])
             prompt = ""
         elif offer == "free_moment" and not self.cfg.check_in_with_model:
@@ -891,6 +965,10 @@ class AmbientRuntime:
             self._moment_inflight = None
             if self.moments is not None:
                 self.moments.mark_spoken(str(meta.get("moment", "")), self.clock())
+        elif offer == "briefing":
+            self._briefing_inflight = None
+            if self.briefings is not None:
+                self.briefings.mark(str(meta.get("briefing", "")), self.clock())
 
         if to_ash:
             self.gate.note_user_turn()
@@ -1093,6 +1171,7 @@ class AmbientRuntime:
             "free_moments": self.moments.status() if self.moments else None,
             "followups": self.followups.status() if self.followups else None,
             "routines": self.routines.status() if self.routines else None,
+            "briefings": self.briefings.status() if self.briefings else None,
             "corrections": {"heard": self.stats.get("corrections", 0), **_corrections().status()},
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),

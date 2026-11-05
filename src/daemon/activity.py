@@ -173,6 +173,7 @@ class Topic:
     terms: Dict[str, int] = field(default_factory=dict)
     together: Dict[str, int] = field(default_factory=dict)   # topic key -> sittings shared
     links: List[Dict[str, str]] = field(default_factory=list)
+    by_day: Dict[str, float] = field(default_factory=dict)  # local date -> seconds, last two weeks
     remembered: bool = False           # made an entity: it is connected to something
     entity_id: str = ""
     asked: bool = False
@@ -375,6 +376,10 @@ class ActivityMemory:
         t.last = end
         if day not in t.days:
             t.days = (t.days + [day])[-30:]
+        t.by_day[day] = t.by_day.get(day, 0.0) + dur
+        if len(t.by_day) > 14:
+            for old in sorted(t.by_day)[:len(t.by_day) - 14]:
+                del t.by_day[old]
         if app and app not in t.apps:
             t.apps = (t.apps + [app])[-5:]
         if self.cfg.keep_terms:

@@ -465,6 +465,23 @@ Two independent routes to `RESPOND`:
 `ashctl.py pause` stops *perceiving*. `ashctl.py mute` stops *speaking* while
 continuing to observe and remember. Those are different needs.
 
+## Briefings
+
+`briefings` in `daemon.json`, `src/daemon/briefing.py`. One short spoken
+summary at the edges of the day instead of scattered remarks:
+
+* **Morning** -- the first time you are at the computer and pause: today's
+  events (from what you mentioned: "your interview at 10:00"), what you
+  worked on yesterday, and whether ASH has questions waiting.
+* **Evening** -- at a free moment: what the day went on, with times
+  ("brain.py (2h30) and A.S.H (20 min)"), and tomorrow's events.
+* **On request** -- "brief me", "what's my day look like", "what did I do
+  today".
+
+Once a day each, never while muted or in quiet hours, and nothing at all on
+a day with nothing to say. Extra parts (reminders, weather) are one function
+each (`Briefings.add_provider`). `ashctl.py briefing` shows what it would say.
+
 ## Questions ASH asks
 
 Everything here is rule-based, paced by the same budget, quiet hours and
