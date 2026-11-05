@@ -638,6 +638,27 @@ work task" list and remove them. They are kept in `state/tasks.json`.
 like a command ASH can carry out. "Remind me to buy milk and eggs" stays one
 reminder. The console shows a pending plan in its "waiting for you" strip.
 
+## "Open it", "remind me about that", "who was that?"
+
+`src/daemon/context.py`. ASH keeps track of the last app opened, closed or
+in front, what you said last, the last person named, and its own last line.
+A sentence that leans on them is rewritten into the full request, then
+handled as usual:
+
+- **"Open it" / "close that" / "switch to it".** The app last opened or
+  closed, or the one in front. ASH's own windows and blocked windows don't
+  count.
+- **"Remind me about that later".** "I need to call the bank" becomes
+  "remind me to call the bank in 1 hour". A time you give is kept.
+- **"Look it up".** The subject of a recent question ("what's a quasar"), or
+  a short phrase. Never a whole sentence.
+- **"Who was that?"** The last person named, and who they are to you if ASH
+  knows.
+- **"Say that again".** ASH's last line, again.
+
+All of these go stale after ten minutes. What it can't resolve is left to the
+brain.
+
 ## Stop, shh, the short version
 
 `speech` in `daemon.json`, `src/daemon/speech.py`.

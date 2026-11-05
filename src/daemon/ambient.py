@@ -70,6 +70,7 @@ from .media import Media, MediaConfig
 from .remarks import RemarkLog
 from .speech import SpeechControl, wants_brief, wants_short, wants_stop
 from .tasks import Tasks
+from .context import Context
 from .focus import Focus
 from .weather import Weather, WeatherConfig
 from .forget import (UndoStack, entity_ids, forget_subject, restorer, snapshot, wants_forget,
@@ -249,6 +250,9 @@ class AmbientConfig:
     # Multi-step tasks with a plan to approve (tasks.py). Off on a bare runtime.
     tasks: bool = False
     tasks_path: Optional[str] = None         # state/tasks.json
+    # "Open it", "remind me about that later", "who was that?" (context.py).
+    # On by default: it only rewrites what would otherwise not be understood.
+    context: bool = True
 
 
 def _as_you(sentence: str) -> str:
@@ -451,6 +455,13 @@ class AmbientRuntime:
         self.tasks: Optional[Tasks] = (Tasks(self.cfg.tasks_path, clock=lambda: self.clock())
                                        if self.cfg.tasks else None)
         self._capture: Optional[List[str]] = None   # a task step's reply, kept instead of said
+        self.context: Optional[Context] = None
+        if self.cfg.context:
+            apps = {}
+            if self.desktop is not None:
+                apps = {proc: name.title() for name, (_t, proc) in self.desktop.apps.items()}
+            self.context = Context(clock=lambda: self.clock(),
+                                   knowledge=self.wonder.kb if self.wonder is not None else None, app_names=apps)
         self._awaiting_meaning: Optional[Dict[str, Any]] = None
         self._pending_correction: Optional[Dict[str, Any]] = None
         self._reaction = None            # the reaction the event being handled carried
@@ -466,6 +477,11 @@ class AmbientRuntime:
                 self.remarks.said(text, meta)
             except Exception:
                 logger.exception("Remark log failed")
+        if self.context is not None and text and self._capture is None:
+            try:
+                self.context.said(text)
+            except Exception:
+                logger.exception("Context failed")
         if self.speech is not None and text:
             try:
                 self.speech.said(text, meta)
@@ -1188,6 +1204,11 @@ class AmbientRuntime:
         if self.speech is not None and self._speech_step(ev, now):
             return
 
+        # "Open it", "remind me about that later": rewritten into the full
+        # request, then handled as usual; "who was that?" answered here.
+        if self.context is not None and self._context_step(ev, now):
+            return
+
         # A reply to a question ASH asked, or a request about the questions
         # ("not now", "stop asking"), is spent here and not run as a new query.
         if self.play is not None and self._play_step(ev, now):
@@ -1607,6 +1628,35 @@ class AmbientRuntime:
             out.append({"step": step, "said": said})
         return out
 
+    def _context_step(self, ev, now: float) -> bool:
+        """True if answered here; a rewrite carries on with the new text."""
+        c = self.context
+        src = str(getattr(ev, "source", "") or "")
+        if src == "active_window":
+            meta = getattr(ev, "meta", None) or {}
+            if not meta.get("blocked"):
+                c.window(str(meta.get("process") or ""), now)
+            return False
+        if not self._user_source(ev):
+            return False
+        try:
+            from src.senses.mic import MicrophoneSensor
+            text = MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or ""))
+            res = c.resolve(text, now)
+            c.heard(text, now)
+        except Exception:
+            logger.exception("Context failed")
+            return False
+        if not res:
+            return False
+        if "say" in res:
+            self._wonder_say(ev, type("R", (), {"say": res["say"], "outcome": "answered"})())
+            return True
+        logger.info("Context: %r -> %r", text, res["text"])
+        ev.text = res["text"]
+        ev.addressed = True
+        return False
+
     def _speech_step(self, ev, now: float) -> bool:
         """"Stop", "the short version", "keep it short". True if spent."""
         if not self._user_source(ev):
@@ -1938,6 +1988,7 @@ class AmbientRuntime:
             "weather": self.weather.status() if self.weather else None,
             "speech": self.speech.status() if self.speech else None,
             "tasks": self.tasks.status() if self.tasks else None,
+            "context": self.context.status() if self.context else None,
             "corrections": {"heard": self.stats.get("corrections", 0), **_corrections().status()},
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),
