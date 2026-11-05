@@ -801,10 +801,28 @@ class Homeo:
     drives = Drives()
 
 
+_POS = ("good", "great", "fine", "well", "happy", "awesome", "amazing", "nailed", "aced", "passed", "excellent")
+_NEG = ("bad", "tired", "exhausted", "awful", "terrible", "stressed", "rough", "sad", "didn't get", "failed", "bombed", "not good")
+
+
+def fake_sentiment(text):
+    """Stands in for the sentiment model in tests: a sure positive or negative
+    on clear words, an unsure reading otherwise (as the real one gives)."""
+    t = str(text or "").lower()
+    neg = any(w in t for w in _NEG)
+    pos = any(w in t for w in _POS) and not neg
+    if pos:
+        return {"sentiment": "POSITIVE", "confidence": 0.98}
+    if neg:
+        return {"sentiment": "NEGATIVE", "confidence": 0.97}
+    return {"sentiment": "POSITIVE", "confidence": 0.55}
+
+
 class Brain:
     homeostasis = Homeo()
     follower = None
     user = "Khalid"
+    sentiment_fn = staticmethod(fake_sentiment)
 
     def __init__(self):
         self.seen = []

@@ -22,7 +22,7 @@ from src.daemon import (AmbientConfig, AmbientRuntime, AttentionGate, Journal,  
                         PrivacyPolicy)
 from src.daemon.freemoment import (Activity, Candidate, FreeMoments, FreeMomentsConfig,  # noqa: E402
                                    GapClosure, Joke, MoodCheck, ProviderActivity, default_moments,
-                                   read_mood)
+                                   mood_of, read_with)
 from src.daemon.wondering import Environment  # noqa: E402
 from src.senses.base import PeripheryRegistry  # noqa: E402
 
@@ -44,7 +44,7 @@ def fm(**cfg):
     t = [T0]
     kw = dict(min_gap_s=0.0)
     kw.update(cfg)
-    m = FreeMoments(FreeMomentsConfig.from_dict(kw), clock=lambda: t[0])
+    m = FreeMoments(FreeMomentsConfig.from_dict(kw), clock=lambda: t[0], sentiment=tw.fake_sentiment)
     m.t = t
     return m
 
@@ -127,11 +127,27 @@ def f1_registry():
 
 def f2_builtins():
     print("\n=== F2. The built-ins ===")
-    check("reading a mood: good", (read_mood("pretty good thanks") or 0) > 0.3)
-    check("reading a mood: tired", (read_mood("tired and a bit stressed") or 0) < -0.3)
-    check("reading a mood: 'not good' is bad", (read_mood("not good") or 0) < 0)
-    check("reading a mood: nothing either way", read_mood("what time is it") is None)
-    check("reading a mood: tolerates junk", read_mood(None) is None and read_mood(5) is None)
+    check("the model's positive is a good mood, scaled by how sure it is",
+          abs(mood_of({"sentiment": "POSITIVE", "confidence": 0.99}) - 0.98) < 1e-9
+          and abs(mood_of({"sentiment": "POSITIVE", "confidence": 0.75}) - 0.5) < 1e-9)
+    check("its negative is a low one", mood_of({"sentiment": "NEGATIVE", "confidence": 0.95}) < -0.8)
+    check("too unsure to count", mood_of({"sentiment": "NEGATIVE", "confidence": 0.55}) is None)
+    check("a three-way model's neutral is 0", mood_of({"sentiment": "NEUTRAL", "confidence": 0.9}) == 0.0)
+    check("an unknown label, or nothing, is nothing",
+          mood_of({"sentiment": "unknown", "confidence": 0.0}) is None and mood_of(None) is None
+          and mood_of({"sentiment": "POSITIVE", "confidence": "x"}) is None)
+    check("the pipeline's own shape is read too", mood_of({"label": "NEGATIVE", "score": 0.9}) < 0)
+    check("read through the model", (read_with(tw.fake_sentiment, "pretty good thanks") or 0) > 0.3
+          and (read_with(tw.fake_sentiment, "tired and a bit stressed") or 0) < -0.3)
+    check("no model: nothing is read", read_with(None, "pretty good thanks") is None)
+    check("a failing model is not fatal", read_with(lambda t: 1 / 0, "good") is None)
+    check("junk is nothing", read_with(tw.fake_sentiment, None) is None and read_with(tw.fake_sentiment, "") is None)
+    m = fm()
+    m.note_mood(0.8)
+    m.note_mood(-0.8)
+    check("a single reading moves the mood, it does not replace it", abs(m.mood()) < 1e-9)
+    m.note_mood(None)
+    check("(nothing read: nothing changes)", abs(m.mood()) < 1e-9)
 
     m = fm()
     j = m.register(Joke())
@@ -322,8 +338,44 @@ def f4_runtime():
     check("status carries free_moments", "free_moments" in h.rt.status())
 
 
+def f5_mood_from_queries():
+    print("\n=== F5. Mood from what the user asks ===")
+    from src.brain.brain import Brain
+    b = Brain.__new__(Brain)
+    b.sentiment_fn = tw.fake_sentiment
+    b.last_sentiment = None
+    r = b._sentiment("this is awful")
+    check("the brain keeps its last reading, with when", b.last_sentiment["sentiment"] == "NEGATIVE"
+          and "t" in b.last_sentiment and r["sentiment"] == "NEGATIVE")
+    b.sentiment_fn = lambda t: 1 / 0
+    b.last_sentiment = None
+    b._sentiment("x")
+    check("a failing model leaves nothing behind", b.last_sentiment is None)
+
+    h = rt_rig(mood_check=False, jokes=False)
+    seq = iter([{"sentiment": "NEGATIVE", "confidence": 0.97}, {"sentiment": "NEGATIVE", "confidence": 0.97}])
+
+    def think(query, image=None, context=""):
+        h.ash.calls.append(query)
+        h.ash.brain.last_sentiment = {**next(seq), "t": h.clock[0]}
+        return tw.Resp("Sure.")
+    h.ash.think = think
+    check("(no mood yet)", h.rt.moments.mood(h.clock[0]) is None)
+    h.say("this deploy is a disaster")
+    m0 = h.rt.moments.mood(h.clock[0])
+    check("a query the model reads as negative lowers the mood", m0 is not None and m0 < -0.3, str(m0))
+    check("and the wonderer sees it", h.rt._wonder_env(h.clock[0], 30.0).mood < -0.3)
+    h.clock[0] += 60
+    h.rt.moments.set_mood(0.8, h.clock[0])
+    h.say("and the build broke too")
+    m1 = h.rt.moments.mood(h.clock[0])
+    check("a good mood is pulled down by a bad turn, not replaced", -0.3 < m1 < 0.3, str(m1))
+    h.rt._after_answer("again", tw.Resp("x"))
+    check("the same reading is not folded in twice", h.rt.moments.mood(h.clock[0]) == m1)
+
+
 if __name__ == "__main__":
-    for fn in (f1_registry, f2_builtins, f3_extending, f4_runtime):
+    for fn in (f1_registry, f2_builtins, f3_extending, f4_runtime, f5_mood_from_queries):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

@@ -53,7 +53,7 @@ from .journal import Journal
 from .privacy import PrivacyPolicy
 from .activity import ActivityConfig, ActivityMemory
 from .followups import FollowUpActivity, FollowUps, FollowUpsConfig
-from .freemoment import FreeMoments, ProviderActivity, default_moments
+from .freemoment import FreeMoments, ProviderActivity, default_moments, mood_of
 from .lookup import Lookup, LookupConfig
 from .routines import Routines, RoutinesConfig
 from .briefing import BriefingConfig, Briefings, asked_for_briefing
@@ -291,14 +291,16 @@ class AmbientRuntime:
             mc = dict(self.cfg.moments_cfg or {})
             self.moments = default_moments(
                 mc, wonderer=self.wonder, clock=lambda: self.clock(),
-                jokes=bool(mc.get("jokes", True)), mood_check=bool(mc.get("mood_check", True)))
+                jokes=bool(mc.get("jokes", True)), mood_check=bool(mc.get("mood_check", True)),
+                sentiment=getattr(self.brain, "sentiment_fn", None))
             self.moments.register(ProviderActivity(
                 "system_assessment", self._system_note, cooldown_s=6 * 3600.0, weight=0.9))
         # Follow-ups: events the user mentioned, asked about once they are over.
         self.followups: Optional[FollowUps] = None
         if self.cfg.followups:
             self.followups = FollowUps(FollowUpsConfig.from_dict(self.cfg.followups_cfg),
-                                       path=self.cfg.followups_path, clock=lambda: self.clock())
+                                       path=self.cfg.followups_path, clock=lambda: self.clock(),
+                                       sentiment=getattr(self.brain, "sentiment_fn", None))
             if self.moments is not None:
                 moments = self.moments
                 self.moments.register(FollowUpActivity(
@@ -337,6 +339,7 @@ class AmbientRuntime:
         self.stats["corrections"] = 0
         self._last_turn: Optional[Dict[str, Any]] = None     # what ASH last answered, and as what
         self._last_why: Optional[Dict[str, Any]] = None      # why ASH said its last thing ("why?")
+        self._mood_seen: Any = None                          # the brain sentiment reading last folded in
         self._awaiting_meaning: Optional[Dict[str, Any]] = None
         self._pending_correction: Optional[Dict[str, Any]] = None
         self._reaction = None            # the reaction the event being handled carried
@@ -1142,10 +1145,23 @@ class AmbientRuntime:
                 logger.exception("Recording a correction failed")
         self._last_turn = {"query": prompt, "intent": intent,
                            "tool": getattr(response, "tool_used", None), "t": now}
+        self._follow_mood(now)
         pw = getattr(response, "pathway", None)
         self._last_why = {"kind": "answer", "query": prompt[:80], "intent": intent,
                           "tool": getattr(response, "tool_used", None),
                           "pathway": str(getattr(pw, "value", pw or ""))}
+
+    def _follow_mood(self, now: float):
+        """The brain ran its sentiment model on what the user just asked: fold
+        that into the mood the free moments and the wonderer go by. Only a
+        reading from this turn counts (not one left over from an earlier one)."""
+        ls = getattr(self.brain, "last_sentiment", None)
+        if not isinstance(ls, dict) or self.moments is None:
+            return
+        if ls.get("t") == self._mood_seen:
+            return
+        self._mood_seen = ls.get("t")
+        self.moments.note_mood(mood_of(ls), now)
 
     def _why_volunteered(self, ev, decision, offer, meta) -> Dict[str, Any]:
         """The facts behind something ASH said unasked, for "why did you say that?"."""

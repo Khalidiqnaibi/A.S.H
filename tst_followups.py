@@ -56,7 +56,7 @@ def when(text, now=T0):
 
 def fus(**cfg):
     t = [T0]
-    f = FollowUps(FollowUpsConfig.from_dict(cfg), path=None, clock=lambda: t[0])
+    f = FollowUps(FollowUpsConfig.from_dict(cfg), path=None, clock=lambda: t[0], sentiment=tw.fake_sentiment)
     f.t = t
     return f
 
@@ -285,7 +285,7 @@ def u6_persist():
 def u7_activity():
     print("\n=== U7. As a free-moment activity ===")
     t = [T0]
-    f = FollowUps(FollowUpsConfig(), clock=lambda: t[0])
+    f = FollowUps(FollowUpsConfig(), clock=lambda: t[0], sentiment=tw.fake_sentiment)
     m = FreeMoments(FreeMomentsConfig(min_gap_s=0, max_per_hour=9), clock=lambda: t[0])
     learned, moods = [], []
     m.register(FollowUpActivity(f, learn=learned.append, mood=moods.append))

@@ -198,6 +198,7 @@ class Brain:
 
         self.registry = registry
         self.sentiment_fn = sentiment_fn
+        self.last_sentiment: Optional[Dict[str, Any]] = None
         # Goal-conditioned imagination. Off unless asked for: the outcome
         # prototypes it relies on are always learned, but scoring candidates
         # by them changes live behaviour, so it is opt-in per machine.
@@ -892,13 +893,18 @@ class Brain:
     # Helpers
     # ==================================================================
     def _sentiment(self, query: str) -> Dict[str, Any]:
+        """The sentiment model's reading of what the user just said. The last
+        one is kept (with when) so the daemon can follow the user's mood from
+        the queries it already analyses, instead of guessing it again."""
         if self.sentiment_fn is None:
             return {"sentiment": "unknown", "confidence": 0.0}
         try:
-            return self.sentiment_fn(query) or {"sentiment": "unknown", "confidence": 0.0}
+            r = self.sentiment_fn(query) or {"sentiment": "unknown", "confidence": 0.0}
         except Exception:
             logger.exception("sentiment_fn failed")
             return {"sentiment": "unknown", "confidence": 0.0}
+        self.last_sentiment = {**r, "t": time.time()}
+        return r
 
     def _telemetry(self, query, sentiment, proposal: Optional[ActionProposal],
                    memory_hits: int, tool_used=None, tool_success=None):

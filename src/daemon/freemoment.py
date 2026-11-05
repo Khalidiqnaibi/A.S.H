@@ -17,13 +17,16 @@ and stays quiet whenever the user should not be disturbed.
 Adding a new kind of thing to do in a free moment is one `Activity`, or one
 function handed to `ProviderActivity`, and `FreeMoments.register`.
 
+Mood comes from the sentiment model the brain already runs on every query
+(`mood_of`), not from word lists: the answer to "how are you holding up?" is
+read by the same model, and so is everything the user asks in between.
+
 Privacy: what the user replies to a mood question is read for a sign and
 dropped; only a number and a time are kept, in memory, never written out.
 """
 from __future__ import annotations
 
 import logging
-import re
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -44,6 +47,8 @@ class Candidate:
 
 
 FitFn = Callable[[Candidate, Environment], float]
+# The brain's sentiment model: text -> {"sentiment": "POSITIVE"|"NEGATIVE"|..., "confidence": 0..1}
+SentimentFn = Callable[[str], Dict[str, Any]]
 
 
 class Activity:
@@ -101,9 +106,11 @@ class FreeMomentsConfig:
 
 class FreeMoments:
     def __init__(self, cfg: Optional[FreeMomentsConfig] = None,
-                 clock: Callable[[], float] = time.time):
+                 clock: Callable[[], float] = time.time,
+                 sentiment: Optional[SentimentFn] = None):
         self.cfg = cfg or FreeMomentsConfig()
         self.clock = clock
+        self.sentiment = sentiment         # the brain's sentiment model; None: moods are not read
         self.activities: Dict[str, Activity] = {}
         self._fits: List[FitFn] = []
         self._last_by: Dict[str, float] = {}
@@ -123,6 +130,20 @@ class FreeMoments:
     # -- mood: the one signal free moments can also produce --------------
     def set_mood(self, value: float, now: Optional[float] = None):
         self._mood = (max(-1.0, min(1.0, float(value))), self.clock() if now is None else now)
+
+    def read(self, text: str) -> Optional[float]:
+        """-1..1 for a sentence, from the sentiment model; None if there is no
+        model, it is unsure, or it fails."""
+        return read_with(self.sentiment, text)
+
+    def note_mood(self, value: Optional[float], now: Optional[float] = None, weight: float = 0.5):
+        """Fold a reading into the current mood: a single sentence moves it,
+        it does not replace it (unless the old one has gone stale)."""
+        if value is None:
+            return
+        now = self.clock() if now is None else now
+        cur = self.mood(now)
+        self.set_mood(value if cur is None else (1 - weight) * cur + weight * value, now)
 
     def mood(self, now: Optional[float] = None) -> Optional[float]:
         if self._mood is None:
@@ -350,23 +371,36 @@ class Joke(Activity):
         return None
 
 
-_GOOD = re.compile(r"\b(good|great|fine|well|happy|awesome|nice|okay|ok|not bad|excellent|better|"
-                   r"energi[sz]ed|relaxed|calm)\b", re.I)
-_BAD = re.compile(r"\b(bad|tired|exhausted|stressed|awful|terrible|sad|angry|annoyed|rough|"
-                  r"overwhelmed|sick|down|anxious|upset|drained|not great|not good|not well)\b", re.I)
-
-
-def read_mood(text: str) -> Optional[float]:
-    """-1..1 from a short answer, or None if it says nothing either way.
-    Rules, not a model; a negation of 'good' counts as bad."""
-    t = str(text or "")
-    bad = len(_BAD.findall(t))
-    good = len(_GOOD.findall(t))
-    # "not good" / "not great" match both lists; the bad one is the meaning.
-    good -= len(re.findall(r"\bnot (?:good|great|well)\b", t, re.I))
-    if bad == good:
+def mood_of(result: Any, min_confidence: float = 0.6) -> Optional[float]:
+    """-1..1 from the sentiment model's result ({"sentiment", "confidence"}),
+    or None when it has nothing to say: no result, an unknown label, or too
+    unsure to count. A two-way model (positive/negative) is scaled by how
+    sure it is, so a 0.6 reading moves the mood far less than a 0.99 one; a
+    three-way model's neutral is 0."""
+    if not isinstance(result, dict):
         return None
-    return max(-1.0, min(1.0, 0.7 * (good - bad) / max(1, good + bad)))
+    label = str(result.get("sentiment") or result.get("label") or "").upper()
+    try:
+        conf = float(result.get("confidence", result.get("score", 0.0)) or 0.0)
+    except (TypeError, ValueError):
+        return None
+    if label in ("NEUTRAL", "LABEL_1_NEUTRAL"):
+        return 0.0 if conf >= min_confidence else None
+    sign = 1.0 if label in ("POSITIVE", "POS") else -1.0 if label in ("NEGATIVE", "NEG") else 0.0
+    if sign == 0.0 or conf < min_confidence:
+        return None
+    return sign * min(1.0, max(0.0, (conf - 0.5) * 2.0))
+
+
+def read_with(sentiment: Optional[SentimentFn], text: str) -> Optional[float]:
+    """The model's mood for a sentence; None without a model or on failure."""
+    if sentiment is None or not isinstance(text, str) or not text.strip():
+        return None
+    try:
+        return mood_of(sentiment(text))
+    except Exception:
+        logger.exception("sentiment model failed on a reply")
+        return None
 
 
 class MoodCheck(Activity):
@@ -385,10 +419,10 @@ class MoodCheck(Activity):
         return Candidate(self.name, "How are you holding up today?", 0.4)
 
     def hear(self, text, now):
-        m = read_mood(text)
+        m = self.moments.read(text)
         if m is None:
             return None                 # not an answer; handle it as any utterance
-        self.moments.set_mood(m, now)
+        self.moments.set_mood(m, now)   # asked directly: this reading replaces the old one
         if m <= -0.3:
             return "Sorry to hear that. I'll keep the questions light."
         if m >= 0.3:
@@ -398,8 +432,9 @@ class MoodCheck(Activity):
 
 def default_moments(cfg: Optional[Dict[str, Any]] = None, wonderer=None,
                     clock: Callable[[], float] = time.time,
-                    jokes: bool = True, mood_check: bool = True) -> FreeMoments:
-    fm = FreeMoments(FreeMomentsConfig.from_dict(cfg), clock)
+                    jokes: bool = True, mood_check: bool = True,
+                    sentiment: Optional[SentimentFn] = None) -> FreeMoments:
+    fm = FreeMoments(FreeMomentsConfig.from_dict(cfg), clock, sentiment=sentiment)
     if wonderer is not None:
         fm.register(GapClosure(wonderer))
     if jokes:

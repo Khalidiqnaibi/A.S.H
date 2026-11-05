@@ -42,7 +42,8 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from .freemoment import Activity, Candidate, read_mood
+from .freemoment import Activity, Candidate, SentimentFn, read_with
+from .wondering import _NON_ANSWER_START
 
 logger = logging.getLogger("ash.daemon.followups")
 
@@ -422,8 +423,9 @@ class FollowUps:
     """The events ASH heard about, and the questions it owes."""
 
     def __init__(self, cfg: Optional[FollowUpsConfig] = None, path: Optional[str] = None,
-                 clock: Callable[[], float] = time.time):
+                 clock: Callable[[], float] = time.time, sentiment: Optional[SentimentFn] = None):
         self.cfg = cfg or FollowUpsConfig()
+        self.sentiment = sentiment         # the brain's sentiment model reads how it went
         self.path = path
         self.clock = clock
         self._lock = threading.RLock()
@@ -534,7 +536,7 @@ class FollowUps:
         if ev.past:
             # They told us how it went, or that it happened: nothing to ask.
             if cur is not None and cur.start <= now + HOUR:
-                m = read_mood(sent)
+                m = read_with(self.sentiment, sent)
                 outcome = "good" if (m or 0) > 0.2 else "bad" if (m or 0) < -0.2 else ""
                 self._close(cur, "told", now, outcome)
                 return (f"The user's {cur.what.split(' ', 1)[1]} went {'well' if outcome == 'good' else 'badly'}."
@@ -632,14 +634,9 @@ class FollowUps:
                 return "Fingers crossed, then.", ""
             if len(t.split()) <= 2 and t.lower().strip(".!? ") in _FILLER:
                 return None                             # a noise, not an answer
-            m = read_mood(t)
-            if m is None:
-                if re.search(r"\b(?:passed|aced|nailed|got (?:it|the job|in)|won|made it|offer)\b", t, re.I):
-                    m = 0.8
-                elif re.search(r"\b(?:failed|bombed|lost|didn'?t get|rejected|missed)\b", t, re.I):
-                    m = -0.7
-                elif re.search(r"\b(?:so[- ]so|mixed|alright|meh|average|ok-ish)\b", t, re.I):
-                    m = 0.0
+            if t.endswith("?") or _NON_ANSWER_START.match(t):
+                return None                             # a request or a question of their own
+            m = self._how_it_went(t)
             if m is None:
                 return None
             if m > 0.2:
@@ -652,6 +649,20 @@ class FollowUps:
                     f"The user's {noun} went badly."
             self._finish(f, "mixed", now)
             return "Okay, thanks for telling me.", f"The user's {noun} went okay."
+
+    def _how_it_went(self, text: str) -> Optional[float]:
+        """The sentiment model's reading of a reply to "how did it go?". A short
+        reply the model reads but is unsure of ("so-so", "it was alright") is
+        an answer too: it went okay. No model, no reading."""
+        m = read_with(self.sentiment, text)
+        if m is not None or self.sentiment is None:
+            return m
+        try:
+            r = self.sentiment(text) or {}
+        except Exception:
+            return None
+        known = str(r.get("sentiment") or r.get("label") or "").upper() in ("POSITIVE", "NEGATIVE", "NEUTRAL")
+        return 0.0 if known and len(text.split()) <= 6 else None
 
     def _finish(self, f: FollowUp, outcome: str, now: float):
         if f.status in OPEN or f.status == "told":

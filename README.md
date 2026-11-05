@@ -536,10 +536,16 @@ Everything here is rule-based, paced by the same budget, quiet hours and
 "not now" as any other remark, and spent only at a free moment unless it is
 urgent. Each part can be switched off in `daemon.json`.
 
+The user's mood, which decides whether a light remark or an idle question is
+welcome, comes from the sentiment model the brain already runs on every
+query: each turn moves it (one bad turn pulls a good mood down rather than
+replacing it), and the answer to "how are you holding up?" is read by the
+same model. An unsure reading counts for nothing. No word lists.
+
 * **Follow-ups** (`follow_ups`, `src/daemon/followups.py`). "I have an
   interview on Thursday at 10" is remembered with its time. Once it is over,
-  ASH asks how it went, once, and reads the answer (went well, badly, so-so,
-  not yet, didn't happen). Moving or cancelling the event updates it, and
+  ASH asks how it went, once, and reads the answer with the sentiment model
+  (went well, badly, so-so), plus "not yet" and "didn't happen". Moving or cancelling the event updates it, and
   saying how it went first means it is never asked. An exam outranks a
   routine meeting. `ashctl.py followups` lists what it is waiting to ask.
 * **Look it up first** (`wondering.lookup`, `src/daemon/lookup.py`). Before
