@@ -97,6 +97,41 @@ UNIQUE_ROLES = frozenset({
     "roommate", "landlord", "uncle", "aunt", "grandmother", "grandfather", "mentor",
 })
 
+# Family ties do not change, so two different ones for the same person cannot
+# both be true. Other relations can (a colleague who is also a friend, a
+# boyfriend who becomes a fiance): a new one simply replaces the old.
+FAMILY = frozenset({"mother", "father", "brother", "sister", "sibling", "son", "daughter", "child",
+                    "uncle", "aunt", "cousin", "grandmother", "grandfather", "nephew", "niece"})
+_GENERIC = {"sibling": {"brother", "sister"}, "child": {"son", "daughter"}}
+# Roles one person fills at a time and that are handed on: a new boss replaces
+# the old one. (A second brother does not replace the first.)
+REPLACEABLE = frozenset({"boss", "manager", "landlord", "partner", "girlfriend", "boyfriend", "fiance",
+                         "wife", "husband", "spouse", "mentor"})
+# Relations that end or change with time, so worth checking after a while.
+CHANGEABLE = frozenset({"boss", "manager", "colleague", "roommate", "landlord", "partner", "girlfriend",
+                        "boyfriend", "fiance", "teacher", "mentor", "classmate", "client", "employee",
+                        "neighbor", "doctor", "assistant"})
+
+
+def relations_conflict(old: str, new: str) -> bool:
+    """Two relations for one person that cannot both be true."""
+    if not old or not new or old == new:
+        return False
+    if new in _GENERIC.get(old, ()) or old in _GENERIC.get(new, ()):
+        return False
+    return old in FAMILY or new in FAMILY
+
+
+def definitions_differ(old: str, new: str) -> bool:
+    """Two definitions that say different things, not the same thing twice."""
+    a, b = set(norm(old).split()), set(norm(new).split())
+    if not a or not b or norm(old) == norm(new):
+        return False
+    if norm(old) in norm(new) or norm(new) in norm(old):
+        return False
+    return len(a & b) / len(a | b) < 0.5
+
+
 # What a relation between two people can be said as, to one label.
 BETWEEN_CANON: List[Tuple[str, str]] = [
     (r"\b(?:married|husband and wife|wife and husband|spouses|newlyweds?)\b", "married"),
@@ -221,14 +256,20 @@ def _title(name: str) -> str:
 # ----------------------------------------------------------------------------
 # "activity" is a gap noticed in what the user DOES rather than what they said:
 # a project they keep returning to that ASH has no idea about (see activity.py).
-KINDS = ("person", "role", "between", "term", "fact", "ambiguous", "intent", "activity")
-BASE_PRIORITY = {"ambiguous": 0.90, "intent": 0.80, "role": 0.70, "person": 0.60,
+# "conflict" is two answers that cannot both be true ("Omar is my cousin", later
+# "Omar is my brother"); "stale" is an answer old enough to check again ("is
+# Dana still your boss?"). Both come from what ASH already knows.
+KINDS = ("person", "role", "between", "term", "fact", "ambiguous", "intent", "activity",
+         "conflict", "stale")
+BASE_PRIORITY = {"conflict": 0.75, "stale": 0.30,
+                 "ambiguous": 0.90, "intent": 0.80, "role": 0.70, "person": 0.60,
                  "between": 0.50, "term": 0.50, "fact": 0.40, "activity": 0.35}
 # How much each kind of gap matters RIGHT NOW, before repetition adds to it.
 # High: ASH cannot act well without the answer (two people fit, a request it
 # could not read). Low: it would merely like to know. Only the high ones are
 # worth interrupting a pause for; the rest wait for a free moment.
-BASE_URGENCY = {"ambiguous": 0.85, "intent": 0.80, "role": 0.45, "person": 0.35,
+BASE_URGENCY = {"conflict": 0.55, "stale": 0.12,
+                "ambiguous": 0.85, "intent": 0.80, "role": 0.45, "person": 0.35,
                 "term": 0.30, "between": 0.25, "fact": 0.20, "activity": 0.10}
 # Replies that are noise, not an answer, wherever a definition is wanted.
 _FILLER = frozenset("hm hmm mm mmm um uh ok okay yes yeah yep yup no nope nah sure idk maybe".split())
@@ -348,6 +389,7 @@ class WonderingConfig:
     sources: Tuple[str, ...] = ("console", "microphone", "mic")
     kinds: Dict[str, bool] = field(default_factory=lambda: {k: True for k in KINDS})
     ignore_names: Tuple[str, ...] = ()    # the user's own name and the like
+    stale_after_s: float = 180 * DAY      # a changeable relation this old is checked when it comes up
 
     @classmethod
     def from_dict(cls, d: Optional[Dict[str, Any]]) -> "WonderingConfig":
@@ -378,9 +420,11 @@ class Knowledge:
     gap detectors: a person it already has a relation for is not asked about.
     """
 
-    def __init__(self, path: Optional[str] = None, entity_manager=None):
+    def __init__(self, path: Optional[str] = None, entity_manager=None,
+                 clock: Callable[[], float] = time.time):
         self.path = path
         self.entities = entity_manager
+        self.clock = clock
         self._lock = threading.RLock()
         self.people: Dict[str, Dict[str, Any]] = {}     # norm name -> {name, relation, desc, between{}}
         self.roles: Dict[str, str] = {}                 # canonical role -> name
@@ -493,11 +537,53 @@ class Knowledge:
         n = norm(name)
         return self.people.setdefault(n, {"name": _title(name), "relation": "", "desc": "", "between": {}})
 
+    def relation_of(self, name: str) -> str:
+        """The relation on record in ASH's own store ('' if none)."""
+        with self._lock:
+            return (self.people.get(norm(name)) or {}).get("relation", "")
+
+    def relation_age(self, name: str, now: float) -> Optional[float]:
+        """Seconds since the relation was told or confirmed; None if unknown."""
+        with self._lock:
+            t = (self.people.get(norm(name)) or {}).get("t")
+            return None if t is None else max(0.0, now - float(t))
+
+    def touch(self, name: str, now: float) -> None:
+        """The person came up. An answer from before timestamps existed starts
+        its clock now, so it is not taken for an old one."""
+        with self._lock:
+            p = self.people.get(norm(name))
+            if p is None:
+                return
+            p["seen"] = now
+            if p.get("relation") and "t" not in p:
+                p["t"] = now
+            self.save()
+
+    def confirm(self, name: str, now: float) -> None:
+        with self._lock:
+            p = self.people.get(norm(name))
+            if p is not None:
+                p["t"] = now
+                self.save()
+
+    def retire(self, name: str, role: str) -> None:
+        """Someone is no longer the user's <role>: keep them, as a former one."""
+        with self._lock:
+            p = self._person(name)
+            p["relation"] = ""
+            p["desc"] = f"your former {role}"
+            if self.roles.get(role) and norm(self.roles[role]) == norm(name):
+                del self.roles[role]
+            self.save()
+        self._mirror("person", name, {"relation_to_user": "", "description": f"former {role}"})
+
     def store_relation(self, name: str, role: str = "", desc: str = "") -> None:
         with self._lock:
             p = self._person(name)
             if role:
                 p["relation"] = ROLE_CANON.get(role, role)
+                p["t"] = self.clock()
                 if role in UNIQUE_ROLES or ROLE_CANON.get(role) in UNIQUE_ROLES:
                     self.roles[ROLE_CANON.get(role, role)] = p["name"]
             if desc:
@@ -680,6 +766,7 @@ class Wonderer:
                  scrub: Optional[Callable[[str], str]] = None):
         self.cfg = cfg or WonderingConfig()
         self.kb = kb or Knowledge()
+        self.kb.clock = clock
         self.path = path
         self.clock = clock
         self.scrub = scrub or (lambda s: s)
@@ -886,6 +973,7 @@ class Wonderer:
             for sent in _sentences(text)[:12]:
                 if _shouting(sent):
                     continue
+                self._stated_roles = set()
                 rep.learned.extend(self._learn_statements(sent, now))
                 self._detect(sent, source, now)
             if (len(self.wonders), self.stats["detected"], self.stats["learned"]) != before or rep.learned:
@@ -899,6 +987,16 @@ class Wonderer:
         def person(name: str, role: str):
             name = _title(name)
             if norm(name) in {norm(x) for x in self.cfg.ignore_names}:
+                return
+            canon = ROLE_CANON.get(role, role)
+            self._stated_roles.add(canon)
+            prev = self.kb.relation_of(name)
+            if relations_conflict(prev, canon):
+                self._conflict("relation", name, prev, canon, sent, now)
+                return
+            holder = self.kb.role_name(canon) if canon in REPLACEABLE else None
+            if holder and norm(holder) != norm(name):
+                self._conflict("role", name, holder, name, sent, now, role=canon)
                 return
             self.kb.store_relation(name, role=role)
             self._resolve_open(("person", f"person:{norm(name)}"), now)
@@ -934,6 +1032,10 @@ class Wonderer:
                 out.append(f"{_title(a)} and {_title(b)} are {label}.")
         for m in _RE_FACT_STATEMENT.finditer(sent):
             k, v = m.group(1).lower(), _clean(m.group(2), 40)
+            old = self.kb.fact(k)
+            if old and norm(old) != norm(v):
+                self._conflict("fact", k, old, v, sent, now)
+                continue
             self.kb.store_fact(k, v)
             self._resolve_open(("fact", f"fact:{k}"), now)
             self.stats["learned"] += 1
@@ -944,13 +1046,46 @@ class Wonderer:
                 term, d = _clean(m.group("t"), 30), _clean(m.group("d"), 160)
                 if not term or not d or term.lower() in NOT_PERSON or len(term.split()) > 3:
                     continue
-                if (self.kb.term_known(term) or not self._term_relevant(term)):
+                if self.kb.term_known(term):
+                    old = self.kb.terms[norm(term)].get("definition", "")
+                    if definitions_differ(old, d):
+                        self._conflict("term", term, old, d, sent, now)
+                    continue
+                if not self._term_relevant(term):
                     continue
                 self.kb.store_term(term, d)
                 self._resolve_open(("term", f"term:{norm(term)}"), now)
                 self.stats["learned"] += 1
                 out.append(f"{term} means {d}.")
         return out
+
+    def _conflict(self, what: str, subject: str, old: str, new: str, sent: str, now: float,
+                  role: str = ""):
+        """Two things said that cannot both be true: keep the old one and ask.
+        Nothing is overwritten until the user says which."""
+        old_c, new_c = _clean(old, 60), _clean(new, 60)
+        if what == "relation":
+            q = f"Earlier you said {subject} is your {old_c}, but just now your {new_c}. Which is it?"
+        elif what == "role":
+            q = f"Is {new_c} your {role} now, instead of {old_c}?"
+        elif what == "term":
+            q = f"You told me {subject} means {old_c}, and now {new_c}. Which is right?"
+        else:
+            q = f"I have your {subject} as {old_c}, but you just said {new_c}. Which is right?"
+        key = f"conflict:{what}:{norm(subject)}:{norm(new_c)}"
+        self._make("conflict", subject, q, key, [norm(subject)],
+                   {"what": what, "subject": subject, "old": old_c, "new": new_c,
+                    "options": [old_c, new_c], "role": role}, sent, "console", now)
+
+    def _maybe_stale(self, name: str, sent: str, source: str, now: float):
+        """A relation that can change, not heard confirmed for a long while,
+        is checked when the person comes up again."""
+        rel = self.kb.relation_of(name)
+        age = self.kb.relation_age(name, now)
+        if rel in CHANGEABLE and age is not None and age > self.cfg.stale_after_s:
+            t_set = int(now - age)
+            self._make("stale", name, f"Is {name} still your {rel}?", f"stale:{norm(name)}:{rel}:{t_set}",
+                       [norm(name)], {"name": name, "role": rel}, sent, source, now)
 
     def _term_relevant(self, term: str) -> bool:
         """Only learn a definition for something that was wondered about or is
@@ -997,6 +1132,8 @@ class Wonderer:
                 continue
             if self.kb.person_known(pm.name):
                 named.append(pm.name)
+                self._maybe_stale(pm.name, sent, source, now)
+                self.kb.touch(pm.name, now)
                 continue
             named.append(pm.name)
             key = f"person:{norm(pm.name)}"
@@ -1021,8 +1158,8 @@ class Wonderer:
             after = sent[m.end():m.end() + 40]
             if re.match(r"\s*,?\s*(?:is\s+|named\s+|called\s+)?(?:named\s+|called\s+)?[A-Z][a-z]", after):
                 continue                                    # a name follows: learned above
-            if self.kb.role_name(role):
-                continue
+            if self.kb.role_name(role) or role in getattr(self, "_stated_roles", ()):
+                continue                                    # known, or named in this very sentence
             self._make("role", f"your {role}", f"What's your {role}'s name?", f"role:{role}",
                        [role], {"role": role}, sent, source, now)
 
@@ -1113,7 +1250,7 @@ class Wonderer:
                         key=lambda w: -w.asked_at):
             if now - w.asked_at > self.cfg.late_answer_s:
                 continue
-            if w.kind == "activity":
+            if w.kind in ("activity", "conflict", "stale"):
                 # Only the next reply answers one of these. A later "open
                 # brain.py" names the subject without being an answer to
                 # "what is brain.py for?".
@@ -1296,6 +1433,17 @@ class Wonderer:
                 hits.append(i)
         return hits[0] if len(hits) == 1 else -1
 
+    @staticmethod
+    def _parse_distinct(text: str, options: List[str]) -> int:
+        """Which option the reply names, by the words that tell the options
+        apart ("14" between "12 March" and "14 March"). -1 if none or both."""
+        toks = [set(norm(o).split()) for o in options]
+        common = set.intersection(*toks) if toks else set()
+        said = set(norm(text).split())
+        hits = [i for i, t in enumerate(toks)
+                if any(x in said for x in t - common if len(x) >= 3 or x.isdigit())]
+        return hits[0] if len(hits) == 1 else -1
+
     def _parse_answer(self, w: Wonder, text: str) -> Optional[Dict[str, Any]]:
         k, d = w.kind, w.data
         if k == "role":
@@ -1346,6 +1494,46 @@ class Wonderer:
                 v = _clean(self._strip_lead(text), 40)
                 return {"value": v, "ack": f"Got it -- {w.subject} is {v}."}
             return None
+        if k == "conflict":
+            if d.get("what") == "role":
+                if _YES.match(text):
+                    return {"choice": d["new"], "ack": f"Got it -- {d['new']} is your {d['role']} now."}
+                if _NO.match(text) or re.search(r"\bstill\b", text, re.I):
+                    return {"choice": d["old"], "ack": f"Okay -- {d['old']} is still your {d['role']}."}
+                return None
+            if d.get("what") == "relation" and re.search(r"\bboth\b", text, re.I):
+                return {"choice": d["new"], "both": True, "ack": "Got it, both."}
+            opts = d.get("options") or []
+            i = self._parse_distinct(text, opts)
+            if i < 0:
+                i = self._parse_choice(text, opts)
+            if i < 0:
+                # "the second one" / "the new one" / "the old one"
+                if re.search(r"\b(?:new|latest|second|last|now)\b", text, re.I):
+                    i = 1
+                elif re.search(r"\b(?:old|first|earlier|before|original)\b", text, re.I):
+                    i = 0
+            if i < 0:
+                return None
+            return {"choice": opts[i], "ack": f"Got it -- {opts[i]}."}
+        if k == "stale":
+            role = self._parse_role(text)
+            if role and role != d["role"]:
+                return {"role": role, "ack": f"Got it -- {d['name']} is your {role} now."}
+            if _YES.match(text) or re.search(r"\bstill\b", text, re.I) or role == d["role"]:
+                return {"confirm": True, "ack": "Good to know, thanks."}
+            retire = {"retire": True, "ack": f"Okay, I'll remember {d['name']} as your former {d['role']}."}
+            if re.search(r"\b(?:anymore|any more|no longer|left|quit|moved (?:out|away|on)|broke up|"
+                         r"retired|fired|changed jobs?|new job)\b", text, re.I):
+                return retire
+            m = _NO.match(text)
+            if m:
+                rest = m.group("rest").strip(" .!")
+                if rest and not _DONT_KNOW.search(rest) and len(rest.split()) <= 8:
+                    return {"desc": _clean(self._strip_lead(rest), 60), "ack": "Got it."}
+                if w.followup_used:
+                    return retire
+            return None
         if k in ("ambiguous", "intent"):
             opts = d.get("options") or []
             i = self._parse_choice(text, opts)
@@ -1380,6 +1568,40 @@ class Wonderer:
         if k == "intent":
             self.kb.store_fact("intent:" + norm(w.subject)[:30], v["choice"])
             return ""
+        if k == "conflict":
+            what, subj, choice = d["what"], d["subject"], v["choice"]
+            if what == "relation":
+                if v.get("both"):
+                    self.kb.store_relation(subj, role=d["new"], desc=f"also your {d['old']}")
+                    return f"{subj} is the user's {d['new']} and also their {d['old']}."
+                self.kb.store_relation(subj, role=choice)
+                return f"{subj} is the user's {choice}."
+            if what == "role":
+                if choice == d["new"]:
+                    self.kb.retire(d["old"], d["role"])
+                    self.kb.store_relation(d["new"], role=d["role"])
+                    return f"{d['new']} is the user's {d['role']} now, not {d['old']}."
+                self.kb.confirm(d["old"], self.clock())
+                return ""
+            if what == "term":
+                self.kb.store_term(subj, choice)
+                return f"{subj} means {choice}."
+            self.kb.store_fact(subj, choice)
+            return f"The user's {subj} is {choice}."
+        if k == "stale":
+            name, role = d["name"], d["role"]
+            if v.get("confirm"):
+                self.kb.confirm(name, self.clock())
+                return f"{name} is still the user's {role}."
+            if v.get("role"):
+                self.kb.store_relation(name, role=v["role"])
+                return f"{name} is the user's {v['role']} now."
+            if v.get("desc"):
+                self.kb.retire(name, role)
+                self.kb.store_relation(name, desc=v["desc"])
+                return f"{name} is no longer the user's {role}: {v['desc']}."
+            self.kb.retire(name, role)
+            return f"{name} is no longer the user's {role}."
         return ""
 
     def _followup(self, w: Wonder) -> str:
@@ -1396,6 +1618,10 @@ class Wonderer:
             return f"Sorry, I didn't get that. In a few words, what is {w.subject}?"
         if k == "fact":
             return f"Sorry, I missed the date. When is {w.subject}?"
+        if k == "stale":
+            return f"Okay -- what is {d['name']} to you now?"
+        if k == "conflict" and d.get("what") == "role":
+            return f"Sorry -- is {d['new']} your {d['role']} now, yes or no?"
         opts = d.get("options") or []
         return "Sorry, which one: " + self._or_list(opts) + "?"
 

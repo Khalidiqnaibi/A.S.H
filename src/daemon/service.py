@@ -161,7 +161,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "sources": ["console", "microphone", "mic"],   # add "screen" to wonder about on-screen text
         "ignore_names": [],
         "kinds": {"person": True, "role": True, "between": True, "term": True,
-                  "fact": True, "ambiguous": True, "intent": True},
+                  "fact": True, "ambiguous": True, "intent": True,
+                  "conflict": True, "stale": True},
+        # A relation that can change (boss, roommate, partner...) is checked
+        # when the person comes up after this long: "Is Dana still your boss?"
+        "stale_after_s": 15552000,
         # Before asking what a term means, look it up and ask to confirm the
         # guess. memory: past sentences; files: text files under roots (add
         # your project folders); web: a Wikipedia summary, only for acronyms

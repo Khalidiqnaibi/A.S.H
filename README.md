@@ -485,6 +485,17 @@ urgent. Each part can be switched off in `daemon.json`.
   A yes keeps it, "no, it's ..." keeps the correction, a bare no asks once
   what it is, then. For a file it keeps seeing (`brain.py`), it reads what the
   file says about itself first.
+* **Contradictions** (kind `conflict`). Two answers that cannot both be true
+  are not silently overwritten: "Omar is my cousin" and later "Omar is my
+  brother", two definitions of ZXQ, two birthdays. ASH keeps the first and
+  asks which is right. Family ties conflict; a colleague who becomes a friend
+  does not. A replaced role is asked as a change: "Is Sam your boss now,
+  instead of Dana?", and Dana is kept as your former boss.
+* **Stale facts** (kind `stale`, `stale_after_s`, default 180 days). A
+  relation that can change (boss, roommate, partner, landlord...) is checked
+  when the person comes up again after a long while: "Is Dana still your
+  boss?". Yes refreshes it; "no, she's my friend now" or "not anymore" updates
+  it. Family is never asked about.
 
 ## Ambient memory: two-stage consolidation
 
