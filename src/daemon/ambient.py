@@ -1620,6 +1620,17 @@ class AmbientRuntime:
     def _note_reaction(self, offer, outcome: str, now: float):
         if self.remarks is not None:
             self.remarks.reacted(getattr(offer, "text", ""), outcome, getattr(offer, "kind", ""), now)
+        # Learn per specific thing, not only per broad kind: a joke waved off
+        # three times benches jokes, not every free-moment remark.
+        kind, topic = str(getattr(offer, "kind", "") or ""), str(getattr(offer, "topic", "") or "")
+        try:
+            if kind == "wonder" and self.wonder is not None and topic:
+                if self.wonder.backoff.note(topic, outcome, now) or outcome in ("accepted", "engaged"):
+                    self.wonder._touch()
+            elif kind == "moment" and self.moments is not None and topic:
+                self.moments.backoff.note(topic, outcome, now)
+        except Exception:
+            logger.exception("Backoff failed")
 
     def _model_unavailable(self, ev, decision):
         """The brain had no real reply (the model is down or said nothing).

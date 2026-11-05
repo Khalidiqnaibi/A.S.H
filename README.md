@@ -629,6 +629,17 @@ they know others, roles, terms, routines, entity memory -- and closes the
 questions about it. Conversation history is not rewritten. A guest's voice
 can do neither.
 
+## Talking less, by learning
+
+`src/daemon/backoff.py`. The attention gate learns per broad kind of remark;
+on top of that each specific thing -- the joke activity, the mood check, the
+story offer, a kind of question such as "stale" or a guess about someone --
+keeps its own score from how you reacted: "no thanks" or a swipe counts 1,
+"not now" half, silence nothing, and a welcome clears it. Three points within
+a week bench that one thing for three days; the rest carry on. Urgent
+questions are never benched, and asking "any questions?" still gets them.
+Benched things are listed in `ashctl.py status`.
+
 ## Reviewing what ASH said
 
 `remarks` in `daemon.json`, `src/daemon/remarks.py`. Everything ASH says is

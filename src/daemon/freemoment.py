@@ -117,6 +117,8 @@ class FreeMoments:
         self._spoken: Deque[float] = deque(maxlen=32)
         self._awaiting: Optional[Tuple[str, float]] = None
         self._mood: Optional[Tuple[float, float]] = None    # (value, when)
+        from .backoff import Backoff
+        self.backoff = Backoff(clock=lambda: self.clock())  # activities waved off lately sit out
         self.stats = {"picked": 0, "spoken": 0, "replies": 0}
 
     # -- setup ----------------------------------------------------------
@@ -207,7 +209,7 @@ class FreeMoments:
             env = _with_mood(env, self.mood(now))
         best: Optional[Candidate] = None
         for name, act in self.activities.items():
-            if name in self.cfg.disabled:
+            if name in self.cfg.disabled or self.backoff.benched(name, now):
                 continue
             if now - self._last_by.get(name, -1e12) < act.cooldown_s:
                 continue
@@ -270,6 +272,7 @@ class FreeMoments:
             "spoken_last_hour": sum(1 for t in self._spoken if now - t <= 3600),
             "budget": self.cfg.max_per_hour,
             "mood": self.mood(now),
+            "backoff": self.backoff.status(now),
             **self.stats,
         }
 

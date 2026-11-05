@@ -849,6 +849,10 @@ class Wonderer:
         self.stats = {"detected": 0, "asked": 0, "answered": 0, "dismissed": 0,
                       "unclear": 0, "expired": 0, "learned": 0, "deduped": 0}
         self._dirty = False
+        # Kinds of question the user keeps waving off are benched for a while
+        # (backoff.py); asked for ("any questions?"), they are still offered.
+        from .backoff import Backoff
+        self.backoff = Backoff(clock=lambda: self.clock())
         self._load()
 
     # ==================================================================
@@ -874,6 +878,7 @@ class Wonderer:
             self.last_asked = float(raw.get("last_asked", 0.0))
             self.paused_until = float(raw.get("paused_until", 0.0))
             self.off = bool(raw.get("off", False))
+            self.backoff.load(raw.get("backoff"))
             self.stats.update({k: int(v) for k, v in (raw.get("stats") or {}).items() if k in self.stats})
         except Exception:
             logger.exception("Wonder state unreadable; starting empty")
@@ -897,6 +902,7 @@ class Wonderer:
                     "subject_last": self.subject_last, "muted_subjects": self.muted_subjects,
                     "asked_times": list(self.asked_times), "last_asked": self.last_asked,
                     "paused_until": self.paused_until, "off": self.off, "stats": self.stats,
+                    "backoff": self.backoff.dump(),
                 })
                 self._dirty = False
             except Exception:
@@ -1827,6 +1833,8 @@ class Wonderer:
                 continue
             if self._is_closed(w.key, now):
                 continue
+            if w.urgency < self.cfg.urgent_at and self.backoff.benched(w.kind, now):
+                continue                     # this kind has been waved off lately
             out.append(w)
         return out
 
