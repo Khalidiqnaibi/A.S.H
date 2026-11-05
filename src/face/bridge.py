@@ -51,6 +51,8 @@ class FaceBridge:
         self._mood: Optional[str] = None
         self._mood_since: float = 0.0
         self._thinking_since: Optional[float] = None
+        self._quiet = False
+        self._away = False
         self.counts: Dict[str, int] = {}
 
     # ------------------------------------------------------------------
@@ -124,7 +126,48 @@ class FaceBridge:
         self._play("sleeping" if entering else "boot")
 
     def on_user_away(self, away: bool):
-        self.player.set_idle("sleepy" if away else "idle")
+        self._away = away
+        self.player.set_idle("sleepy" if away or self._quiet else "idle")
+
+    def on_quiet_hours(self, quiet: bool):
+        """In quiet hours the face settles into sleepy, and wakes after."""
+        if quiet == self._quiet:
+            return
+        self._quiet = quiet
+        self.player.set_idle("sleepy" if quiet or self._away else "idle")
+
+    def on_line(self, text: str, meta: Dict[str, Any]):
+        """Something ASH just said: the face matches what kind of line it was.
+        Questions look curious, alerts alert, good news happy, a win very
+        happy, a correction confused, a plain acknowledgement a nod."""
+        anim = self.expression_for(text, meta or {})
+        if anim:
+            self._play(anim)
+
+    @staticmethod
+    def expression_for(text: str, meta: Dict[str, Any]) -> Optional[str]:
+        pathway = str(meta.get("pathway") or "")
+        outcome = str(meta.get("outcome") or "")
+        att = meta.get("attention") or {}
+        kind = str(att.get("kind") or "") if isinstance(att, dict) else ""
+        t = (text or "").strip()
+        if pathway in ("reminder", "watch"):
+            return "alert"
+        if outcome == "play":
+            if t.startswith("Yes!"):
+                return "very_happy"
+            if t.startswith(("Hm, I have", "Higher.", "Lower.")):
+                return "skeptical"
+            return "happy" if "game over" in t.lower() or "agreed on" in t else "curious"
+        if outcome == "correction" or (outcome == "followup" and not t.endswith("?")):
+            return "confused"
+        if kind == "wonder" or outcome in ("followup", "batch") or (not meta.get("addressed") and t.endswith("?")):
+            return "curious"
+        if kind in ("briefing", "moment"):
+            return "happy"
+        if outcome in ("answered", "desktop", "research", "briefing"):
+            return "acknowledge"
+        return None
 
     # ------------------------------------------------------------------
     # Pathway
@@ -249,6 +292,22 @@ def attach_to_daemon(runtime, player, enabled: bool = True) -> FaceBridge:
     original_handle = runtime._handle
     original_respond = runtime._respond
     original_sleep = runtime._sleep_phase
+    original_sink = runtime.response_sink
+    original_social = runtime._social_step
+
+    def sink(text, meta):
+        try:
+            bridge.on_line(text, meta)
+        except Exception:
+            logger.exception("Face hook (line) failed")
+        return original_sink(text, meta)
+
+    def social_step(now, idle_s=None):
+        try:
+            bridge.on_quiet_hours(bool(runtime.gate._in_quiet_hours(now)))
+        except Exception:
+            logger.exception("Face hook (quiet hours) failed")
+        return original_social(now, idle_s)
 
     def handle(ev):
         try:
@@ -300,6 +359,8 @@ def attach_to_daemon(runtime, player, enabled: bool = True) -> FaceBridge:
     runtime._handle = handle
     runtime._respond = respond
     runtime._sleep_phase = sleep_phase
+    runtime.response_sink = sink
+    runtime._social_step = social_step
 
     bridge.on_boot()
     logger.info("Face bridge attached to ambient runtime")

@@ -839,7 +839,7 @@ class AmbientRuntime:
             ev.text = "Tell me a short, gentle story -- about two minutes to read aloud."
             ev.addressed = True
             return False
-        self._wonder_say(ev, type("R", (), {"say": r["say"], "outcome": "desktop"})())
+        self._wonder_say(ev, type("R", (), {"say": r["say"], "outcome": "play"})())
         return True
 
     def _media_request(self, ev, now: float) -> bool:
@@ -1065,7 +1065,7 @@ class AmbientRuntime:
             self._last_why = {"kind": "answered"}
         try:
             self.response_sink(rep.say, {"addressed": True, "source": "wonder",
-                                         "attention": None, "pathway": "wonder"})
+                                         "attention": None, "pathway": "wonder", "outcome": outcome})
             address.conversation.note_ash_spoke(self.clock(), asked=rep.outcome == "followup")
             self.gate.note_user_turn()
         except Exception:

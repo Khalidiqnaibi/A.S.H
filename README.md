@@ -1117,6 +1117,12 @@ is worse than one that misses a few.
 | User away / returns | idle becomes `sleepy` / `idle` |
 | Sleep phase | `sleeping` (slow brightness "breathing") |
 | Fatigue / curiosity / caution extremes | `sleepy` / `curious` / `skeptical` |
+| A question ASH asks (wondering, "any questions?", an unprompted "...?") | `curious` |
+| A reminder, timer, alarm or watch going off | `alert` |
+| A briefing, a joke | `happy` |
+| A game: a win / higher-lower / the end | `very_happy` / `skeptical` / `happy` |
+| A plain acknowledgement ("Opening outlook.", "Got it -- ...") | `acknowledge` |
+| Quiet hours | idle becomes `sleepy`, and wakes after |
 
 `FAST` and `REFLEX` pathways deliberately animate **nothing** — they finish in
 milliseconds and animating them produces a flicker, not an expression. Mood
