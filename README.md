@@ -545,6 +545,18 @@ a rough match, not security -- a recording of you would pass -- and it has
 been checked on synthetic voices, not yet tuned on real ones. The print is
 the only thing saved (`state/voice.json`); "forget my voice" deletes it.
 
+## Reminders, timers and alarms
+
+`reminders` in `daemon.json`, `src/daemon/reminders.py`. "Remind me to call
+mom in 20 minutes", "remind me tomorrow at 9 to send the report", "set a
+timer for half an hour", "wake me up at 7" are kept and said when due -- the
+reminder tool used to parse them and nothing ever looked again. "Snooze" (or
+"snooze 10 minutes") right after one goes off brings it back; "cancel the
+timer", "what are my reminders?" do what they say. Being asked for, they go
+off even in quiet hours; muted, they wait. They survive a restart, one missed
+while ASH was off is said late ("I was off when this was due at 14:10"), and
+today's are in the morning briefing.
+
 ## Research on request
 
 `research` in `daemon.json`, `src/daemon/research.py`. "Look into the Raft

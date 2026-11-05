@@ -230,6 +230,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # token (your HA profile -> Security). Lights, switches and fans only;
     # locks, doors, garages, alarms and heaters are never operated by voice.
     "smarthome": {"enabled": True, "url": "", "token": ""},
+    # Reminders, timers and alarms that actually go off ("remind me to call
+    # mom in 20 minutes", "set a timer for 5 minutes", "wake me up at 7"),
+    # snoozable, kept across restarts, and listed in the morning briefing.
+    "reminders": {"enabled": True},
     # Voice match: nothing is compared until you say "learn my voice". After
     # that a clearly different voice is a guest: answered, but not allowed to
     # act for you or teach ASH about you. A rough match, not security.

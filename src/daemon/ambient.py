@@ -64,6 +64,7 @@ from .explain import asked_why, explain
 from .calendar_ics import Calendar, CalendarConfig
 from .smarthome import SmartHome, SmartHomeConfig
 from .voiceid import VoiceID, VoiceIDConfig
+from .reminders import Reminders
 from src.brain.corrections import default as _corrections, read_correction
 from .wondering import Environment, Knowledge, Wonderer, WonderingConfig
 from .social import (FlowDetector, ReactionTracker, SocialLearner,
@@ -211,6 +212,10 @@ class AmbientConfig:
     voice: bool = False
     voice_cfg: Optional[Dict[str, Any]] = None
     voice_path: Optional[str] = None         # state/voice.json
+    # Reminders, timers and alarms that go off (reminders.py). Off on a bare
+    # runtime; the daemon turns it on.
+    reminders: bool = False
+    reminders_path: Optional[str] = None     # state/reminders.json
 
 
 class AmbientRuntime:
@@ -339,6 +344,10 @@ class AmbientRuntime:
             mic = self.periphery.sensors.get("microphone")
             if mic is not None and hasattr(mic, "voiceprint"):
                 mic.voiceprint = True
+        self.reminders: Optional[Reminders] = None
+        self._reminder_pending: List[str] = []
+        if self.cfg.reminders:
+            self.reminders = Reminders(path=self.cfg.reminders_path, clock=lambda: self.clock())
         self.calendar: Optional[Calendar] = None
         self._calendar_at = -1e18
         if self.cfg.calendar:
@@ -353,6 +362,8 @@ class AmbientRuntime:
                                        clock=lambda: self.clock())
             if self.calendar is not None:
                 self.briefings.add_provider(self.calendar.briefing_part)
+            if self.reminders is not None:
+                self.briefings.add_provider(self.reminders.briefing_part)
             if self.research is not None:
                 self.briefings.add_provider(self.research.briefing_part)
         # Watches the user asked for; what they find is said even unasked.
@@ -539,6 +550,7 @@ class AmbientRuntime:
                 except Exception:
                     logger.exception("Routines failed on a tick")
             self._watch_step(now)
+            self._reminder_step(now)
             if self.calendar is not None and now - self._calendar_at >= 60.0:
                 self._calendar_at = now
                 try:
@@ -750,6 +762,44 @@ class AmbientRuntime:
         user = str(getattr(self.brain, "user", "") or "") or "the person I know"
         self._wonder_say(ev, type("R", (), {"say": f"Sorry, I only do that for {user}.",
                                             "outcome": "desktop"})())
+        return True
+
+    def _reminder_step(self, now: float):
+        """Say the reminders that are due. Asked for, so quiet hours do not
+        hold them (an alarm at 7 is meant to wake you); muted or paused does."""
+        r = self.reminders
+        if r is None:
+            return
+        try:
+            self._reminder_pending.extend(r.tick(now))
+        except Exception:
+            self.stats["errors"] += 1
+            logger.exception("Reminder tick failed")
+        if not self._reminder_pending or self.gate.muted or self.privacy.paused:
+            return
+        while self._reminder_pending:
+            text = self._reminder_pending.pop(0)
+            self._last_why = {"kind": "asked", "query": "a reminder you set"}
+            try:
+                self.response_sink(text, {"addressed": False, "source": "reminder",
+                                          "attention": None, "pathway": "reminder"})
+            except Exception:
+                logger.exception("Response sink failed")
+
+    def _reminder_request(self, ev, now: float) -> bool:
+        """"Remind me to ...", "set a timer for ...", "wake me at ...", "snooze":
+        kept and acknowledged without the model."""
+        r = self.reminders
+        if r is None or not self._user_source(ev):
+            return False
+        try:
+            say = r.hear(str(getattr(ev, "text", "") or ""), now)
+        except Exception:
+            logger.exception("Reminder request failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
 
     def _smarthome_request(self, ev, now: float) -> bool:
@@ -975,6 +1025,8 @@ class AmbientRuntime:
         if self._briefing_request(ev, now):
             return
         if self._watch_request(ev, now):
+            return
+        if self._reminder_request(ev, now):
             return
         if self._desktop_request(ev, now):
             return
@@ -1487,6 +1539,7 @@ class AmbientRuntime:
             "calendar": self.calendar.status() if self.calendar else None,
             "smarthome": self.smarthome.status() if self.smarthome else None,
             "voice": self.voice.status() if self.voice else None,
+            "reminders": self.reminders.status() if self.reminders else None,
             "corrections": {"heard": self.stats.get("corrections", 0), **_corrections().status()},
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),
