@@ -226,6 +226,14 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # feed URL (Google: "secret address in iCal format"; Outlook: "publish
     # calendar"). Used in the briefings and for "what's on my calendar today".
     "calendar": {"enabled": True, "files": [], "urls": [], "refresh_s": 1800},
+    # Home Assistant on your network: its address and a long-lived access
+    # token (your HA profile -> Security). Lights, switches and fans only;
+    # locks, doors, garages, alarms and heaters are never operated by voice.
+    "smarthome": {"enabled": True, "url": "", "token": ""},
+    # Voice match: nothing is compared until you say "learn my voice". After
+    # that a clearly different voice is a guest: answered, but not allowed to
+    # act for you or teach ASH about you. A rough match, not security.
+    "voice": {"enabled": True, "samples": 6},
     "watch": {"enabled": True, "downloads_dir": "~/Downloads", "expire_s": 86400, "disk_trend": True},
     # Briefings: a short summary the first time you are at the computer in
     # the morning (today's events, yesterday's work, questions waiting) and

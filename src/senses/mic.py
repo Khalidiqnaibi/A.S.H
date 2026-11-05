@@ -97,8 +97,12 @@ class MicrophoneSensor(Sensor):
                  device: Optional[int] = None,
                  silence_ms: int = 700, min_speech_ms: int = 400,
                  max_utterance_s: float = 20.0,
-                 transcriber=None, keep_audio: bool = False):
+                 transcriber=None, keep_audio: bool = False, voiceprint: bool = False):
         self.device = device
+        # A rough voiceprint per utterance (src/senses/voiceprint.py), kept in
+        # memory with the event and never written out; off unless the
+        # daemon's voice match is on.
+        self.voiceprint = voiceprint
         self.silence_frames = max(1, silence_ms // FRAME_MS)
         self.min_speech_frames = max(1, min_speech_ms // FRAME_MS)
         self.max_frames = int(max_utterance_s * 1000 // FRAME_MS)
@@ -269,10 +273,16 @@ class MicrophoneSensor(Sensor):
         logger.info("Mic transcript (%.2fs, address=%.2f %s): %r", duration,
                     verdict.confidence, "/".join(verdict.reasons) or "nothing", text)
 
+        extra = {}
+        if self.voiceprint:
+            from .voiceprint import fingerprint
+            vp = fingerprint(audio, SAMPLE_RATE)
+            if vp is not None:
+                extra["voice"] = vp
         with self._lock:
             self._out.append(build_event(self.name, text, verdict,
                                          data=(audio if self.keep_audio else None),
-                                         duration_s=round(duration, 2)))
+                                         duration_s=round(duration, 2), **extra))
 
     @staticmethod
     def is_addressed(text: str) -> bool:

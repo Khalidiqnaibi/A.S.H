@@ -62,6 +62,8 @@ from .desktop import Desktop, DesktopConfig
 from .research import Research, ResearchActivity, ResearchConfig
 from .explain import asked_why, explain
 from .calendar_ics import Calendar, CalendarConfig
+from .smarthome import SmartHome, SmartHomeConfig
+from .voiceid import VoiceID, VoiceIDConfig
 from src.brain.corrections import default as _corrections, read_correction
 from .wondering import Environment, Knowledge, Wonderer, WonderingConfig
 from .social import (FlowDetector, ReactionTracker, SocialLearner,
@@ -200,6 +202,15 @@ class AmbientConfig:
     # bare runtime; the daemon turns it on (it does nothing with no sources).
     calendar: bool = False
     calendar_cfg: Optional[Dict[str, Any]] = None
+    # Smart home through Home Assistant (smarthome.py); does nothing until a
+    # url and token are set. Off on a bare runtime.
+    smarthome: bool = False
+    smarthome_cfg: Optional[Dict[str, Any]] = None
+    # Voice match (voiceid.py): off unless asked, and even then nothing is
+    # compared until the user says "learn my voice".
+    voice: bool = False
+    voice_cfg: Optional[Dict[str, Any]] = None
+    voice_path: Optional[str] = None         # state/voice.json
 
 
 class AmbientRuntime:
@@ -319,6 +330,15 @@ class AmbientRuntime:
                                      path=self.cfg.research_path, clock=lambda: self.clock())
             if self.moments is not None:
                 self.moments.register(ResearchActivity(self.research))
+        self.smarthome: Optional[SmartHome] = None
+        if self.cfg.smarthome:
+            self.smarthome = SmartHome(SmartHomeConfig.from_dict(self.cfg.smarthome_cfg), clock=lambda: self.clock())
+        self.voice: Optional[VoiceID] = None
+        if self.cfg.voice:
+            self.voice = VoiceID(VoiceIDConfig.from_dict(self.cfg.voice_cfg), path=self.cfg.voice_path)
+            mic = self.periphery.sensors.get("microphone")
+            if mic is not None and hasattr(mic, "voiceprint"):
+                mic.voiceprint = True
         self.calendar: Optional[Calendar] = None
         self._calendar_at = -1e18
         if self.cfg.calendar:
@@ -690,6 +710,63 @@ class AmbientRuntime:
                                              else "desktop"})())
         return True
 
+    def _voice_step(self, ev, now: float) -> bool:
+        """Voice match: "learn my voice" / "forget my voice", learning from the
+        next utterances, and marking a clearly different voice as a guest.
+        True if the event was a request about it (and is spent)."""
+        v = self.voice
+        text = str(getattr(ev, "text", "") or "")
+        if self._user_source(ev):
+            say = v.hear_request(text)
+            if say:
+                self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+                return True
+        meta = getattr(ev, "meta", None)
+        vec = (meta or {}).get("voice")
+        if not vec:
+            return False
+        if v.learning:
+            done = v.learn(vec)
+            if done:
+                self._wonder_say(ev, type("R", (), {"say": done, "outcome": "desktop"})())
+            return False
+        if v.who(vec) == "guest":
+            meta["guest"] = True
+        return False
+
+    def _guest_action(self, ev) -> bool:
+        """Someone other than the user asked ASH to act for them: said no to,
+        politely, without doing it. Anything else they say is answered."""
+        from .desktop import _CLOSE, _OPEN, _ROUTINE, _SWITCH
+        from .research import parse_request as research_req
+        from .smarthome import _DIM, _ON_OFF
+        from .watch import parse_request as watch_req
+        t = str(getattr(ev, "text", "") or "").strip()
+        acts = (watch_req(t) is not None or research_req(t) is not None
+                or any(rx.match(t) for rx in (_OPEN, _CLOSE, _SWITCH, _ROUTINE, _ON_OFF, _DIM))
+                or (self.calendar is not None and self.calendar._ASK.search(t)))
+        if not acts:
+            return False
+        user = str(getattr(self.brain, "user", "") or "") or "the person I know"
+        self._wonder_say(ev, type("R", (), {"say": f"Sorry, I only do that for {user}.",
+                                            "outcome": "desktop"})())
+        return True
+
+    def _smarthome_request(self, ev, now: float) -> bool:
+        """"Turn on the living room lights": through Home Assistant, no model."""
+        h = self.smarthome
+        if h is None or not self._user_source(ev):
+            return False
+        try:
+            say = h.hear(str(getattr(ev, "text", "") or ""))
+        except Exception:
+            logger.exception("Smart home request failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
     def _calendar_request(self, ev, now: float) -> bool:
         """"What's on my calendar today?": read from the .ics sources, no model."""
         c = self.calendar
@@ -850,6 +927,9 @@ class AmbientRuntime:
             address.conversation.note_user_turn(now)
 
         self._reaction = None
+        if self.voice is not None and self._voice_step(ev, now):
+            return
+        guest = bool((getattr(ev, "meta", None) or {}).get("guest"))
         if self.flow is not None:
             self.flow.observe(ev, now)
         if self.activity is not None:
@@ -862,7 +942,7 @@ class AmbientRuntime:
                 self.routines.observe(ev, now)
             except Exception:
                 logger.exception("Routines failed on an event")
-        if (self.followups is not None and getattr(ev, "source", "") != "flow"
+        if (self.followups is not None and not guest and getattr(ev, "source", "") != "flow"
                 and self.followups.hears(getattr(ev, "source", ""))):
             try:
                 self._wonder_learn(self.followups.observe(getattr(ev, "text", "") or "", now))
@@ -876,7 +956,7 @@ class AmbientRuntime:
 
         # A reply to a question ASH asked, or a request about the questions
         # ("not now", "stop asking"), is spent here and not run as a new query.
-        if self.wonder is not None:
+        if self.wonder is not None and not guest:
             rep = self._wonder_hear(ev, now)
             if rep is not None and rep.consumed:
                 self.stats["wonders_answered"] = self.stats.get("wonders_answered", 0) + 1
@@ -886,6 +966,8 @@ class AmbientRuntime:
 
         # "No, I meant ..." right after a reply is a correction of how ASH read
         # the last request, not a new one about nothing.
+        if guest and self._guest_action(ev):
+            return
         if self._explain_request(ev, now):
             return
         if self.cfg.corrections and self._correction_step(ev, now):
@@ -895,6 +977,8 @@ class AmbientRuntime:
         if self._watch_request(ev, now):
             return
         if self._desktop_request(ev, now):
+            return
+        if self._smarthome_request(ev, now):
             return
         if self._research_request(ev, now):
             return
@@ -1401,6 +1485,8 @@ class AmbientRuntime:
             "desktop": self.desktop.status() if self.desktop else None,
             "research": self.research.status() if self.research else None,
             "calendar": self.calendar.status() if self.calendar else None,
+            "smarthome": self.smarthome.status() if self.smarthome else None,
+            "voice": self.voice.status() if self.voice else None,
             "corrections": {"heard": self.stats.get("corrections", 0), **_corrections().status()},
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),

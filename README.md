@@ -521,6 +521,30 @@ today: 10:00 Standup, 14:30 Design review") and answer "what's on my calendar
 today / tomorrow" without the model. Files are re-read when they change;
 feeds are fetched every half hour on their own thread.
 
+## Smart home
+
+`smarthome` in `daemon.json`, `src/daemon/smarthome.py`, through Home
+Assistant's local API: set its `url` and a long-lived access `token`. "Turn
+on the living room lights", "switch the kettle off", "dim the bedroom lamp to
+30%" and "is the porch light on?" are matched to devices by their friendly
+names and done without the model. Only lights, switches, fans and on/off
+helpers are touched; locks, doors, garages, alarms, heaters and covers are
+never operated by voice -- that belongs in Home Assistant, not with a
+speech recogniser that can mishear.
+
+## Voice match
+
+`voice` in `daemon.json`, `src/daemon/voiceid.py`. Nothing happens until you
+say "learn my voice": the next six things you say into the microphone are
+averaged into a rough voiceprint (MFCC statistics, `src/senses/voiceprint.py`).
+After that, a clearly different voice is a guest: still answered, but not
+allowed to act for you (apps, watches, the house, research, your calendar --
+"Sorry, I only do that for you") or to teach ASH about you. Anything in
+between gets the benefit of the doubt, and typed input is always you. It is
+a rough match, not security -- a recording of you would pass -- and it has
+been checked on synthetic voices, not yet tuned on real ones. The print is
+the only thing saved (`state/voice.json`); "forget my voice" deletes it.
+
 ## Research on request
 
 `research` in `daemon.json`, `src/daemon/research.py`. "Look into the Raft
