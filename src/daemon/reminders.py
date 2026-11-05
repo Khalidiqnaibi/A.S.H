@@ -44,6 +44,8 @@ _REMIND = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+|can you\s+|coul
                      r"(?:remind me|set (?:a |an )?reminder)\b(?P<rest>.*)$", re.I)
 _TIMER = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+|can you\s+)?(?:set |start )?(?:a |an )?timer\s+"
                     r"(?:for\s+)?(?P<rest>.+)$", re.I)
+_TIMER_N = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+|can you\s+)?(?:set |start )?(?:a |an )?"
+                      r"(?P<n>\d{1,3})[\s-]*(?P<u>min(?:ute)?s?|h(?:ou)?rs?|hours?|sec(?:ond)?s?)\s+timer\s*[.!]?\s*$", re.I)
 _ALARM = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+|can you\s+)?(?:wake me(?: up)?|set (?:an |a )?alarm"
                     r"(?: for)?)\s+(?P<rest>.+)$", re.I)
 _SNOOZE = re.compile(r"^\s*snooze(?:\s+(?:for\s+)?(?P<n>\d{1,3})\s*(?:min(?:ute)?s?))?\s*[.!]?\s*$", re.I)
@@ -161,6 +163,9 @@ class Reminders:
             return self.cancel(m.group("k").lower().rstrip("s"), now)
         if _LIST.search(t) and len(t.split()) <= 8:
             return self.listing(now)
+        n = _TIMER_N.match(t)
+        if n:
+            t = f"set a timer for {n.group('n')} {n.group('u')}"
         m = _TIMER.match(t)
         if m:
             w = resolve_when("in " + _normalise_time(m.group("rest")), now)

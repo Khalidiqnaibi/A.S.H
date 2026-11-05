@@ -28,7 +28,7 @@ PART = {
     "wondering": "wonder", "follow_ups": "followups", "research": "research", "calendar": "calendar",
     "smarthome": "smarthome", "reminders": "reminders", "play": "play", "focus": "focus",
     "weather": "weather", "watch": "watcher", "briefings": "briefings", "routines": "routines",
-    "free_moments": "moments", "desktop": "desktop", "remarks": "remarks",
+    "free_moments": "moments", "desktop": "desktop", "remarks": "remarks", "tasks": "tasks",
 }
 
 # key -> (type, label, group). Types: bool, str, secret, list (comma separated).
@@ -45,6 +45,7 @@ SETTINGS: Dict[str, Tuple[str, str, str]] = {
     "watch.enabled": ("bool", "Watch downloads, battery, disk", "Helping"),
     "research.enabled": ("bool", "Look things up in the background", "Helping"),
     "desktop.enabled": ("bool", "Open and close apps", "Helping"),
+    "tasks.enabled": ("bool", "Multi-step tasks", "Helping"),
     "weather.enabled": ("bool", "Weather", "Weather"),
     "weather.city": ("str", "City", "Weather"),
     "calendar.enabled": ("bool", "Calendar", "Calendar"),
@@ -262,6 +263,11 @@ def waiting(runtime, now: Optional[float] = None) -> Optional[Dict[str, Any]]:
     p = getattr(desk, "_pending", None)
     if p and now - p[2] <= desk.cfg.confirm_window_s:
         return {"kind": "confirm", "text": f"Close {p[0]}?", "replies": ["Yes", "No"]}
+    tk = getattr(runtime, "tasks", None)
+    plan = tk.awaiting(now) if tk is not None else None
+    if plan:
+        from src.daemon.tasks import describe
+        return {"kind": "plan", "text": "Go ahead with: " + describe(plan["steps"]) + "?", "replies": ["Yes", "No"]}
     aw = getattr(runtime, "_awaiting_meaning", None)
     if aw and now - aw.get("t", 0) <= runtime.cfg.correction_window_s:
         return {"kind": "correction", "text": f"What did you want, instead of “{aw.get('query', '')[:60]}”?",

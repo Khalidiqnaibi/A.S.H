@@ -69,6 +69,7 @@ from .play import Bored, Play, Story
 from .media import Media, MediaConfig
 from .remarks import RemarkLog
 from .speech import SpeechControl, wants_brief, wants_short, wants_stop
+from .tasks import Tasks
 from .focus import Focus
 from .weather import Weather, WeatherConfig
 from .forget import (UndoStack, entity_ids, forget_subject, restorer, snapshot, wants_forget,
@@ -245,6 +246,9 @@ class AmbientConfig:
     # "keep it short" (speech.py). On by default: it only ever says less.
     speech: bool = True
     speech_path: Optional[str] = None        # state/speech.json
+    # Multi-step tasks with a plan to approve (tasks.py). Off on a bare runtime.
+    tasks: bool = False
+    tasks_path: Optional[str] = None         # state/tasks.json
 
 
 def _as_you(sentence: str) -> str:
@@ -444,6 +448,9 @@ class AmbientRuntime:
         self._focus_was = False
         self.speech: Optional[SpeechControl] = (SpeechControl(self.cfg.speech_path, clock=lambda: self.clock())
                                                 if self.cfg.speech else None)
+        self.tasks: Optional[Tasks] = (Tasks(self.cfg.tasks_path, clock=lambda: self.clock())
+                                       if self.cfg.tasks else None)
+        self._capture: Optional[List[str]] = None   # a task step's reply, kept instead of said
         self._awaiting_meaning: Optional[Dict[str, Any]] = None
         self._pending_correction: Optional[Dict[str, Any]] = None
         self._reaction = None            # the reaction the event being handled carried
@@ -1115,6 +1122,9 @@ class AmbientRuntime:
                 logger.exception("brain.observe failed on a learned fact")
 
     def _wonder_say(self, ev, rep):
+        if self._capture is not None:            # a step of a task: said once, all together
+            self._capture.append(str(getattr(rep, "say", "") or ""))
+            return
         outcome = getattr(rep, "outcome", "")
         if outcome in ("watch", "desktop", "research", "briefing", "batch"):
             self._last_why = {"kind": "asked", "query": str(getattr(ev, "text", "") or "")[:80]}
@@ -1204,6 +1214,8 @@ class AmbientRuntime:
         if self.cfg.corrections and self._correction_step(ev, now):
             return
         if self._briefing_request(ev, now):
+            return
+        if self._task_request(ev, now):
             return
         if self._watch_request(ev, now):
             return
@@ -1546,6 +1558,55 @@ class AmbientRuntime:
         reasons = list(getattr(decision, "reasons", []) or [])
         return {"kind": "observation", "noticed": str(getattr(ev, "text", "") or "")[:80], "reasons": reasons}
 
+    def _task_request(self, ev, now: float) -> bool:
+        """A multi-step request: show the plan, run it on a yes."""
+        tk = self.tasks
+        if tk is None or not self._user_source(ev) or self._capture is not None:
+            return False
+        try:
+            from src.senses.mic import MicrophoneSensor
+            text = MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or ""))
+            res = tk.hear(text, now)
+        except Exception:
+            logger.exception("Task request failed")
+            return False
+        if not res:
+            return False
+        if "run" in res:
+            say = tk.summary(self._run_steps(ev, res["run"], now))
+            self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+            return True
+        self._wonder_say(ev, type("R", (), {"say": res["say"],
+                                             "outcome": "followup" if res.get("asking") else "desktop"})())
+        return True
+
+    _STEP_HANDLERS = ("_watch_request", "_reminder_request", "_media_request", "_desktop_request",
+                      "_smarthome_request", "_research_request")
+
+    def _run_steps(self, ev, steps: List[str], now: float) -> List[Dict[str, Any]]:
+        """Each step through the part of ASH that does it; what each said is
+        kept, not spoken, and said together after."""
+        from src.senses.base import Modality, SensorEvent
+        out = []
+        for step in steps:
+            sub = SensorEvent(source=getattr(ev, "source", "console"), modality=Modality.TEXT, text=step,
+                              addressed=True, salience=0.9, urgency=0.6)
+            self._capture = []
+            try:
+                for name in self._STEP_HANDLERS:
+                    if getattr(self, name)(sub, now):
+                        break
+                d = self.desktop
+                if d is not None and getattr(d, "_pending", None):
+                    # "Close Word?" -- the whole plan was already approved.
+                    self._capture = [d.hear("yes", now) or ""]
+            except Exception:
+                logger.exception("Task step failed: %s", step)
+            finally:
+                said, self._capture = " ".join(x for x in (self._capture or []) if x), None
+            out.append({"step": step, "said": said})
+        return out
+
     def _speech_step(self, ev, now: float) -> bool:
         """"Stop", "the short version", "keep it short". True if spent."""
         if not self._user_source(ev):
@@ -1876,6 +1937,7 @@ class AmbientRuntime:
             "focus": self.focus.status() if self.focus else None,
             "weather": self.weather.status() if self.weather else None,
             "speech": self.speech.status() if self.speech else None,
+            "tasks": self.tasks.status() if self.tasks else None,
             "corrections": {"heard": self.stats.get("corrections", 0), **_corrections().status()},
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),

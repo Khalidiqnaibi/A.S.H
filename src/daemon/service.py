@@ -246,6 +246,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # volunteers nothing until then (reminders and watches still go off) and
     # says what it held back when it ends.
     "focus": {"enabled": True},
+    # "Stop" / "shh" cut ASH off; "the short version"; "keep it short".
+    "speech": {"enabled": True},
+    # Multi-step requests ("open Outlook and set a timer for 25 minutes") and
+    # named tasks ("when I say start work, ..."), shown as a plan, run on a yes.
+    "tasks": {"enabled": True},
     # The weather in the briefings and for "what's the weather like today",
     # from Open-Meteo (no account or key). Set city (or lat and lon); until
     # then nothing is fetched. Only the place is sent, at most hourly.

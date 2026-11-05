@@ -616,6 +616,28 @@ ends, on time or with "I'm done focusing", ASH says in one line what it held
 back ("I held back 3 things; 2 questions are waiting; your research on Raft is
 ready."). It keeps ASH quiet; it does not silence other apps.
 
+## Multi-step tasks
+
+`tasks` in `daemon.json`, `src/daemon/tasks.py`.
+
+**One request, several steps.** "Open Outlook, set a timer for 25 minutes
+and turn off the desk lamp" is split into its steps and said back as a plan:
+"Here's the plan: 1) open Outlook, 2) ... Go ahead?". Nothing runs before a
+yes. On a yes, each step goes to the part of ASH that already does it:
+apps, timers and reminders, music, lights, watches, look-ups. What came of
+each step is said back in one line, naming anything it couldn't do. A
+"Close Word?" in the middle is taken as answered by the approval. "Undo that"
+still takes back a timer it set.
+
+**Named tasks.** "When I say start work, open Outlook and set a timer for 50
+minutes" keeps the steps under that name. Saying "start work" later shows the
+same plan and asks once. "What tasks do you know?" and "forget the start
+work task" list and remove them. They are kept in `state/tasks.json`.
+
+**What counts as a step.** A request is a plan only when every part starts
+like a command ASH can carry out. "Remind me to buy milk and eggs" stays one
+reminder. The console shows a pending plan in its "waiting for you" strip.
+
 ## Stop, shh, the short version
 
 `speech` in `daemon.json`, `src/daemon/speech.py`.
