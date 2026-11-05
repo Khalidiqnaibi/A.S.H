@@ -616,6 +616,25 @@ ends, on time or with "I'm done focusing", ASH says in one line what it held
 back ("I held back 3 things; 2 questions are waiting; your research on Raft is
 ready."). It keeps ASH quiet; it does not silence other apps.
 
+## Stop, shh, the short version
+
+`speech` in `daemon.json`, `src/daemon/speech.py`.
+
+- **"Stop" or "shh".** Cuts ASH off mid-sentence, and it says nothing back.
+  This also works for a few seconds after it finishes, since transcription
+  lags. Typed in the console works too. When ASH is quiet, a plain "stop"
+  or "enough" is left for the game, the music or the timer. Only "shh",
+  "hush" and "stop talking" always mean stop talking.
+- **"The short version" or "tl;dr".** Says the last answer again, cut to its
+  first sentence or two.
+- **"Keep it short".** Long answers are spoken short from now on, while the
+  console still shows all of it. "You can talk more" undoes it. The setting
+  is kept in `state/speech.json`.
+
+The phrases are whole-sentence matches. So ASH's own "I'll stop asking about
+that", picked up by the microphone, is not taken as a "stop". Speech plays
+asynchronously, which is what lets it be cut.
+
 ## Undo and forget
 
 `src/daemon/forget.py`. Whatever ASH learned or set up on its own leaves an

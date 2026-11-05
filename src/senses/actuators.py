@@ -116,14 +116,40 @@ class SpeakActuator(Actuator):
     # then the real answer was spoken after it.
     routable = False
 
-    def __init__(self, tts_engine=None, **kw):
+    def __init__(self, tts_engine=None, player=None, **kw):
         self.tts = tts_engine
+        # player(wav_bytes, stop_event): plays one WAV, returning when it is
+        # done or as soon as stop_event is set. Swappable for tests.
+        self.player = player or _play_wav
+        self._stop = threading.Event()
+        self._gen = 0                      # which line is current; an older one stops
+        self._lock = threading.Lock()
+        self.speaking = False
+        self.ended_at = 0.0                # when ASH last went quiet (wall clock)
         super().__init__(**kw)
+
+    def stop(self) -> bool:
+        """Cut ASH off mid-sentence. True if it was saying something."""
+        with self._lock:
+            was = self.speaking
+            self._gen += 1
+            self._stop.set()
+            if was:
+                self.speaking = False
+                self.ended_at = time.time()
+        return was
 
     def act(self, args: Any) -> Dict[str, Any]:
         text = args if isinstance(args, str) else str(args)
         if self.tts is None or getattr(self.tts, "engine", True) is None:
             return {"ok": False, "error": "no TTS engine attached"}
+        # A new line replaces whatever is still being said.
+        with self._lock:
+            self._gen += 1
+            gen = self._gen
+            self._stop.set()
+            stop = self._stop = threading.Event()
+            self.speaking = True
 
         # tts.py's stream_audio() only *synthesizes* -- it yields the reply
         # as one WAV and never plays it. app.py's web frontend
@@ -139,25 +165,69 @@ class SpeakActuator(Actuator):
         # _respond() runs synchronously on the ambient loop's own thread, and
         # a multi-second blocking play() call there would freeze sensing and
         # attention for the whole time ASH is talking.
+        #
+        # It plays asynchronously and waits on an event, so "stop" can cut it
+        # off mid-sentence (speech.py); a blocking SND_MEMORY play could not
+        # be interrupted at all.
         def _play():
             n = 0
             try:
                 for wav_bytes in self.tts.stream_audio(text):
                     n += 1
+                    if stop.is_set():
+                        break
                     try:
-                        if _HAS_WINSOUND:
-                            winsound.PlaySound(wav_bytes, winsound.SND_MEMORY)
-                        else:
-                            logger.warning(
-                                "No audio playback backend on this platform -- "
-                                "TTS chunk %d synthesized but not played", n)
+                        self.player(wav_bytes, stop)
                     except Exception:
                         logger.exception("TTS playback failed for chunk %d", n)
             except Exception:
                 logger.exception("TTS synthesis failed")
+            finally:
+                with self._lock:
+                    if self._gen == gen:           # not replaced by a newer line
+                        self.speaking = False
+                        self.ended_at = time.time()
 
         threading.Thread(target=_play, daemon=True).start()
         return {"ok": True, "result": f"speaking {len(text)} chars (async)"}
+
+
+def _wav_seconds(wav: bytes) -> float:
+    """How long a WAV plays, from its header; a guess if it cannot be read."""
+    import io
+    import wave
+    try:
+        with wave.open(io.BytesIO(wav)) as w:
+            return w.getnframes() / float(w.getframerate() or 1)
+    except Exception:
+        return max(1.0, len(wav) / 48000.0)
+
+
+def _play_wav(wav: bytes, stop: threading.Event):
+    """Play one WAV, returning when it ends or as soon as `stop` is set."""
+    if not _HAS_WINSOUND:
+        logger.warning("No audio playback backend on this platform -- TTS synthesized but not played")
+        return
+    import tempfile
+    secs = _wav_seconds(wav)
+    fd, path = tempfile.mkstemp(prefix="ash-say-", suffix=".wav")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(wav)
+        # SND_MEMORY cannot be asynchronous, and a synchronous play cannot
+        # be stopped: play the file asynchronously and wait on the event.
+        winsound.PlaySound(path, winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT)
+        if stop.wait(secs + 0.15):
+            winsound.PlaySound(None, 0)
+    finally:
+        threading.Timer(2.0, _unlink_quietly, (path,)).start()   # the sound may still hold it a moment
+
+
+def _unlink_quietly(path: str):
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
 
 
 class LaunchActuator(Actuator):

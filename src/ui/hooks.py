@@ -284,6 +284,15 @@ def _wrap_actuators(runtime, bus):
             return res
 
         act.act = wrapped
+        if name == "speak" and hasattr(act, "stop"):
+            orig_stop = act.stop
+
+            def stop(_orig=orig_stop):
+                was = _orig()
+                bus.cue("speaking", False)
+                return was
+
+            act.stop = stop
 
 
 def _wrap_face(runtime, bus, presence):

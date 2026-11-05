@@ -147,7 +147,7 @@ def build_response_sink(periphery, prefer_speech: bool = True, window_open=None)
         # Never an apology for being broken.
         if (speak is not None and speak.state.value == "active"
                 and (addressed or prefer_speech) and not meta.get("degraded")):
-            r = speak(text)
+            r = speak(meta.get("spoken") or text)      # in brief mode, long answers are spoken short
             if r.get("ok"):
                 delivered.append("speak")
 
@@ -291,6 +291,8 @@ def main() -> int:
                 weather=bool(cfg.get("weather", {}).get("enabled", True)),
                 weather_cfg=cfg.get("weather", {}),
                 focus=bool(cfg.get("focus", {}).get("enabled", True)),
+                speech=bool(cfg.get("speech", {}).get("enabled", True)),
+                speech_path=os.path.join(os.getcwd(), "state", "speech.json"),
                 media=bool(cfg.get("media", {}).get("enabled", True)),
                 media_cfg=cfg.get("media", {}),
                 play=bool(cfg.get("play", {}).get("enabled", True)),

@@ -68,6 +68,7 @@ from .reminders import Reminders
 from .play import Bored, Play, Story
 from .media import Media, MediaConfig
 from .remarks import RemarkLog
+from .speech import SpeechControl, wants_brief, wants_short, wants_stop
 from .focus import Focus
 from .weather import Weather, WeatherConfig
 from .forget import (UndoStack, entity_ids, forget_subject, restorer, snapshot, wants_forget,
@@ -240,6 +241,10 @@ class AmbientConfig:
     # The weather (weather.py), once a place is set. Off on a bare runtime.
     weather: bool = False
     weather_cfg: Optional[Dict[str, Any]] = None
+    # Interruptible speech: "stop" / "shh" cut ASH off, "the short version",
+    # "keep it short" (speech.py). On by default: it only ever says less.
+    speech: bool = True
+    speech_path: Optional[str] = None        # state/speech.json
 
 
 def _as_you(sentence: str) -> str:
@@ -437,6 +442,8 @@ class AmbientRuntime:
         self.undo = UndoStack(clock=lambda: self.clock())   # "undo that": what was last learned or set up
         self.focus: Optional[Focus] = Focus(clock=lambda: self.clock()) if self.cfg.focus else None
         self._focus_was = False
+        self.speech: Optional[SpeechControl] = (SpeechControl(self.cfg.speech_path, clock=lambda: self.clock())
+                                                if self.cfg.speech else None)
         self._awaiting_meaning: Optional[Dict[str, Any]] = None
         self._pending_correction: Optional[Dict[str, Any]] = None
         self._reaction = None            # the reaction the event being handled carried
@@ -452,6 +459,14 @@ class AmbientRuntime:
                 self.remarks.said(text, meta)
             except Exception:
                 logger.exception("Remark log failed")
+        if self.speech is not None and text:
+            try:
+                self.speech.said(text, meta)
+                spoken = self.speech.spoken_form(text, meta)
+                if spoken is not None:
+                    meta = {**meta, "spoken": spoken}     # said short, shown in full
+            except Exception:
+                logger.exception("Speech control failed")
         return self._sink(text, meta)
 
     # ------------------------------------------------------------------
@@ -1157,6 +1172,12 @@ class AmbientRuntime:
             except Exception:
                 logger.exception("Reading the reaction failed")
 
+        # "Stop" / "shh" while ASH is talking: cut it off, say nothing back.
+        # Before the game, the music and the questions: while ASH is talking,
+        # a "stop" is for the talking.
+        if self.speech is not None and self._speech_step(ev, now):
+            return
+
         # A reply to a question ASH asked, or a request about the questions
         # ("not now", "stop asking"), is spent here and not run as a new query.
         if self.play is not None and self._play_step(ev, now):
@@ -1525,6 +1546,46 @@ class AmbientRuntime:
         reasons = list(getattr(decision, "reasons", []) or [])
         return {"kind": "observation", "noticed": str(getattr(ev, "text", "") or "")[:80], "reasons": reasons}
 
+    def _speech_step(self, ev, now: float) -> bool:
+        """"Stop", "the short version", "keep it short". True if spent."""
+        if not self._user_source(ev):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        sp = self.periphery.actuators.get("speak")
+        talking = bool(sp is not None and (getattr(sp, "speaking", False)
+                                           or time.time() - getattr(sp, "ended_at", 0.0) <= self.speech.stop_grace_s))
+        if wants_stop(text, talking):
+            if sp is not None and hasattr(sp, "stop"):
+                sp.stop()
+            self.speech.stats["stopped"] += 1
+            self._last_why = {"kind": "stopped"}
+            return True                      # nothing said back: the point was quiet
+        if wants_short(text):
+            if sp is not None and hasattr(sp, "stop"):
+                sp.stop()
+            say = self.speech.short_version(now)
+            self._speech_say(say, "short", short_version=True)
+            return True
+        b = wants_brief(text)
+        if b is not None:
+            self.speech.set_brief(b)
+            self._speech_say("Okay, I'll keep it short." if b else "Okay, full answers again.", "brief")
+            return True
+        return False
+
+    def _speech_say(self, say: str, outcome: str, short_version: bool = False):
+        self._last_why = {"kind": "answered"}
+        meta = {"addressed": True, "source": "speech", "attention": None, "pathway": "speech",
+                "outcome": outcome}
+        if short_version:
+            meta["short_version"] = True
+        try:
+            self.response_sink(say, meta)
+            address.conversation.note_ash_spoke(self.clock())
+            self.gate.note_user_turn()
+        except Exception:
+            logger.exception("Response sink failed")
+
     def _focus_request(self, ev, now: float) -> bool:
         """"I'm focusing for an hour" / "I'm done focusing"."""
         f = self.focus
@@ -1814,6 +1875,7 @@ class AmbientRuntime:
             "remarks": {"logging": self.remarks is not None},
             "focus": self.focus.status() if self.focus else None,
             "weather": self.weather.status() if self.weather else None,
+            "speech": self.speech.status() if self.speech else None,
             "corrections": {"heard": self.stats.get("corrections", 0), **_corrections().status()},
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),
