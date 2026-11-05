@@ -605,6 +605,14 @@ as apps are taken -- "open the readme" or "run the tests" still go to the
 brain and its tools -- and you can add your own under `apps`. Nothing is
 typed into windows and nothing is deleted.
 
+Apps and lights are only opened, closed or switched on a line meant for ASH:
+typed, said with its name, or said in a conversation with it. Speech it
+overhears, from a video, a call or someone in the room, never does it. A
+bare "yes" to its own "Close Word?" still counts. An app can run as more
+than one process: Outlook is `outlook.exe` (classic) or `olk.exe` (the new
+Outlook for Windows), and closing or switching to it finds whichever is
+running. For your own apps, separate the processes with `|`.
+
 ## Focus mode
 
 `focus` in `daemon.json`, `src/daemon/focus.py`. "I'm focusing for an

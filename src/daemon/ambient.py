@@ -861,12 +861,26 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "watch"})())
         return True
 
+    def _meant_for_ash(self, ev) -> bool:
+        """Typed, or said to ASH (by name, or in a conversation with it) --
+        not speech overheard from a video, a call or the room. What opens,
+        closes or switches things acts only on this."""
+        if str(getattr(ev, "source", "") or "").lower().removeprefix("sim:") == "console":
+            return True
+        if getattr(ev, "addressed", False):
+            return True
+        addr = (getattr(ev, "meta", None) or {}).get("address") or {}
+        return bool(addr.get("likely"))
+
     def _desktop_request(self, ev, now: float) -> bool:
         """"Open Outlook" / "close Word" / "run my morning check": done (or,
-        for closing, asked about) without the model."""
+        for closing, asked about) without the model. Only on a line meant for
+        ASH: overheard speech never opens or closes anything."""
         d = self.desktop
         if d is None or not self._user_source(ev):
             return False
+        if not self._meant_for_ash(ev) and getattr(d, "_pending", None) is None:
+            return False                  # overheard; but a bare "yes" to "Close Word?" answers it
         try:
             from src.senses.mic import MicrophoneSensor
             text = MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or ""))
@@ -1005,9 +1019,10 @@ class AmbientRuntime:
         return True
 
     def _smarthome_request(self, ev, now: float) -> bool:
-        """"Turn on the living room lights": through Home Assistant, no model."""
+        """"Turn on the living room lights": through Home Assistant, no model.
+        Only on a line meant for ASH."""
         h = self.smarthome
-        if h is None or not self._user_source(ev):
+        if h is None or not self._user_source(ev) or not self._meant_for_ash(ev):
             return False
         try:
             say = h.hear(str(getattr(ev, "text", "") or ""))
@@ -1752,7 +1767,8 @@ class AmbientRuntime:
             return True
         logger.info("Context: %r -> %r", text, res["text"])
         ev.text = res["text"]
-        ev.addressed = True
+        # Not made "addressed" here: an overheard "close it" must not become
+        # a command just because it could be resolved.
         return False
 
     def _speech_step(self, ev, now: float) -> bool:

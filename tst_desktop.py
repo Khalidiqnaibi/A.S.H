@@ -113,6 +113,20 @@ def d3_close():
     check("too late a yes is not taken", d.hear("yes") is None and d.ex_.closed == [])
     d = drig()
     check("not open: nothing to close", d.hear("close outlook") == "outlook isn't open.")
+    d = drig()
+    d.ex_.procs = {"olk.exe"}                          # the new Outlook for Windows
+    check("the new Outlook (olk.exe) is Outlook too", d.hear("close outlook").startswith("Close outlook?"))
+    d.hear("yes")
+    check("and closing it closes olk.exe", d.ex_.closed == ["olk.exe"], str(d.ex_.closed))
+    d = drig()
+    d.ex_.procs = {"olk.exe"}
+    check("switching to it finds olk.exe", d.hear("switch to outlook") == "Switching to outlook."
+          and d.ex_.focused == ["olk.exe"])
+    d = drig()
+    d.ex_.procs = {"outlook.exe"}
+    d.hear("close outlook")
+    d.hear("yes")
+    check("the classic one still works", d.ex_.closed == ["outlook.exe"])
     d = drig(confirm_close=False)
     check("confirm off: closes at once", d.hear("quit chrome") == "Closing chrome." and d.ex_.closed == ["chrome.exe"])
 
@@ -181,7 +195,19 @@ def d5_runtime():
     check("anything else goes to the model", h.ash.calls == ["open the readme"])
     h.say("open outlook", source="screen", addressed=False)
     check("text on the screen does nothing", h.ex.opened.count("outlook") == 2)
-    check("status carries desktop", h.rt.status()["desktop"]["opened"] == 3)
+    n = len(h.ex.opened)
+    h.say("open outlook", source="microphone", addressed=False)
+    check("speech overheard (not said to ASH) opens nothing", len(h.ex.opened) == n)
+    h.say("close chrome", source="microphone", addressed=False)
+    check("nor closes anything", h.ex.closed == ["winword.exe"] and h.rt.desktop._pending is None)
+    h.clock[0] += 2
+    h.rt.submit(SensorEvent(source="microphone", modality=Modality.TEXT, text="open outlook", addressed=False,
+                            salience=0.9, urgency=0.6, meta={"address": {"likely": True}}))
+    h.rt._tick()
+    check("probably said to ASH (in a conversation) still works", len(h.ex.opened) == n + 1)
+    h.say("open outlook", source="microphone", addressed=True)
+    check("said to ASH by name works", len(h.ex.opened) == n + 2)
+    check("status carries desktop", h.rt.status()["desktop"]["opened"] == 5)
 
 
 def d6_executor():

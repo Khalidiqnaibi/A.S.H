@@ -35,9 +35,11 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("ash.daemon.desktop")
 
-# spoken name -> (what to start, the process it runs as)
+# spoken name -> (what to start, the process it runs as). Several processes
+# are separated by "|": the new Outlook for Windows runs as olk.exe, the
+# classic one as outlook.exe, and either is "Outlook".
 APPS: Dict[str, Tuple[str, str]] = {
-    "outlook": ("outlook", "outlook.exe"), "teams": ("ms-teams:", "ms-teams.exe"),
+    "outlook": ("outlook", "outlook.exe|olk.exe"), "teams": ("ms-teams:", "ms-teams.exe"),
     "chrome": ("chrome", "chrome.exe"), "google chrome": ("chrome", "chrome.exe"),
     "edge": ("msedge", "msedge.exe"), "firefox": ("firefox", "firefox.exe"), "opera": ("opera", "opera.exe"),
     "word": ("winword", "winword.exe"), "excel": ("excel", "excel.exe"),
@@ -241,9 +243,10 @@ class Desktop:
             app = self._app(m.group("t"))
             if app is None:
                 return None
-            if not self.ex.running(app[2]):
+            proc = self._running(app[2])
+            if proc is None:
                 return f"{app[0]} isn't open. Want me to open it? Say \"open {app[0]}\"."
-            ok = self.ex.focus(app[2])
+            ok = self.ex.focus(proc)
             self.stats["switched" if ok else "failed"] += 1
             return f"Switching to {app[0]}." if ok else f"I couldn't bring {app[0]} to the front."
         m = _CLOSE.match(t)
@@ -251,12 +254,20 @@ class Desktop:
             app = self._app(m.group("t"))
             if app is None:
                 return None
-            if not self.ex.running(app[2]):
+            proc = self._running(app[2])
+            if proc is None:
                 return f"{app[0]} isn't open."
             if self.cfg.confirm_close:
-                self._pending = (app[0], app[2], now)
+                self._pending = (app[0], proc, now)
                 return f"Close {app[0]}? Anything unsaved there may be lost. Say yes to close it."
-            return self._do_close(app[0], app[2])
+            return self._do_close(app[0], proc)
+        return None
+
+    def _running(self, procs: str) -> Optional[str]:
+        """The one of an app's processes ("outlook.exe|olk.exe") that is running."""
+        for p in (procs or "").split("|"):
+            if p and self.ex.running(p):
+                return p
         return None
 
     def _open_one(self, name: str) -> bool:

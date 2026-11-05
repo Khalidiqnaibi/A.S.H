@@ -156,6 +156,10 @@ def h6_runtime():
                           salience=0.9, urgency=0.6))
     rt._tick()
     check("anything else goes to the model", ash.calls == ["what's the time"])
+    rt.submit(SensorEvent(source="microphone", modality=Modality.TEXT, text="turn off the kettle", addressed=False,
+                          salience=0.9, urgency=0.6))
+    rt._tick()
+    check("speech overheard (not said to ASH) switches nothing", rt.status()["smarthome"]["done"] == 1)
     check("status carries it", rt.status()["smarthome"]["done"] == 1)
 
 

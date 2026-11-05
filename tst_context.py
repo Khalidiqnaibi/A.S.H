@@ -209,6 +209,12 @@ def c7_runtime():
     check("'who was that'", out[-1] == "That was Omar -- your colleague.", str(out[-1:]))
     say("say that again")
     check("'say that again'", out[-1] == "That was Omar -- your colleague." and out[-2] == out[-1])
+    n_open = len(ex.opened)
+    clock[0] += 3
+    rt.submit(SensorEvent(source="microphone", modality=Modality.TEXT, text="open it", addressed=False,
+                          salience=0.9, urgency=0.6))
+    rt._tick()
+    check("an overheard 'open it' opens nothing", len(ex.opened) == n_open, str(ex.opened))
     say("open it")
     check("'open it': the app last in front", out[-1] == "Opening Word.", str(out[-1:]))
     clock[0] += 700
