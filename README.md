@@ -513,6 +513,14 @@ urgent. Each part can be switched off in `daemon.json`.
   then Teams, then Jira. Want me to remember that as a routine?". "Yes, call
   it morning check" keeps it under that name. Only app names are kept.
   `ashctl.py routines` lists what it noticed and what you kept.
+* **Which question first.** Besides how urgent a gap is, questions are
+  ranked by how much the answer would be used: a subject that comes back day
+  after day outranks one said in a single burst, and one from today outranks
+  one not heard of for days.
+* **"What are you wondering about?"** (or "any questions for me?") gets the
+  open questions there and then, one at a time, each next one riding on the
+  acknowledgement of the last, without the hourly pacing. Muted subjects are
+  never offered; "that's all" stops it and keeps the rest for later.
 
 ## Ambient memory: two-stage consolidation
 

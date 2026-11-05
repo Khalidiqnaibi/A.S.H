@@ -246,6 +246,13 @@ _YES = re.compile(r"^\s*(?:yes|yeah|yep|yup|yea|right|correct|exactly|true|indee
                   r"that'?s (?:it|right|correct)|you got it|spot on)\b(?!\s*,?\s*but\b)", re.I)
 _NO = re.compile(r"^\s*(?:no|nope|nah|not quite|not really|not exactly|wrong|incorrect)\b[\s,.:;!-]*"
                  r"(?:it'?s|it is|it means|that'?s|that is|actually)?[\s,]*(?P<rest>.*)$", re.I)
+# The user asking for the questions: answered there and then, one after another.
+_ASK_ME = re.compile(
+    r"\b(?:what (?:are|were) you (?:wondering|curious) about|(?:do you have|got|have you got) "
+    r"(?:any )?questions(?: for me)?|any questions(?: for me)?|ask (?:me )?(?:your|the|those|any|some) questions|"
+    r"what do you want to (?:know|ask)|what are you wondering)\b", re.I)
+_BATCH_END = re.compile(r"^\s*(?:that'?s (?:all|enough|it)|enough(?: for now)?|done|stop|let'?s stop|"
+                        r"no more|later)\b", re.I)
 _THAT = re.compile(r"\b(?:that|this|it|him|her|them|those|these|about (?:that|this|it))\b", re.I)
 _ORDINALS = {"first": 0, "1st": 0, "one": 0, "1": 0, "former": 0, "second": 1, "2nd": 1, "two": 1, "2": 1,
              "latter": 1, "third": 2, "3rd": 2, "three": 2, "3": 2}
@@ -836,6 +843,8 @@ class Wonderer:
         self.asked_times: Deque[float] = deque(maxlen=64)
         self.last_asked: float = 0.0
         self.paused_until: float = 0.0                       # "stop asking me things"
+        self._batch_until: float = 0.0                       # "what are you wondering about?" is open
+        self._batch_left: int = 0
         self.off: bool = False                               # said "never", or switched off by hand
         self.stats = {"detected": 0, "asked": 0, "answered": 0, "dismissed": 0,
                       "unclear": 0, "expired": 0, "learned": 0, "deduped": 0}
@@ -949,6 +958,9 @@ class Wonderer:
         n = self.mentions.setdefault(key, {"n": 0, "t": now})
         n["n"] += 1
         n["t"] = now
+        day = time.strftime("%Y-%m-%d", time.localtime(now))
+        if day not in n.setdefault("days", []):
+            n["days"] = (n["days"] + [day])[-10:]
         need = 1 if strong else self.cfg.min_mentions_weak
         existing = next((w for w in self.wonders.values() if w.key == key and w.status in OPEN), None)
         if existing is not None:
@@ -1371,6 +1383,20 @@ class Wonderer:
                     self._touch()
                 return Reply(True, "Okay, no more questions for a while.", "snoozed")
 
+        if text and len(text.split()) <= 12 and _ASK_ME.search(text) and not self.off:
+            return self._open_batch(now)
+        if now <= self._batch_until and _BATCH_END.match(text or ""):
+            self._batch_until = 0.0
+            if aw is not None:
+                self._defer(aw, now)
+            return Reply(True, "Okay, that's enough for now.", "batch_end")
+
+        rep = self._hear_answer(text, now, aw)
+        if rep.consumed and not rep.outcome.startswith("batch") and aw is not None:
+            rep = self._batch_next(rep, now)
+        return rep
+
+    def _hear_answer(self, text: str, now: float, aw: Optional[Wonder]) -> Reply:
         w = aw
         late = False
         if w is None:
@@ -1826,12 +1852,73 @@ class Wonderer:
                     continue                     # saved for a free moment
                 f = self.fit(w, env)
                 if f > 0:
-                    scored.append(((0.6 * w.urgency + 0.4 * w.priority) * f, -w.created, w))
+                    scored.append(((0.6 * w.urgency + 0.4 * w.priority) * f * self.usefulness(w, now),
+                                   -w.created, w))
             if not scored:
                 return None
             best = max(scored, key=lambda x: (x[0], x[1]))[2]
             self._prepare(best, now)
             return best
+
+    def usefulness(self, w: Wonder, now: float) -> float:
+        """How much an answer would be used, as a multiplier on the ranking.
+
+        A subject that comes back day after day will come back again, so
+        knowing it pays off more often than knowing something said once in a
+        burst; and one that came up today is more on the user's mind (and the
+        answer more likely to be used soon) than one from last week."""
+        m = self.mentions.get(w.key) or {}
+        days = len(m.get("days") or []) or 1
+        f = 1.0 + 0.12 * min(days - 1, 3)
+        last = float(m.get("t", w.created) or w.created)
+        if now - last <= DAY:
+            f += 0.08
+        elif now - last > 3 * DAY:
+            f -= 0.1
+        return f
+
+    def _top_open(self, now: float) -> Optional[Wonder]:
+        """The best pending question when the user has asked for them: no
+        pacing, but never one they muted or already closed."""
+        cands = [w for w in self.wonders.values()
+                 if w.status == "pending" and not self._subject_muted(w.subjects)
+                 and not self._is_closed(w.key, now)]
+        if not cands:
+            return None
+        return max(cands, key=lambda w: ((0.6 * w.urgency + 0.4 * w.priority) * self.usefulness(w, now),
+                                         -w.created))
+
+    def _ask_now(self, now: float) -> Optional[str]:
+        w = self._top_open(now)
+        if w is None:
+            return None
+        self._prepare(w, now)
+        text = self.render(w, now)
+        self.mark_asked(w.id, now)
+        return text
+
+    def _open_batch(self, now: float) -> Reply:
+        """"What are you wondering about?" -- the questions, there and then."""
+        n = sum(1 for w in self.wonders.values() if w.status == "pending")
+        q = self._ask_now(now)
+        if q is None:
+            return Reply(True, "Nothing right now -- I'll ask when something puzzles me.", "batch")
+        self._batch_until = now + 15 * 60
+        self._batch_left = 4
+        lead = "A few things. First: " if n > 1 else ""
+        return Reply(True, lead + q, "batch")
+
+    def _batch_next(self, rep: Reply, now: float) -> Reply:
+        """After an answer in a batch, the next question rides on the reply."""
+        if now > self._batch_until or self._batch_left <= 0 or rep.outcome == "followup":
+            return rep
+        q = self._ask_now(now)
+        if q is None:
+            rep.say = (rep.say + " That's everything I was wondering about.").strip()
+            return rep
+        self._batch_left -= 1
+        rep.say = (rep.say + " Next: " + q).strip()
+        return rep
 
     def _prepare(self, w: Wonder, now: float):
         """Look a term up once, just before it is asked. A guess becomes the
