@@ -67,6 +67,7 @@ from .voiceid import VoiceID, VoiceIDConfig
 from .reminders import Reminders
 from .play import Bored, Play, Story
 from .media import Media, MediaConfig
+from .remarks import RemarkLog
 from src.brain.corrections import default as _corrections, read_correction
 from .wondering import Environment, Knowledge, Wonderer, WonderingConfig
 from .social import (FlowDetector, ReactionTracker, SocialLearner,
@@ -225,6 +226,10 @@ class AmbientConfig:
     # (media.py). Off on a bare runtime.
     media: bool = False
     media_cfg: Optional[Dict[str, Any]] = None
+    # The remark log: everything said and how it landed, for `ashctl review`
+    # (remarks.py). Off on a bare runtime; the daemon turns it on.
+    remarks_dir: Optional[str] = None        # state/remarks/
+    remarks_keep_text: bool = True
 
 
 class AmbientRuntime:
@@ -242,7 +247,10 @@ class AmbientRuntime:
         self.gate = gate or AttentionGate()
         self.privacy = privacy or PrivacyPolicy()
         self.cfg = config or AmbientConfig()
-        self.response_sink = response_sink or self._default_sink
+        self._sink = response_sink or self._default_sink
+        self.remarks: Optional[RemarkLog] = (
+            RemarkLog(self.cfg.remarks_dir, keep_text=self.cfg.remarks_keep_text, clock=lambda: self.clock())
+            if self.cfg.remarks_dir else None)
 
         self._queue: Deque = deque()
         self._qlock = threading.Lock()
@@ -272,6 +280,7 @@ class AmbientRuntime:
             self.gate.learner = self.learner
             self.learner.clock = lambda: self.clock()
             self.reactions = ReactionTracker(self.learner, window_s=self.cfg.reaction_window_s)
+            self.reactions.on_resolve = self._note_reaction
         # Wondering: gaps noticed in what the user says, kept until a good moment.
         self.wonder: Optional[Wonderer] = None
         self.mood_fn: Optional[Callable[[], Optional[float]]] = None   # -1..1, or None
@@ -408,6 +417,16 @@ class AmbientRuntime:
         self.stats["offers"] = 0
         self.stats["no_reply"] = 0
         self._last_no_reply_notice = -1e12
+
+    def response_sink(self, text: str, meta: Dict[str, Any]):
+        """Every line ASH says goes through here: written to the remark log
+        (when on), then handed to the real sink."""
+        if self.remarks is not None and text:
+            try:
+                self.remarks.said(text, meta)
+            except Exception:
+                logger.exception("Remark log failed")
+        return self._sink(text, meta)
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -1427,6 +1446,10 @@ class AmbientRuntime:
             logger.exception("Explaining failed")
         return True
 
+    def _note_reaction(self, offer, outcome: str, now: float):
+        if self.remarks is not None:
+            self.remarks.reacted(getattr(offer, "text", ""), outcome, getattr(offer, "kind", ""), now)
+
     def _model_unavailable(self, ev, decision):
         """The brain had no real reply (the model is down or said nothing).
 
@@ -1606,6 +1629,7 @@ class AmbientRuntime:
             "reminders": self.reminders.status() if self.reminders else None,
             "play": self.play.status() if self.play else None,
             "media": self.media.status() if self.media else None,
+            "remarks": {"logging": self.remarks is not None},
             "corrections": {"heard": self.stats.get("corrections", 0), **_corrections().status()},
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),

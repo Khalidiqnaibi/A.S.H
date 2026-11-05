@@ -285,6 +285,9 @@ def main() -> int:
                 activity_cfg=cfg.get("activity", {}),
                 activity_path=os.path.join(os.getcwd(), "state", "activity", "topics.json"),
                 corrections=bool(cfg.get("corrections", {}).get("enabled", True)),
+                remarks_dir=(os.path.join(os.getcwd(), "state", "remarks")
+                             if cfg.get("remarks", {}).get("enabled", True) else None),
+                remarks_keep_text=bool(cfg.get("remarks", {}).get("keep_text", True)),
                 media=bool(cfg.get("media", {}).get("enabled", True)),
                 media_cfg=cfg.get("media", {}),
                 play=bool(cfg.get("play", {}).get("enabled", True)),

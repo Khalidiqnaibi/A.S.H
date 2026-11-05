@@ -599,6 +599,20 @@ as apps are taken -- "open the readme" or "run the tests" still go to the
 brain and its tools -- and you can add your own under `apps`. Nothing is
 typed into windows and nothing is deleted.
 
+## Reviewing what ASH said
+
+`remarks` in `daemon.json`, `src/daemon/remarks.py`. Everything ASH says is
+logged with its kind (an answer, a question, a joke, a briefing, a
+reminder...), whether you had asked, and how it landed (engaged, accepted,
+deferred, rejected, met with silence). `ashctl.py review [days]` reads it
+back: how much was said per kind and per hour, how each kind landed, lines
+said over and over, anything in the small hours -- and what to tune ("wonder:
+unanswered 6 of 8 times -- it may be coming at the wrong moments"). Kept two
+weeks under `state/remarks/`; `keep_text: false` keeps no words at all.
+
+`tst_remarks.py` also runs a whole simulated day through the runtime with
+everything on and checks the budgets, the quiet hours and repetition hold.
+
 ## Questions ASH asks
 
 Everything here is rule-based, paced by the same budget, quiet hours and

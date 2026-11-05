@@ -238,6 +238,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # at a free moment ASH may say it is bored (only when your mood is good)
     # or offer an evening story. free_moments.disabled can drop bored/story.
     "play": {"enabled": True},
+    # The remark log: everything ASH says and how it landed, kept two weeks
+    # under state/remarks/, read back by `ashctl review [days]` with tips on
+    # what to tune. keep_text false keeps only the kind and the reaction.
+    "remarks": {"enabled": True, "keep_text": True},
     # Media: "pause the music", "next song", "turn it up" (the media keys, any
     # player); a chime with reminders and alerts; "take a photo" (one webcam
     # frame to photo_dir, on request only, never while paused).
@@ -479,6 +483,15 @@ class ControlServer:
             return {"ok": True, "peripheral": target.status()}
         if cmd in ("wonders", "wonder"):
             return self._wonders(arg if cmd == "wonder" else "")
+        if cmd == "review":
+            log = getattr(rt, "remarks", None)
+            if log is None:
+                return {"ok": False, "error": "the remark log is off (daemon.json: remarks.enabled)"}
+            try:
+                days = max(1, min(14, int(arg.strip() or 1)))
+            except ValueError:
+                days = 1
+            return {"ok": True, "report": log.report(days), "review": log.review(days)}
         if cmd == "watches":
             wt = getattr(rt, "watcher", None)
             if wt is None:
@@ -541,7 +554,7 @@ class ControlServer:
             return {"ok": True, "stopping": True}
         return {"ok": False, "error": f"unknown command {cmd!r}",
                 "commands": ["status", "pause", "resume", "mute", "unmute", "say",
-                             "why", "history", "sleep", "rollup", "sensors", "face", "wonders", "wonder", "activity", "followups", "corrections", "routines", "briefing", "watches",
+                             "why", "history", "sleep", "rollup", "sensors", "face", "wonders", "wonder", "activity", "followups", "corrections", "routines", "briefing", "watches", "review",
                              "enable", "disable", "simulate", "shutdown"]}
 
     # ------------------------------------------------------------------

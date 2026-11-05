@@ -29,6 +29,7 @@ ashctl.py -- talk to a running ASH daemon.
     python ashctl.py routines              # openings it noticed, and the routines you kept
     python ashctl.py briefing [morning|evening]   # the briefing it would give now
     python ashctl.py watches [stop]        # what it is watching for you
+    python ashctl.py review [days]         # what ASH said, how it landed, what to tune
     python ashctl.py shutdown
 
     python ashctl.py simulate mic hey ash what time is it

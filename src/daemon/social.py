@@ -43,7 +43,7 @@ import re
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Deque, Dict, List, Optional, Tuple
+from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
 
 from src.senses.base import Modality, SensorEvent
 
@@ -358,6 +358,8 @@ class ReactionTracker:
         self.window_s = window_s
         self.pending: Deque[Offer] = deque(maxlen=max_pending)
         self.counts = {k: 0 for k in REWARD}
+        # Told of every reaction read (the remark log keeps them for review).
+        self.on_resolve: Optional[Callable[[Offer, str, float], None]] = None
 
     def register(self, kind: str, ctx: str, text: str, now: float,
                  topic: str = "", accept_context: str = "") -> Offer:
@@ -367,6 +369,11 @@ class ReactionTracker:
 
     def _resolve(self, offer: Offer, outcome: str, now: float) -> Reaction:
         self.counts[outcome] += 1
+        if self.on_resolve is not None:
+            try:
+                self.on_resolve(offer, outcome, now)
+            except Exception:
+                logger.exception("on_resolve failed")
         self.learner.update(offer.kind, offer.ctx, REWARD[outcome], WEIGHT[outcome], now=now)
         if outcome == "rejected":
             self.learner.snooze(offer.kind, now, self.learner.snooze_s * 4)
