@@ -181,11 +181,20 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "episode_min_s": 300.0,  # a stretch this long earns a sentence
         "max_episodes_per_hour": 6,
     },
+    # Follow-ups: "my interview is on Thursday" is remembered, and once it is
+    # over ASH asks how it went, at a free moment, once. Meetings and calls are
+    # followed up too unless routine is off; they are worth less than an exam.
+    "follow_ups": {
+        "enabled": True,
+        "routine": True,
+        "window_s": 259200,      # how long after the event the question is still worth asking
+        "max_open": 25,
+    },
     "free_moments": {
         "enabled": True,
         "min_gap_s": 600,
         "max_per_hour": 2,
-        "disabled": [],          # by name: gap_closure joke mood_check system_assessment
+        "disabled": [],          # by name: gap_closure joke mood_check system_assessment follow_up
         "jokes": True,
         "mood_check": True,
     },
@@ -402,6 +411,18 @@ class ControlServer:
             return {"ok": True, "peripheral": target.status()}
         if cmd in ("wonders", "wonder"):
             return self._wonders(arg if cmd == "wonder" else "")
+        if cmd == "followups":
+            f = getattr(rt, "followups", None)
+            if f is None:
+                return {"ok": False, "error": "follow-ups are not enabled (daemon.json: follow_ups.enabled)"}
+            parts = arg.split()
+            if parts and parts[0] == "dismiss" and len(parts) > 1:
+                if not f.dismiss(parts[1]):
+                    return {"ok": False, "error": f"no open follow-up {parts[1]!r}"}
+            elif parts:
+                return {"ok": False, "error": f"unknown followups command {parts[0]!r}",
+                        "commands": ["dismiss <id>"]}
+            return {"ok": True, "report": f.report(), "pending": f.pending(), "status": f.status()}
         if cmd == "activity":
             a = getattr(rt, "activity", None)
             if a is None:
@@ -416,7 +437,7 @@ class ControlServer:
             return {"ok": True, "stopping": True}
         return {"ok": False, "error": f"unknown command {cmd!r}",
                 "commands": ["status", "pause", "resume", "mute", "unmute", "say",
-                             "why", "history", "sleep", "rollup", "sensors", "face", "wonders", "wonder", "activity",
+                             "why", "history", "sleep", "rollup", "sensors", "face", "wonders", "wonder", "activity", "followups",
                              "enable", "disable", "simulate", "shutdown"]}
 
     # ------------------------------------------------------------------

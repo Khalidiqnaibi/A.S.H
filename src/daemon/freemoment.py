@@ -56,6 +56,11 @@ class Activity:
     def propose(self, env: Environment, now: float) -> Optional[Candidate]:
         return None
 
+    def spoken(self, now: float) -> None:
+        """What it proposed was actually said (the attention gate let it
+        through). Most activities need not care."""
+        return None
+
     def hear(self, text: str, now: float) -> Optional[str]:
         """The user's next utterance after this activity spoke. Return a line
         to say back, or None to say nothing (the utterance is then handled
@@ -206,6 +211,12 @@ class FreeMoments:
         self._spoken.append(now)
         self._awaiting = (name, now)
         self.stats["spoken"] += 1
+        act = self.activities.get(name)
+        if act is not None:
+            try:
+                act.spoken(now)
+            except Exception:
+                logger.exception("free-moment activity %s failed on spoken", name)
 
     def hear(self, text: str, now: Optional[float] = None) -> Optional[str]:
         """An utterance right after a free-moment remark. Returns a reply line

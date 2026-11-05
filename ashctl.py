@@ -22,6 +22,8 @@ ashctl.py -- talk to a running ASH daemon.
     python ashctl.py wonder snooze 120     # no questions for 2 hours
     python ashctl.py activity              # what it has learned you do, and what it connects to
     python ashctl.py activity forget       # clear it
+    python ashctl.py followups             # events it will ask how they went
+    python ashctl.py followups dismiss <id>
     python ashctl.py shutdown
 
     python ashctl.py simulate mic hey ash what time is it

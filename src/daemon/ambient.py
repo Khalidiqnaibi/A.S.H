@@ -52,6 +52,7 @@ from .attention import AttentionGate, Disposition
 from .journal import Journal
 from .privacy import PrivacyPolicy
 from .activity import ActivityConfig, ActivityMemory
+from .followups import FollowUpActivity, FollowUps, FollowUpsConfig
 from .freemoment import FreeMoments, ProviderActivity, default_moments
 from .wondering import Environment, Knowledge, Wonderer, WonderingConfig
 from .social import (FlowDetector, ReactionTracker, SocialLearner,
@@ -142,6 +143,12 @@ class AmbientConfig:
     activity: bool = False
     activity_cfg: Optional[Dict[str, Any]] = None
     activity_path: Optional[str] = None      # state/activity/topics.json
+    # Follow-ups: an event the user mentions ("my interview on Thursday") is
+    # asked about after it happened, at a free moment (followups.py). Needs
+    # moments to be asked. Off on a bare runtime; the daemon turns it on.
+    followups: bool = False
+    followups_cfg: Optional[Dict[str, Any]] = None
+    followups_path: Optional[str] = None     # state/followups/followups.json
 
 
 class AmbientRuntime:
@@ -225,6 +232,16 @@ class AmbientRuntime:
                 jokes=bool(mc.get("jokes", True)), mood_check=bool(mc.get("mood_check", True)))
             self.moments.register(ProviderActivity(
                 "system_assessment", self._system_note, cooldown_s=6 * 3600.0, weight=0.9))
+        # Follow-ups: events the user mentioned, asked about once they are over.
+        self.followups: Optional[FollowUps] = None
+        if self.cfg.followups:
+            self.followups = FollowUps(FollowUpsConfig.from_dict(self.cfg.followups_cfg),
+                                       path=self.cfg.followups_path, clock=lambda: self.clock())
+            if self.moments is not None:
+                moments = self.moments
+                self.moments.register(FollowUpActivity(
+                    self.followups, learn=lambda s: self._wonder_learn([s]),
+                    mood=lambda v: moments.set_mood(v, self.clock())))
         self.stats["wonders_asked"] = 0
         self._reaction = None            # the reaction the event being handled carried
         self.stats["offers"] = 0
@@ -569,6 +586,11 @@ class AmbientRuntime:
                 self.activity.observe(ev, now)
             except Exception:
                 logger.exception("Activity memory failed on an event")
+        if self.followups is not None and getattr(ev, "source", "") != "flow"                 and self.followups.hears(getattr(ev, "source", "")):
+            try:
+                self._wonder_learn(self.followups.observe(getattr(ev, "text", "") or "", now))
+            except Exception:
+                logger.exception("Follow-ups failed on an event")
         if self.reactions is not None:
             try:
                 self._reaction = self.reactions.on_user_event(ev, now)
@@ -954,6 +976,7 @@ class AmbientRuntime:
             "wondering": self.wonder.status() if self.wonder else None,
             "activity": self.activity.status() if self.activity else None,
             "free_moments": self.moments.status() if self.moments else None,
+            "followups": self.followups.status() if self.followups else None,
             "privacy": self.privacy.status(),
             "journal": self.journal.status(),
             "periphery": self.periphery.status(),

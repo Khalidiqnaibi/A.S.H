@@ -280,6 +280,9 @@ def main() -> int:
                 activity=bool(cfg.get("activity", {}).get("enabled", True)),
                 activity_cfg=cfg.get("activity", {}),
                 activity_path=os.path.join(os.getcwd(), "state", "activity", "topics.json"),
+                followups=bool(cfg.get("follow_ups", {}).get("enabled", True)),
+                followups_cfg=cfg.get("follow_ups", {}),
+                followups_path=os.path.join(os.getcwd(), "state", "followups", "followups.json"),
                 wonder_path=os.path.join(os.getcwd(), "state", "wonder", "wonders.json"),
                 knowledge_path=os.path.join(os.getcwd(), "state", "wonder", "knowledge.json"),
                 social_path=os.path.join(

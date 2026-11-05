@@ -465,6 +465,19 @@ Two independent routes to `RESPOND`:
 `ashctl.py pause` stops *perceiving*. `ashctl.py mute` stops *speaking* while
 continuing to observe and remember. Those are different needs.
 
+## Questions ASH asks
+
+Everything here is rule-based, paced by the same budget, quiet hours and
+"not now" as any other remark, and spent only at a free moment unless it is
+urgent. Each part can be switched off in `daemon.json`.
+
+* **Follow-ups** (`follow_ups`, `src/daemon/followups.py`). "I have an
+  interview on Thursday at 10" is remembered with its time. Once it is over,
+  ASH asks how it went, once, and reads the answer (went well, badly, so-so,
+  not yet, didn't happen). Moving or cancelling the event updates it, and
+  saying how it went first means it is never asked. An exam outranks a
+  routine meeting. `ashctl.py followups` lists what it is waiting to ask.
+
 ## Ambient memory: two-stage consolidation
 
 An always-on ASH sees 5,000–20,000 events a day. Writing each into episodic
