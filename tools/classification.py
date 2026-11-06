@@ -116,8 +116,9 @@ class EmbeddingCatalog:
             # mismatched driver -- a hardware fault no try/except can
             # catch. Passing "cpu" up front avoids the probe altogether;
             # set ASH_USE_GPU=1 to opt back into auto-detection.
-            device = None if os.environ.get("ASH_USE_GPU", "0") == "1" else "cpu"
-            self.model = SentenceTransformer(self.model_name, device=device)
+            # (Loaded once per process, on the CPU: tools/shared_model.py.)
+            from tools.shared_model import load as _shared_load
+            self.model = _shared_load(self.model_name)
         except Exception as e:
             logger.exception("Failed to load embedding model: %s", e)
             self.model = None
@@ -237,7 +238,8 @@ def _ensure_catalogs_loaded(force: bool = False):
             if SentenceTransformer is None:
                 logger.warning("Embedding model missing: cannot build intent catalog")
             else:
-                _INTENT_CATALOG._load_model()
+                if _INTENT_CATALOG.model is None:         # it was loaded again here every time
+                    _INTENT_CATALOG._load_model()
                 _INTENT_CATALOG.build_from_json_blocks(intents_blocks)
                 _INTENT_CATALOG.save_cache(INTENT_EMB_FNAME)
         _INTENT_CATALOG._source_mtime = intents_mtime

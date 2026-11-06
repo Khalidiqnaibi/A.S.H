@@ -29,6 +29,7 @@ PART = {
     "smarthome": "smarthome", "reminders": "reminders", "play": "play", "focus": "focus",
     "weather": "weather", "watch": "watcher", "briefings": "briefings", "routines": "routines",
     "free_moments": "moments", "desktop": "desktop", "remarks": "remarks", "tasks": "tasks", "email": "inbox", "face": "face",
+    "crashes": "crashwatch",
 }
 
 # key -> (type, label, group). Types: bool, str, secret, list (comma separated).
@@ -48,6 +49,7 @@ SETTINGS: Dict[str, Tuple[str, str, str]] = {
     "research.enabled": ("bool", "Look things up in the background", "Helping"),
     "desktop.enabled": ("bool", "Open and close apps", "Helping"),
     "tasks.enabled": ("bool", "Multi-step tasks", "Helping"),
+    "crashes.enabled": ("bool", "Tell me when the computer crashed", "Helping"),
     "weather.enabled": ("bool", "Weather", "Weather"),
     "weather.city": ("str", "City", "Weather"),
     "calendar.enabled": ("bool", "Calendar", "Calendar"),

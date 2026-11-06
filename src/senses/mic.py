@@ -60,6 +60,35 @@ _LEADING_WAKE = re.compile(r"^\s*((hey|ok|okay|yo)\s+)?ash\b[\s,.!?:;-]*", re.I)
 _TRAILING_WAKE = re.compile(r"[\s,]*\b((hey|ok|okay|yo)\s+)?ash[\s.!?]*$", re.I)
 
 
+# faster-whisper scores every phrase it writes. A phrase it is unsure of is
+# usually room noise or someone else's voice, or the TV: "Ash brothers
+# emote", "Your step is..." were all answered as if they were requests, and
+# ASH made up a clarification ("did you mean to ask if I have ever purchased
+# anything?") for one. Below these it is better to say nothing.
+MIN_LOGPROB = -1.0        # average log-probability of the words (0 = certain)
+NOISE_PROB = 0.5          # chance the phrase is not speech at all...
+NOISE_LOGPROB = -0.6      # ...and it is not sure of the words either
+
+
+def trusted_text(segs) -> str:
+    """The text of whisper's phrases, leaving out the ones it is unsure of."""
+    keep = []
+    for s in segs:
+        text = (getattr(s, "text", "") or "").strip()
+        if not text:
+            continue
+        lp = getattr(s, "avg_logprob", None)
+        ns = getattr(s, "no_speech_prob", None)
+        if lp is not None and lp < MIN_LOGPROB:
+            logger.info("Mic: dropped a doubtful phrase (confidence %.2f): %r", lp, text)
+            continue
+        if lp is not None and ns is not None and ns > NOISE_PROB and lp < NOISE_LOGPROB:
+            logger.info("Mic: dropped a phrase that is probably not speech (%.2f, %.2f): %r", ns, lp, text)
+            continue
+        keep.append(text)
+    return " ".join(keep).strip()
+
+
 _MISHEARD = re.compile(r"^(\s*(?:hey|hi|ok|okay)?[\s,]*)(?:ass|asch|ashe)(?=[\s,]+\w)", re.I)
 
 
@@ -341,8 +370,11 @@ class MicrophoneSensor(Sensor):
             # heard as "Ass system status" and ignored.
             segs, _ = self._whisper.transcribe(audio.astype(np.float32) / 32768.0,
                                                language="en", vad_filter=True,
-                                               initial_prompt="Talking to Ash, my assistant.")
-            return " ".join(s.text for s in segs).strip()
+                                               initial_prompt="Talking to Ash, my assistant.",
+                                               # each phrase is read on its own: carrying the last one
+                                               # forward is how whisper invents words from room noise
+                                               condition_on_previous_text=False)
+            return trusted_text(list(segs))
         except Exception:
             pass
 

@@ -298,6 +298,8 @@ def main() -> int:
                 story_path=os.path.join(os.getcwd(), "state", "story.json"),
                 game_voice=str(cfg.get("play", {}).get("voice", "bm_george") or ""),
                 cheer_path=os.path.join(os.getcwd(), "state", "cheer.json"),
+                crashes=bool(cfg.get("crashes", {}).get("enabled", True)),
+                crashes_path=os.path.join(os.getcwd(), "state", "crashes.json"),
                 weekly=bool(cfg.get("weekly", {}).get("enabled", True)),
                 weekly_path=os.path.join(os.getcwd(), "state", "weekly.json"),
                 weekly_day=str(cfg.get("weekly", {}).get("day", "sunday")),

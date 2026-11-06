@@ -261,6 +261,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # app password. Bodies are never read, nothing is marked read or sent.
     # "How was my week?" -- and in the evening briefing on this day ("" for never).
     "weekly": {"enabled": True, "day": "sunday"},
+    # Tells you about unexpected shutdowns (Windows event log), in the briefing
+    # or when asked "did my computer crash?".
+    "crashes": {"enabled": True},
     # Good moments brought back when you're worried; birthday, streaks and
     # long stretches celebrated.
     "cheer": {"enabled": True},

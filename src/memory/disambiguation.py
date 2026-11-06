@@ -31,7 +31,10 @@ class Disambiguator:
         self.model = None
         if ST_AVAILABLE:
             try:
-                self.model = SentenceTransformer(self.model_name)
+                # The shared copy, on the CPU. A bare SentenceTransformer(name)
+                # probes CUDA, which can crash natively on a bad GPU driver.
+                from tools.shared_model import load as _shared_load
+                self.model = _shared_load(self.model_name)
                 logger.info("Loaded sentence-transformers model: %s", self.model_name)
             except Exception as e:
                 logger.warning("Failed to load embedder: %s", e)

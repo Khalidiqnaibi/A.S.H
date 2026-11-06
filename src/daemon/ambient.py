@@ -71,11 +71,13 @@ from .remarks import RemarkLog
 from .speech import SpeechControl, wants_brief, wants_short, wants_stop
 from .tasks import Tasks
 from . import voicectl
+from .repeat import RepeatGuard
 from .context import Context
 from .focus import Focus
 from .weather import Weather, WeatherConfig
 from .inbox import Inbox, InboxConfig
 from .weekly import Weekly
+from .crashwatch import CrashWatch
 from .cheer import Celebrate, Cheer
 from .care import Care
 from .storybook import StoryBook
@@ -262,6 +264,9 @@ class AmbientConfig:
     # Good moments brought back, and celebrations (cheer.py). Off on a bare runtime.
     cheer: bool = False
     cheer_path: Optional[str] = None         # state/cheer.json
+    # Noticing that the computer crashed (crashwatch.py). Off on a bare runtime.
+    crashes: bool = False
+    crashes_path: Optional[str] = None       # state/crashes.json
     # Caring nudges (care.py). Off on a bare runtime.
     care: bool = False
     # Where the evening story got to (storybook.py), with play on.
@@ -295,6 +300,14 @@ _ADVICE = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:so\s+|ok(?:ay)?\s+|then\s
                      r"|what\s+can\s+i\s+do|any\s+(?:recommendations?|suggestions?|ideas|advice|tips)"
                      r"|(?:your\s+)?recommendations?|how\s+(?:do|can)\s+i\s+fix\s+(?:it|that|this))"
                      r"(?:\s+(?:about\s+(?:it|that|this)|then|now|ash))*\s*[?.!]*\s*$", re.I)
+
+
+REPHRASED = 0.5            # word overlap that makes a later line a rewording of an earlier one
+
+
+def _similar(a: str, b: str) -> float:
+    from src.brain.corrections import similarity
+    return similarity(a, b)
 
 
 def _as_you(sentence: str) -> str:
@@ -464,6 +477,9 @@ class AmbientRuntime:
         self._calendar_at = -1e18
         if self.cfg.calendar:
             self.calendar = Calendar(CalendarConfig.from_dict(self.cfg.calendar_cfg), clock=lambda: self.clock())
+        self.crashwatch: Optional[CrashWatch] = None
+        if self.cfg.crashes:
+            self.crashwatch = CrashWatch(self.cfg.crashes_path, clock=lambda: self.clock())
         self.weekly: Optional[Weekly] = None
         if self.cfg.weekly:
             self.weekly = Weekly(self.cfg.weekly_path, clock=lambda: self.clock(), activity=self.activity,
@@ -496,6 +512,8 @@ class AmbientRuntime:
                 self.briefings.add_provider(self.inbox.briefing_part)
             if self.weekly is not None:
                 self.briefings.add_provider(self.weekly.briefing_part)
+            if self.crashwatch is not None:
+                self.briefings.add_provider(self.crashwatch.briefing_part)
             if self.cheer is not None:
                 self.briefings.add_provider(self.cheer.briefing_part)
             if self.calendar is not None:
@@ -528,6 +546,8 @@ class AmbientRuntime:
         self.tasks: Optional[Tasks] = (Tasks(self.cfg.tasks_path, clock=lambda: self.clock())
                                        if self.cfg.tasks else None)
         self._capture: Optional[List[str]] = None   # a task step's reply, kept instead of said
+        self.repeat = RepeatGuard(clock=lambda: self.clock())
+        self._rest: List[Any] = []                  # the events still to come in this tick
         self.context: Optional[Context] = None
         if self.cfg.context:
             apps = {}
@@ -558,6 +578,15 @@ class AmbientRuntime:
             # can't: only the voice commands can. Say so instead.
             logger.info("Model claimed an action it cannot do -- replaced: %r", text[:120])
             text = voicectl.HONEST
+        if text and self._capture is None:
+            try:
+                if (meta.get("addressed") and str(meta.get("pathway", "")).lower() == "slow"
+                        and not meta.get("degraded")):
+                    text = self.repeat.check(text)          # the model is not to say it twice
+                else:
+                    self.repeat.note(text)                  # a rule's line: said, but never trimmed
+            except Exception:
+                logger.exception("Repeat guard failed")
         if self.context is not None and text and self._capture is None:
             try:
                 self.context.said(text)
@@ -695,9 +724,11 @@ class AmbientRuntime:
         # 2. Process.
         events = self._drain()
         responded_before = self.stats["responded"]
-        for ev in events:
+        for i, ev in enumerate(events):
+            self._rest = events[i + 1:]
             self.stats["events"] += 1
             self._handle(ev)
+        self._rest = []
 
         # 2b. Carry on a plan, one step per tick, but never on a tick where
         # the brain just answered someone: that answer already replaced it.
@@ -755,6 +786,11 @@ class AmbientRuntime:
                     self.weekly.save()
                 except Exception:
                     logger.exception("Weekly save failed")
+            if self.crashwatch is not None:
+                try:
+                    self.crashwatch.refresh(now)
+                except Exception:
+                    logger.exception("Crash watch failed")
             if self.cheer is not None:
                 try:
                     self.cheer.tick(now)
@@ -1156,6 +1192,21 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
         return True
 
+    def _crash_request(self, ev, now: float) -> bool:
+        """"Did my computer crash?": from the Windows event log, no model."""
+        c = self.crashwatch
+        if c is None or not self._user_source(ev):
+            return False
+        try:
+            say = c.hear(str(getattr(ev, "text", "") or ""), now)
+        except Exception:
+            logger.exception("Crash question failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
     def _weekly_request(self, ev, now: float) -> bool:
         """"How was my week?": from what ASH keeps, no model."""
         w = self.weekly
@@ -1469,6 +1520,8 @@ class AmbientRuntime:
             return
         if self._weekly_request(ev, now):
             return
+        if self._crash_request(ev, now):
+            return
         if self._cheer_request(ev, now):
             return
         if self.care is not None and self._user_source(ev):
@@ -1538,6 +1591,10 @@ class AmbientRuntime:
             return
 
         # RESPOND
+        if self._overtaken(ev):
+            self.stats["overtaken"] = self.stats.get("overtaken", 0) + 1
+            logger.info("Skipped answering %r: the user has since said it again, or corrected it", ev.text[:80])
+            return
         self.stats["responded"] += 1
         self._last_activity = time.time()
         try:
@@ -1912,6 +1969,24 @@ class AmbientRuntime:
         ev.text = res["text"]
         # Not made "addressed" here: an overheard "close it" must not become
         # a command just because it could be resolved.
+        return False
+
+    def _overtaken(self, ev) -> bool:
+        """A question the user has already said again (or corrected) while ASH
+        was busy with the one before: answering the old one first made the
+        replies arrive late, to things they had moved past."""
+        if not (getattr(ev, "addressed", False) and self._user_source(ev)):
+            return False
+        with self._qlock:
+            later = list(self._rest) + list(self._queue)
+        for n in later:
+            if n is ev or not (getattr(n, "addressed", False) and self._user_source(n)):
+                continue
+            if getattr(n, "ts", 0) < getattr(ev, "ts", 0):
+                continue
+            t = str(getattr(n, "text", "") or "")
+            if _similar(ev.text, t) >= REPHRASED or read_correction(t) is not None:
+                return True
         return False
 
     def _voice_command(self, ev, now: float) -> bool:
@@ -2343,6 +2418,7 @@ class AmbientRuntime:
             "weather": self.weather.status() if self.weather else None,
             "email": self.inbox.status() if self.inbox else None,
             "weekly": self.weekly.status() if self.weekly else None,
+            "crashes": self.crashwatch.status() if self.crashwatch else None,
             "cheer": self.cheer.status() if self.cheer else None,
             "care": self.care.status() if self.care else None,
             "story": self.storybook.status() if self.storybook else None,

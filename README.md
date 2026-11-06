@@ -248,6 +248,14 @@ request, even "what's 15 times 23", went to the model:
   reversible tool to the model. Weak matches and anything that changes
   things still deliberate.
 
+* **A clear reflex needs no vote.** The board's tally was mostly the
+  homeostasis nudge, and it left "read the file" and "convert km to miles"
+  (matches 0.64–0.66) a hair under the bar. When the classifier clearly
+  knows the request (match ≥ 0.60), the critic values it (≥ 0.30) and the
+  tool is harmless and undoable, only a positive score is needed. The gate
+  still checks surprise and the rest, and anything that changes things
+  still deliberates.
+
 `tst_fastpath.py` checks these, using the numbers from a real session.
 
 ---
@@ -1059,6 +1067,42 @@ during or just after that, made mostly of its own words, is dropped. You
 can still talk over it ("stop") because your words are different. Whisper is
 told to expect the name, and "Ass …" at the start of a sentence is read as
 "Ash …".
+
+**Not trusting a doubtful transcript.** faster-whisper scores every phrase
+it writes. A phrase it is unsure of (average log-probability below −1.0, or
+probably-not-speech and unsure) is room noise or another voice, and is
+dropped rather than answered. Each phrase is read on its own, so one doesn't
+carry words into the next.
+
+**Not saying things twice.** `src/daemon/repeat.py`. A model answer loses any
+sentence ASH already said in the last ten minutes, comparing words in order,
+so "the microphone is off and the camera is on" is not "the camera is off and
+the microphone is on". If nothing new is left, it says "That's what I just
+said." A rule's lines count as said, but are never trimmed.
+
+**Questions you've since said again.** If you say a question again, or
+correct it, while ASH is still busy with the first, the first is skipped and
+only the later one is answered. Two different questions are both answered,
+and a command in between is done.
+
+**Smaller things that made it slow.** Fewer episodes and entities go into
+the model's prompt (5 each, was 8). Episodes older than two weeks have to be
+more on topic to be brought up, and older than two months more still (a
+status question was answered with "the YOLO pipeline we discussed in late
+June"). The model is asked for at most 200 tokens (`ASH_LLM_MAX_TOKENS`),
+because answers are clipped to about 150 before they are said. The
+embedding model is loaded once, on the CPU, and shared (`tools/shared_model.py`).
+The disambiguator used to create its own with no device, which makes
+sentence-transformers probe CUDA, the probe that can crash natively on a bad
+GPU driver.
+
+**Telling you the computer crashed.** `src/daemon/crashwatch.py`. At start,
+and every six hours, ASH reads Windows' record of unexpected shutdowns. It
+tells you about new ones in the morning or evening briefing, or when you ask
+"did my computer crash?" ("The computer shut down unexpectedly at 05:33 today,
+on a driver touching memory it shouldn't. That's 4 times in the last 30 days,
+which is a pattern: worth testing the memory and updating the drivers."). The
+first time it runs, what's already in the log is history, not news.
 
 ## If the machine crashes while ASH is answering
 
