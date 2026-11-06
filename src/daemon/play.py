@@ -138,7 +138,7 @@ class Play:
         except Exception:
             return []
 
-    def _new_game(self, which: str = "") -> Game:
+    def _new_game(self, which: str = "", now: Optional[float] = None) -> Game:
         people = self._people()
         w = re.sub(r"\s+", " ", (which or "").lower()).strip()
         if w in ("people", "people quiz", "quiz") and PeopleQuiz.possible(people):
@@ -152,7 +152,7 @@ class Play:
         if w in ("trivia", "trivia question"):
             return Trivia(self.rng)
         if w == "daily trivia":
-            return Trivia(self.rng, which=daily_index(datetime.fromtimestamp(self.clock()).date()))
+            return Trivia(self.rng, which=daily_index(datetime.fromtimestamp(self.clock() if now is None else now).date()))
         if w in ("number", "guessing", "guess the number"):
             return NumberGame(self.rng)
         if not w:
@@ -162,8 +162,8 @@ class Play:
             return self.rng.choice((NumberGame, WordAssociation, TwentyQuestions))(self.rng)
         return NumberGame(self.rng)
 
-    def start(self, which: str = "") -> str:
-        self.game = self._new_game(which)
+    def start(self, which: str = "", now: Optional[float] = None) -> str:
+        self.game = self._new_game(which, now)
         self.stats["games"] += 1
         return self.game.start()
 
@@ -198,12 +198,12 @@ class Play:
                 if off[0] == "story":
                     self.stats["stories"] += 1
                     return {"story": True}
-                return {"say": self.start({"trivia": "daily trivia", "riddle": "riddle"}.get(off[0], ""))}
+                return {"say": self.start({"trivia": "daily trivia", "riddle": "riddle"}.get(off[0], ""), now)}
             if _NO.match(t):
                 return {"say": "Okay, another time."}
         m = _START.match(t)
         if m:
-            return {"say": self.start(m.group("which") or m.group("which2") or m.group("which3") or "")}
+            return {"say": self.start(m.group("which") or m.group("which2") or m.group("which3") or "", now)}
         return None
 
     def offer(self, kind: str, now: float):
