@@ -169,6 +169,7 @@ class AmbientConfig:
     # that way next time (src/brain/corrections.py).
     corrections: bool = True
     correction_window_s: float = 120.0
+    correction_late_s: float = 1800.0    # "not what I had in mind", while that answer is still the last
     # Free moments: choose among gap closure, a joke, a mood check, a note on
     # how ASH is running... Needs wonder for the first. Off on a bare runtime.
     moments: bool = False
@@ -276,6 +277,19 @@ class AmbientConfig:
     # "Open it", "remind me about that later", "who was that?" (context.py).
     # On by default: it only rewrites what would otherwise not be understood.
     context: bool = True
+
+
+_STORAGE = re.compile(r"\b(?:free\s+up|clean\s+up|clear\s+(?:up\s+)?|make|get\s+(?:back\s+)?)\s*(?:some\s+|more\s+)?"
+                      r"(?:disk\s+|drive\s+|storage\s+)?space\b"
+                      r"|\b(?:storage|disk|drive)\s+(?:space\s+)?(?:recommendations?|advice|tips|suggestions?)\b"
+                      r"|\bwhat(?:'s|\s+is)\s+(?:using|taking\s+up|eating(?:\s+up)?)\s+(?:all\s+)?(?:my\s+|the\s+)?"
+                      r"(?:disk|storage|space|drive)\b"
+                      r"|\b(?:running|low)\s+(?:out\s+of|on)\s+(?:disk\s+|storage\s+)?space\b", re.I)
+_ADVICE = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:so\s+|ok(?:ay)?\s+|then\s+)?"
+                     r"(?:what\s+(?:do|would)\s+you\s+(?:recommend|suggest|advise)|what\s+should\s+i\s+do"
+                     r"|what\s+can\s+i\s+do|any\s+(?:recommendations?|suggestions?|ideas|advice|tips)"
+                     r"|(?:your\s+)?recommendations?|how\s+(?:do|can)\s+i\s+fix\s+(?:it|that|this))"
+                     r"(?:\s+(?:about\s+(?:it|that|this)|then|now|ash))*\s*[?.!]*\s*$", re.I)
 
 
 def _as_you(sentence: str) -> str:
@@ -880,11 +894,37 @@ class AmbientRuntime:
         while self._watch_pending:
             text = self._watch_pending.pop(0)
             self._last_why = {"kind": "watch", "what": w.fired_what.get(text, "that happened")}
+            if text.startswith("Your disk is filling up"):
+                self._disk_warned_at = now
             try:
                 self.response_sink(text, {"addressed": False, "source": "watch",
                                           "attention": None, "pathway": "watch"})
             except Exception:
                 logger.exception("Response sink failed")
+
+    def _storage_request(self, ev, now: float) -> bool:
+        """Disk space advice, without the model: asked about outright ("how do
+        I free up space?"), or "what do you recommend?" not long after ASH
+        said the disk was filling up."""
+        w = self.watcher
+        if w is None or not self._user_source(ev):
+            return False
+        text = str(getattr(ev, "text", "") or "").strip()
+        if not text or len(text) > 120:
+            return False
+        asked = bool(_STORAGE.search(text))
+        follow = bool(_ADVICE.match(text)) and now - getattr(self, "_disk_warned_at", -1e18) <= 3 * 3600
+        if not (asked or follow):
+            return False
+        try:
+            say = w.disk_advice(now)
+        except Exception:
+            logger.exception("Disk advice failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
 
     def _watch_request(self, ev, now: float) -> bool:
         """"Tell me when the download finishes": set up, and acknowledged
@@ -1393,6 +1433,8 @@ class AmbientRuntime:
             return
         if self._watch_request(ev, now):
             return
+        if self._storage_request(ev, now):
+            return
         if self._reminder_request(ev, now):
             return
         if self._media_request(ev, now):
@@ -1513,12 +1555,17 @@ class AmbientRuntime:
                 ev.addressed = True
                 return False
         lt = self._last_turn
-        if lt is None or now - lt["t"] > self.cfg.correction_window_s:
+        if lt is None:
             return False
         if not lt.get("intent") or lt["intent"] == "conversation":
             return False
         meant = read_correction(text)
         if meant is None:
+            return False
+        # "Not what I had in mind" can only be about the last answer, so it
+        # counts for longer than a bare "no".
+        late_ok = re.search(r"\bnot\s+(?:quite\s+|really\s+|exactly\s+)?what\s+i\b|n't\s+what\s+i\b", text, re.I)
+        if now - lt["t"] > (self.cfg.correction_late_s if late_ok else self.cfg.correction_window_s):
             return False
         self._last_turn = None
         self.stats["corrections"] += 1

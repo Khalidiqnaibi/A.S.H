@@ -47,7 +47,11 @@ _CORRECTION = re.compile(
     r"|^\s*(?:that'?s|this is|that was|it'?s)\s+not\s+what\s+i\s+(?:asked(?: for)?|meant|wanted|said)\b"
     r"[\s,.!:;-]*(?:i\s+(?:meant|wanted|asked(?:\s+for)?)\s*)?(?P<rest3>.*)$"
     r"|^\s*i\s+didn'?t\s+(?:ask|want|mean)\b(?:\s+(?:for\s+)?(?:that|you to do that|this))?[\s,.!:;-]*"
-    r"(?:i\s+(?:meant|wanted|asked(?:\s+for)?)\s*)?(?P<rest4>.*)$",
+    r"(?:i\s+(?:meant|wanted|asked(?:\s+for)?)\s*)?(?P<rest4>.*)$"
+    # "not what I had in mind (nope)", "that is not what I wanted", "that wasn't what I asked"
+    r"|^\s*(?:(?:no+|nope|nah)[\s,.!]+)?(?:(?:that|this|it)(?:'s|\s+is|\s+was)\s+not|(?:that|this|it)\s+(?:wasn'?t|isn'?t)|not)"
+    r"\s+(?:quite\s+|really\s+|exactly\s+)?what\s+i\s+(?:had\s+in\s+mind|asked(?:\s+for)?|meant|wanted|said|was\s+(?:looking|asking)\s+for)\b"
+    r"(?:[\s,.!]+(?:no+|nope|nah)\b)?[\s,.!:;-]*(?:i\s+(?:meant|wanted|asked(?:\s+for)?)\s*)?(?P<rest5>.*)$",
     re.I)
 
 
@@ -61,12 +65,16 @@ def read_correction(text: str) -> Optional[str]:
     if not m:
         return None
     bare = re.match(r"^\s*(?:no+|nope|nah)\b", t, re.I)
-    rest = next((g for g in (m.group("rest"), m.group("rest2"), m.group("rest3"), m.group("rest4")) if g),
+    rest = next((g for g in (m.group("rest"), m.group("rest2"), m.group("rest3"), m.group("rest4"),
+                             m.group("rest5")) if g),
                 "").strip(" .!")
     if bare:
         # "no, I meant X" / "no, search my files" are corrections; "no",
         # "no thanks", "no, that's fine" and "no I don't think so" are answers.
         lead = re.match(r"^\s*(?:no+|nope|nah)\b[\s,.!:;-]*(?P<x>.*)$", t, re.I).group("x")
+        if re.match(r"(?:that'?s\s+|that\s+is\s+|it'?s\s+)?not\s+(?:quite\s+|really\s+|exactly\s+)?what\s+i\b",
+                    lead, re.I):
+            return read_correction(lead)          # "nope, not what I had in mind. I meant X"
         if not re.match(r"(?:i\s+(?:meant|mean|wanted|asked|said)|not that|wrong|that'?s not)\b", lead, re.I) \
                 and not re.match(r"(?:search|find|open|show|check|look|tell|set|play|read|calculate|convert|"
                                  r"remind|what|how|when|where|who)\b", lead, re.I):

@@ -504,6 +504,14 @@ them; `ashctl.py watches` lists them.
 Builds are out of reach and it says so: "tell me the program's name, like
 'tell me when npm finishes'". Separately, disk use is sampled hourly, and if
 at the current rate it will be full within two days, ASH says so, once a day.
+It says so only for a steady climb: at least four hours of samples, growing
+in most of them and still growing now. A burst of downloads isn't enough.
+
+**Disk space advice.** "How do I free up space?", "storage
+recommendations", or a plain "what do you recommend?" within three hours of
+that warning, get an answer without the model. It covers how much is free,
+whether it is falling and how fast, the quick wins (Recycle Bin, temporary
+files, Storage Sense), and the biggest things in Downloads.
 
 ## "Why did you say that?"
 
@@ -1001,6 +1009,19 @@ being spyware. The difference is entirely in what it refuses to keep.
 
 A microphone in a shared space records people who did not opt in. Code cannot
 solve that; `announce_on_start` at least makes ASH's presence visible.
+
+## If the machine crashes while ASH is answering
+
+The language model runs in Ollama, which puts part of it on the graphics
+card. A blue screen that comes while ASH is thinking (IRQL_NOT_LESS_OR_EQUAL
+and the like) is a kernel driver failing under that load, usually the GPU
+driver. ASH, a normal program, can't cause one on its own.
+
+The fix is an up-to-date GPU driver. Until then, `llm.gpu: false` in
+`daemon.json`, or "Use the graphics card for the language model" off in the
+console's settings, keeps the model on the CPU. That's slower, but leaves
+the driver nothing to trip over. The console switch takes effect on the
+next answer, with no restart.
 
 ## Running it as a service
 

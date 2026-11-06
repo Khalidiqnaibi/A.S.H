@@ -37,6 +37,7 @@ from typing import Any, Callable, Deque, Dict, List, Optional, Set, Tuple
 logger = logging.getLogger("ash.daemon.watch")
 
 HOUR, DAY = 3600.0, 86400.0
+GB, MB = float(1 << 30), float(1 << 20)
 PARTIAL = (".crdownload", ".part", ".partial", ".download", ".tmp", ".opdownload")
 
 
@@ -73,6 +74,36 @@ class Probe:
             return float(u.used), float(u.total)
         except Exception:
             return None
+
+    def biggest(self, path: str, n: int = 3, budget_s: float = 2.0) -> List[Tuple[str, int]]:
+        """The n biggest things directly in `path` (a folder counts with what
+        is in it), within a time budget. Names and sizes only."""
+        out: List[Tuple[str, int]] = []
+        deadline = time.monotonic() + budget_s
+        try:
+            entries = list(os.scandir(os.path.expanduser(path)))
+        except OSError:
+            return []
+        for e in entries:
+            if time.monotonic() > deadline:
+                break
+            try:
+                if e.is_file(follow_symlinks=False):
+                    out.append((e.name, e.stat().st_size))
+                elif e.is_dir(follow_symlinks=False):
+                    size = 0
+                    for dp, _dn, fns in os.walk(e.path):
+                        for f in fns:
+                            try:
+                                size += os.path.getsize(os.path.join(dp, f))
+                            except OSError:
+                                pass
+                        if time.monotonic() > deadline:
+                            break
+                    out.append((e.name + "\\", size))
+            except OSError:
+                continue
+        return sorted(out, key=lambda x: -x[1])[:n]
 
     def listdir(self, path: str) -> Optional[Dict[str, Tuple[int, float]]]:
         try:
@@ -429,10 +460,15 @@ class Watcher:
         used, total = du
         self.disk_samples.append((now, used))
         window = [s for s in self.disk_samples if now - s[0] <= 12 * HOUR]
-        if len(window) < 3 or now - self.disk_warned < DAY:
+        if len(window) < 5 or now - self.disk_warned < DAY:
             return None
         (t0, u0), (t1, u1) = window[0], window[-1]
-        if t1 - t0 < 2 * HOUR or u1 <= u0:
+        # A steady climb, not one burst: hours of samples, growing in most of
+        # them and still growing now. A couple of big downloads overnight
+        # once read as "full in about 20 hours" from two hours of samples.
+        steps = [b[1] - a[1] for a, b in zip(window, window[1:])]
+        growing = sum(1 for d in steps if d > 0)
+        if t1 - t0 < 4 * HOUR or u1 <= u0 or growing < 0.7 * len(steps) or steps[-1] <= 0:
             return None
         rate = (u1 - u0) / (t1 - t0)                 # bytes per second
         left = (total - used) / rate
@@ -443,6 +479,35 @@ class Watcher:
         hours = left / HOUR
         when = f"about {hours:.0f} hours" if hours >= 2 else "under two hours"
         return f"Your disk is filling up fast: at this rate it will be full in {when}."
+
+    # -- advice ---------------------------------------------------------------
+    def disk_advice(self, now: Optional[float] = None) -> Optional[str]:
+        """What to do about disk space: how much is free, whether it is really
+        falling, and the biggest things in Downloads. None if the disk can't
+        be read."""
+        now = self.clock() if now is None else now
+        du = self.probe.disk()
+        if du is None:
+            return None
+        used, total = du
+        free = total - used
+        parts = [f"You have {free / GB:.0f} GB free of {total / GB:.0f} GB."]
+        window = [s for s in self.disk_samples if now - s[0] <= 12 * HOUR]
+        if len(window) >= 2 and window[-1][0] - window[0][0] >= HOUR:
+            (t0, u0), (t1, u1) = window[0], window[-1]
+            gb_h = (u1 - u0) / GB / ((t1 - t0) / HOUR)
+            if gb_h > 0.2:
+                parts.append(f"It has been dropping by about {gb_h:.1f} GB an hour lately.")
+            else:
+                parts.append("It isn't dropping right now.")
+        parts.append("Quickest wins: empty the Recycle Bin, clear temporary files (Settings > System > Storage > "
+                     "Temporary files, or turn on Storage Sense), and clear out old installers in Downloads.")
+        big = self.probe.biggest(self.cfg.downloads_dir) if hasattr(self.probe, "biggest") else []
+        if big:
+            parts.append("The biggest things in Downloads: " + ", ".join(
+                f"{name} ({size / GB:.1f} GB)" if size >= GB else f"{name} ({size / MB:.0f} MB)"
+                for name, size in big[:3]) + ".")
+        return " ".join(parts)
 
     # -- inspection ------------------------------------------------------------
     def active(self) -> List[Watch]:

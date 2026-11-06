@@ -213,6 +213,12 @@ class LLM(BaseChatModel):
                 "num_predict": int(self._max_tokens),
             },
         }
+        # ASH_OLLAMA_NUM_GPU: how many layers to put on the GPU; "0" keeps the
+        # model off the graphics card entirely (daemon.json: llm.gpu = false),
+        # for a machine whose GPU driver can't be trusted under load.
+        n_gpu = os.environ.get("ASH_OLLAMA_NUM_GPU", "").strip()
+        if n_gpu.lstrip("-").isdigit():
+            payload["options"]["num_gpu"] = int(n_gpu)
         try:
             r = requests.post(self._ollama_url, json=payload, timeout=self._timeout)
 

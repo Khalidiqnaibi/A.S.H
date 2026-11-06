@@ -253,6 +253,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # Multi-step requests ("open Outlook and set a timer for 25 minutes") and
     # named tasks ("when I say start work, ..."), shown as a plan, run on a yes.
     "tasks": {"enabled": True},
+    # gpu: false keeps the language model off the graphics card (Ollama runs it
+    # on the CPU: slower, but nothing for a shaky GPU driver to trip over).
+    "llm": {"gpu": True},
     # Email, read-only: the unread count and who sent what, in the briefing
     # and when asked. Nothing happens until an IMAP account is set; use an
     # app password. Bodies are never read, nothing is marked read or sent.

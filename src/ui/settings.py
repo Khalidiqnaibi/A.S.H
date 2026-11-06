@@ -40,6 +40,7 @@ SETTINGS: Dict[str, Tuple[str, str, str]] = {
     "briefings.enabled": ("bool", "Morning and evening briefings", "Talking"),
     "routines.enabled": ("bool", "Notice routines", "Talking"),
     "focus.enabled": ("bool", "Focus mode", "Talking"),
+    "llm.gpu": ("bool", "Use the graphics card for the language model", "Model"),
     "face.sounds": ("bool", "A small chime with some expressions", "Talking"),
     "remarks.enabled": ("bool", "Keep a log of what it says", "Talking"),
     "reminders.enabled": ("bool", "Reminders and timers", "Helping"),
@@ -152,7 +153,11 @@ def current(runtime, key: str, saved: Optional[Dict[str, Any]] = None) -> Any:
     name = _name(key)
     part = _part(runtime, key)
     val: Any = None
-    if key == "face.sounds" and part is not None:
+    if key == "llm.gpu":
+        val = os.environ.get("ASH_OLLAMA_NUM_GPU", "").strip() != "0"
+        if saved is not None and not os.environ.get("ASH_OLLAMA_NUM_GPU") and _saved(saved, key) is False:
+            val = False
+    elif key == "face.sounds" and part is not None:
         val = bool(getattr(getattr(part, "sounds", None), "enabled", False))
     elif part is not None:
         cfg = getattr(part, "cfg", None)
@@ -178,6 +183,13 @@ def current(runtime, key: str, saved: Optional[Dict[str, Any]] = None) -> Any:
 def apply(runtime, key: str, value: Any) -> bool:
     """Change the running daemon. False if that part is not running (it will
     be after a restart)."""
+    if key == "llm.gpu":
+        # Read on every call to the model, so it takes effect at once.
+        if value:
+            os.environ.pop("ASH_OLLAMA_NUM_GPU", None)
+        else:
+            os.environ["ASH_OLLAMA_NUM_GPU"] = "0"
+        return True
     section, name = key.split(".", 1)[0], _name(key)
     part = _part(runtime, key)
     if part is None:
@@ -234,7 +246,7 @@ def listing(runtime, path: Optional[str]) -> List[Dict[str, Any]]:
         except Exception:
             val = None
         out.append({"key": key, "type": kind, "label": label, "group": group, "value": val,
-                    "live": _part(runtime, key) is not None})
+                    "live": _part(runtime, key) is not None or key == "llm.gpu"})
     return out
 
 

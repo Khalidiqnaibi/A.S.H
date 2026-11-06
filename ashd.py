@@ -171,6 +171,9 @@ def main() -> int:
     args = ap.parse_args()
 
     cfg = load_config(args.config) if args.config else load_config()
+    if cfg.get("llm", {}).get("gpu", True) is False:
+        # The model stays off the graphics card (see tools/LLM.py).
+        os.environ["ASH_OLLAMA_NUM_GPU"] = "0"
     log_cfg = dict(cfg.get("log", {}))
     if args.verbose:
         log_cfg["level"] = "DEBUG"
