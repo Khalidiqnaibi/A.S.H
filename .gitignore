@@ -18,3 +18,11 @@ data/embeddings_intents.pkl
 # what ASH is wondering about, and what it was told
 /state/wonder/
 /state/activity/
+
+# everything the daemon writes while it runs: personal, never committed
+# (daemon.json holds the email password and the smart-home token)
+/daemon.json
+/logs/*.log
+/logs/*.log.*
+/state/
+# (files already tracked stay tracked: git ignores nothing it already has)
