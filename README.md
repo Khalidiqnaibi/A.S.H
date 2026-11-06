@@ -229,6 +229,27 @@ Characteristics:
 * No runtime retraining
 * Commands updated during maintenance phase
 
+**Keeping the fast path open.** A confident match runs its tool directly,
+with no model. Three feedback loops once closed that path entirely, so every
+request, even "what's 15 times 23", went to the model:
+
+* **The critic's reward.** The critic, System 1's sense of what a reflex is
+  worth, was trained with −0.4 on every turn that went slow, tool or not.
+  Since most turns are talk, it learned that everything is worth −0.4, and
+  then fewer requests went fast. Now only turns where a tool ran train it: a
+  tool that worked is rewarded, fast or slow, and one that failed is
+  punished. A critic saved under the old reward starts again from its
+  warm-start priors (`reward_version` in `state/brain/critic.json`).
+* **Outcome surprise.** It rose with every first successful use of a tool,
+  because an untried tool's 0.5 counted as a prediction. It is now weighted
+  by the evidence behind the prediction.
+* **The novelty ceiling.** A question on a new topic is "novel" next to the
+  one before it. Novelty no longer sends a confident match on a harmless,
+  reversible tool to the model. Weak matches and anything that changes
+  things still deliberate.
+
+`tst_fastpath.py` checks these, using the numbers from a real session.
+
 ---
 
 ## 2. Deterministic Tool Layer

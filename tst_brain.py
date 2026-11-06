@@ -621,10 +621,14 @@ def main():
     INTENTS["screen_view"] = ["on my screen", "capture the screen"]
 
     def fresh_brain_with(result):
-        # A fresh brain, because the first question it is ever asked is novel
-        # and so deliberates: the slow path is the one that narrates.
+        # The slow path is the one that narrates, so this puts the request on
+        # it. (It used to rely on a fresh brain's first question being novel;
+        # novelty no longer sends a confident match on a harmless tool to the
+        # model -- see tst_fastpath.py.)
+        from src.brain.signals import Pathway as _P
         b = build_brain(tempfile.mkdtemp())
         b.system1.registry.add("screen", lambda q: result, ["screen_view"])
+        b.executive.gate = lambda *a, **k: (_P.SLOW, ["deliberation forced by the test"])
         return b
 
     r = fresh_brain_with({"ok": True, "verbatim": True, "result": SAID}).think(

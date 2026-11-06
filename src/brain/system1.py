@@ -51,6 +51,9 @@ logger = logging.getLogger("ash.brain.system1")
 
 STATE_DIR = os.environ.get("ASH_BRAIN_STATE", os.path.join(os.getcwd(), "state", "brain"))
 
+# 2: conversation turns (escalated, no tool run) no longer train the critic.
+REWARD_VERSION = 2
+
 FEATURE_NAMES = [
     "intent_score", "novelty", "salience", "surprise", "expected_success",
     "urgency", "caution", "curiosity", "effort_budget", "reversible", "bias",
@@ -310,6 +313,17 @@ class System1Policy:
         p = self._pending
         self._pending = None
 
+        nq = self._norm(next_query)
+        if p["tool_success"] is None and p["escalated"]:
+            # A turn that needed the model and ran no tool -- a conversation --
+            # says nothing about whether the reflex's tool would have been
+            # right. Scoring it -0.4 taught the critic that every request is
+            # worth -0.4: its values sank, so more turns escalated, so it
+            # learned -0.4 more often, until even "what's 15 times 23" went to
+            # the model. The critic learns from what tools did, not from talk.
+            self._recent_queries.append(nq)
+            return None
+
         r = 0.0
         if p["tool_success"] is True:
             r += 1.0
@@ -318,7 +332,6 @@ class System1Policy:
         if p["escalated"]:
             r -= 0.4
 
-        nq = self._norm(next_query)
         # Repeat detection: heavy token overlap on consecutive turns usually
         # means the previous answer missed. But this only counts as failure
         # if the previous turn actually claimed to answer -- if it asked a
@@ -348,7 +361,8 @@ class System1Policy:
         try:
             os.makedirs(STATE_DIR, exist_ok=True)
             with open(self.path, "w", encoding="utf-8") as fh:
-                json.dump({"w": self.critic.w.tolist(), "updates": self.critic.updates}, fh, indent=2)
+                json.dump({"w": self.critic.w.tolist(), "updates": self.critic.updates,
+                           "reward_version": REWARD_VERSION}, fh, indent=2)
         except Exception:
             logger.exception("Failed to persist critic")
 
@@ -358,7 +372,13 @@ class System1Policy:
                 with open(self.path, "r", encoding="utf-8") as fh:
                     d = json.load(fh)
                 w = np.array(d.get("w", []), dtype=np.float32)
-                if w.shape == self.critic.w.shape:
+                if int(d.get("reward_version", 1)) < REWARD_VERSION:
+                    # Trained on the old reward, which punished every
+                    # conversation turn: those weights steer away from the
+                    # fast path for no reason. Start again from the priors.
+                    logger.warning("Critic was trained on the old reward (%s updates) -- starting again "
+                                   "from the warm-start priors", d.get("updates", "?"))
+                elif w.shape == self.critic.w.shape:
                     self.critic.w = w
                     self.critic.updates = int(d.get("updates", 0))
                     logger.info("Critic restored (%d updates)", self.critic.updates)

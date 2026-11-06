@@ -541,7 +541,12 @@ class ExecutiveCore:
                 f"(state={prediction.surprise:.2f}@conf{prediction.confidence:.2f}, "
                 f"outcome={prediction.outcome_surprise:.2f})"
             )
-        if bundle.novelty > novelty_ceiling:
+        # Novelty is about an unfamiliar situation. A question on a new topic
+        # is "novel" next to the one before it, but when the classifier
+        # clearly knows the request and the tool has no side effects, there is
+        # nothing to deliberate: running it is cheap and undoable.
+        recognised = proposal.reversible and proposal.confidence >= match_floor + 0.15
+        if bundle.novelty > novelty_ceiling and not recognised:
             reasons.append(f"novelty {bundle.novelty:.2f} > ceiling {novelty_ceiling:.2f}")
         if deadlocked or margin < DEADLOCK_MARGIN:
             reasons.append(f"board contested (margin {margin:.3f})")

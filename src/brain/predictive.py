@@ -324,9 +324,16 @@ class PredictiveModel:
     def record_outcome(self, intent: Optional[str], success: bool):
         if not intent:
             return
-        # Score the estimate we made BEFORE folding in the new evidence.
+        # Score the estimate we made BEFORE folding in the new evidence --
+        # weighted by how much evidence it rested on. An untried tool's 0.5 is
+        # a shrug, not a prediction, so its first successes are not surprising:
+        # unweighted, every working tool used for the first time raised
+        # "outcome surprise" toward 0.5, which lowered every proposal's score.
         predicted = self.expected_success(intent)
-        self._outcome_err = 0.8 * self._outcome_err + 0.2 * abs(predicted - (1.0 if success else 0.0))
+        c = self.outcomes.get(intent)
+        n = c.n() if c is not None else 0.0
+        certainty = n / (n + 5.0)
+        self._outcome_err = 0.8 * self._outcome_err + 0.2 * certainty * abs(predicted - (1.0 if success else 0.0))
         self.outcomes.setdefault(intent, _BetaCounts()).observe(bool(success))
         self._last_outcome = (intent, bool(success))
 
