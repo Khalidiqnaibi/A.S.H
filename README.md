@@ -1010,6 +1010,35 @@ being spyware. The difference is entirely in what it refuses to keep.
 A microphone in a shared space records people who did not opt in. Code cannot
 solve that; `announce_on_start` at least makes ASH's presence visible.
 
+## Controlling ASH by voice
+
+`src/daemon/voicectl.py`. What the console's buttons do, said out loud. It
+is done by rule and said as done; the language model never gets these.
+
+| Say | It does |
+|---|---|
+| "privacy mode", "go private" | turns the mic, camera and screen off (type "privacy off" or press Resume to undo) |
+| "turn off the mic", "stop listening" | turns just the microphone off |
+| "turn on / off the camera", "screen capture on / off" | turns that sensor on or off |
+| "go to sleep", "quiet mode" / "wake up" | brings nothing up, with a sleepy face / ends it |
+| "shut down", "turn off" | asks first, then stops the daemon cleanly |
+| "smile", "look surprised", "wink", "make a sad face" | shows that face |
+| "what faces can you make?" | lists the faces |
+| "what's your status / CPU / memory?" | gives the real numbers and which sensors are on |
+
+Turning something off works from any line the microphone hears, since it
+only makes ASH more private. Turning something on needs a line meant for
+ASH, and nothing turns on while privacy mode is on. If the model's answer
+claims one of these ("I'm turning off now"), ASH says the truth instead and
+names the command.
+
+**Hearing itself.** With speakers, the microphone picks up ASH's own voice
+(`src/senses/echo.py`). ASH keeps what it is saying and when. A line heard
+during or just after that, made mostly of its own words, is dropped. You
+can still talk over it ("stop") because your words are different. Whisper is
+told to expect the name, and "Ass …" at the start of a sentence is read as
+"Ash …".
+
 ## If the machine crashes while ASH is answering
 
 The language model runs in Ollama, which puts part of it on the graphics

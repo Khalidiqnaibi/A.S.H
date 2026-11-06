@@ -310,7 +310,7 @@ def attach_to_daemon(runtime, player, enabled: bool = True, sounds: bool = False
 
     def social_step(now, idle_s=None):
         try:
-            bridge.on_quiet_hours(bool(runtime.gate._in_quiet_hours(now)))
+            bridge.on_quiet_hours(bool(runtime.gate._in_quiet_hours(now)) or bool(getattr(runtime.gate, "muted", False)))
         except Exception:
             logger.exception("Face hook (quiet hours) failed")
         return original_social(now, idle_s)

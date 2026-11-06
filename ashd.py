@@ -44,6 +44,7 @@ import argparse
 import logging
 import os
 import sys
+import threading
 import time
 
 # Windows' default console codepage (e.g. cp1256, cp1252 -- whatever the
@@ -423,7 +424,16 @@ def main() -> int:
 
         watchdog = Watchdog(runtime)
 
+        done = threading.Event()
+        quit_requested = threading.Event()
+        # "Shut down" said to ASH: after the goodbye is spoken, the main loop
+        # below ends and runs the same shutdown as Ctrl-C.
+        runtime.request_shutdown = lambda: threading.Timer(3.0, quit_requested.set).start()
+
         def shutdown():
+            if done.is_set():
+                return                    # the signal handler and the main loop both get here
+            done.set()
             try:
                 face = getattr(runtime, "face", None)
                 if face is not None:
@@ -463,8 +473,8 @@ def main() -> int:
         return 1
 
     try:
-        while runtime.alive():
-            time.sleep(1.0)
+        while runtime.alive() and not quit_requested.is_set():
+            time.sleep(0.5)
     except KeyboardInterrupt:
         pass
     finally:

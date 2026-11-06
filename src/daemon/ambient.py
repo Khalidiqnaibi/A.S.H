@@ -70,6 +70,7 @@ from .media import Media, MediaConfig
 from .remarks import RemarkLog
 from .speech import SpeechControl, wants_brief, wants_short, wants_stop
 from .tasks import Tasks
+from . import voicectl
 from .context import Context
 from .focus import Focus
 from .weather import Weather, WeatherConfig
@@ -284,7 +285,11 @@ _STORAGE = re.compile(r"\b(?:free\s+up|clean\s+up|clear\s+(?:up\s+)?|make|get\s+
                       r"|\b(?:storage|disk|drive)\s+(?:space\s+)?(?:recommendations?|advice|tips|suggestions?)\b"
                       r"|\bwhat(?:'s|\s+is)\s+(?:using|taking\s+up|eating(?:\s+up)?)\s+(?:all\s+)?(?:my\s+|the\s+)?"
                       r"(?:disk|storage|space|drive)\b"
-                      r"|\b(?:running|low)\s+(?:out\s+of|on)\s+(?:disk\s+|storage\s+)?space\b", re.I)
+                      r"|\b(?:running|low)\s+(?:out\s+of|on)\s+(?:disk\s+|storage\s+)?space\b"
+                      # "what's your recommendation for the storage allocation in this system?"
+                      r"|\b(?:recommend\w*|advice|advise|suggest\w*|tips?)\b[^.?!]{0,30}\b(?:storage|disk\s+space|"
+                      r"drive\s+space|hard\s+drive|ssd)\b"
+                      r"|\b(?:storage|disk)\s+(?:allocation|usage|situation|status)\b", re.I)
 _ADVICE = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:so\s+|ok(?:ay)?\s+|then\s+)?"
                      r"(?:what\s+(?:do|would)\s+you\s+(?:recommend|suggest|advise)|what\s+should\s+i\s+do"
                      r"|what\s+can\s+i\s+do|any\s+(?:recommendations?|suggestions?|ideas|advice|tips)"
@@ -547,6 +552,12 @@ class AmbientRuntime:
                 self.remarks.said(text, meta)
             except Exception:
                 logger.exception("Remark log failed")
+        if (text and meta.get("addressed") and str(meta.get("pathway", "")).lower() == "slow"
+                and voicectl.claimed_action(text)):
+            # The model said it turned something off, went to sleep... It
+            # can't: only the voice commands can. Say so instead.
+            logger.info("Model claimed an action it cannot do -- replaced: %r", text[:120])
+            text = voicectl.HONEST
         if self.context is not None and text and self._capture is None:
             try:
                 self.context.said(text)
@@ -1397,6 +1408,11 @@ class AmbientRuntime:
         if self.speech is not None and self._speech_step(ev, now):
             return
 
+        # "Privacy mode", "turn off the mic", "smile", "what's your status":
+        # done by rule, and said as done -- never handed to the model.
+        if self._voice_command(ev, now):
+            return
+
         # "Open it", "remind me about that later": rewritten into the full
         # request, then handled as usual; "who was that?" answered here.
         if self.context is not None and self._context_step(ev, now):
@@ -1897,6 +1913,104 @@ class AmbientRuntime:
         # Not made "addressed" here: an overheard "close it" must not become
         # a command just because it could be resolved.
         return False
+
+    def _voice_command(self, ev, now: float) -> bool:
+        """What the console's buttons do, said out loud. True if spent."""
+        if not self._user_source(ev):
+            return False
+        from src.senses.mic import MicrophoneSensor
+        text = MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or ""))
+        pend = getattr(self, "_shutdown_asked", None)
+        if pend is not None:
+            self._shutdown_asked = None
+            if now - pend <= 30.0 and self._meant_for_ash(ev) and re.match(
+                    r"^\s*(?:yes|yeah|yep|sure|ok(?:ay)?|do it|go ahead|confirm(?:ed)?)\b", text, re.I):
+                req = getattr(self, "request_shutdown", None)
+                if req is None:
+                    return self._control_say(ev, "I can't switch myself off from here -- use the console's stop, or "
+                                                 "Ctrl-C where I'm running.")
+                self._control_say(ev, "Shutting down. Bye.")
+                try:
+                    req()
+                except Exception:
+                    logger.exception("Shutdown request failed")
+                return True
+        cmd = voicectl.parse(text)
+        if cmd is None:
+            return False
+        if cmd.turns_on and not self._meant_for_ash(ev):
+            return False                     # overheard: only ever makes ASH more private
+        sensors = self.periphery.sensors
+        name = cmd.name
+
+        def toggle(sensor: str, on: bool, label: str) -> str:
+            s = sensors.get(sensor)
+            if s is None:
+                return f"There's no {label} set up on this machine."
+            if on and self.privacy.paused:
+                return f"Privacy mode is on -- turn it off first (\u201cprivacy off\u201d), then the {label}."
+            try:
+                s.enable() if on else s.disable()
+            except Exception:
+                logger.exception("Could not switch %s", sensor)
+                return f"I couldn't switch the {label} {'on' if on else 'off'}."
+            return f"{label[0].upper() + label[1:]} {'on' if on else 'off'}."
+
+        if name == "privacy_on":
+            self.privacy.pause("voice")
+            say = ("Privacy mode on -- the microphone, camera and screen are off. Type \u201cprivacy off\u201d in "
+                   "the console, or press Resume, to turn them back on.")
+        elif name == "privacy_off":
+            self.privacy.resume()
+            say = "Privacy mode off -- sensors are back on."
+        elif name == "mic_off":
+            say = toggle("microphone", False, "microphone")
+            if say == "Microphone off.":
+                say = "Microphone off. Use its button in the console, or type \u201cturn on the mic\u201d, to bring it back."
+        elif name == "mic_on":
+            say = toggle("microphone", True, "microphone")
+        elif name in ("camera_on", "camera_off"):
+            say = toggle("camera", name == "camera_on", "camera")
+        elif name in ("screen_on", "screen_off"):
+            say = toggle("screenshot", name == "screen_on", "screen capture")
+        elif name == "sleep":
+            self.gate.mute(True)
+            say = "Going quiet -- I won't bring anything up. Say \u201cwake up\u201d when you want me back."
+        elif name == "wake":
+            self.gate.mute(False)
+            say = "I'm back."
+        elif name == "shutdown":
+            self._shutdown_asked = now
+            say = "Shut ASH down completely? Say yes to confirm."
+        elif name == "face":
+            face = getattr(self, "face", None)
+            player = getattr(face, "player", None)
+            if player is None or cmd.arg not in getattr(player, "library", {}):
+                say = "My face isn't running right now."
+            else:
+                player.play(cmd.arg, force=True)
+                say = "Like this." if cmd.arg != "wink" else "\U0001F609"
+        elif name == "faces":
+            player = getattr(getattr(self, "face", None), "player", None)
+            lib = sorted(getattr(player, "library", {}) or {})
+            hidden = {"boot", "shutdown", "idle", "blink", "double_blink", "speaking", "listening", "processing", "error",
+                      "sleeping"}
+            shown = [n.replace("_", " ") for n in lib if n not in hidden]
+            say = ("I can look " + ", ".join(shown[:-1]) + " and " + shown[-1] + ". Say \u201clook surprised\u201d or "
+                   "\u201csmile\u201d.") if shown else "My face isn't running right now."
+        elif name == "status":
+            active = [s.name for s in self.periphery.active_sensors()] if hasattr(self.periphery, "active_sensors") \
+                else [n for n, s in sensors.items() if getattr(getattr(s, "state", None), "value", "") == "active"]
+            say = voicectl.status_line(voicectl.read_stats(), active, bool(getattr(self.gate, "muted", False)),
+                                       bool(self.privacy.paused))
+        else:
+            return False
+        self.stats["voice_commands"] = self.stats.get("voice_commands", 0) + 1
+        return self._control_say(ev, say)
+
+    def _control_say(self, ev, say: str) -> bool:
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
 
     def _speech_step(self, ev, now: float) -> bool:
         """"Stop", "the short version", "keep it short". True if spent."""
