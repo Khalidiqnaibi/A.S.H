@@ -27,6 +27,7 @@ from __future__ import annotations
 import logging
 import os
 import platform
+import re
 import shlex
 import subprocess
 import threading
@@ -137,6 +138,7 @@ class SpeakActuator(Actuator):
             if was:
                 self.speaking = False
                 self.ended_at = time.time()
+                _echo_done()
         return was
 
     def act(self, args: Any) -> Dict[str, Any]:
@@ -148,6 +150,7 @@ class SpeakActuator(Actuator):
             text = args if isinstance(args, str) else str(args)
         if self.tts is None or getattr(self.tts, "engine", True) is None:
             return {"ok": False, "error": "no TTS engine attached"}
+        text = speakable(text)
         # A new line replaces whatever is still being said.
         with self._lock:
             self._gen += 1
@@ -155,6 +158,7 @@ class SpeakActuator(Actuator):
             self._stop.set()
             stop = self._stop = threading.Event()
             self.speaking = True
+        _echo_said(text)                      # so the microphone knows its own voice
 
         # tts.py's stream_audio() only *synthesizes* -- it yields the reply
         # as one WAV and never plays it. app.py's web frontend
@@ -199,9 +203,37 @@ class SpeakActuator(Actuator):
                     if self._gen == gen:           # not replaced by a newer line
                         self.speaking = False
                         self.ended_at = time.time()
+                        _echo_done()
 
         threading.Thread(target=_play, daemon=True).start()
         return {"ok": True, "result": f"speaking {len(text)} chars (async)"}
+
+
+def speakable(text: str) -> str:
+    """One line to speak: list markers and line breaks become pauses. The
+    phonemizer counts lines in and out, and warned ("words count mismatch")
+    on every answer with a numbered list -- and read "1." as "one dot"."""
+    t = re.sub(r"\n\s*(?:\d{1,2}[.)]|[-*\u2022])\s+", ". ", "\n" + (text or "")).lstrip(". ")
+    t = re.sub(r"\*\*|__|`", "", t)                       # markdown emphasis and code ticks
+    t = re.sub(r"\s*\n+\s*", " ", t)
+    t = re.sub(r"([.!?:;])\s*\.\s", r"\1 ", t)               # "intro:. first" -> "intro: first"
+    return re.sub(r"\s{2,}", " ", t).strip()
+
+
+def _echo_said(text: str):
+    try:
+        from .echo import guard
+        guard.said(text)
+    except Exception:
+        logger.debug("echo guard: said failed", exc_info=True)
+
+
+def _echo_done():
+    try:
+        from .echo import guard
+        guard.done()
+    except Exception:
+        logger.debug("echo guard: done failed", exc_info=True)
 
 
 def _wav_seconds(wav: bytes) -> float:

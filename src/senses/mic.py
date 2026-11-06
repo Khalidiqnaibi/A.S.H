@@ -60,6 +60,16 @@ _LEADING_WAKE = re.compile(r"^\s*((hey|ok|okay|yo)\s+)?ash\b[\s,.!?:;-]*", re.I)
 _TRAILING_WAKE = re.compile(r"[\s,]*\b((hey|ok|okay|yo)\s+)?ash[\s.!?]*$", re.I)
 
 
+_MISHEARD = re.compile(r"^(\s*(?:hey|hi|ok|okay)?[\s,]*)(?:ass|asch|ashe)(?=[\s,]+\w)", re.I)
+
+
+def fix_name(text: str) -> str:
+    """Whisper's usual mishearings of the name at the start of a sentence
+    ("Ass system status") read as the name. Only at the start, and only
+    with more words after it."""
+    return _MISHEARD.sub(lambda m: m.group(1) + "Ash", text or "", count=1)
+
+
 def build_event(source: str, text: str, verdict, data=None, **meta) -> SensorEvent:
     """One heard utterance as a SensorEvent, graded by the address verdict.
 
@@ -255,13 +265,22 @@ class MicrophoneSensor(Sensor):
     def _finish(self, audio):
         """One complete utterance: transcribe and queue it."""
         duration = len(audio) / SAMPLE_RATE
-        text = self.transcribe(audio)
+        text = fix_name(self.transcribe(audio))
         if not text:
             # Very frequent with the energy-VAD fallback (no webrtcvad) --
             # noise/room tone clears the level gate but transcribes to
             # nothing. debug, not info, or this drowns the log.
             logger.debug("Mic: %.2fs clip transcribed empty (discarded)", duration)
             return
+
+        # ASH's own voice, coming back through the speakers: not the user.
+        try:
+            from .echo import guard
+            if guard.is_echo(text, time.time(), duration):
+                logger.info("Mic: ignored ASH's own voice (%.2fs): %r", duration, text)
+                return
+        except Exception:
+            logger.debug("echo check failed", exc_info=True)
 
         verdict = address.score(text)
         addressed = verdict.addressed
@@ -318,8 +337,11 @@ class MicrophoneSensor(Sensor):
 
             if not hasattr(self, "_whisper"):
                 self._whisper = WhisperModel("base.en", device="cpu", compute_type="int8")
+            # The hint makes the name likelier to come out as "Ash" -- it was
+            # heard as "Ass system status" and ignored.
             segs, _ = self._whisper.transcribe(audio.astype(np.float32) / 32768.0,
-                                               language="en", vad_filter=True)
+                                               language="en", vad_filter=True,
+                                               initial_prompt="Talking to Ash, my assistant.")
             return " ".join(s.text for s in segs).strip()
         except Exception:
             pass
