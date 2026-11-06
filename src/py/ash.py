@@ -122,6 +122,10 @@ DEFAULT_LLM_TEMPERATURE = 0.9
 # hung. Bumped to 5 minutes, and made tunable per-machine via env var since
 # hardware speed varies a lot more than this codebase does.
 DEFAULT_LLM_TIMEOUT = int(os.getenv("ASH_LLM_TIMEOUT", "300"))
+# Spoken answers are clipped to ~600 characters (about 150 tokens) before they
+# are said, yet the model was asked for up to 512: on a laptop GPU that is a
+# minute of generating words that are then thrown away. ASH_LLM_MAX_TOKENS to change.
+DEFAULT_LLM_MAX_TOKENS = int(os.getenv("ASH_LLM_MAX_TOKENS", "200"))
 
 
 def build_llm(temperature: float = None, timeout: int = DEFAULT_LLM_TIMEOUT):
@@ -146,6 +150,7 @@ def build_llm(temperature: float = None, timeout: int = DEFAULT_LLM_TIMEOUT):
         # default: ollama
         return LLM(
             mode="ollama",
+            max_tokens=DEFAULT_LLM_MAX_TOKENS,
             temperature=temp,
             ollama_model=OLLAMA_MODEL,
             ollama_url=OLLAMA_URL,

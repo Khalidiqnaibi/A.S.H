@@ -131,6 +131,12 @@ class MemoryRouter:
             "core_always_include_priority": 8,
             # Episodes at/above this importance are always surfaced.
             "episodic_always_include_importance": 0.85,
+            # Old episodes must be more on-topic to be brought up: an answer
+            # to "what do you see?" mentioned "the YOLO pipeline we discussed in
+            # late June". Older than stale_days the bar rises by stale_extra,
+            # older than old_days by old_extra more.
+            "episodic_stale_days": 14.0, "episodic_stale_extra": 0.10,
+            "episodic_old_days": 60.0, "episodic_old_extra": 0.08,
             # Minimum Disambiguator confidence to treat a fuzzy entity match
             # as relevant for *retrieval*. Lower than entity_link_threshold,
             # since showing a borderline-relevant entity for grounding is
@@ -419,6 +425,23 @@ class MemoryRouter:
         native = max(0.0, min(1.0, native_score))
         return (0.5 * native) + (0.5 * lexical)
 
+    def _staleness(self, ep: Any, now: Optional[float] = None) -> float:
+        """How much more relevant an old episode has to be."""
+        try:
+            t = float(getattr(ep, "timestamp", None) or getattr(ep, "created_at", 0) or 0)
+        except (TypeError, ValueError):
+            return 0.0
+        if t <= 0:
+            return 0.0
+        age_days = ((time.time() if now is None else now) - t) / 86400.0
+        c = self.config
+        extra = 0.0
+        if age_days > c["episodic_stale_days"]:
+            extra += c["episodic_stale_extra"]
+        if age_days > c["episodic_old_days"]:
+            extra += c["episodic_old_extra"]
+        return extra
+
     def _format_timestamp(self, ts: Any) -> str:
         try:
             return datetime.fromtimestamp(float(ts)).strftime("%Y-%m-%d %H:%M")
@@ -513,7 +536,7 @@ class MemoryRouter:
             score = self._score_item(query_tokens, summary, self._extract_native_score(ep))
             importance = getattr(ep, "importance", 0.5) or 0.5
             always_keep = importance >= always_importance
-            if always_keep or score >= min_relevance:
+            if always_keep or score >= min_relevance + self._staleness(ep):
                 scored.append((always_keep, score, importance, ep))
 
         if not scored:
@@ -636,9 +659,9 @@ class MemoryRouter:
     def retrieve_context(
         self,
         query: str,
-        top_k_episodes: int = 8,
+        top_k_episodes: int = 5,       # was 8: fewer, so the prompt is shorter and the model faster
         top_k_core: int = 8,
-        top_k_entities: int = 8,
+        top_k_entities: int = 5,
         min_relevance: Optional[float] = None,
     ) -> Dict[str, str]:
         """
