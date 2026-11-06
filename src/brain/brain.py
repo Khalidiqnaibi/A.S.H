@@ -605,6 +605,7 @@ class Brain:
             # in front of the real answer. Nothing a model adds to a
             # deterministic sentence is an improvement.
             text = str(tool_out["result"])
+            self.system2.last_narration = {"mode": "verbatim", "calls": 0, "problems": []}
         else:
             text = self.system2.narrate(
                 self.name, query, facts, ctx, self.memory.working_block(),

@@ -639,8 +639,14 @@ def main():
 
     r = fresh_brain_with({"ok": True, "result": SAID}).think(
         "what is on my screen, capture the screen")
-    check("an ordinary result on the same path is still phrased by the model",
-          r.pathway == Pathway.SLOW and r.text != SAID, f"{r.pathway.value}: {r.text!r}")
+    if os.environ.get("ASH_GIST") == "1":
+        # Gist-first speaks a plain result by rule, with no model call
+        # (tst_planning.py checks that); only the route differs.
+        check("an ordinary result on the same path is spoken by rule under ASH_GIST=1",
+              r.pathway == Pathway.SLOW and r.text == SAID, f"{r.pathway.value}: {r.text!r}")
+    else:
+        check("an ordinary result on the same path is still phrased by the model",
+              r.pathway == Pathway.SLOW and r.text != SAID, f"{r.pathway.value}: {r.text!r}")
 
     print("\n=== Pathway mix over the session ===")
     for k, v in brain.status()["pathways"].items():

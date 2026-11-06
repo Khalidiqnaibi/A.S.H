@@ -172,8 +172,60 @@ def f5_end_to_end():
     check("a weak match (0.30): deliberates", v.pathway.value == "slow", f"{v.score:.3f} {v.escalation_reasons}")
 
 
+def f6_clear_reflex():
+    print("\n=== F6. A clear reflex needs only a positive score ===")
+    from src.brain.executive import ExecutiveCore
+    ex = ExecutiveCore()
+    p = policy()
+
+    def decide(intent, match, value, cls=ActionClass.RETRIEVAL, reversible=True, origin="system1", tool=True):
+        d = Drives()
+        pred = Prediction()
+        b = PerceptBundle()
+        prop = ActionProposal(intent=intent, tool_name=intent if tool else None, args="", origin=origin,
+                              action_class=cls, confidence=match, value=value, expected_success=0.5,
+                              reversible=reversible)
+        return ex.arbitrate([prop], b, d, pred)
+
+    # the numbers from the session: "read the file" scored 0.044-0.090, under the 0.10 bar
+    v = decide("read_file", 0.64, 0.56)
+    check("read_file @ 0.64, value 0.56: fast", v.pathway.value == "fast", f"{v.score:.3f} {v.escalation_reasons}")
+    v = decide("unit_convert", 0.66, 0.46)
+    check("unit_convert @ 0.66, value 0.46: fast", v.pathway.value == "fast", f"{v.score:.3f} {v.escalation_reasons}")
+    v = decide("read_file", 0.55, 0.56)
+    check("a moderate match (0.55) still needs the usual bar", v.pathway.value == "slow", f"{v.score:.3f}")
+    v = decide("read_file", 0.64, 0.10)
+    check("a low critic value still needs the usual bar", v.pathway.value == "slow", f"{v.score:.3f}")
+    v = decide("set_reminder", 0.79, 0.80, cls=ActionClass.MUTATION)
+    check("something that changes things deliberates", v.pathway.value == "slow", f"{v.escalation_reasons}")
+    v = decide("shell", 0.9, 0.9, cls=ActionClass.IRREVERSIBLE, reversible=False)
+    check("something that can't be undone deliberates", v.pathway.value == "slow")
+    def cleared(match, value, outcome_surprise=0.0, p_success=0.5):
+        """(pathway, whether it was the minimum score that stopped it)."""
+        d = Drives()
+        d.urgency, d.effort_budget = 0.0, 0.3
+        pred = Prediction()
+        pred.outcome_surprise = outcome_surprise
+        prop = ActionProposal(intent="x", tool_name="x", args="", origin="system1", action_class=ActionClass.RETRIEVAL,
+                              confidence=match, value=value, expected_success=p_success, reversible=True)
+        v = ex.arbitrate([prop], PerceptBundle(), d, pred)
+        return v.pathway.value, any("no proposal cleared" in r for r in v.escalation_reasons), v.score
+
+    path, stopped, sc = cleared(0.55, 0.56)
+    check("a 0.55 match: the shortcut is not for it", path == "slow" and stopped, f"{sc:.3f}")
+    path, stopped, sc = cleared(0.64, 0.25)
+    check("a critic value of 0.25: the shortcut is not for it", path == "slow" and stopped, f"{sc:.3f}")
+    path, stopped, sc = cleared(0.64, 0.40, outcome_surprise=0.5, p_success=0.3)
+    check("a clear reflex still needs a positive score", path == "slow" and stopped and sc < 0.02, f"{sc:.3f}")
+    path, stopped, sc = cleared(0.64, 0.35, outcome_surprise=0.5, p_success=0.5)
+    check("...and with one it goes", path == "fast", f"{sc:.3f}")
+    v = decide("read_file", 0.64, 0.56, origin="system2")
+    check("only a reflex's own proposal gets the shortcut", v.pathway.value == "slow" or v.score >= 0.10,
+          f"{v.pathway.value} {v.score:.3f}")
+
+
 if __name__ == "__main__":
-    for fn in (f1_reward, f2_reset, f3_surprise, f4_novelty, f5_end_to_end):
+    for fn in (f1_reward, f2_reset, f3_surprise, f4_novelty, f5_end_to_end, f6_clear_reflex):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

@@ -1194,6 +1194,12 @@ def phase4():
         b.system2.allow_llm_proposals = False
         return b
 
+    def force_slow(b):
+        """Deliberate. These tests are about the slow path's narration; a
+        first query used to be novel enough to take it, but a confident match
+        on a harmless tool now runs fast (see tst_fastpath.py)."""
+        b.executive.gate = lambda *a, **k: (Pathway.SLOW, ["deliberation forced by the test"])
+
     def force_choice(b, intent):
         """Have the board pick this tool whenever it is a candidate. The stub
         encoder is hash-seeded, so which option a cold board prefers varies
@@ -1222,6 +1228,7 @@ def phase4():
 
     b = build("1")
     force_choice(b, "calculate")
+    force_slow(b)
     tst_brain.LLM_CALLS["n"] = 0
     r = b.think("calculate 6 times 7")
     check("precondition: a first query deliberates", r.pathway in (Pathway.SLOW, Pathway.ESCALATED),
@@ -1284,6 +1291,7 @@ def phase4():
             v.chosen = conv
         return v
     b.executive.arbitrate = deadlock_on_conversation
+    force_slow(b)
     tst_brain.LLM_CALLS["n"] = 0
     r = b.think("what time is it and calculate 6 times 7")
     check("a deadlock between two concrete readings asks which, with no model call",

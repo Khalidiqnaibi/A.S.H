@@ -189,6 +189,7 @@ class System2Deliberator:
     def __init__(self, llm, registry, candidate_fn=None, shapes: Optional[Dict[str, Any]] = None,
                  allow_llm_proposals: bool = True, rollout_horizon: int = 3):
         self.llm = llm
+        self.last_narration = {"mode": "none", "calls": 0, "problems": []}   # set by every narration
         self.registry = registry
         self.candidate_fn = candidate_fn      # callable(query, top_k) -> [{"intent","score"}]
         self.shapes = shapes or {}

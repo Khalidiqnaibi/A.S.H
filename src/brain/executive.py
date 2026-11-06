@@ -71,6 +71,9 @@ MAX_MEMBER_WEIGHT = 0.34      # no single member may exceed this share
 VETO_OVERRIDE_RATIO = 0.72    # supermajority needed to override a bounded veto
 DEADLOCK_MARGIN = 0.08        # top-two gap below this = contested
 MIN_PASS_SCORE = 0.10         # below this, no action is worth taking
+CLEAR_MATCH = 0.60            # a "clear reflex": classifier match at least this,
+CLEAR_VALUE = 0.30            # critic value at least this, harmless and undoable tool
+CLEAR_PASS_SCORE = 0.02       # ...only needs a positive score
 
 ALWAYS_DELIBERATE: Set[ActionClass] = {
     ActionClass.MUTATION,
@@ -625,9 +628,20 @@ class ExecutiveCore:
         margin = best_score - runner_up if rivals else 1.0
         deadlocked = bool(rivals) and margin < DEADLOCK_MARGIN
 
-        if best_score < MIN_PASS_SCORE:
+        # A clear reflex needs no vote to be worth running: the classifier
+        # knows the request (match well above the gate's floor), the critic
+        # values it, the tool is harmless and undoable. For these the board's
+        # tally is mostly homeostasis noise -- it left "read the file" and
+        # "convert km to miles" (matches 0.64-0.66) a hair under the bar and
+        # sent them to the model. They only need a positive score; the gate
+        # below still checks surprise, margin and the rest.
+        clear = (best.origin == "system1" and best.tool_name is not None and best.reversible
+                 and best.action_class not in ALWAYS_DELIBERATE
+                 and best.confidence >= CLEAR_MATCH and best.value >= CLEAR_VALUE)
+        bar = CLEAR_PASS_SCORE if clear else MIN_PASS_SCORE
+        if best_score < bar:
             pathway, reasons = Pathway.SLOW, [
-                f"no proposal cleared minimum score ({best_score:.3f} < {MIN_PASS_SCORE})"
+                f"no proposal cleared minimum score ({best_score:.3f} < {bar})"
             ]
         else:
             pathway, reasons = self.gate(best, drives, prediction, bundle, margin, deadlocked)
