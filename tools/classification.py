@@ -192,6 +192,9 @@ class EmbeddingCatalog:
 
 _INTENT_CATALOG = EmbeddingCatalog()
 
+_SHAPES = {"mtime": None, "blocks": None, "warned": False}
+
+
 def _ensure_catalogs_loaded(force: bool = False):
     intents_json = _load_json(INTENTS_FILE) or {}
     intents_blocks = intents_json.get("intents", [])
@@ -201,14 +204,23 @@ def _ensure_catalogs_loaded(force: bool = False):
     # anyone hand-editing intents.json. See tools/shape_loader.py.
     try:
         from tools.shapes.shape_loader import load_all_shapes, shapes_to_intent_blocks, shapes_max_mtime
-        shape_blocks = shapes_to_intent_blocks(load_all_shapes())
+        shapes_mtime = shapes_max_mtime()
+        # Read and merged once, again only when a shape file changes: this ran
+        # three times per utterance, re-reading 13 files and logging seven
+        # "collides" warnings each time.
+        if _SHAPES["mtime"] != shapes_mtime or _SHAPES["blocks"] is None:
+            _SHAPES["blocks"] = shapes_to_intent_blocks(load_all_shapes())
+            _SHAPES["mtime"] = shapes_mtime
+            _SHAPES["warned"] = False
+        shape_blocks = _SHAPES["blocks"]
         existing_tags = {b.get("tag") for b in intents_blocks}
         for b in shape_blocks:
             if b["tag"] in existing_tags:
-                logger.warning("Shape tag '%s' collides with an intents.json tag -- shape wins", b["tag"])
+                if not _SHAPES["warned"]:
+                    logger.info("Shape tag '%s' replaces the intents.json tag of the same name", b["tag"])
                 intents_blocks = [x for x in intents_blocks if x.get("tag") != b["tag"]]
             intents_blocks.append(b)
-        shapes_mtime = shapes_max_mtime()
+        _SHAPES["warned"] = True
     except Exception:
         logger.exception("Failed to load tool shapes -- continuing with intents.json only")
         shapes_mtime = 0

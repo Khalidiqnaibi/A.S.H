@@ -227,6 +227,17 @@ class MemoryRouter:
                 }
             }
 
+            if source == "ash":
+                # ASH's own reply mentions someone or something: link it if it
+                # is already known, but never create an entity from ASH's own
+                # words -- that made "Given", "Answering", "Task" entities.
+                try:
+                    known = self.entity.find_matching_entities([mention])
+                except Exception:
+                    known = []
+                if known:
+                    linked_entities.append(known[0].entity_id)
+                continue
             try:
                 # Let your specialized manager execute resolution, matching, or creation safely
                 resolved_ent = self.entity.ingest(entity_payload)

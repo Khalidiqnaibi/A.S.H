@@ -174,7 +174,13 @@ class NERExtractor:
             matched_text = m.group(1)
             # Skip if it's just a capitalized stop word
             if m.start() == 0 and matched_text.lower() in self.custom_stop_words:
-                continue 
+                continue
+            # One capitalised word at the start of a sentence or a list item is
+            # capitalised because of where it is, not because it is a name:
+            # "Smile for me", "Turn on...", "Nope", "1. Answering questions".
+            if " " not in matched_text and re.search(r"(?:^|[.!?:;]\s+|\n\s*(?:\d+[.)]\s*|[-*\u2022]\s*)?)$",
+                                                      clean_text[:m.start()]):
+                continue
                 
             if self._is_valid_entity(matched_text, "PROPER"):
                 self.last_subject = matched_text
