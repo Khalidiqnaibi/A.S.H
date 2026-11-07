@@ -152,7 +152,8 @@ class EmbeddingCatalog:
                     "version": CATALOG_CACHE_VERSION,
                     "labels": self.labels,
                     "descriptions": self.descriptions,
-                    "embeddings": self.embeddings
+                    "embeddings": self.embeddings,
+                    "source_mtime": getattr(self, "_source_mtime", None),
                 }, fh)
             logger.info("Saved embedding cache to %s", fname)
         except Exception:
@@ -169,6 +170,7 @@ class EmbeddingCatalog:
                 self.labels = data.get("labels", [])
                 self.descriptions = data.get("descriptions", [])
                 self.embeddings = data.get("embeddings", None)
+                self._source_mtime = data.get("source_mtime")
             logger.info("Loaded embedding cache from %s", fname)
             return True
         except Exception:
@@ -241,8 +243,13 @@ def _ensure_catalogs_loaded(force: bool = False):
                 if _INTENT_CATALOG.model is None:         # it was loaded again here every time
                     _INTENT_CATALOG._load_model()
                 _INTENT_CATALOG.build_from_json_blocks(intents_blocks)
+                # Stamped before it is saved: the stamp used to be set after,
+                # and never stored, so the cache looked stale on every start
+                # and the catalog was rebuilt each time.
+                _INTENT_CATALOG._source_mtime = intents_mtime
                 _INTENT_CATALOG.save_cache(INTENT_EMB_FNAME)
-        _INTENT_CATALOG._source_mtime = intents_mtime
+        if _INTENT_CATALOG._source_mtime is None:
+            _INTENT_CATALOG._source_mtime = intents_mtime
 
 ARITHMETIC_SCORE = 0.85
 

@@ -70,7 +70,7 @@ from .media import Media, MediaConfig
 from .remarks import RemarkLog
 from .speech import SpeechControl, wants_brief, wants_short, wants_stop
 from .tasks import Tasks
-from . import voicectl
+from . import honest, voicectl
 from .repeat import RepeatGuard
 from .context import Context
 from .focus import Focus
@@ -547,6 +547,14 @@ class AmbientRuntime:
                                        if self.cfg.tasks else None)
         self._capture: Optional[List[str]] = None   # a task step's reply, kept instead of said
         self.repeat = RepeatGuard(clock=lambda: self.clock())
+        # The loop is one thread, and a model answer takes 20-70 s. While it is
+        # inside one, a second thread (the "fast lane") keeps listening and
+        # runs the commands that must not wait -- "privacy mode", "turn off the
+        # mic", "stop" -- instead of leaving them queued behind the answer.
+        self._recent_user: Deque[str] = deque(maxlen=8)    # what the user said lately
+        self._thinking = 0
+        self._lane: Optional[threading.Thread] = None
+        self._lane_skip: set = set()
         self._rest: List[Any] = []                  # the events still to come in this tick
         self.context: Optional[Context] = None
         if self.cfg.context:
@@ -578,6 +586,16 @@ class AmbientRuntime:
             # can't: only the voice commands can. Say so instead.
             logger.info("Model claimed an action it cannot do -- replaced: %r", text[:120])
             text = voicectl.HONEST
+        if (text and meta.get("addressed") and str(meta.get("pathway", "")).lower() == "slow"
+                and not meta.get("degraded")):
+            try:
+                clean = honest.sanitize(text, self._known_text)
+            except Exception:
+                logger.exception("Sanitising a reply failed")
+                clean = text
+            if clean != text:
+                logger.info("Took something out of a model answer: %r", text[:120])
+            text = clean.strip() or "I'm not sure how to help with that."
         if text and self._capture is None:
             try:
                 if (meta.get("addressed") and str(meta.get("pathway", "")).lower() == "slow"
@@ -639,6 +657,9 @@ class AmbientRuntime:
         self.started_at = time.time()
         self._thread = threading.Thread(target=self._run, daemon=True, name="ash-ambient")
         self._thread.start()
+        if self._lane is None or not self._lane.is_alive():
+            self._lane = threading.Thread(target=self._lane_loop, daemon=True, name="ash-lane")
+            self._lane.start()
         logger.info("Ambient runtime started")
 
     def stop(self, timeout: float = 5.0):
@@ -1192,6 +1213,39 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
         return True
 
+    def _honest_request(self, ev, now: float) -> bool:
+        """"What can you do?" from what is really on, and a plain "I can't" for
+        things ASH has no way to do (browse the web, send mail, call, buy) --
+        so the model never gets to pretend."""
+        if not self._user_source(ev) or not self._meant_for_ash(ev):
+            return False
+        from src.senses.mic import MicrophoneSensor
+        text = MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or ""))
+        say = None
+        if honest.asks_capabilities(text):
+            say = honest.capabilities(self)
+        else:
+            say = honest.limit_reply(text)
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
+    def _known_text(self) -> str:
+        """Everything ASH was actually given: what the user said lately and
+        what memory returned. An address or number outside it was made up."""
+        parts = list(self._recent_user)
+        try:
+            mem = getattr(self.brain, "memory", None)
+            ctx = getattr(mem, "_last_context", None) or {}
+            parts += [str(v) for v in ctx.values() if v]
+            wb = getattr(mem, "working_block", None)
+            if callable(wb):
+                parts.append(str(wb()))
+        except Exception:
+            logger.debug("Could not read the memory context", exc_info=True)
+        return "\n".join(parts)
+
     def _crash_request(self, ev, now: float) -> bool:
         """"Did my computer crash?": from the Windows event log, no model."""
         c = self.crashwatch
@@ -1422,6 +1476,8 @@ class AmbientRuntime:
             address.conversation.note_user_turn(now)
 
         self._reaction = None
+        if self._user_source(ev) and getattr(ev, "text", ""):
+            self._recent_user.append(str(ev.text))
         if self.voice is not None and self._voice_step(ev, now):
             return
         guest = bool((getattr(ev, "meta", None) or {}).get("guest"))
@@ -1522,6 +1578,8 @@ class AmbientRuntime:
             return
         if self._crash_request(ev, now):
             return
+        if self._honest_request(ev, now):
+            return
         if self._cheer_request(ev, now):
             return
         if self.care is not None and self._user_source(ev):
@@ -1597,9 +1655,11 @@ class AmbientRuntime:
             return
         self.stats["responded"] += 1
         self._last_activity = time.time()
+        self._thinking += 1
         try:
             self._respond(ev, decision)
         finally:
+            self._thinking -= 1
             if (ev.meta or {}).get("offer") == "wonder":
                 self._wonder_inflight = None
             elif (ev.meta or {}).get("offer") == "moment":
@@ -1971,6 +2031,63 @@ class AmbientRuntime:
         # a command just because it could be resolved.
         return False
 
+    def _lane_loop(self):
+        while not self._stop.wait(0.25):
+            try:
+                self._lane_step()
+            except Exception:
+                logger.exception("Fast lane failed")
+
+    def _is_immediate(self, ev) -> bool:
+        """A line that is a control command (or a "stop"), however busy the
+        main loop is."""
+        if id(ev) in self._lane_skip or not self._user_source(ev):
+            return False
+        from src.senses.mic import MicrophoneSensor
+        text = MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or ""))
+        if voicectl.parse(text) is not None:
+            return True
+        sp = self.periphery.actuators.get("speak")
+        talking = bool(sp is not None and (getattr(sp, "speaking", False)
+                                           or time.time() - getattr(sp, "ended_at", 0.0) <= 4.0))
+        return (wants_stop(text, talking) or wants_short(text) or wants_brief(text) is not None)
+
+    def _lane_step(self):
+        """One pass of the fast lane. Does nothing unless the main loop is
+        stuck in a model answer."""
+        if not self._thinking:
+            return
+        mic = self.periphery.sensors.get("microphone")
+        if mic is not None:
+            now_t = time.time()
+            if mic.due(now_t) and self.privacy.allows(mic):
+                for ev in mic.poll():
+                    self.privacy.scrub_event(ev)
+                    self.submit(ev)
+        with self._qlock:
+            take = [e for e in self._queue if self._is_immediate(e)]
+            for e in take:
+                self._queue.remove(e)
+        now = self.clock()
+        for ev in take:
+            try:
+                self.journal.append(ev)
+            except Exception:
+                logger.exception("Journal failed in the fast lane")
+            if getattr(ev, "addressed", False):
+                address.conversation.note_user_turn(now)
+            done = False
+            try:
+                done = bool(self._speech_step(ev, now) or self._voice_command(ev, now))
+            except Exception:
+                logger.exception("A command failed in the fast lane")
+            if done:
+                self.stats["lane"] = self.stats.get("lane", 0) + 1
+                logger.info("Ran %r while the model was still answering", str(ev.text)[:60])
+            else:
+                self._lane_skip.add(id(ev))       # not for us after all: the loop gets it, in order
+                self.submit(ev)
+
     def _overtaken(self, ev) -> bool:
         """A question the user has already said again (or corrected) while ASH
         was busy with the one before: answering the old one first made the
@@ -2013,7 +2130,9 @@ class AmbientRuntime:
         cmd = voicectl.parse(text)
         if cmd is None:
             return False
-        if cmd.turns_on and not self._meant_for_ash(ev):
+        harmless = cmd.name in ("face", "faces", "status")
+        if (cmd.turns_on and not self._meant_for_ash(ev)
+                and not (harmless and address.conversation.openness(now) > 0.1)):
             return False                     # overheard: only ever makes ASH more private
         sensors = self.periphery.sensors
         name = cmd.name

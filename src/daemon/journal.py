@@ -37,7 +37,7 @@ import os
 import threading
 import time
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 logger = logging.getLogger("ash.daemon.journal")
@@ -267,8 +267,15 @@ class Journal:
         """Raw events from the last N seconds. Used to give a response
         conversational context about what just happened."""
         self.flush()
-        cutoff = time.time() - seconds
-        rows = [r for r in self.read_day() if r["ts"] >= cutoff]
+        now = time.time()
+        cutoff = now - seconds
+        # The window can reach back past midnight: at 00:10 the last half hour
+        # is mostly yesterday's file, and reading only today's left ASH with
+        # no idea what had just been going on.
+        today_d = datetime.fromtimestamp(now).date()
+        back = min((today_d - datetime.fromtimestamp(cutoff).date()).days, 3)
+        days = [(today_d - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(back, -1, -1)]
+        rows = [r for d in sorted(days) for r in self.read_day(d) if r["ts"] >= cutoff]
         return rows[-limit:]
 
     def context_block(self, seconds: float = 1800, limit: int = 12) -> str:

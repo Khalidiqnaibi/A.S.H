@@ -82,7 +82,10 @@ def trusted_text(segs) -> str:
         if lp is not None and lp < MIN_LOGPROB:
             logger.info("Mic: dropped a doubtful phrase (confidence %.2f): %r", lp, text)
             continue
-        if lp is not None and ns is not None and ns > NOISE_PROB and lp < NOISE_LOGPROB:
+        # (a one- or two-word line is more often a real "yeah" or "no" than
+        # noise, and whisper is always unsure of those: "Yeah." scored -0.73)
+        if (lp is not None and ns is not None and ns > NOISE_PROB and lp < NOISE_LOGPROB
+                and (len(text.split()) >= 3 or lp < -0.9)):
             logger.info("Mic: dropped a phrase that is probably not speech (%.2f, %.2f): %r", ns, lp, text)
             continue
         keep.append(text)

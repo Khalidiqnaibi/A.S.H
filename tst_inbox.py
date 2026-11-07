@@ -238,7 +238,8 @@ def e6_runtime():
     st.change(rt, p, "email.user", "other@x.com")
     check("another account: the old count is forgotten", rt.inbox.unread is None and rt.inbox.checked_at < 0)
     say("send an email to Omar")
-    check("sending is not done here: the brain gets it", ash.calls == ["send an email to Omar"])
+    check("sending is not done here, and ASH says so plainly instead of leaving it to the model",
+          "only read your email" in out[-1] and ash.calls == [], str(out[-1:]))
 
 
 if __name__ == "__main__":

@@ -50,9 +50,11 @@ _RULES = [
     ("camera_off", r"(?:turn|switch|shut)\s+off\s+(?:the\s+|your\s+)?camera|(?:turn|switch)\s+(?:the\s+|your\s+)?camera\s+off"
                    r"|(?:deactivate|disable|stop|close)\s+(?:the\s+|your\s+)?camera|camera\s+off"),
     ("screen_on", r"(?:turn|switch)\s+on\s+(?:the\s+)?screen\s*(?:capture|shots?|reading)|(?:enable|activate|start)\s+(?:the\s+)?"
-                  r"screen\s*(?:capture|shots?|reading)|screen\s*(?:capture|shots?)\s+on"),
+                  r"screen\s*(?:capture|shots?|reading)|(?:turn|switch)\s+(?:the\s+)?screen\s*(?:capture|shots?|reading)\s+on"
+                  r"|screen\s*(?:capture|shots?)\s+on"),
     ("screen_off", r"(?:turn|switch)\s+off\s+(?:the\s+)?screen\s*(?:capture|shots?|reading)|(?:disable|stop)\s+(?:the\s+)?"
-                   r"screen\s*(?:capture|shots?|reading)|screen\s*(?:capture|shots?)\s+off"),
+                   r"screen\s*(?:capture|shots?|reading)|(?:turn|switch)\s+(?:the\s+)?screen\s*(?:capture|shots?|reading)\s+off"
+                   r"|screen\s*(?:capture|shots?)\s+off"),
     ("sleep", r"go\s+to\s+sleep|(?:time\s+to\s+)?sleep\s+now|take\s+a\s+nap|quiet\s+mode|do\s+not\s+disturb|"
               r"be\s+quiet\s+for\s+a\s+(?:while|bit)|stop\s+talking\s+for\s+a\s+while"),
     ("wake", r"wake\s+up|you\s+can\s+talk\s+again|un-?mute(?:\s+yourself)?|end\s+quiet\s+mode"),

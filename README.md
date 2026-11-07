@@ -1104,6 +1104,55 @@ on a driver touching memory it shouldn't. That's 4 times in the last 30 days,
 which is a pattern: worth testing the memory and updating the drivers."). The
 first time it runs, what's already in the log is history, not news.
 
+## Keeping ASH honest, and keeping its memory clean
+
+**Its own words are not memories.** ASH used to save every answer it gave as
+an episode. When the model invented a CV ("Phone +212 XXX-XXXXXX, Location:
+Morocco") that became a memory, was found again four months later, and was
+said back as fact. Now only what you said is stored, plus ASH's reply when a
+tool was behind it (marked `A.S.H [tool]:`). The working buffer still has
+the reply for the rest of the conversation.
+
+To clear out what is already there, with ASH stopped:
+
+```bash
+python tools/memory_cleanup.py
+```
+
+It only shows what it would remove: ASH's own free-form episodes, and
+entities that aren't things (document headings like "Contents" and "Summary",
+words that only start a sentence, made-up placeholder addresses and numbers).
+An address or number you really gave ASH is kept. Add `--apply` to back up
+`episodic_memory.jsonl` and `entities.json` first and then clean them.
+
+**It says what it can't do.** `src/daemon/honest.py`. "Show me cats online",
+"search the web", "send an email to Sara", "call my mom" and "order a pizza"
+get a plain "I can't do that" and what ASH can do instead, without the model,
+which used to answer "I can use a web browser..." and print `[web_browser open
+new tab]`. "What can you do?" is answered from what is actually switched on
+(lights only when a smart home is set, the weather only with a place, and so
+on).
+
+**It doesn't read out its briefing or invent contact details.** After the
+model answers, a pasted `Facts: { ... }` block and fake tool calls in square
+brackets are removed, and so is any sentence with an e-mail address, phone
+number or link that is nowhere in what ASH was given (what you said lately,
+what memory returned). Dates, versions and times are never mistaken for phone
+numbers.
+
+**Commands don't wait for the model.** The loop is one thread and a model
+answer takes 20-70 s. A "fast lane" thread runs only while the loop is inside
+a model answer: it keeps listening to the microphone and runs control commands
+at once ("privacy mode", "turn off the mic", "stop", "go to sleep", faces and
+status), so none of them waits behind the answer. A question is left for the
+loop. Text read off the screen is never a command.
+
+**Smaller things.** "Switch screen capture on" parses. A smile or a status
+question works without the name while you are mid-conversation (turning a
+sensor on still needs it). A short "yeah" that whisper is unsure of is no
+longer dropped. The intent-embedding cache remembers what it was built from,
+so it isn't rebuilt on every start.
+
 ## If the machine crashes while ASH is answering
 
 The language model runs in Ollama, which puts part of it on the graphics
