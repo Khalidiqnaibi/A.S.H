@@ -157,8 +157,14 @@ class MemoryEngine:
 
     def commit_turn(self, user_text: str, ash_text: str, user_actor: str,
                     ash_actor: str, importance: float = 0.5,
-                    pathway: Pathway = Pathway.SLOW) -> Dict[str, Any]:
-        """Write both halves of a turn.
+                    pathway: Pathway = Pathway.SLOW, grounded: bool = False) -> Dict[str, Any]:
+        """Write the turn: always what the user said; ASH's reply only when a
+        tool was behind it (`grounded`).
+
+        A free-form model answer is not a record of anything. One that
+        invented a CV ("Phone +212 XXX-XXXXXX, Location: Morocco") was saved,
+        found again four months later and said back as fact. The working
+        buffer still holds the reply for the rest of the conversation.
 
         Reflex turns are deliberately NOT persisted to episodic memory -- a
         cached repeat of "what time is it" is not an episode worth
@@ -176,5 +182,11 @@ class MemoryEngine:
         # thought -- weight them a little heavier in the timeline.
         imp = importance + (0.15 if pathway in (Pathway.SLOW, Pathway.ESCALATED) else 0.0)
         out = self.commit_utterance(user_text, source="chat", importance=min(1.0, imp), actor=user_actor)
-        self.commit_utterance(ash_text, source="ash", importance=min(1.0, imp), actor=ash_actor)
+        if grounded:
+            # "A.S.H [tool]: ..." -- marked, so it can be told from free prose
+            self.commit_utterance(ash_text, source="ash", importance=min(1.0, imp),
+                                  actor=f"{ash_actor} [tool]" if ash_actor else "[tool]")
+        else:
+            out = dict(out or {})
+            out["ash_reply"] = "not stored: no tool behind it"
         return out

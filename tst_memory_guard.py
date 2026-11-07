@@ -40,9 +40,11 @@ def check(label, cond, detail=""):
 class Recorder:
     def __init__(self):
         self.seen = []
+        self.actors = []
 
     def route_utterance(self, text, source="chat", importance=0.5, actor=None):
         self.seen.append((source, text))
+        self.actors.append(actor)
         return {"stored": True}
 
     def retrieve_context(self, query, **kw):
@@ -108,10 +110,15 @@ def main():
     r = Recorder()
     m = MemoryEngine(r)
     m.commit_turn("hi", "Hello! How can I help?", "user", "ash", pathway=Pathway.SLOW)
-    check("a real turn stores both halves", [s for s, _ in r.seen] == ["chat", "ash"], str(r.seen))
+    check("a free-form reply is not stored, only what the user said", r.seen == [("chat", "hi")], str(r.seen))
     r = Recorder()
     m = MemoryEngine(r)
-    m.commit_turn("open it", "Error: no such file", "user", "ash", pathway=Pathway.SLOW)
+    m.commit_turn("what time is it", "It's 5 pm.", "user", "ash", pathway=Pathway.SLOW, grounded=True)
+    check("a reply with a tool behind it is stored, marked [tool]",
+          [s for s, _ in r.seen] == ["chat", "ash"] and "[tool]" in str(r.actors[1]), str(r.actors))
+    r = Recorder()
+    m = MemoryEngine(r)
+    m.commit_turn("open it", "Error: no such file", "user", "ash", pathway=Pathway.SLOW, grounded=True)
     check("a tool's own 'Error: ...' answer is a real reply and is kept",
           [s for s, _ in r.seen] == ["chat", "ash"], str(r.seen))
 

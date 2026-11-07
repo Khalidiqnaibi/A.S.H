@@ -439,7 +439,7 @@ class Brain:
 
         self.system1.reflex_store(query, text, out)
         self.system1.stage_reward(proposal, tool_success=True, escalated=False)
-        self.memory.commit_turn(query, text, self.user, self.name, pathway=Pathway.FAST)
+        self.memory.commit_turn(query, text, self.user, self.name, pathway=Pathway.FAST, grounded=True)
         self.predictive.commit(latent if latent is not None else bundle.fused_embedding,
                                proposal.intent)
         self._concept_feedback(activation, bundle, proposal, tool_success=True)
@@ -656,7 +656,8 @@ class Brain:
             self.system1.reflex_store(query, text, tool_out)
 
         self.memory.commit_turn(query, text, self.user, self.name,
-                                importance=importance, pathway=Pathway.SLOW)
+                                importance=importance, pathway=Pathway.SLOW,
+                                grounded=(tool_ok is True))
         self.predictive.commit(latent if latent is not None else bundle.fused_embedding,
                                intent)
         self._adopt_plan(plan, candidates, chosen, tool_ok, tool_out,
