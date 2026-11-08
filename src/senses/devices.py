@@ -123,6 +123,14 @@ class CameraSensor(Sensor):
                 pass
             self._cap = None
 
+    def disable(self):
+        # "Camera off" must let go of the device (its light goes out), not just
+        # stop looking at it.
+        super().disable()
+        self.close()
+        self._bg = None
+        self._frames_seen = 0
+
     def status(self) -> Dict[str, Any]:
         d = super().status()
         d.update({"frames": self._frames_seen, "motion_events": self._motion_events})

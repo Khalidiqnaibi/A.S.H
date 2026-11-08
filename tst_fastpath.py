@@ -224,8 +224,96 @@ def f6_clear_reflex():
           f"{v.pathway.value} {v.score:.3f}")
 
 
+def f7_same_tool_from_deliberator():
+    print("\n=== F7. The deliberator proposing the same tool does not undo a clear reflex ===")
+    from src.brain.executive import ExecutiveCore
+    ex = ExecutiveCore()
+
+    def run(rival_conf=None, s1_conf=0.74, s1_value=0.40, s2_value=0.79, s2_conf=0.74, effort=0.55):
+        d = Drives()
+        d.effort_budget = effort
+        d.urgency = 0.3
+        pred = Prediction()
+        pred.surprise = 0.0
+        props = [ActionProposal(intent="system_stats", tool_name="system_stats", args="", origin="system1",
+                                action_class=ActionClass.RETRIEVAL, confidence=s1_conf, value=s1_value,
+                                expected_success=0.5, reversible=True),
+                 ActionProposal(intent="system_stats", tool_name="system_stats", args="", origin="system2",
+                                action_class=ActionClass.RETRIEVAL, confidence=s2_conf, value=s2_value,
+                                expected_success=0.5, reversible=True)]
+        if rival_conf is not None:
+            props.append(ActionProposal(intent="file_info", tool_name="file_info", args="", origin="system2",
+                                        action_class=ActionClass.RETRIEVAL, confidence=rival_conf, value=0.58,
+                                        expected_success=0.5, reversible=True))
+        return ex.arbitrate(props, PerceptBundle(), d, pred)
+
+    v = run()
+    check("reflex 0.74/0.40 with the same tool from System 2 on top: fast (the floor 0.45 no longer stops it)",
+          v.pathway.value == "fast", str(v.escalation_reasons))
+    v = run(rival_conf=0.22)
+    check("...and a rival that is a far worse match is not a contest", v.pathway.value == "fast", str(v.escalation_reasons))
+    v = run(rival_conf=0.70)
+    check("a rival nearly as good a match still contests it", v.pathway.value == "slow", str(v.escalation_reasons))
+    v = run(s1_conf=0.55)
+    check("a moderate reflex match (0.55) is not 'clear'", v.pathway.value == "slow" or v.score >= 0.10,
+          f"{v.pathway.value} {v.score:.3f}")
+    v = run(s1_value=0.20, s2_value=0.30)
+    check("a low critic value is still not clear", v.pathway.value == "slow", str(v.escalation_reasons))
+    prop = ActionProposal(intent="shell", tool_name="shell", args="", origin="system1",
+                          action_class=ActionClass.IRREVERSIBLE, confidence=0.9, value=0.9, reversible=False)
+    p2 = ActionProposal(intent="shell", tool_name="shell", args="", origin="system2",
+                        action_class=ActionClass.IRREVERSIBLE, confidence=0.9, value=0.9, reversible=False)
+    v = ex.arbitrate([prop, p2], PerceptBundle(), Drives(), Prediction())
+    check("something irreversible still deliberates", v.pathway.value == "slow")
+
+    def P(origin, conf, val, intent="system_stats"):
+        return ActionProposal(intent=intent, tool_name=intent, args="", origin=origin, action_class=ActionClass.RETRIEVAL,
+                              confidence=conf, value=val, expected_success=0.5, reversible=True)
+
+    def go(props):
+        d = Drives()
+        d.effort_budget, d.urgency = 0.55, 0.3
+        return ex.arbitrate(props, PerceptBundle(), d, Prediction())
+
+    v = go([P("system1", 0.74, 0.40)])
+    check("a lone reflex at 0.74 / critic 0.40 is not stopped by the effort floor (0.45)", v.pathway.value == "fast",
+          str(v.escalation_reasons))
+    v = go([P("system1", 0.74, 0.31), P("system2", 0.74, 0.36)])
+    check("System 2 winning the vote with a low score: the reflex beside it still counts as clear",
+          v.pathway.value == "fast" and v.chosen.origin == "system2" and v.score < 0.10, f"{v.pathway.value} {v.score:.3f}")
+    v = go([P("system1", 0.74, 0.40), P("system2", 0.74, 0.36), P("system2", 0.35, 0.99, "file_info")])
+    check("a rival that scores high but is a far worse match (0.35 vs 0.74) is noise", v.pathway.value == "fast",
+          str(v.escalation_reasons))
+    v = go([P("system1", 0.74, 0.40), P("system2", 0.74, 0.36), P("system2", 0.55, 0.99, "file_info")])
+    check("one that is nearly as good a match (0.55) is a real contest", v.pathway.value == "slow", str(v.escalation_reasons))
+
+    from src.brain import system1 as S1
+    entry = type("E", (), {"name": "calculate"})()
+    pol = S1.System1Policy(classifier=lambda q: {"intent": "calculate", "score": 0.85},
+                           registry=type("R", (), {"match": lambda self, i: entry})(), persist=False)
+    prop = pol.propose("Ash, what's 7 times 8 please", PerceptBundle(), Drives(), Prediction())
+    check("the tool is handed the request, not the politeness", prop.args == "what's 7 times 8", repr(prop.args))
+
+
+def f8_politeness():
+    print("\n=== F8. Politeness is not part of the request ===")
+    from src.brain.phrasing import clean
+    cases = {"what's 16 times 23 please": "what's 16 times 23", "Ash, what's 7 times 8 please": "what's 7 times 8",
+             "could you please convert 10 km to miles": "convert 10 km to miles",
+             "can you tell me the time please?": "tell me the time", "hey ash what time is it, thank you": "what time is it",
+             "please read the file notes.txt": "read the file notes.txt", "what time is it": "what time is it",
+             "can you hear me": "can you hear me", "would you like some tea": "would you like some tea",
+             "thanks": "thanks", "please": "please"}
+    for q, want in cases.items():
+        check(f"{q!r} -> {want!r}", clean(q) == want, clean(q))
+    check("only a name, for the classifier: nothing", clean("hey ash", keep_original=False) == "")
+    check("only a name, for a tool: kept", clean("hey ash") == "hey ash")
+    check("never raises on odd input", clean(None) == "" and clean("") == "" and clean("   ") == "")
+
+
 if __name__ == "__main__":
-    for fn in (f1_reward, f2_reset, f3_surprise, f4_novelty, f5_end_to_end, f6_clear_reflex):
+    for fn in (f1_reward, f2_reset, f3_surprise, f4_novelty, f5_end_to_end, f6_clear_reflex,
+               f7_same_tool_from_deliberator, f8_politeness):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

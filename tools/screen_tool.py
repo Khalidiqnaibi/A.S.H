@@ -118,7 +118,7 @@ def describe_view(view: Dict[str, Any]) -> str:
 
 def screen_view_tool(query: str) -> Dict[str, Any]:
     if _LOOKER is None:
-        return {"ok": False,
+        return {"ok": False, "declined": True,
                 "error": "I'm not running with a screen sensor, so I can't look. "
                          "It needs the daemon with sensors.screenshot enabled."}
     try:
@@ -127,7 +127,7 @@ def screen_view_tool(query: str) -> Dict[str, Any]:
         logger.exception("Screen look failed")
         return {"ok": False, "error": f"looking failed: {type(e).__name__}"}
     if not view.get("ok", True):
-        return {"ok": False, "error": view.get("error", "I couldn't look.")}
+        return {"ok": False, "declined": bool(view.get("declined")), "error": view.get("error", "I couldn't look.")}
     return {"ok": True, "verbatim": True, "result": describe_view(view),
             "window": view.get("title", ""), "scene": view.get("scene", ""),
             "withheld": view.get("withheld"), "read": bool(view.get("text"))}

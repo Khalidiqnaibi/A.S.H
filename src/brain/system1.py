@@ -45,6 +45,7 @@ from typing import Any, Deque, Dict, List, Optional, Tuple
 
 import numpy as np
 
+from .phrasing import clean as clean_request
 from .signals import ActionClass, ActionProposal, Drives, PerceptBundle, Prediction
 
 logger = logging.getLogger("ash.brain.system1")
@@ -244,7 +245,7 @@ class System1Policy:
         proposal = ActionProposal(
             intent=intent,
             tool_name=entry.name if entry else None,
-            args=query,
+            args=clean_request(query),
             origin="system1",
             action_class=action_class,
             confidence=score,

@@ -43,6 +43,11 @@ _STOP = re.compile(_LEAD + r"(?:stop(?:\s+(?:talking|it|there|speaking))?|sh+|sh
 # "got it") are left to the game, the music and the timer when ASH is quiet.
 _ONLY_SPEECH = re.compile(_LEAD + r"(?:stop\s+(?:talking|speaking)|sh+|shush|hush|shut\s+up)" + _END, re.I)
 
+# "Never mind" said while ASH is still working out an answer: drop that answer.
+_CANCEL = re.compile(_LEAD + r"(?:never\s*mind(?:\s+(?:that|it))?|forget\s+(?:that|it)|cancel(?:\s+(?:that|it))?|"
+                     r"scratch\s+that|drop\s+(?:that|it)|skip\s+(?:that|it)|ignore\s+(?:that|it)|"
+                     r"don'?t\s+(?:answer|bother)(?:\s+(?:that|it))?|no\s+need(?:\s+to\s+answer)?)" + _END, re.I)
+
 _SHORT = re.compile(_LEAD + r"(?:(?:give\s+me\s+|what'?s\s+|just\s+)?(?:the\s+)?(?:short|quick)\s+version|"
                     r"tl;?\s*dr|(?:give\s+me\s+|just\s+)?the\s+gist|too\s+long|in\s+short|"
                     r"(?:can\s+you\s+)?(?:summari[sz]e|shorten)\s+(?:that|it)|shorter|briefly|"
@@ -67,6 +72,11 @@ def wants_stop(text: str, speaking: bool) -> bool:
     if not t or len(t) > 60:
         return False
     return bool(_STOP.match(t)) if speaking else bool(_ONLY_SPEECH.match(t))
+
+
+def wants_cancel(text: str) -> bool:
+    t = (text or "").strip()
+    return bool(t) and len(t) <= 40 and bool(_CANCEL.match(t))
 
 
 def wants_short(text: str) -> bool:

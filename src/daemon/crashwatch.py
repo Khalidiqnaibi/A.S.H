@@ -52,6 +52,12 @@ _ASK = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:did|has)\s+(?:my\s+|the\s
                   r"how\s+many\s+times\s+(?:has|did)\s+(?:my\s+|the\s+)?(?:computer|laptop|pc)\s+crash(?:ed)?"
                   r"(?:\s+(?:lately|recently))?)\s*[?.!]*\s*$", re.I)
 
+_CAUSE = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:is|are|was|were)\s+(?:it\s+|you\s+)?(?:ash|you|a\.?s\.?h\.?)\s+"
+                    r"(?:the\s+(?:one\s+)?(?:causing|cause\s+of)|causing|behind|responsible\s+for)\s+"
+                    r"(?:the\s+|my\s+|these\s+)?(?:crash(?:es)?|blue\s+screens?|bsods?|shut\s*downs?|restarts?)|"
+                    r"(?:did|do|does|could|can)\s+(?:ash|you)\s+(?:crash|cause|break)\s+(?:my\s+|the\s+)?"
+                    r"(?:computer|laptop|pc|machine|system|crash(?:es)?|blue\s+screens?))\s*[?.!]*\s*$", re.I)
+
 _PS = ("Get-WinEvent -FilterHashtable @{LogName='System'; Id=41} -MaxEvents 300 -ErrorAction SilentlyContinue | "
        "ForEach-Object { [pscustomobject]@{ t = ([DateTimeOffset]$_.TimeCreated).ToUnixTimeSeconds(); "
        "code = [int64]$_.Properties[0].Value } } | ConvertTo-Json -Compress")
@@ -106,6 +112,13 @@ class CrashWatch:
         self._lock = threading.Lock()
         self.stats = {"reads": 0, "failed": 0}
         self._load()
+        # When ASH itself was running, so a crash can be set against it. Kept in
+        # its own file: told_until above decides whether the first read is
+        # "history", and writing it early would turn old crashes into news.
+        self.runs_path = (path + ".runs") if path else None
+        self.runs: List[Dict[str, float]] = []
+        self._beat_saved = 0.0
+        self._load_runs()
 
     # -- keeping what was told ------------------------------------------------
     def _load(self):
@@ -129,6 +142,96 @@ class CrashWatch:
             os.replace(tmp, self.path)
         except Exception:
             logger.warning("Could not save %s", self.path, exc_info=True)
+
+    # -- when ASH was running ----------------------------------------------------
+    def _load_runs(self):
+        now = self.clock()
+        if self.runs_path and os.path.exists(self.runs_path):
+            try:
+                with open(self.runs_path, "r", encoding="utf-8") as fh:
+                    got = json.load(fh).get("runs", [])
+                self.runs = [r for r in got if isinstance(r, dict) and "start" in r
+                             and now - float(r.get("beat", r["start"])) <= 90 * DAY][-200:]
+            except Exception:
+                logger.warning("Could not read %s", self.runs_path, exc_info=True)
+        if self.enabled and self.runs_path:
+            self.runs.append({"start": now, "beat": now})
+            self._save_runs(now)
+
+    def _save_runs(self, now: float):
+        if not self.runs_path:
+            return
+        self._beat_saved = now
+        try:
+            os.makedirs(os.path.dirname(os.path.abspath(self.runs_path)), exist_ok=True)
+            tmp = self.runs_path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump({"runs": self.runs}, fh)
+            os.replace(tmp, self.runs_path)
+        except Exception:
+            logger.warning("Could not save %s", self.runs_path, exc_info=True)
+
+    def heartbeat(self, now: Optional[float] = None):
+        """Called often; writes at most once a minute."""
+        if not self.runs or not self.enabled:
+            return
+        now = self.clock() if now is None else now
+        self.runs[-1]["beat"] = now
+        if now - self._beat_saved >= 60.0:
+            self._save_runs(now)
+
+    def shutdown(self, now: Optional[float] = None):
+        """A clean stop: this run ended on purpose, not with the machine."""
+        if not self.runs or not self.enabled:
+            return
+        now = self.clock() if now is None else now
+        self.runs[-1]["beat"] = self.runs[-1]["end"] = now
+        self._save_runs(now)
+
+    def _intervals(self, now: float) -> List[tuple]:
+        """[(start, end)] for every run. One that never recorded a clean end was
+        cut off -- and the crash is what cut it, so it counts as running until
+        the next start (the Windows log stamps a crash at the reboot, not the
+        moment)."""
+        out = []
+        for i, r in enumerate(self.runs):
+            a = float(r["start"])
+            if "end" in r:
+                b = float(r["end"])
+            elif i + 1 < len(self.runs):
+                b = float(self.runs[i + 1]["start"])
+            else:
+                b = now
+            out.append((a, max(a, b)))
+        return out
+
+    def overlap(self, now: float, days: float = 30.0) -> Optional[Dict[str, Any]]:
+        """How many of the recent crashes ASH was running through, and how much
+        of the time it runs at all. None until there is a day of history."""
+        if not self.runs:
+            return None
+        iv = self._intervals(now)
+        first = iv[0][0]
+        if now - first < DAY:
+            return None
+        lo = max(now - days * DAY, first)
+        crashes = [e for e in self._recent(now, days) if e["t"] >= first]
+        with_ash = sum(1 for e in crashes if any(a <= e["t"] <= b for a, b in iv))
+        ran = sum(max(0.0, min(b, now) - max(a, lo)) for a, b in iv)
+        return {"crashes": len(crashes), "with_ash": with_ash, "share": min(1.0, ran / max(1.0, now - lo)),
+                "days": (now - lo) / DAY}
+
+    def _overlap_sentence(self, now: float) -> str:
+        o = self.overlap(now)
+        if not o or o["crashes"] < 2:
+            return ""
+        s = f"ASH was running during {o['with_ash']} of those {o['crashes']}"
+        s += f", and it runs about {round(o['share'] * 100)}% of the time"
+        if o["with_ash"] == o["crashes"] and o["share"] < 0.6:
+            s += " -- more than chance would give, so it is worth switching me off for a few days to see"
+        elif o["with_ash"] / o["crashes"] <= o["share"] + 0.15:
+            s += " -- about what chance would give, so nothing here points at me"
+        return s + "."
 
     # -- reading ---------------------------------------------------------------
     def refresh(self, now: Optional[float] = None, force: bool = False):
@@ -208,9 +311,23 @@ class CrashWatch:
 
     def hear(self, text: str, now: Optional[float] = None) -> Optional[str]:
         t = (text or "").strip()
-        if not self.enabled or not t or len(t) > 90 or not _ASK.match(t):
+        if not self.enabled or not t or len(t) > 90 or not (_ASK.match(t) or _CAUSE.match(t)):
             return None
         now = self.clock() if now is None else now
+        if _CAUSE.match(t):
+            if not self.events and self.stats["reads"] == 0:
+                self.refresh(force=True)
+                return "I haven't read the crash log yet -- give me a moment and ask again."
+            if not self._recent(now):
+                return "No unexpected shutdowns in the last 30 days, so there is nothing to blame me for."
+            o = self.overlap(now)
+            if o is None:
+                return ("I only started keeping track of when I'm running recently, so I can't tell yet -- ask again "
+                        "in a few days.")
+            if o["crashes"] < 2:
+                return "Only one crash since I started counting, which is too few to say anything about me."
+            return (self._overlap_sentence(now) + " I can only show a link, not a cause: a crash this deep (a "
+                    "driver or the hardware) takes everything down, whatever was running.")
         if not self.events and self.stats["reads"] == 0:
             if self.stats["failed"]:
                 return "I can't read the Windows event log from here, so I can't tell."
@@ -222,8 +339,11 @@ class CrashWatch:
         with self._lock:
             self.told_until = max(self.told_until, recent[0]["t"])
         self._save()
-        return self._line(recent[0], now, len(recent))
+        line = self._line(recent[0], now, len(recent))
+        extra = self._overlap_sentence(now)
+        return line + (" " + extra if extra else "")
 
     def status(self) -> Dict[str, Any]:
         with self._lock:
-            return {"enabled": self.enabled, "events": len(self.events), "told_until": self.told_until, **self.stats}
+            return {"enabled": self.enabled, "events": len(self.events), "told_until": self.told_until,
+                    "runs": len(self.runs), **self.stats}

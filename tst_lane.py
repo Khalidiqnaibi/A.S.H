@@ -242,6 +242,43 @@ def l8_journal_across_midnight():
     check("a long window reads back at most three days", got2 == ["two days ago"], str(got2))
 
 
+def l9_never_mind():
+    print("\n=== L9. 'Never mind' drops the answer being worked out ===")
+    from src.ui import settings
+    rt = rig()
+    th, ok = busy(rt)
+    w = settings.waiting(rt)
+    check("the console is told ASH is thinking, and can offer 'Never mind'", w is not None and w["kind"] == "thinking"
+          and "sea" in w["text"] and w["replies"] == ["Never mind"], str(w))
+    rt.submit(rt.ev("never mind"))
+    rt._lane_step()
+    check("it was heard at once", rt._cancelled and any("dropped it" in o for o in rt.out), str(rt.out))
+    rt.ash_.go.set()
+    th.join(10)
+    check("the answer, when it arrived, was not said", "A long answer." not in rt.out, str(rt.out))
+    check("...and it is counted", rt.stats.get("cancelled") == 1)
+    check("nothing is waiting any more", not rt._cancelled and settings.waiting(rt) is None)
+    # the next question is answered normally
+    rt.ash_.go.set()
+    rt.submit(rt.ev("tell me about the moon"))
+    rt._tick()
+    check("the next answer is said", "A long answer." in rt.out, str(rt.out))
+    # not thinking: "never mind" is left to whatever asked (a question, a plan...)
+    rt2 = rig()
+    rt2.submit(rt2.ev("never mind"))
+    rt2._lane_step()
+    check("when ASH isn't thinking the lane leaves it alone", not rt2._cancelled and len(rt2._queue) == 1)
+    # a longer sentence that merely starts with those words is not a cancel
+    rt3 = rig()
+    th3, ok3 = busy(rt3)
+    rt3.submit(rt3.ev("never mind the weather, what is the capital of france"))
+    rt3._lane_step()
+    check("'never mind the weather, what is...' is a question, not a cancel", not rt3._cancelled
+          and len(rt3._queue) == 1)
+    rt3.ash_.go.set()
+    th3.join(10)
+
+
 def l7_started():
     print("\n=== L7. The runtime starts the lane ===")
     rt = rig()
@@ -254,7 +291,7 @@ def l7_started():
 
 
 if __name__ == "__main__":
-    for fn in (l1_runs_at_once, l2_listens, l3_idle, l4_only_commands, l5_stop, l6_not_for_ash, l7_started, l8_journal_across_midnight):
+    for fn in (l1_runs_at_once, l2_listens, l3_idle, l4_only_commands, l5_stop, l6_not_for_ash, l7_started, l8_journal_across_midnight, l9_never_mind):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

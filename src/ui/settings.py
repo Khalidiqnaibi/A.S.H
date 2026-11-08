@@ -29,7 +29,7 @@ PART = {
     "smarthome": "smarthome", "reminders": "reminders", "play": "play", "focus": "focus",
     "weather": "weather", "watch": "watcher", "briefings": "briefings", "routines": "routines",
     "free_moments": "moments", "desktop": "desktop", "remarks": "remarks", "tasks": "tasks", "email": "inbox", "face": "face",
-    "crashes": "crashwatch",
+    "crashes": "crashwatch", "facts": "facts",
 }
 
 # key -> (type, label, group). Types: bool, str, secret, list (comma separated).
@@ -61,6 +61,8 @@ SETTINGS: Dict[str, Tuple[str, str, str]] = {
     "email.host": ("str", "IMAP server (e.g. imap.gmail.com)", "Email"),
     "email.user": ("str", "Account", "Email"),
     "email.password": ("secret", "App password", "Email"),
+    "facts.enabled": ("bool", "Answer short \u201cwho/what is...\u201d questions from Wikipedia (sends the topic over "
+                      "the internet)", "Looking things up"),
     "wondering.lookup.roots": ("folders", "Folders to look terms up in, comma separated", "Looking things up"),
     "wondering.lookup.web": ("bool", "Look acronyms up on Wikipedia", "Looking things up"),
 }
@@ -287,6 +289,12 @@ def waiting(runtime, now: Optional[float] = None) -> Optional[Dict[str, Any]]:
     """The one thing ASH is waiting on the user for, most pressing first --
     the answer the next thing said would be taken as."""
     now = runtime.clock() if now is None else now
+    started = float(getattr(runtime, "_think_started", 0.0) or 0.0)
+    if getattr(runtime, "_thinking", 0) and started:
+        secs = max(0, int(time.time() - started))
+        what = str(getattr(runtime, "_think_query", "") or "")
+        return {"kind": "thinking", "text": f"Thinking about “{what}” -- {secs}s so far.", "seconds": secs,
+                "replies": ["Never mind"]}
     desk = getattr(runtime, "desktop", None)
     p = getattr(desk, "_pending", None)
     if p and now - p[2] <= desk.cfg.confirm_window_s:

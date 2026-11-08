@@ -68,7 +68,7 @@ from .reminders import Reminders
 from .play import Bored, DailyTrivia, IdleRiddle, Play, Story
 from .media import Media, MediaConfig
 from .remarks import RemarkLog
-from .speech import SpeechControl, wants_brief, wants_short, wants_stop
+from .speech import SpeechControl, wants_brief, wants_cancel, wants_short, wants_stop
 from .tasks import Tasks
 from . import honest, voicectl
 from .repeat import RepeatGuard
@@ -78,6 +78,7 @@ from .weather import Weather, WeatherConfig
 from .inbox import Inbox, InboxConfig
 from .weekly import Weekly
 from .crashwatch import CrashWatch
+from .facts import Facts, FactsConfig
 from .cheer import Celebrate, Cheer
 from .care import Care
 from .storybook import StoryBook
@@ -267,6 +268,11 @@ class AmbientConfig:
     # Noticing that the computer crashed (crashwatch.py). Off on a bare runtime.
     crashes: bool = False
     crashes_path: Optional[str] = None       # state/crashes.json
+    # Short "who/what is X" questions answered from Wikipedia, with the source
+    # (facts.py). Settings under facts. Sends the topic over the internet, so
+    # the switch (facts_cfg["enabled"]) is off unless the user turns it on.
+    facts: bool = False
+    facts_cfg: Optional[Dict[str, Any]] = None
     # Caring nudges (care.py). Off on a bare runtime.
     care: bool = False
     # Where the evening story got to (storybook.py), with play on.
@@ -332,6 +338,8 @@ class AmbientRuntime:
         self.journal = journal or Journal()
         self.gate = gate or AttentionGate()
         self.privacy = privacy or PrivacyPolicy()
+        self._privacy_held: List[str] = []      # sensors privacy mode switched off, to bring back
+        self.privacy.listeners.append(self._privacy_changed)
         self.cfg = config or AmbientConfig()
         self._sink = response_sink or self._default_sink
         self.remarks: Optional[RemarkLog] = (
@@ -477,6 +485,9 @@ class AmbientRuntime:
         self._calendar_at = -1e18
         if self.cfg.calendar:
             self.calendar = Calendar(CalendarConfig.from_dict(self.cfg.calendar_cfg), clock=lambda: self.clock())
+        self.facts: Optional[Facts] = None
+        if self.cfg.facts:
+            self.facts = Facts(FactsConfig.from_dict(self.cfg.facts_cfg))
         self.crashwatch: Optional[CrashWatch] = None
         if self.cfg.crashes:
             self.crashwatch = CrashWatch(self.cfg.crashes_path, clock=lambda: self.clock())
@@ -553,6 +564,10 @@ class AmbientRuntime:
         # mic", "stop" -- instead of leaving them queued behind the answer.
         self._recent_user: Deque[str] = deque(maxlen=8)    # what the user said lately
         self._thinking = 0
+        self._think_started = 0.0               # when the answer in progress began
+        self._think_query = ""
+        self._cancelled = False                 # "never mind" said while it was in progress
+        self._respond_thread: Optional[threading.Thread] = None
         self._lane: Optional[threading.Thread] = None
         self._lane_skip: set = set()
         self._rest: List[Any] = []                  # the events still to come in this tick
@@ -575,6 +590,13 @@ class AmbientRuntime:
     def response_sink(self, text: str, meta: Dict[str, Any]):
         """Every line ASH says goes through here: written to the remark log
         (when on), then handed to the real sink."""
+        if (text and self._cancelled and meta.get("addressed")
+                and threading.current_thread() is self._respond_thread):
+            # "Never mind" was said while this answer was being worked out.
+            # The model call itself can't be aborted, but nothing is said.
+            self.stats["cancelled"] = self.stats.get("cancelled", 0) + 1
+            logger.info("Dropped an answer the user cancelled: %r", text[:80])
+            return None
         if self.remarks is not None and text:
             try:
                 self.remarks.said(text, meta)
@@ -668,6 +690,11 @@ class AmbientRuntime:
         if self._thread:
             self._thread.join(timeout=timeout)
         self.journal.flush()
+        if self.crashwatch is not None:
+            try:
+                self.crashwatch.shutdown()             # a clean stop: not the machine going down with it
+            except Exception:
+                logger.exception("Crash watch shutdown failed")
         if self.activity is not None:
             try:
                 # A stretch still open is real time the user spent: close it
@@ -728,8 +755,75 @@ class AmbientRuntime:
             elapsed = time.time() - t0
             self._stop.wait(max(0.05, self.cfg.tick_seconds - elapsed))
 
+    # ------------------------------------------------------------------
+    # Switching devices -- for real
+    # ------------------------------------------------------------------
+    def _privacy_changed(self, paused: bool):
+        """Privacy mode on: every privacy-sensitive sensor that is running is
+        actually switched off (the microphone thread stops, the camera is let
+        go). Off: exactly those come back -- not ones that were already off."""
+        if paused:
+            self._enforce_privacy()
+            return
+        held, self._privacy_held = self._privacy_held, []
+        for name in held:
+            s = self.periphery.sensors.get(name)
+            if s is not None and getattr(getattr(s, "state", None), "value", "") == "disabled":
+                try:
+                    s.enable()
+                except Exception:
+                    logger.exception("Could not bring %s back after privacy mode", name)
+
+    def _enforce_privacy(self):
+        """While privacy mode is on nothing sensitive may be running, however
+        it got switched on. Cheap enough to check every tick."""
+        for name, s in list(self.periphery.sensors.items()):
+            if not getattr(getattr(s, "capability", None), "privacy_sensitive", False):
+                continue
+            if getattr(getattr(s, "state", None), "value", "") != "active":
+                continue
+            if name not in self._privacy_held:
+                self._privacy_held.append(name)
+            try:
+                s.disable()
+            except Exception:
+                logger.exception("Could not switch %s off for privacy mode", name)
+
+    def set_sensor(self, name: str, on: bool):
+        """Switch a sensor or actuator on or off and CHECK that it happened.
+        Returns (ok, why-not). Privacy mode refuses to switch a sensitive sensor
+        on; an unavailable one reports its reason instead of pretending."""
+        target = self.periphery.sensors.get(name) or self.periphery.actuators.get(name)
+        if target is None:
+            return False, f"no {name} here"
+        sensitive = bool(getattr(getattr(target, "capability", None), "privacy_sensitive", False)
+                         or name in ("microphone", "camera", "screenshot"))
+        if on and sensitive and self.privacy.paused:
+            return False, "privacy mode is on"
+        try:
+            target.enable() if on else target.disable()
+        except Exception:
+            logger.exception("Could not switch %s", name)
+            return False, "it raised an error"
+        if name in self._privacy_held:           # an explicit choice replaces the automatic one
+            self._privacy_held.remove(name)
+        now_state = getattr(getattr(target, "state", None), "value", "")
+        want = "active" if on else "disabled"
+        if now_state != want:
+            why = getattr(target, "unavailable_reason", None) or f"it is {now_state or 'in an unknown state'}"
+            return False, str(why)
+        return True, ""
+
     def _tick(self):
         now = time.time()
+
+        if self.crashwatch is not None:
+            try:
+                self.crashwatch.heartbeat()            # "ASH was running now", written at most once a minute
+            except Exception:
+                logger.exception("Crash watch heartbeat failed")
+        if self.privacy.paused:
+            self._enforce_privacy()
 
         # 1. Poll due sensors.
         for sensor in list(self.periphery.sensors.values()):
@@ -1246,6 +1340,22 @@ class AmbientRuntime:
             logger.debug("Could not read the memory context", exc_info=True)
         return "\n".join(parts)
 
+    def _facts_request(self, ev, now: float) -> bool:
+        """"Who was Ada Lovelace?": a Wikipedia summary, only if switched on and only
+        when said to ASH. No connection: not answered here, the model answers."""
+        f = self.facts
+        if f is None or not f.enabled or not self._user_source(ev) or not self._meant_for_ash(ev):
+            return False
+        try:
+            say = f.hear(str(getattr(ev, "text", "") or ""))
+        except Exception:
+            logger.exception("Facts lookup failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
     def _crash_request(self, ev, now: float) -> bool:
         """"Did my computer crash?": from the Windows event log, no model."""
         c = self.crashwatch
@@ -1578,6 +1688,8 @@ class AmbientRuntime:
             return
         if self._crash_request(ev, now):
             return
+        if self._facts_request(ev, now):
+            return
         if self._honest_request(ev, now):
             return
         if self._cheer_request(ev, now):
@@ -1656,10 +1768,16 @@ class AmbientRuntime:
         self.stats["responded"] += 1
         self._last_activity = time.time()
         self._thinking += 1
+        self._cancelled = False
+        self._think_started = time.time()
+        self._think_query = str(getattr(ev, "text", "") or "")[:80]
+        self._respond_thread = threading.current_thread()
         try:
             self._respond(ev, decision)
         finally:
             self._thinking -= 1
+            self._think_started = 0.0
+            self._cancelled = False
             if (ev.meta or {}).get("offer") == "wonder":
                 self._wonder_inflight = None
             elif (ev.meta or {}).get("offer") == "moment":
@@ -2050,7 +2168,8 @@ class AmbientRuntime:
         sp = self.periphery.actuators.get("speak")
         talking = bool(sp is not None and (getattr(sp, "speaking", False)
                                            or time.time() - getattr(sp, "ended_at", 0.0) <= 4.0))
-        return (wants_stop(text, talking) or wants_short(text) or wants_brief(text) is not None)
+        return (wants_stop(text, talking) or wants_short(text) or wants_brief(text) is not None
+                or bool(self._thinking and wants_cancel(text)))
 
     def _lane_step(self):
         """One pass of the fast lane. Does nothing unless the main loop is
@@ -2138,17 +2257,15 @@ class AmbientRuntime:
         name = cmd.name
 
         def toggle(sensor: str, on: bool, label: str) -> str:
-            s = sensors.get(sensor)
-            if s is None:
+            cap = label[0].upper() + label[1:]
+            if sensors.get(sensor) is None:
                 return f"There's no {label} set up on this machine."
-            if on and self.privacy.paused:
-                return f"Privacy mode is on -- turn it off first (\u201cprivacy off\u201d), then the {label}."
-            try:
-                s.enable() if on else s.disable()
-            except Exception:
-                logger.exception("Could not switch %s", sensor)
-                return f"I couldn't switch the {label} {'on' if on else 'off'}."
-            return f"{label[0].upper() + label[1:]} {'on' if on else 'off'}."
+            ok, why = self.set_sensor(sensor, on)
+            if ok:
+                return f"{cap} {'on' if on else 'off'}."
+            if why == "privacy mode is on":
+                return f"Privacy mode is on -- turn it off first (“privacy off”), then the {label}."
+            return f"I couldn't switch the {label} {'on' if on else 'off'}: {why}."
 
         if name == "privacy_on":
             self.privacy.pause("voice")
@@ -2181,8 +2298,10 @@ class AmbientRuntime:
             player = getattr(face, "player", None)
             if player is None or cmd.arg not in getattr(player, "library", {}):
                 say = "My face isn't running right now."
+            elif (not player.play(cmd.arg, force=True)
+                  or getattr(getattr(player, "current", None), "name", cmd.arg) != cmd.arg):
+                say = "I couldn't make that face just now."
             else:
-                player.play(cmd.arg, force=True)
                 say = "Like this." if cmd.arg != "wink" else "\U0001F609"
         elif name == "faces":
             player = getattr(getattr(self, "face", None), "player", None)
@@ -2220,6 +2339,12 @@ class AmbientRuntime:
             self.speech.stats["stopped"] += 1
             self._last_why = {"kind": "stopped"}
             return True                      # nothing said back: the point was quiet
+        if self._thinking and wants_cancel(text):
+            self._cancelled = True
+            if sp is not None and hasattr(sp, "stop"):
+                sp.stop()
+            self._speech_say("Okay -- dropped it.", "cancel")
+            return True
         if wants_short(text):
             if sp is not None and hasattr(sp, "stop"):
                 sp.stop()
@@ -2538,6 +2663,7 @@ class AmbientRuntime:
             "email": self.inbox.status() if self.inbox else None,
             "weekly": self.weekly.status() if self.weekly else None,
             "crashes": self.crashwatch.status() if self.crashwatch else None,
+            "facts": self.facts.status() if self.facts else None,
             "cheer": self.cheer.status() if self.cheer else None,
             "care": self.care.status() if self.care else None,
             "story": self.storybook.status() if self.storybook else None,

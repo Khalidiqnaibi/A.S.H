@@ -407,6 +407,21 @@ class Brain:
         out = self.system1.execute(proposal)
         timings["tool"] = (time.perf_counter() - t0) * 1000.0
         ok = bool(out.get("ok"))
+        declined = (not ok) and bool(out.get("declined"))
+
+        if declined:
+            # The tool did exactly what it should: it was switched off, or the
+            # machine has no such sensor. That is an honest answer, not a
+            # failure -- it is said as it is, and neither the critic nor the
+            # outcome model learns "this request goes wrong" from it.
+            trace.notes.append(f"fast tool '{proposal.tool_name}' declined: {out.get('error')}")
+            self.system1.stage_reward(proposal, tool_success=None, escalated=False)
+            text = str(out.get("error") or "I can't do that right now.")
+            trace.pathway = Pathway.FAST
+            trace.tool_output = out
+            self.memory.commit_turn(query, text, self.user, self.name, pathway=Pathway.FAST, grounded=True)
+            return BrainResponse(text=text, trace=trace, tool_output=out, intent=proposal.intent,
+                                 tool_used=proposal.tool_name, tool_success=None, pathway=Pathway.FAST)
 
         self.predictive.record_outcome(proposal.intent, ok)
 
@@ -550,7 +565,10 @@ class Brain:
             tool_ok = bool(tool_out.get("ok"))
             tool_name = chosen.tool_name
             intent = chosen.intent
-            self.predictive.record_outcome(intent, tool_ok)
+            if not tool_ok and tool_out.get("declined"):
+                tool_ok = None            # switched off / not on this machine: neither success nor failure
+            else:
+                self.predictive.record_outcome(intent, tool_ok)
             trace.tool_output = tool_out
 
         if verdict2.vetoed_by:

@@ -300,6 +300,9 @@ def main() -> int:
                 cheer_path=os.path.join(os.getcwd(), "state", "cheer.json"),
                 crashes=bool(cfg.get("crashes", {}).get("enabled", True)),
                 crashes_path=os.path.join(os.getcwd(), "state", "crashes.json"),
+                facts=True,
+                facts_cfg={"enabled": bool(cfg.get("facts", {}).get("enabled", False)),
+                           **{k: v for k, v in (cfg.get("facts") or {}).items() if k != "enabled"}},
                 weekly=bool(cfg.get("weekly", {}).get("enabled", True)),
                 weekly_path=os.path.join(os.getcwd(), "state", "weekly.json"),
                 weekly_day=str(cfg.get("weekly", {}).get("day", "sunday")),
@@ -365,6 +368,10 @@ def main() -> int:
                         return {"ok": True, "withheld": "paused"}
                     if _shot.state.value == "disabled":
                         return {"ok": True, "withheld": "off"}
+                    if _shot.state.value == "unavailable":
+                        return {"ok": False, "declined": True,
+                                "error": "I can't look at the screen on this machine: "
+                                         + str(getattr(_shot, "unavailable_reason", None) or "the capture isn't available") + "."}
                     return _shot.look_now()
                 screen_tool.set_looker(_look)
         except Exception:

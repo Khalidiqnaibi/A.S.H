@@ -48,7 +48,7 @@ import threading
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-from .base import Capability, Modality, Sensor, SensorEvent
+from .base import Capability, Modality, Sensor, SensorEvent, State
 
 logger = logging.getLogger("ash.senses.screen")
 
@@ -567,6 +567,15 @@ class ScreenshotSensor(Sensor):
         self._cropped = rect is not None
         return ImageGrab.grab(bbox=rect) if rect is not None else ImageGrab.grab()
 
+    def disable(self):
+        # "Screen capture off" also drops what was read off the screen: nothing
+        # captured before the switch may surface after it, and ASH must not
+        # describe a screen it is no longer allowed to look at.
+        super().disable()
+        with self._ocr_lock:
+            self._ocr_pending = None
+            self._last_view = None
+
     def read(self) -> List[SensorEvent]:
         # A reading that finished since the last poll goes out on its own,
         # describing the frame it was taken from. It is emitted even when
@@ -744,6 +753,8 @@ class ScreenshotSensor(Sensor):
                     # lecture slide. Only a page that has changed is news.
                     from .screenread import similar
                     repeat = bool(text) and similar(text, self._last_read)
+                    if text and self.state != State.ACTIVE:
+                        text = ""            # switched off while this was being read: discard
                     if text:
                         # Even a repeat is the freshest look at this page.
                         self._last_view = {"title": title, "scene": scene, "text": text,

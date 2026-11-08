@@ -348,7 +348,9 @@ _ADDRESS = re.compile(r"^\s*(?:(?:hey|hi|hello|ok|okay|yo)[,\s]+)?ash\b[,.!\s]*|
 
 
 def strip_address(query: str) -> str:
-    return _ADDRESS.sub("", query or "", count=1).strip()
+    """The request without the name, the politeness or the filler (src/brain/phrasing.py)."""
+    from src.brain.phrasing import clean
+    return clean(query, keep_original=False)
 
 
 def _apply_priors(query: str, scored):

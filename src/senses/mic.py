@@ -46,7 +46,7 @@ import time
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
 from . import address
-from .base import Capability, Modality, Sensor, SensorEvent
+from .base import Capability, Modality, Sensor, SensorEvent, State
 
 logger = logging.getLogger("ash.senses.mic")
 
@@ -188,11 +188,16 @@ class MicrophoneSensor(Sensor):
 
     def enable(self):
         super().enable()
-        self._start_capture()
+        # Only listen if the sensor is really usable: an unavailable or errored
+        # microphone must not start a capture thread behind its own back.
+        if self.state == State.ACTIVE:
+            self._start_capture()
 
     def disable(self):
         super().disable()
         self._stop_capture()
+        with self._lock:                  # what was heard before "off" is not acted on after it
+            self._out.clear()
 
     # ------------------------------------------------------------------
     # Capture thread
@@ -331,6 +336,8 @@ class MicrophoneSensor(Sensor):
             if vp is not None:
                 extra["voice"] = vp
         with self._lock:
+            if getattr(self, "_stop", None) is not None and self._stop.is_set():       # switched off while this was being transcribed
+                return
             self._out.append(build_event(self.name, text, verdict,
                                          data=(audio if self.keep_audio else None),
                                          duration_s=round(duration, 2), **extra))

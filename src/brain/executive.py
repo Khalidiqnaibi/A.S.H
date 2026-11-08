@@ -74,6 +74,7 @@ MIN_PASS_SCORE = 0.10         # below this, no action is worth taking
 CLEAR_MATCH = 0.60            # a "clear reflex": classifier match at least this,
 CLEAR_VALUE = 0.30            # critic value at least this, harmless and undoable tool
 CLEAR_PASS_SCORE = 0.02       # ...only needs a positive score
+CLEAR_LEAD = 0.25             # ...and a rival this much worse a match is noise, not a contest
 
 ALWAYS_DELIBERATE: Set[ActionClass] = {
     ActionClass.MUTATION,
@@ -515,7 +516,7 @@ class ExecutiveCore:
     # ------------------------------------------------------------------
     def gate(self, proposal: Optional[ActionProposal], drives: Drives,
              prediction: Prediction, bundle: PerceptBundle,
-             margin: float, deadlocked: bool) -> tuple:
+             margin: float, deadlocked: bool, clear: bool = False) -> tuple:
         """Return (Pathway, reasons). Any single reason forces SLOW."""
         reasons: List[str] = []
 
@@ -523,6 +524,11 @@ class ExecutiveCore:
         # pickier about taking shortcuts.
         e = drives.effort_budget
         value_floor = 0.15 + 0.55 * e          # critic value needed to reflex
+        if clear:
+            # A clear reflex was already judged worth running by its own bar
+            # (CLEAR_VALUE); the effort-scaled floor sent "how much memory am
+            # I using" to the model when the critic said 0.40 against 0.45.
+            value_floor = min(value_floor, CLEAR_VALUE)
         match_floor = 0.32 + 0.18 * e          # classifier score needed
         surprise_ceiling = 0.62 - 0.22 * e
         novelty_ceiling = 0.70 - 0.20 * e
@@ -635,16 +641,23 @@ class ExecutiveCore:
         # "convert km to miles" (matches 0.64-0.66) a hair under the bar and
         # sent them to the model. They only need a positive score; the gate
         # below still checks surprise, margin and the rest.
-        clear = (best.origin == "system1" and best.tool_name is not None and best.reversible
+        # The deliberator often puts the same tool forward (with a rollout value
+        # of its own) and wins the vote; the reflex's own proposal for that same
+        # action is still what says whether the request was clear.
+        ref = best if best.origin == "system1" else next(
+            (s[1] for s in live if s[1].origin == "system1" and _same(s[1], best)), None)
+        clear = (ref is not None and best.tool_name is not None and best.reversible
                  and best.action_class not in ALWAYS_DELIBERATE
-                 and best.confidence >= CLEAR_MATCH and best.value >= CLEAR_VALUE)
+                 and ref.confidence >= CLEAR_MATCH and ref.value >= CLEAR_VALUE)
+        if clear and rivals and best.confidence - max(s[1].confidence for s in rivals) >= CLEAR_LEAD:
+            deadlocked, margin = False, max(margin, DEADLOCK_MARGIN)   # the words back it; the rival is noise
         bar = CLEAR_PASS_SCORE if clear else MIN_PASS_SCORE
         if best_score < bar:
             pathway, reasons = Pathway.SLOW, [
                 f"no proposal cleared minimum score ({best_score:.3f} < {bar})"
             ]
         else:
-            pathway, reasons = self.gate(best, drives, prediction, bundle, margin, deadlocked)
+            pathway, reasons = self.gate(best, drives, prediction, bundle, margin, deadlocked, clear=clear)
 
         return Verdict(
             chosen=best,

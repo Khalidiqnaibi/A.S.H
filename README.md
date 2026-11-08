@@ -39,7 +39,7 @@ and TTS models, all bundled.
 
 ``` powershell
 # on an ONLINE machine
-powershell -ExecutionPolicy Bypass -File offlineuild_usb.ps1 -Out D:\ASH_OFFLINE_KIT
+powershell -ExecutionPolicy Bypass -File offline\build_usb.ps1 -Out D:\ASH_OFFLINE_KIT
 
 # rehearse it here first, with the network blocked
 powershell -ExecutionPolicy Bypass -File offline\simulate_airgap.ps1
@@ -701,6 +701,36 @@ mention it, and how often you have. The report is told at the next free
 moment (ahead of a joke) or in the evening briefing, once, crediting where
 each part came from -- and says plainly when nothing was found.
 
+## Short facts from Wikipedia (off by default)
+
+`facts` in `daemon.json`, `src/daemon/facts.py`; the switch is "Answer short
+who/what is... questions from Wikipedia" in the console's settings. "Who was
+Ada Lovelace?", "what is a black hole?", "what does ephemeral mean?" is
+answered with the first sentences of the article and "(Wikipedia)" after
+them, quoted, not guessed. It sends the topic, and only the topic, to
+en.wikipedia.org, so it is off until you turn it on, and it only runs for
+something said to ASH, never for talk overheard or text read off the screen.
+A topic with several meanings asks which; one with no page says so; no
+connection says nothing and lets ASH answer as usual. It leaves alone what is
+not a topic: the time, the date, the weather, sums, "what is your name",
+"what is this", questions about you, and quantities ("the population of...").
+
+## Where a sentence goes (and the test that pins it)
+
+`tst_replay.py` runs real utterances from the real sessions through the real
+brain: clear tool requests ("what time is it", "what's 15 times 23", "convert
+10 km to miles", "list the files in my documents", "how much memory am I
+using", and the same with "please" or "could you") stay on the fast path with
+no model call; conversation goes to the model; and the control commands are
+rules that never reach it. A tool that declines because it is switched off or
+the machine has no such sensor ("Screen capture is off") is a correct answer,
+not a failure: it is said as it is, and the critic and the outcome model learn
+nothing bad from it. Politeness and the name ("please", "thanks", "hey ash",
+"could you") are stripped before a sentence is classified and before a tool is
+handed it (`src/brain/phrasing.py`). A clear reflex also isn't undone by the
+deliberator proposing the same tool, by the effort-scaled critic floor, or by
+a rival that is a far worse match.
+
 ## Desktop control
 
 `desktop` in `daemon.json`, `src/daemon/desktop.py`. "Open Outlook",
@@ -1061,6 +1091,38 @@ ASH, and nothing turns on while privacy mode is on. If the model's answer
 claims one of these ("I'm turning off now"), ASH says the truth instead and
 names the command.
 
+### Commands act on the real thing
+
+A command is only done when the device has changed, not when a flag or the
+screen says so. `tst_effects.py` runs them against the real classes.
+
+* **Microphone off** stops the capture thread and throws away what it had
+  heard; on starts it again. A microphone that can't work (no audio library)
+  stays off and says why, rather than starting a thread behind its own back.
+* **Camera off** lets go of the device, so its light goes out, and forgets
+  the frame it was comparing against.
+* **Screen capture off** drops a reading that hadn't been delivered, and a
+  reading that finishes after the switch is thrown away.
+* **Privacy mode** (voice, console button or `pause`) really switches every
+  privacy-sensitive sensor that was on **off**, and brings back exactly those
+  when it ends, not ones you had turned off yourself. It is also checked
+  every tick: anything sensitive found running while it is on is stopped.
+* **Turning something on** (voice or the console) is refused in privacy mode,
+  and a sensor that is unavailable ("no camera at index 0") is reported with
+  its reason instead of "Camera on."
+* **A face** is the animation actually playing, or ASH says it couldn't.
+* **Stop, quiet mode, shutdown** stop the speaker, mute the attention gate
+  and ask the daemon to stop, each checked.
+
+### "Never mind" while ASH is thinking
+
+A model answer takes seconds to a minute and can't be aborted once started.
+Saying "never mind", "forget it" or "cancel that" meanwhile is heard at
+once (the fast lane) and the answer, when it arrives, is dropped instead of
+said. The console's status shows what ASH is thinking about and for how
+long, with a "Never mind" button. Said when nothing is being worked on, the
+words keep their old meaning (dropping a question ASH asked).
+
 **Hearing itself.** With speakers, the microphone picks up ASH's own voice
 (`src/senses/echo.py`). ASH keeps what it is saying and when. A line heard
 during or just after that, made mostly of its own words, is dropped. You
@@ -1165,6 +1227,17 @@ The fix is an up-to-date GPU driver. Until then, `llm.gpu: false` in
 console's settings, keeps the model on the CPU. That's slower, but leaves
 the driver nothing to trip over. The console switch takes effect on the
 next answer, with no restart.
+
+### Was ASH running when it crashed?
+
+ASH writes down when it starts, keeps a heartbeat (once a minute) and notes
+a clean stop (`state/crashes.json.runs`). A run with no clean stop was cut
+off, and the crash is what cut it (Windows stamps a crash at the reboot, so
+that run counts until the next start). With a day of history, "any crashes
+lately?" adds "ASH was running during 5 of those 6, and it runs about 40% of
+the time", and "is ASH causing the crashes?" answers from it, saying when the
+numbers are more than chance and when they are not, and that it is a link,
+not a cause. Too few crashes or too little history: it says so.
 
 ## Running it as a service
 

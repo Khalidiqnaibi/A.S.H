@@ -75,18 +75,35 @@ class PrivacyPolicy:
     blocked_apps: List[str] = field(default_factory=list)
 
     _paused_at: Optional[float] = None
+    # Called with the new `paused` value whenever it changes, so whatever owns
+    # the devices can really stop (or restart) them -- a flag alone stops
+    # nothing that runs on its own thread.
+    listeners: List[Any] = field(default_factory=list, repr=False)
+
+    def _notify(self):
+        for fn in list(self.listeners):
+            try:
+                fn(self.paused)
+            except Exception:
+                logger.exception("Privacy listener failed")
 
     # ------------------------------------------------------------------
     def pause(self, reason: str = "user request"):
+        changed = not self.paused
         self.paused = True
         self._paused_at = time.time()
         logger.warning("PRIVACY PAUSE engaged (%s) -- sensitive sensors halted", reason)
+        if changed:
+            self._notify()
 
     def resume(self):
         was = self._paused_at
+        changed = self.paused
         self.paused = False
         self._paused_at = None
         logger.warning("Privacy pause lifted after %.0fs", time.time() - was if was else 0)
+        if changed:
+            self._notify()
 
     def allows(self, sensor) -> bool:
         """Checked by the ambient loop before every poll."""

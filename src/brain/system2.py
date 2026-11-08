@@ -49,6 +49,7 @@ from .signals import (
     ActionClass, ActionProposal, Drives, Imagery, PerceptBundle, Prediction, Step,
 )
 from .gist import gist_prompt, render_gist, verify
+from .phrasing import clean as clean_request
 from .system1 import classify_action
 
 logger = logging.getLogger("ash.brain.system2")
@@ -220,7 +221,7 @@ class System2Deliberator:
             proposals.append(ActionProposal(
                 intent=intent,
                 tool_name=entry.name,
-                args=query,
+                args=clean_request(query),
                 origin="system2",
                 action_class=cls,
                 confidence=score,
@@ -301,7 +302,7 @@ class System2Deliberator:
 
         cls, reversible = classify_action(intent, self.shapes.get(intent))
         return ActionProposal(
-            intent=intent, tool_name=entry.name, args=query, origin="system2",
+            intent=intent, tool_name=entry.name, args=clean_request(query), origin="system2",
             action_class=cls,
             confidence=float(min(match + LLM_MARGIN,
                                  max(0.0, float(payload.get("confidence", 0.5) or 0.5)))),

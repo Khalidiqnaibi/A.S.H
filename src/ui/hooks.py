@@ -200,7 +200,9 @@ def attach_ui(runtime, bus, opener: Optional[Callable[[], Any]] = None,
             target = p.sensors.get(arg) or p.actuators.get(arg)
             if target is None:
                 return {"ok": False, "error": f"no peripheral named {arg!r}"}
-            target.enable() if cmd == "enable" else target.disable()
+            ok, why = runtime.set_sensor(arg, cmd == "enable")
+            if not ok:
+                return {"ok": False, "error": f"couldn't turn {arg} {'on' if cmd == 'enable' else 'off'}: {why}"}
         else:
             return {"ok": False, "error": f"unknown command {cmd!r}"}
         bus.publish("system", text=_CONTROL_TEXT.get(cmd, cmd).format(arg=arg))
