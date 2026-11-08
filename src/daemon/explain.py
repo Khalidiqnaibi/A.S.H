@@ -163,3 +163,31 @@ def explain(why: Optional[Dict[str, Any]]) -> str:
         s = f"I noticed {why.get('noticed', 'something')} and it seemed worth mentioning"
         return s + (f" ({'; '.join(reasons[:3])})." if reasons else ".")
     return "I'm not sure I can explain that one."
+
+
+def route_label(meta: Dict[str, Any], text: str = "", tool: str = "") -> Dict[str, str]:
+    """How a line reached the screen, for the console's "why" card: the
+    route (rules / tool / model / noticed / wikipedia) and one plain sentence.
+
+    From what the reply's own record already says -- no new signal."""
+    pathway = str(meta.get("pathway") or "")
+    outcome = str(meta.get("outcome") or "")
+    att = meta.get("attention") or {}
+    kind = str(att.get("kind") or "") if isinstance(att, dict) else ""
+    t = (text or "").rstrip()
+    tool = str(tool or "").replace("_", " ")
+    if meta.get("degraded"):
+        return {"route": "notice", "detail": "The language model wasn't available, so this is a fixed line."}
+    if t.endswith("(Wikipedia)"):
+        return {"route": "wikipedia", "detail": "The first lines of Wikipedia's page, fetched when you asked. Only the topic was sent."}
+    if not meta.get("addressed"):
+        return {"route": "noticed", "detail": "ASH said this on its own, from what it saw you doing -- you didn't ask."}
+    if pathway == "slow" and tool:
+        return {"route": "tool", "detail": f"The {tool} tool ran, and the language model put it into words."}
+    if pathway == "slow":
+        return {"route": "model", "detail": "The language model answered from what it was trained on. It didn't look this up, so check it if it matters."}
+    if pathway in ("fast", "reflex"):
+        return {"route": "reflex", "detail": f"A quick habit{' using the ' + tool + ' tool' if tool else ''}, no language model."}
+    if outcome or pathway in ("offer", "rules", ""):
+        return {"route": "rules", "detail": "ASH's own rules acted on what you said -- the language model wasn't involved."}
+    return {"route": "rules", "detail": "ASH's own rules."}

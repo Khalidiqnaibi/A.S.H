@@ -262,6 +262,12 @@ ul, ol { list-style: none; margin: 0; padding: 0; }
   white-space: pre-wrap; overflow-wrap: anywhere;
   border: 1px solid var(--ash-line); background: var(--ash-bg); box-shadow: var(--glow);
 }
+.why-card { margin: 0; padding: var(--s2) var(--s3); font-size: var(--fs-sm); border-left: 3px solid var(--accent2);
+  background: var(--ash-bg); opacity: .92; border-radius: 0 var(--bubble-radius) var(--bubble-radius) 0; }
+.why-card[hidden] { display: none; }
+.tag.route { cursor: pointer; }
+.tag.route:hover, .tag.route:focus-visible { border-color: var(--accent); outline: none; }
+.bubble { cursor: default; }
 .msg.user { align-self: flex-end; align-items: flex-end; }
 .msg.user .msg-meta { justify-content: flex-end; }
 .msg.user .bubble { background: var(--user-bg); border-color: var(--user-line); box-shadow: none; }
@@ -607,9 +613,22 @@ function addAsh(m, live) {
   if (m.why) tagEl.title = "Why ASH spoke: " + m.why;
   const path = m.pathway && !["offer", "degraded"].includes(m.pathway) ? el("span", "tag", m.pathway) : null;
   if (path) path.title = "Which path the brain took: reflex/fast = instant habit, slow = deliberate thought";
-  row.appendChild(meta([el("span", "who", "ASH"), tagEl, path], m.ts));
+  const routeTag = m.route ? el("span", "tag route", m.route) : null;
+  const card = m.route ? el("p", "why-card") : null;
+  if (routeTag) {
+    routeTag.tabIndex = 0; routeTag.setAttribute("role", "button");
+    routeTag.title = "Tap to see how ASH got this";
+    card.hidden = true;
+    card.textContent = (m.route_detail || "") + (m.why ? "  (Spoke because: " + m.why + ")" : "")
+      + (m.pathway && m.pathway !== "offer" ? "  Path: " + m.pathway + "." : "");
+    const flip = () => { card.hidden = !card.hidden; routeTag.setAttribute("aria-expanded", String(!card.hidden)); };
+    routeTag.onclick = flip;
+    routeTag.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flip(); } };
+  }
+  row.appendChild(meta([el("span", "who", "ASH"), tagEl, path, routeTag], m.ts));
   const bubble = el("p", "bubble");
   row.appendChild(bubble);
+  if (card) row.appendChild(card);
   if (m.role === "offer") row.appendChild(replies(m.replies || []));
   append(row);
   if (live) typeOut(bubble, m.text); else bubble.textContent = m.text;

@@ -3,6 +3,7 @@ tst_session4.py -- round three of the JARVIS / BMO ideas, one section per item.
 
   S1  The model is preloaded at start (one token, kept alive, no thinking cost)
   S4  A model claiming it sent/called/ordered something is replaced, unless a tool ran
+  S5  Each reply carries how it was made, shown as a tappable card in the console
   S3  Wikipedia facts are on in the daemon unless switched off
   S2  A slow model answer gets a short spoken cue first; a quick one does not
 
@@ -115,10 +116,34 @@ def s4():
     check("a tool that really ran is exempt", rt2.out[-1] != honest.NOT_DONE, str(rt2.out))
 
 
+def s5():
+    print("\n=== S5. The 'why' card ===")
+    from src.daemon.explain import route_label
+    a = {"addressed": True}
+    cases = [
+        ({**a, "pathway": "slow"}, "Hello.", "", "model"),
+        ({**a, "pathway": "slow"}, "It's 5.", "get_time", "tool"),
+        ({**a, "pathway": "fast"}, "It's 5.", "get_time", "reflex"),
+        ({**a, "pathway": "slow", "outcome": "desktop"}, "Opening Chrome.", "", "model"),
+        ({**a, "pathway": "offer", "outcome": "desktop"}, "Mic on.", "", "rules"),
+        ({**a}, "Ada Lovelace was a mathematician. (Wikipedia)", "", "wikipedia"),
+        ({"addressed": False, "pathway": "offer"}, "Been at it a while.", "", "noticed"),
+        ({**a, "degraded": True}, "Model is down.", "", "notice"),
+    ]
+    for meta, text, tool, want in cases:
+        got = route_label(meta, text, tool)
+        check(f"{want}: {text[:30]!r}", got["route"] == want and bool(got["detail"]), str(got))
+    html = open(os.path.join(HERE, "src", "ui", "static", "console.html"), encoding="utf-8").read()
+    check("the console shows a tappable route tag and a card", "tag route" in html and "why-card" in html)
+    hooks = open(os.path.join(HERE, "src", "ui", "hooks.py"), encoding="utf-8").read()
+    check("the bus record carries the route", "route_detail" in hooks)
+
+
 if __name__ == "__main__":
     s1()
     s2()
     s3()
     s4()
+    s5()
     print("\nALL OK" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

@@ -1982,7 +1982,7 @@ class AmbientRuntime:
                     finally:
                         if cue is not None:
                             cue.cancel()
-                self._last_tool_used = bool(getattr(response, "tool_used", None))
+                self._last_tool_used = str(getattr(response, "tool_used", None) or "")
                 text = clip_reply(response.text, self.cfg.max_response_chars)
                 pathway = response.pathway.value
                 if to_ash:

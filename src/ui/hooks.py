@@ -116,7 +116,13 @@ def attach_ui(runtime, bus, opener: Optional[Callable[[], Any]] = None,
                 role = "offer"
             else:
                 role = "remark"
+            try:
+                from src.daemon.explain import route_label
+                route = route_label(meta, text, str(getattr(runtime, "_last_tool_used", "") or ""))
+            except Exception:
+                route = {}
             bus.publish("ash", text=text, role=role, offer=kind if role == "offer" else None,
+                        route=route.get("route"), route_detail=route.get("detail"),
                         pathway=meta.get("pathway"), source=meta.get("source"),
                         replies=QUICK_REPLIES.get(kind, []) if role == "offer" else [],
                         why=", ".join(att.get("reasons") or [])[:200])
