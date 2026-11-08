@@ -281,6 +281,64 @@ def r12_keepalive():
         os.environ.pop("ASH_OLLAMA_KEEP_ALIVE", None)
 
 
+def r13_reasoning():
+    print("\n=== R13. A model's thinking is never the answer ===")
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "ash_llm_under_test2", os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools", "LLM.py"))
+    L = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(L)
+    spoken = [
+        "Okay, so the user is asking, \"who is messi.\" From what I know, messi is a Spanish football player.",
+        "Alright, so the user mentioned \"wew\" and I'm trying to figure out what they're asking about.",
+        "Okay, so I'm trying to figure out what to do here. The user mentioned wew.",
+        "Let me break this down step by step.",
+        "Hmm, let me think about this.",
+        "The user is asking me to create a circle in ASCII art.",
+    ]
+    for s in spoken:
+        check(f"reasoning caught: {s[:46]!r}", L.looks_like_reasoning(s))
+    fine = ["Lionel Messi is an Argentine footballer.", "Well, I think that's Inter Miami.", "So the answer is 42.",
+            "Okay. It's 1:35 PM.", "I'm trying my best, but I don't know that one.", "Sure, the user guide is in docs."]
+    for s in fine:
+        check(f"an answer is left alone: {s[:46]!r}", not L.looks_like_reasoning(s))
+    check("a closed think block goes", L._strip_think("<think>hmm</think>It is 5.").strip() == "It is 5.")
+    check("an unclosed think block goes to the end", L._strip_think("Hi. <think>so the user").strip() == "Hi.")
+    check("a missing opening tag goes", L._strip_think("let me see...</think>It is 5.").strip() == "It is 5.")
+
+    sent = []
+
+    class R:
+        status_code = 200
+
+        def __init__(self, body, code=200):
+            self.text, self.status_code = body, code
+
+    import json as _j
+    plan = [R(_j.dumps({"message": {"content": "", "thinking": "Okay, so the user is asking who is messi"}}))]
+    orig = L.requests.post
+    L.requests.post = lambda url, json=None, timeout=None, **k: (sent.append(dict(json)), plan[0])[1]
+    try:
+        llm = L.LLM(mode="ollama", ollama_model="r1", ollama_url="http://x/api/chat")
+        out = llm._call_ollama([{"role": "user", "content": "who is messi"}])
+        check("only thinking came back: the answer is empty, not the thinking", out == "", repr(out))
+        check("the request asked the model not to think", sent[-1].get("think") is False, str(sent[-1].keys()))
+        plan[0] = R(_j.dumps({"message": {"content": "Okay, so the user is asking about Messi. Let me recall."}}))
+        check("reasoning written as the answer is dropped", llm._call_ollama([{"role": "user", "content": "x"}]) == "")
+        plan[0] = R(_j.dumps({"message": {"content": "Messi is an Argentine footballer."}}))
+        check("a real answer passes", llm._call_ollama([{"role": "user", "content": "x"}]).startswith("Messi"))
+        # a model with no thinking option: 400 mentioning it -> sent again without
+        seq = [R("{\"error\": \"\\\"mistral\\\" does not support think\"}", 400),
+               R(_j.dumps({"message": {"content": "Hello."}}))]
+        sent.clear()
+        L.requests.post = lambda url, json=None, timeout=None, **k: (sent.append(dict(json)), seq.pop(0))[1]
+        out = llm._call_ollama([{"role": "user", "content": "x"}])
+        check("a model without 'think' is asked again without it", out == "Hello." and len(sent) == 2
+              and "think" not in sent[1], f"{out!r} {[('think' in s) for s in sent]}")
+    finally:
+        L.requests.post = orig
+
+
 if __name__ == "__main__":
     r1_parse()
     r2_r3_stored()
@@ -293,5 +351,6 @@ if __name__ == "__main__":
     r10_sleep()
     r11_observe()
     r12_keepalive()
+    r13_reasoning()
     print("\nALL PASS" if tw.OK else "\nSOME FAILED")
     sys.exit(0 if tw.OK else 1)

@@ -18,11 +18,33 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 
 
+_THINK_OPEN = re.compile(r"<think>.*\Z", re.DOTALL | re.IGNORECASE)      # never closed: the budget ran out mid-thought
+_THINK_CLOSE = re.compile(r"\A.*?</think>", re.DOTALL | re.IGNORECASE)   # the opening tag was left out
+# Reasoning that was written as the answer, with no tags: "Okay, so the user is
+# asking...", "Let me break this down", "I need to figure out what to do here".
+_REASONING = re.compile(
+    r"^\s*(?:(?:okay|ok|alright|hmm+|so|well)[,.]?\s+)+(?:the user|let me|i(?:'m| am) trying to|i need to (?:figure|think|understand|"
+    r"determine|remember)|i remember (?:that )?(?:from|the)|first,? i)\b|"
+    r"^\s*(?:let me (?:think|break|figure|see|start)|the user (?:is asking|asked|wants|mentioned|said)|"
+    r"i need to (?:figure|think|understand|determine))\b", re.IGNORECASE)
+
+
 def _strip_think(text: str) -> str:
-    """Drop inline <think>...</think> blocks emitted by reasoning models."""
+    """Drop inline <think>...</think> blocks emitted by reasoning models --
+    including one that was never closed, or never opened."""
     if not text:
         return ""
-    return _THINK_RE.sub("", text)
+    t = _THINK_RE.sub("", text)
+    if "<think>" in t.lower():
+        t = _THINK_OPEN.sub("", t)
+    elif "</think>" in t.lower():
+        t = _THINK_CLOSE.sub("", t)
+    return t
+
+
+def looks_like_reasoning(text: str) -> bool:
+    """True if the text is a model thinking aloud rather than answering."""
+    return bool(text) and bool(_REASONING.match(text))
 
 # Load env
 load_dotenv(override=False)
@@ -225,7 +247,16 @@ class LLM(BaseChatModel):
         if n_gpu.lstrip("-").isdigit():
             payload["options"]["num_gpu"] = int(n_gpu)
         try:
+            # Reasoning models (deepseek-r1, qwen3) think first, and on a small
+            # token budget the thinking is all there is -- and it was being
+            # spoken as the answer. Asked not to think; a model that has no
+            # such option says so and the request is sent again without it.
+            if os.environ.get("ASH_OLLAMA_THINK", "").strip().lower() not in ("1", "true", "yes", "on"):
+                payload["think"] = False
             r = requests.post(self._ollama_url, json=payload, timeout=self._timeout)
+            if r.status_code == 400 and "think" in payload and "think" in (r.text or "").lower():
+                payload.pop("think", None)
+                r = requests.post(self._ollama_url, json=payload, timeout=self._timeout)
 
             if r.status_code != 200:
                 print(f"[LLM ERROR] Ollama API returned status {r.status_code}: {r.text}")
@@ -251,14 +282,17 @@ class LLM(BaseChatModel):
             response_text = _strip_think(response_text).strip()
 
             # A reasoning model that burned its whole num_predict budget on
-            # thinking returns empty content. Salvage the tail of the reasoning
-            # rather than handing the brain an empty string.
+            # thinking returns empty content. The thinking is NOT an answer
+            # ("Okay, so the user is asking who is messi...") and is never
+            # returned as one: an empty reply is the honest "no answer".
             if not response_text and thinking_text:
                 print(
                     "[LLM WARN] Ollama returned only reasoning tokens -- raise max_tokens "
                     f"(currently {self._max_tokens}) or use a non-reasoning model."
                 )
-                response_text = _strip_think(thinking_text).strip()
+            if looks_like_reasoning(response_text):
+                print("[LLM WARN] the model answered with its own reasoning; dropped.")
+                return ""
 
             return response_text
         except Exception as e:
