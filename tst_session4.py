@@ -2,6 +2,7 @@
 tst_session4.py -- round three of the JARVIS / BMO ideas, one section per item.
 
   S1  The model is preloaded at start (one token, kept alive, no thinking cost)
+  S3  Wikipedia facts are on in the daemon unless switched off
   S2  A slow model answer gets a short spoken cue first; a quick one does not
 
 Run:  PYTHONIOENCODING=utf-8 python tst_session4.py
@@ -77,8 +78,18 @@ def s2():
     check("an unprompted remark gets no cue", th._thinking_cue(False) is None)
 
 
+def s3():
+    print("\n=== S3. Facts on by default ===")
+    src = open(os.path.join(HERE, "ashd.py"), encoding="utf-8").read()
+    check("the daemon defaults facts to enabled", 'get("facts", {}).get("enabled", True)' in src)
+    from src.daemon.facts import FactsConfig
+    check("a bare config stays off (tests, embedding)", FactsConfig().enabled is False)
+    check("explicit false still turns it off", FactsConfig.from_dict({"enabled": False}).enabled is False)
+
+
 if __name__ == "__main__":
     s1()
     s2()
+    s3()
     print("\nALL OK" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

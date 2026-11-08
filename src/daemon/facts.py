@@ -10,8 +10,8 @@ knows; a made-up CV in memory is how this started. For the narrow case of a
 short "who/what is X" question, a Wikipedia summary is a better answer than a
 guess, and it is quoted, not paraphrased.
 
-It is OFF by default and only does anything when switched on (Settings, or
-facts.enabled in daemon.json), because it sends the topic -- and only the
+The daemon turns it ON unless facts.enabled is false in daemon.json (a bare
+FactsConfig is off), so a small model is not left to guess a fact. It sends the topic -- and only the
 topic -- to en.wikipedia.org. It runs only for something said TO ASH, never for
 talk overheard in the room.
 

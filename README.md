@@ -701,14 +701,15 @@ mention it, and how often you have. The report is told at the next free
 moment (ahead of a joke) or in the evening briefing, once, crediting where
 each part came from -- and says plainly when nothing was found.
 
-## Short facts from Wikipedia (off by default)
+## Short facts from Wikipedia (on by default)
 
 `facts` in `daemon.json`, `src/daemon/facts.py`; the switch is "Answer short
 who/what is... questions from Wikipedia" in the console's settings. "Who was
 Ada Lovelace?", "what is a black hole?", "what does ephemeral mean?" is
 answered with the first sentences of the article and "(Wikipedia)" after
 them, quoted, not guessed. It sends the topic, and only the topic, to
-en.wikipedia.org, so it is off until you turn it on, and it only runs for
+en.wikipedia.org. The daemon has it on so a small model never has to guess a fact;
+set `"facts": {"enabled": false}` or untick the console setting to stop it. It only runs for
 something said to ASH, never for talk overheard or text read off the screen.
 A topic with several meanings asks which; one with no page says so; no
 connection says nothing and lets ASH answer as usual. It leaves alone what is

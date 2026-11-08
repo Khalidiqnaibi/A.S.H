@@ -313,7 +313,7 @@ def main() -> int:
                 crashes=bool(cfg.get("crashes", {}).get("enabled", True)),
                 crashes_path=os.path.join(os.getcwd(), "state", "crashes.json"),
                 facts=True,
-                facts_cfg={"enabled": bool(cfg.get("facts", {}).get("enabled", False)),
+                facts_cfg={"enabled": bool(cfg.get("facts", {}).get("enabled", True)),
                            **{k: v for k, v in (cfg.get("facts") or {}).items() if k != "enabled"}},
                 weekly=bool(cfg.get("weekly", {}).get("enabled", True)),
                 weekly_path=os.path.join(os.getcwd(), "state", "weekly.json"),
