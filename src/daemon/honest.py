@@ -186,3 +186,22 @@ def sanitize(reply: str, known: Any = "") -> str:
     if dropped and not text:
         return "I don't have that detail."
     return text
+
+
+# -------------------------------------------------------------------- a claim of something not done
+_DID = re.compile(
+    r"\b(?:i'?ve|i\s+have|i\s+just|i\s+went\s+ahead\s+and|i\s+(?:already)?|done[,!.]?\s+i)\s*"
+    r"(?:just\s+|already\s+|now\s+)?"
+    r"(?:sent|emailed|e-mailed|texted|messaged|called(?!\s+(?:it|that|this)\b)|phoned|dialed|ordered|booked|bought|purchased|paid|reserved|"
+    r"posted|tweeted|uploaded|deleted|set\s+(?:a|an|the)\s+(?:reminder|alarm|timer)|"
+    r"added\s+(?:it\s+)?to\s+your\s+(?:calendar|cart|list)|scheduled|forwarded|replied)\b"
+    r"|\b(?:message|email|e-mail|text|order|payment|reminder)\s+(?:has\s+been|was|is)\s+(?:sent|placed|set|scheduled|made)\b",
+    re.I)
+NOT_DONE = ("I haven't actually done that -- I can't send messages, make calls, place orders or post anything "
+            "from a chat answer. What I can really do is in “what can you do?”.")
+
+
+def claimed_unperformed(reply: str) -> bool:
+    """Does a model answer say it did something (sent, called, ordered, posted,
+    set a reminder...) that it has no tool to do? Only asked when no tool ran."""
+    return bool(_DID.search(reply or ""))

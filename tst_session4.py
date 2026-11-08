@@ -2,6 +2,7 @@
 tst_session4.py -- round three of the JARVIS / BMO ideas, one section per item.
 
   S1  The model is preloaded at start (one token, kept alive, no thinking cost)
+  S4  A model claiming it sent/called/ordered something is replaced, unless a tool ran
   S3  Wikipedia facts are on in the daemon unless switched off
   S2  A slow model answer gets a short spoken cue first; a quick one does not
 
@@ -87,9 +88,37 @@ def s3():
     check("explicit false still turns it off", FactsConfig.from_dict({"enabled": False}).enabled is False)
 
 
+def s4():
+    print("\n=== S4. Claims of undone actions ===")
+    from src.daemon import honest
+    for t in ("I've sent the email to Sara.", "Sure, I just called him for you.", "I have set a reminder for 5.",
+              "The message has been sent.", "Done! I've ordered the pizza."):
+        check(f"caught: {t}", honest.claimed_unperformed(t))
+    for t in ("I can't send emails.", "Sara has sent the report to me.", "I've read your email.",
+              "Okay. I called it a day.", "It's 5 o'clock."):
+        check(f"left alone: {t}", not honest.claimed_unperformed(t))
+    seen = []
+    rt = te.rig()
+    rt.response_sink = lambda *a: None
+    rt._last_tool_used = False
+    rt.ash.think = None
+    out = []
+    rt._real_sink = out.append
+    meta = {"addressed": True, "pathway": "slow"}
+    # drive the real sink path: it hands the final text to the configured response sink
+    rt2 = te.rig()
+    rt2._last_tool_used = False
+    rt2.response_sink("I've sent the email to Sara.", meta)
+    check("the sink replaces it", rt2.out[-1] == honest.NOT_DONE, str(rt2.out))
+    rt2._last_tool_used = True
+    rt2.response_sink("I've sent the email to Sara.", meta)
+    check("a tool that really ran is exempt", rt2.out[-1] != honest.NOT_DONE, str(rt2.out))
+
+
 if __name__ == "__main__":
     s1()
     s2()
     s3()
+    s4()
     print("\nALL OK" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

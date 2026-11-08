@@ -615,6 +615,11 @@ class AmbientRuntime:
             # can't: only the voice commands can. Say so instead.
             logger.info("Model claimed an action it cannot do -- replaced: %r", text[:120])
             text = voicectl.HONEST
+        elif (text and meta.get("addressed") and str(meta.get("pathway", "")).lower() == "slow"
+                and not getattr(self, "_last_tool_used", False) and honest.claimed_unperformed(text)):
+            # "I've sent the email": nothing was sent. A tool that really ran is exempt.
+            logger.info("Model claimed something it did not do -- replaced: %r", text[:120])
+            text = honest.NOT_DONE
         if (text and meta.get("addressed") and str(meta.get("pathway", "")).lower() == "slow"
                 and not meta.get("degraded")):
             try:
@@ -1977,6 +1982,7 @@ class AmbientRuntime:
                     finally:
                         if cue is not None:
                             cue.cancel()
+                self._last_tool_used = bool(getattr(response, "tool_used", None))
                 text = clip_reply(response.text, self.cfg.max_response_chars)
                 pathway = response.pathway.value
                 if to_ash:
