@@ -299,6 +299,29 @@ class LLM(BaseChatModel):
             print(f"[LLM ERROR] Ollama request failed: {e}")
             return f"[LLM] Error calling Ollama API: {e}"
 
+    def warm(self) -> bool:
+        """Load the Ollama model into memory now, so the first real question
+        does not pay for it. One token, no thinking. True if the model answered."""
+        if self._mode != "ollama":
+            return False
+        payload = {
+            "model": self._ollama_model,
+            "messages": [{"role": "user", "content": "hi"}],
+            "stream": False,
+            "options": {"num_predict": 1, "temperature": 0.0},
+            "keep_alive": os.environ.get("ASH_OLLAMA_KEEP_ALIVE", "").strip() or "6h",
+        }
+        n_gpu = os.environ.get("ASH_OLLAMA_NUM_GPU", "").strip()
+        if n_gpu.lstrip("-").isdigit():
+            payload["options"]["num_gpu"] = int(n_gpu)
+        try:
+            r = requests.post(self._ollama_url, json=payload, timeout=max(self._timeout, 120))
+            if r.status_code == 400 and "think" in (r.text or "").lower():
+                return False
+            return r.status_code == 200
+        except Exception:
+            return False
+
     def _call(self, messages: Sequence[BaseMessage]) -> str:
         if self._mode == "hf":
             prompt = self._messages_to_prompt(messages)

@@ -212,6 +212,18 @@ def main() -> int:
         from src.py.ash import ash  # noqa: E402  (slow import: model loads)
         logger.info("ASH loaded in %.1fs", time.time() - t0)
 
+        # Load the language model now, in the background: the first question
+        # after a start used to wait for the whole load. ASH_PRELOAD_MODEL=0 to skip.
+        if os.environ.get("ASH_PRELOAD_MODEL", "1").strip().lower() not in ("0", "false", "no", "off"):
+            def _warm(llm=getattr(ash, "llm", None)):
+                t1 = time.time()
+                try:
+                    ok = bool(llm is not None and hasattr(llm, "warm") and llm.warm())
+                except Exception:
+                    ok = False
+                logger.info("Model preload %s (%.1fs)", "done" if ok else "skipped", time.time() - t1)
+            threading.Thread(target=_warm, name="ash-preload", daemon=True).start()
+
         # ---- periphery ------------------------------------------------------
         from src.senses import build_periphery  # noqa: E402
 
