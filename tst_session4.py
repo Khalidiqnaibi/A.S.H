@@ -10,6 +10,7 @@ tst_session4.py -- round three of the JARVIS / BMO ideas, one section per item.
 Run:  PYTHONIOENCODING=utf-8 python tst_session4.py
 """
 import importlib.util
+import time
 import os
 import sys
 import tempfile
@@ -139,11 +140,77 @@ def s5():
     check("the bus record carries the route", "route_detail" in hooks)
 
 
+def s6():
+    print("\n=== S6. The face reacts to what you say, and has idle life ===")
+    import random
+    from src.face.moods import IdleLife, reaction_to
+    cases = [("thank you so much", "love"), ("haha that's funny", "very_happy"), ("good night ash", "sleepy"),
+             ("wow", "surprised"), ("you're wrong", "sad"), ("shut up", "annoyed"), ("hello", "wink"),
+             ("good morning", "happy"), ("I'm sorry about that", "acknowledge"), ("I'm so tired", "sleepy"),
+             ("what time is it", None), ("set a timer for five minutes", None), ("thanksgiving is in November", None)]
+    for text, want in cases:
+        check(f"{text!r} -> {want}", reaction_to(text) == want, str(reaction_to(text)))
+    check("a long paragraph is not read for feeling", reaction_to("thanks " + "word " * 60) is None)
+
+    life = IdleLife(random.Random(7))
+    check("nothing while someone just spoke", life.step(0, 5) is None)
+    check("nothing while ASH is busy", life.step(100, 300, busy=True) is None)
+    seen, t, prev = [], 1000.0, None
+    for _ in range(400):
+        t += 5
+        a = life.step(t, 300)
+        if a:
+            seen.append(a)
+            check("never the same twice in a row", a != prev) if prev else None
+            prev = a
+    check("it does things, but rarely", 8 <= len(seen) <= 40, str(len(seen)))
+    check("only animations that exist", set(seen) <= {"look_around", "double_blink", "curious", "wink"}, str(set(seen)))
+    from src.face import BUILTINS
+    check("they are all built-in animations", all(n in BUILTINS for n in {"look_around", "double_blink", "curious", "wink",
+                                                                         "love", "very_happy", "sleepy", "surprised",
+                                                                         "sad", "annoyed", "happy", "acknowledge"}))
+    night = IdleLife(random.Random(1))
+    check("late at night it gets sleepy", night.step(0, 300, hour=2) == "sleepy")
+
+    import tst_face_react as fr
+    from src.daemon import AmbientConfig, AmbientRuntime, AttentionGate, Journal, PrivacyPolicy
+    from src.face.bridge import attach_to_daemon
+    from src.senses.base import Modality, PeripheryRegistry, SensorEvent
+    clock = [time.mktime((2026, 3, 10, 14, 0, 0, 0, 0, -1))]
+    out = []
+    per = PeripheryRegistry()
+    idle = tw.FakeIdle()
+    per.sensors["idle"] = idle
+    rt = AmbientRuntime(ash=tw.Ash(), periphery=per, journal=Journal(tempfile.mkdtemp()), gate=AttentionGate(),
+                        privacy=PrivacyPolicy(), config=AmbientConfig(tick_seconds=0.02, sleep_after_idle_s=10 ** 9),
+                        response_sink=lambda t, m: out.append(t))
+    rt.clock = lambda: clock[0]
+    p = fr.Player()
+    bridge = attach_to_daemon(rt, p)
+    bridge.idle_life = IdleLife(random.Random(3))
+    clock[0] += 3
+    rt.submit(SensorEvent(source="console", modality=Modality.TEXT, text="thank you!", addressed=True,
+                          salience=0.9, urgency=0.6))
+    rt._tick()
+    check("'thank you' made the real face show love", "love" in p.played, str(p.played))
+    check("...and again once the reply lands, instead of a nod", p.played.count("love") >= 2
+          and "acknowledge" not in p.played, str(p.played))
+    before = len(p.played)
+    for _ in range(60):
+        clock[0] += 10
+        idle.value = 0.0
+        rt._tick()
+    check("a quiet room: the face does something on its own", len(p.played) > before, str(p.played[before:]))
+    check("...only from the idle set", set(p.played[before:]) <= {"look_around", "double_blink", "curious", "wink"},
+          str(set(p.played[before:])))
+
+
 if __name__ == "__main__":
     s1()
     s2()
     s3()
     s4()
     s5()
+    s6()
     print("\nALL OK" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

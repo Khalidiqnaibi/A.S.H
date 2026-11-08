@@ -56,6 +56,11 @@ class FaceBridge:
         self._quiet = False
         self._away = False
         self.counts: Dict[str, int] = {}
+        from .moods import IdleLife
+        self.idle_life = IdleLife()
+        self._speaking = False
+        self._owed = None
+        self._last_user_t = time.time()
 
     # ------------------------------------------------------------------
     def _play(self, name: str, force: bool = False):
@@ -76,6 +81,7 @@ class FaceBridge:
     def on_addressed(self):
         """Someone spoke to ASH. Look up and hold still -- the stillness is
         what communicates attention."""
+        self._last_user_t = time.time()
         self._play("listening")
 
     def on_thinking_start(self):
@@ -98,7 +104,27 @@ class FaceBridge:
         if cur is not None and cur.name in names:
             self.player.stop()
 
+    def on_user_text(self, text: str):
+        """The user said something with a feeling in it: the face answers before
+        the voice does (thanks -> love, a laugh -> very_happy, "wow" -> surprised)."""
+        from .moods import reaction_to
+        anim = reaction_to(text)
+        if anim:
+            self._play(anim)
+            self._owed = (anim, time.time())     # and again once the reply lands, which would nod over it
+            self.idle_life.reset()
+
+    def on_idle_tick(self, now: float, idle_s: float, hour: Optional[int] = None):
+        """Nobody is talking: now and then look around, double-blink, wink."""
+        if not self.enabled or self._quiet or self._away:
+            return
+        busy = self._thinking_since is not None or self._speaking
+        anim = self.idle_life.step(now, idle_s, busy=busy, hour=hour)
+        if anim:
+            self._play(anim)
+
     def on_speaking(self, on: bool):
+        self._speaking = bool(on)
         if on:
             self._play("speaking")
         elif self.player.current and self.player.current.name == "speaking":
@@ -143,6 +169,9 @@ class FaceBridge:
         Questions look curious, alerts alert, good news happy, a win very
         happy, a correction confused, a plain acknowledgement a nod."""
         anim = self.expression_for(text, meta or {})
+        owed, self._owed = self._owed, None
+        if owed and (meta or {}).get("addressed") and time.time() - owed[1] < 60:
+            anim = owed[0]                       # "thank you" is answered with love, not a nod
         if anim:
             self._play(anim)
             try:
@@ -184,6 +213,7 @@ class FaceBridge:
         # The cycle is over, so whatever it looped (thinking, listening) ends
         # here; every reaction below outranks idle but not those loops.
         self._end_loop("thinking", "listening", "processing")
+        self._thinking_since = None            # the cycle is over, whatever path it took
         if vetoed_by:
             self.on_veto(vetoed_by)
             return
@@ -313,12 +343,20 @@ def attach_to_daemon(runtime, player, enabled: bool = True, sounds: bool = False
             bridge.on_quiet_hours(bool(runtime.gate._in_quiet_hours(now)) or bool(getattr(runtime.gate, "muted", False)))
         except Exception:
             logger.exception("Face hook (quiet hours) failed")
+        try:
+            # Quiet since someone last spoke to ASH -- not input idleness: a person
+            # reading at the desk is present, and is who the face is alive for.
+            bridge.on_idle_tick(now, now - bridge._last_user_t, hour=time.localtime(now).tm_hour)
+        except Exception:
+            logger.exception("Face hook (idle life) failed")
         return original_social(now, idle_s)
 
     def handle(ev):
         try:
             if getattr(ev, "addressed", False):
                 bridge.on_addressed()
+                bridge.on_user_text(str(getattr(ev, "text", "") or ""))
+                bridge._last_user_t = runtime.clock()
             elif getattr(ev, "urgency", 0.0) >= 0.85:
                 bridge.on_alert(ev.urgency)
             elif ev.source == "idle":
@@ -348,6 +386,8 @@ def attach_to_daemon(runtime, player, enabled: bool = True, sounds: bool = False
                 bridge.on_drives(runtime.brain.homeostasis.drives)
             except Exception:
                 logger.exception("Face hook (pathway) failed")
+            finally:
+                bridge._thinking_since = None       # answered (or failed): the face is no longer "busy thinking"
 
     def sleep_phase():
         try:
@@ -368,6 +408,7 @@ def attach_to_daemon(runtime, player, enabled: bool = True, sounds: bool = False
     runtime.response_sink = sink
     runtime._social_step = social_step
 
+    bridge._last_user_t = runtime.clock()
     bridge.on_boot()
     logger.info("Face bridge attached to ambient runtime")
     return bridge

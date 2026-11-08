@@ -701,6 +701,18 @@ mention it, and how often you have. The report is told at the next free
 moment (ahead of a joke) or in the evening briefing, once, crediting where
 each part came from -- and says plainly when nothing was found.
 
+## The face reacts on its own (`src/face/moods.py`)
+
+Only the animations that already exist, by rule (no language model):
+
+- **What you say.** "Thank you" shows love, a laugh shows very_happy, "good night" or "I'm tired" sleepy,
+  "wow" surprised, "you're wrong" sad, "shut up" annoyed, "hello" a wink, "I'm sorry" a nod. The face answers
+  before the voice, and again when the reply lands (so a nod doesn't cover the love).
+- **Idle life.** After 45 s with nobody talking ASH looks around, double-blinks, now and then perks up curious
+  or winks (one every one to three minutes, never the same twice), and late at night gets sleepy. It stays
+  still while ASH is answering or speaking, when you're away, and in quiet hours.
+- **When asked.** "Wink", "show me a big smile", "what faces do you have?" still work (voice commands).
+
 ## Short facts from Wikipedia (on by default)
 
 `facts` in `daemon.json`, `src/daemon/facts.py`; the switch is "Answer short
