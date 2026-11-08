@@ -132,6 +132,7 @@ class AmbientConfig:
     sleep_min_interval_s: float = 60 * 60
     # The brain's own consolidation (replay, pruning) is a night's work: once
     # in this long, however often the machine goes quiet.
+    think_cue_s: float = 4.0          # a model answer slower than this gets a short "hmm" first; 0 = never
     sleep_brain_gap_s: float = 6 * 60 * 60
     observe_repeat_s: float = 20.0       # the same observation again within this is not re-processed
     # Longer than the model is allowed to take. At 120 this fired "ambient loop
@@ -1970,7 +1971,12 @@ class AmbientRuntime:
                     # or learned from as one. See Brain.volunteer.
                     response = self.ash.volunteer(prompt, context=context)
                 else:
-                    response = self.ash.think(prompt, image=image, context=context)
+                    cue = self._thinking_cue(to_ash)
+                    try:
+                        response = self.ash.think(prompt, image=image, context=context)
+                    finally:
+                        if cue is not None:
+                            cue.cancel()
                 text = clip_reply(response.text, self.cfg.max_response_chars)
                 pathway = response.pathway.value
                 if to_ash:
@@ -2045,6 +2051,29 @@ class AmbientRuntime:
                 text, self.clock(),
                 topic=str(meta.get("topic", "")),
                 accept_context=str(meta.get("accept_context") or f"You had just said: {text}"))
+
+    _CUES = ("Hmm, let me think.", "One sec, thinking.", "Let me see.", "Good question, give me a moment.")
+
+    def _thinking_cue(self, to_ash: bool):
+        """A person asked something and the model is slow: say so after a few
+        seconds instead of leaving a silent face. Returns the timer to cancel."""
+        wait = float(getattr(self.cfg, "think_cue_s", 0) or 0)
+        if not to_ash or wait <= 0:
+            return None
+        self._cue_n = getattr(self, "_cue_n", -1) + 1
+        line = self._CUES[self._cue_n % len(self._CUES)]
+
+        def fire():
+            try:
+                self.response_sink(line, {"addressed": True, "source": "cue", "outcome": "thinking_cue",
+                                          "pathway": "cue", "attention": {}})
+            except Exception:
+                logger.debug("Thinking cue failed", exc_info=True)
+
+        t = threading.Timer(wait, fire)
+        t.daemon = True
+        t.start()
+        return t
 
     def _after_answer(self, prompt: str, response):
         """Remember what was just answered, and as what; finish a correction."""

@@ -2,6 +2,7 @@
 tst_session4.py -- round three of the JARVIS / BMO ideas, one section per item.
 
   S1  The model is preloaded at start (one token, kept alive, no thinking cost)
+  S2  A slow model answer gets a short spoken cue first; a quick one does not
 
 Run:  PYTHONIOENCODING=utf-8 python tst_session4.py
 """
@@ -55,7 +56,29 @@ def s1():
     check("the daemon starts the preload in the background", "ash-preload" in src and "ASH_PRELOAD_MODEL" in src)
 
 
+def s2():
+    print("\n=== S2. Thinking cue ===")
+    import time
+    for wait, work, expect in ((0.05, 0.4, True), (1.0, 0.01, False), (0.0, 0.3, False)):
+        rt = te.rig(think_cue_s=wait)
+        orig = rt.ash.think
+
+        def slow(q, image=None, context="", orig=orig, work=work):
+            time.sleep(work)
+            return orig(q, image=image, context=context)
+        rt.ash.think = slow
+        rt.say("tell me something interesting about owls please")
+        time.sleep(0.1)
+        cues = [t for t in rt.out if t in rt._CUES]
+        check(f"wait={wait} work={work}: cue {'spoken' if expect else 'not spoken'}", bool(cues) == expect, str(rt.out))
+        if expect:
+            check("the real answer still follows the cue", rt.out[-1] == "Sure." and rt.out.index(cues[0]) < len(rt.out) - 1)
+    th = te.rig(think_cue_s=0.05)
+    check("an unprompted remark gets no cue", th._thinking_cue(False) is None)
+
+
 if __name__ == "__main__":
     s1()
+    s2()
     print("\nALL OK" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)
