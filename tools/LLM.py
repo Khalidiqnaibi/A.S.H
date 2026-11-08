@@ -216,6 +216,11 @@ class LLM(BaseChatModel):
         # ASH_OLLAMA_NUM_GPU: how many layers to put on the GPU; "0" keeps the
         # model off the graphics card entirely (daemon.json: llm.gpu = false),
         # for a machine whose GPU driver can't be trusted under load.
+        # keep_alive: Ollama unloads a model after 5 idle minutes, and the next
+        # question then pays a whole load (up to two minutes on a small GPU).
+        # ASH is always on, so the model stays resident for hours by default;
+        # ASH_OLLAMA_KEEP_ALIVE overrides ("5m", "-1" forever, "0" unload at once).
+        payload["keep_alive"] = os.environ.get("ASH_OLLAMA_KEEP_ALIVE", "").strip() or "6h"
         n_gpu = os.environ.get("ASH_OLLAMA_NUM_GPU", "").strip()
         if n_gpu.lstrip("-").isdigit():
             payload["options"]["num_gpu"] = int(n_gpu)

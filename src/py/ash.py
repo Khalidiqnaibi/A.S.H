@@ -371,12 +371,15 @@ class ASH:
         t = self.brain.last_trace
         return t.as_dict() if t is not None else {}
 
-    def explain_history(self, n: int = 50) -> List[Dict[str, Any]]:
+    def explain_history(self, n: int = 50, observed: bool = False) -> List[Dict[str, Any]]:
         """Trace of the last N cognitive cycles (most recent last), so a
         decision is still inspectable after later ambient ticks have
-        overwritten last_trace. Bounded by Brain.trace_history's own
+        overwritten last_trace. By default only turns that did something --
+        a screen change seen is 49 of every 50 cycles and pushed the answers
+        out; `observed=True` brings them back. Bounded by the ring's own
         maxlen regardless of what n is asked for."""
-        hist = list(self.brain.trace_history)[-max(1, int(n)):]
+        ring = self.brain.trace_history if observed else getattr(self.brain, "answer_history", self.brain.trace_history)
+        hist = list(ring)[-max(1, int(n)):]
         return [t.as_dict() for t in hist]
 
 

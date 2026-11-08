@@ -220,6 +220,7 @@ class Brain:
         # anyone just spoke to it. Bounded so a 24h daemon does not grow
         # this unboundedly; each BrainTrace is small (no embeddings).
         self.trace_history: Deque[BrainTrace] = deque(maxlen=500)
+        self.answer_history: Deque[BrainTrace] = deque(maxlen=200)   # turns that were not just observed
         self.cycles = 0
 
         # Counters for introspection / the /brain status endpoint.
@@ -994,6 +995,8 @@ class Brain:
         trace.pathway = pathway
         self.last_trace = trace
         self.trace_history.append(trace)
+        if pathway != Pathway.OBSERVE:
+            self.answer_history.append(trace)       # kept apart: observations would push these out
         self.sensory.save_requests()        # small (<=64 vectors), and losing it costs a slow restart
         if self.cycles % 20 == 0:
             self.system1.save()
@@ -1133,7 +1136,16 @@ class Brain:
             "concepts": self.concepts.status() if self.concepts else None,
         }
 
-    def sleep(self, seconds_idle: float = 1800.0) -> Dict[str, Any]:
-        """Consolidation pass. Called by the maintenance scheduler."""
+    def sleep(self, seconds_idle: float = 1800.0, min_gap_s: float = 0.0) -> Dict[str, Any]:
+        """Consolidation pass. Called by the maintenance scheduler and the
+        ambient sleep phase. With `min_gap_s`, a pass is skipped if one ran
+        that recently -- the two schedulers and every quiet spell would
+        otherwise each run a whole night, pruning ~10% of the connections
+        each time."""
+        now = time.time()
+        last = getattr(self, "_last_consolidation", 0.0)
+        if min_gap_s > 0 and last and now - last < min_gap_s:
+            return {"skipped": f"already consolidated {int((now - last) / 60)} min ago", "replay": None}
         from .consolidation import consolidate
+        self._last_consolidation = now
         return consolidate(self, seconds_idle=seconds_idle)

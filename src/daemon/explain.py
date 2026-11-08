@@ -69,6 +69,49 @@ _MOMENT_WHY = {
 }
 
 
+_SOURCE = re.compile(
+    r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:but|so|and|ok(?:ay)?)\s+)?"
+    r"(?:where\s+(?:did|do|does)\s+(?:you|u)\s+(?:get|got|find|learn|know)\s+(?:that|this|it|those|these|the)?(?:\s*(?:info(?:rmation)?|answer|stuff|from))?"
+    r"|how\s+(?:do|did)\s+(?:you|u)\s+know\s+(?:that|this|it)"
+    r"|what(?:'s|\s+is|\s+was)\s+(?:your|the)\s+(?:source|sources)(?:\s+for\s+(?:that|this|it))?"
+    r"|(?:where|what)\s+(?:is|was)\s+(?:that|this|it)\s+from"
+    r"|who\s+told\s+you\s+(?:that|this)"
+    r"|(?:are|is)\s+(?:you|that|this|it)\s+sure(?:\s+about\s+that)?)"
+    r"(?:\s+(?:from|info(?:rmation)?|that|this|it))*\s*\??\s*$", re.I)
+
+
+def asks_source(text: str) -> bool:
+    """"Where did you get that?": asked about the last answer's source."""
+    t = (text or "").strip()
+    return bool(t) and bool(_SOURCE.match(t))
+
+
+def source_reply(why: Optional[Dict[str, Any]]) -> str:
+    """Where the last thing said really came from -- the tool, the model's own
+    knowledge, or ASH's own rules -- and never the window that was in front."""
+    if not why:
+        return "I haven't said anything yet that I could trace."
+    kind = why.get("kind", "")
+    if kind == "answer":
+        tool = str(why.get("tool") or "").replace("_", " ")
+        how = str(why.get("pathway", ""))
+        if tool:
+            return (f"From the {tool} tool, which ran when you asked. "
+                    + ("It's a quick reflex, not the language model." if how in ("fast", "reflex") else
+                       "The language model then put it into words."))
+        if how == "reflex":
+            return "That was a repeat of what I'd just said, not a new look-up."
+        return ("That was my language model answering from what it was trained on -- I didn't look it up or take "
+                "it from your files or memory. It can be out of date or wrong, so check it if it matters.")
+    if kind == "answered":
+        return "That came from what you'd just told me, not from the language model."
+    if kind in ("asked", "watch", "stopped", "correction"):
+        return "That was my own rules acting on what you asked -- the language model wasn't involved."
+    if kind == "facts":
+        return "That was the first paragraph of Wikipedia's page on it, fetched when you asked."
+    return "That was something I noticed myself, from your activity on the computer -- not from the language model."
+
+
 def explain(why: Optional[Dict[str, Any]]) -> str:
     """One or two sentences saying why ASH said or did its last thing."""
     if not why:

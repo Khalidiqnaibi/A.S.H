@@ -95,7 +95,7 @@ class MaintenanceScheduler:
             brain = getattr(self.ash, "brain", None)
             if brain is not None:
                 idle_for = time.time() - self._last_activity
-                report = brain.sleep(seconds_idle=idle_for)
+                report = brain.sleep(seconds_idle=idle_for, min_gap_s=6 * 3600.0)
                 logger.info("Maintenance sweep: brain consolidation -> %s", report.get("replay"))
         except Exception:
             logger.exception("Brain consolidation failed during maintenance sweep")

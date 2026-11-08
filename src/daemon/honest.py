@@ -133,6 +133,10 @@ _SPAN = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+"                      # an e-mail 
                    r"|(?<![\w.])\(?\d{2,4}\)?[\s.-]\d{3,4}[\s.-]\d{3,4}(?![\w])"   # 555-123-4567, 079 123 4567
                    r"|https?://\S+", re.I)                                  # a link
 _SENT = re.compile(r"(?<=[.!?])\s+")
+_MDLINK = re.compile(r"\[([^\]\n]{1,80})\]\((?:mailto:|tel:|https?://)[^)\s]*\)", re.I)
+# The addresses a model writes when it has none: never real, wherever they came from.
+_PLACEHOLDER = re.compile(r"@(?:email|mail|example|domain|test|yourdomain|company|website)\.(?:com|org|net)$|"
+                          r"^(?:name|user|username|email|someone|john\.?doe|jane\.?doe)@", re.I)
 
 
 def _squash(s: str) -> str:
@@ -144,6 +148,7 @@ def sanitize(reply: str, known: Any = "") -> str:
     everything ASH was actually given (the user's words, what memory
     returned), or a function that returns it -- only asked if it's needed."""
     t = reply or ""
+    t = _MDLINK.sub(r"\1", t)             # [Name](mailto:x) -> Name: a made-up address in a link is still made up
     t = _FACTS.sub("", t)
     t = _TRAIL_JSON.sub("", t)
     t = "\n".join(line for line in t.split("\n") if not _FAKE_CALL.match(line))
@@ -163,6 +168,9 @@ def sanitize(reply: str, known: Any = "") -> str:
                 span = m.group(0).strip(" .,;:)")
                 if re.search(r"x{3,}", span, re.I):
                     bad = True                      # a placeholder is never a real number
+                    continue
+                if _PLACEHOLDER.search(span):
+                    bad = True                      # a placeholder address is never a real one, even if memory holds it
                     continue
                 if known_flat is None:
                     known_flat = _squash(known() if callable(known) else known)

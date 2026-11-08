@@ -90,7 +90,7 @@ def real_screen():
     return s
 
 
-def rig(with_face=False, with_speaker=False):
+def rig(with_face=False, with_speaker=False, **cfg):
     from src.daemon import AmbientConfig, AmbientRuntime, AttentionGate, Journal, PrivacyPolicy
     from src.senses.base import Modality, PeripheryRegistry, SensorEvent
     clock = [T0]
@@ -120,7 +120,7 @@ def rig(with_face=False, with_speaker=False):
             return r
     ash = Ash()
     rt = AmbientRuntime(ash=ash, periphery=per, journal=Journal(tempfile.mkdtemp()), gate=AttentionGate(),
-                        privacy=PrivacyPolicy(), config=AmbientConfig(tick_seconds=0.02, sleep_after_idle_s=10 ** 9),
+                        privacy=PrivacyPolicy(), config=AmbientConfig(tick_seconds=0.02, sleep_after_idle_s=10 ** 9, **cfg),
                         response_sink=lambda t, m: out.append(t))
     rt.clock = lambda: clock[0]
     if with_face:

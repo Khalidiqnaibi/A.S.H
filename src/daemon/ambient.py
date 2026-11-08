@@ -60,7 +60,8 @@ from .briefing import BriefingConfig, Briefings, asked_for_briefing
 from .watch import WatchConfig, Watcher
 from .desktop import Desktop, DesktopConfig
 from .research import Research, ResearchActivity, ResearchConfig
-from .explain import asked_why, explain
+from .explain import asked_why, asks_source, explain, source_reply
+from . import remember as remembering
 from .calendar_ics import Calendar, CalendarConfig
 from .smarthome import SmartHome, SmartHomeConfig
 from .voiceid import VoiceID, VoiceIDConfig
@@ -129,6 +130,10 @@ class AmbientConfig:
     queue_limit: int = 256
     sleep_after_idle_s: float = 25 * 60
     sleep_min_interval_s: float = 60 * 60
+    # The brain's own consolidation (replay, pruning) is a night's work: once
+    # in this long, however often the machine goes quiet.
+    sleep_brain_gap_s: float = 6 * 60 * 60
+    observe_repeat_s: float = 20.0       # the same observation again within this is not re-processed
     # Longer than the model is allowed to take. At 120 this fired "ambient loop
     # unhealthy -- restarting" a dozen times in a morning, every time the
     # brain was simply inside a 60-100s generation on a CPU-bound model; the
@@ -563,6 +568,7 @@ class AmbientRuntime:
         # runs the commands that must not wait -- "privacy mode", "turn off the
         # mic", "stop" -- instead of leaving them queued behind the answer.
         self._recent_user: Deque[str] = deque(maxlen=8)    # what the user said lately
+        self._observed_at: Dict[str, float] = {}           # observation text -> when last processed
         self._thinking = 0
         self._think_started = 0.0               # when the answer in progress began
         self._think_query = ""
@@ -1354,6 +1360,37 @@ class AmbientRuntime:
         if not say:
             return False
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "facts"}
+        return True
+
+    def _remember_request(self, ev, now: float) -> bool:
+        """"Remember Lieth is my friend": written to what ASH knows, and said as
+        written. A sentence it can't read goes on to the model as before."""
+        w = self.wonder
+        if w is None or not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        try:
+            done = remembering.remember(w.kb, text, str(getattr(self.brain, "user", "") or ""))
+        except Exception:
+            logger.exception("Remembering failed")
+            return False
+        if done is None:
+            return False
+        say, undo = done
+        if undo is not None:
+            self.undo.push(say.replace("Got it -- ", "").rstrip("."), undo, now)
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
+    def _identity_request(self, ev, now: float) -> bool:
+        """"Who am I?": from the name and the people on record, not the model."""
+        w = self.wonder
+        if w is None or not self._user_source(ev) or not remembering.wants_identity(
+                str(getattr(ev, "text", "") or "")):
+            return False
+        say = remembering.who_am_i(w.kb, str(getattr(self.brain, "user", "") or ""))
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
 
     def _crash_request(self, ev, now: float) -> bool:
@@ -1656,6 +1693,10 @@ class AmbientRuntime:
             return
         if self._forget_request(ev, now):
             return
+        if self._remember_request(ev, now):
+            return
+        if self._identity_request(ev, now):
+            return
         if self._explain_request(ev, now):
             return
         if self.cfg.corrections and self._correction_step(ev, now):
@@ -1747,6 +1788,14 @@ class AmbientRuntime:
 
         if decision.disposition == Disposition.OBSERVE:
             self.stats["observed"] += 1
+            key = f"{ev.source}|{str(ev.text or '')[:120]}"
+            last = self._observed_at.get(key)
+            if last is not None and now - last < self.cfg.observe_repeat_s:
+                return                  # the same thing again: already taken in
+            self._observed_at[key] = now
+            if len(self._observed_at) > 200:
+                for k in [k for k, t in self._observed_at.items() if now - t > self.cfg.observe_repeat_s]:
+                    del self._observed_at[k]
             try:
                 trace = self.brain.observe(
                     text=ev.text,
@@ -2452,10 +2501,12 @@ class AmbientRuntime:
         """"Why did you say that?": answered from the note left when it was
         said, without the model. The explanation itself leaves no note, so
         asking twice explains the same thing."""
-        if not self._user_source(ev) or not asked_why(str(getattr(ev, "text", "") or "")):
+        text = str(getattr(ev, "text", "") or "")
+        if not self._user_source(ev) or not (asked_why(text) or asks_source(text)):
             return False
         try:
-            self.response_sink(explain(self._last_why), {"addressed": True, "source": "explain",
+            say = explain(self._last_why) if asked_why(text) else source_reply(self._last_why)
+            self.response_sink(say, {"addressed": True, "source": "explain",
                                                          "attention": None, "pathway": "explain"})
             address.conversation.note_ash_spoke(self.clock(), asked=False)
             self.gate.note_user_turn()
@@ -2595,11 +2646,12 @@ class AmbientRuntime:
         threading.Thread(target=self._sleep_phase, daemon=True,
                          name="ash-sleep").start()
 
-    def _sleep_phase(self):
+    def _sleep_phase(self, force: bool = False):
         logger.info("Sleep phase starting")
         report: Dict[str, Any] = {}
         try:
-            report["brain"] = self.brain.sleep(seconds_idle=self.cfg.sleep_after_idle_s)
+            report["brain"] = self.brain.sleep(seconds_idle=self.cfg.sleep_after_idle_s,
+                                               min_gap_s=0.0 if force else self.cfg.sleep_brain_gap_s)
         except Exception:
             logger.exception("Brain consolidation failed")
         try:

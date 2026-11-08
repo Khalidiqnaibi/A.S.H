@@ -715,6 +715,29 @@ connection says nothing and lets ASH answer as usual. It leaves alone what is
 not a topic: the time, the date, the weather, sums, "what is your name",
 "what is this", questions about you, and quantities ("the population of...").
 
+## "Remember...", "who am I?", "where did you get that?"
+
+`src/daemon/remember.py`, `src/daemon/explain.py`; `tst_remember.py`. By rule,
+never the model, because the model made up the confirmation:
+
+- "Remember Lieth is my friend" / "...is Khalid's best friend" / "my brother
+  is Omar" / "Omar is Sara's cousin" is written to the people ASH knows (and
+  entity memory) and answered as written ("Got it -- Lieth is your friend.").
+  "Best", "close" and "good" friend are all *friend*. A family tie that clashes
+  with one on record is refused, saying so; "undo that" takes it back. Any
+  other "remember ..." still goes to the model.
+- "Who am I?" / "who's the user?" / "what do you know about me?" says your name
+  and the people on record, or that it doesn't have your name.
+- "Where did you get that?" says whether the last answer was a tool, the
+  model's own training (and so may be out of date), Wikipedia, or ASH's rules.
+
+Also: the model stays loaded for 6 h (`ASH_OLLAMA_KEEP_ALIVE`) so only the first
+question after a long idle pays a load; brain consolidation ("a night") runs
+at most once per 6 h (`sleep_brain_gap_s`; `ashctl sleep` forces one); a
+repeated observation within 20 s isn't re-processed; `ashctl history` lists
+answered turns (add `all` for observations too); a markdown link or a
+placeholder address (`@email.com`) in a reply is dropped even if memory holds it.
+
 ## Where a sentence goes (and the test that pins it)
 
 `tst_replay.py` runs real utterances from the real sessions through the real

@@ -488,13 +488,13 @@ class ControlServer:
         if cmd == "why":
             return {"ok": True, "trace": rt.ash.explain_last()}
         if cmd == "history":
-            try:
-                n = int(arg) if arg.strip() else 50
-            except ValueError:
-                n = 50
-            return {"ok": True, "history": rt.ash.explain_history(n)}
+            toks = arg.split()
+            everything = "all" in [t.lower() for t in toks]          # "history all" / "history 100 all": observations too
+            nums = [t for t in toks if t.isdigit()]
+            n = int(nums[0]) if nums else 50
+            return {"ok": True, "history": rt.ash.explain_history(n, observed=everything)}
         if cmd == "sleep":
-            return {"ok": True, "report": rt._sleep_phase()}
+            return {"ok": True, "report": rt._sleep_phase(force=True)}
         if cmd == "rollup":
             return {"ok": True, "report": rt.journal.rollup_pending(
                 episodic=getattr(rt.ash, "episodic_memory", None))}
