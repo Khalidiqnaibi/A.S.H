@@ -205,6 +205,37 @@ def s6():
           str(set(p.played[before:])))
 
 
+def s7():
+    print("\n=== S7. Quiet till a time ===")
+    from src.daemon import quiet
+    now = time.mktime((2026, 11, 9, 22, 0, 0, 0, 0, -1))
+    cases = [("quiet till 9", 11.0), ("be quiet until 9am", 11.0), ("do not disturb for 2 hours", 2.0),
+             ("quiet for an hour", 1.0), ("quiet for 30 minutes", 0.5), ("quiet until noon", 14.0),
+             ("ash be quiet until 3:30 pm", 17.5)]
+    for text, hrs in cases:
+        r = quiet.parse(text, now)
+        check(f"{text!r} -> {hrs}h", r is not None and abs((r[0] - now) / 3600 - hrs) < 0.01, str(r))
+    for text in ("quiet mode", "quiet till 25", "what time is it", "quiet for 0 minutes", "be quiet"):
+        check(f"{text!r} is not a timed quiet", quiet.parse(text, now) is None)
+
+    rt = te.rig()
+    rt.say("quiet for 2 hours")
+    check("it says until when", rt.out[-1].startswith("Okay, quiet until "), rt.out[-1])
+    check("the gate is muted", rt.gate.muted is True)
+    rt.t[0] += 3600
+    rt._tick()
+    check("still quiet after an hour", rt.gate.muted is True)
+    rt.t[0] += 3700
+    rt._tick()
+    check("back on its own after two", rt.gate.muted is False)
+    rt.say("quiet for an hour")
+    rt.say("wake up")
+    check("'wake up' ends it and forgets the timer", rt.gate.muted is False and rt._quiet_until is None)
+    rt.say("be quiet till 9")
+    rt.say("quiet mode")
+    check("an untimed 'quiet mode' still works", rt.gate.muted is True)
+
+
 if __name__ == "__main__":
     s1()
     s2()
@@ -212,5 +243,6 @@ if __name__ == "__main__":
     s4()
     s5()
     s6()
+    s7()
     print("\nALL OK" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

@@ -72,6 +72,7 @@ from .remarks import RemarkLog
 from .speech import SpeechControl, wants_brief, wants_cancel, wants_short, wants_stop
 from .tasks import Tasks
 from . import honest, voicectl
+from . import quiet as quiet_mod
 from .repeat import RepeatGuard
 from .context import Context
 from .focus import Focus
@@ -881,6 +882,11 @@ class AmbientRuntime:
             return None
 
     def _social_step(self, now: float, idle_s: Optional[float] = None):
+        qu = getattr(self, "_quiet_until", None)
+        if qu is not None and now >= qu:
+            self._quiet_until = None
+            self.gate.mute(False)               # "quiet till 9" ended: back, without announcing it
+            logger.info("Quiet time is over; unmuted")
         try:
             if self.reactions is not None:
                 self.reactions.expire(now)
@@ -2330,6 +2336,13 @@ class AmbientRuntime:
                 except Exception:
                     logger.exception("Shutdown request failed")
                 return True
+        timed = quiet_mod.parse(text, now)
+        if timed is not None:
+            until, phrase = timed
+            self.gate.mute(True)
+            self._quiet_until = until
+            return self._control_say(ev, f"Okay, quiet until {phrase}. I'll answer if you ask me something, "
+                                         "and I'll be back on my own then.")
         cmd = voicectl.parse(text)
         if cmd is None:
             return False
@@ -2373,6 +2386,7 @@ class AmbientRuntime:
             say = "Going quiet -- I won't bring anything up. Say \u201cwake up\u201d when you want me back."
         elif name == "wake":
             self.gate.mute(False)
+            self._quiet_until = None
             say = "I'm back."
         elif name == "shutdown":
             self._shutdown_asked = now
