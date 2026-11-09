@@ -326,6 +326,14 @@ def _wrap_face(runtime, bus, presence):
     player.on_frame = on_frame
 
 
+def _mood(runtime):
+    """What the face is feeling, for the page's slow tint (None = neutral)."""
+    try:
+        return getattr(runtime, "face", None).shown_mood()
+    except Exception:
+        return None
+
+
 def _status(runtime) -> Dict[str, Any]:
     p = runtime.periphery
     sensors = [{"name": s.name, "on": getattr(getattr(s, "state", None), "value", "") == "active"}
@@ -348,6 +356,7 @@ def _status(runtime) -> Dict[str, Any]:
         "sensors": sensors, "actuators": acts,
         "paused": bool(getattr(runtime.privacy, "paused", False)),
         "muted": bool(getattr(gate, "muted", False)),
+        "mood": _mood(runtime),
         "busy": round(float(getattr(runtime, "_user_busy", 0.0) or 0.0), 2),
         "waiting": waiting,          # what the next thing you say would answer
         "up_to": up_to,              # what ASH is keeping track of

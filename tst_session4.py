@@ -236,6 +236,25 @@ def s7():
     check("an untimed 'quiet mode' still works", rt.gate.muted is True)
 
 
+def s8():
+    print("\n=== S8. Wake ring and mood tint in the console ===")
+    html = open(os.path.join(HERE, "src", "ui", "static", "console.html"), encoding="utf-8").read()
+    check("the page rings the face when it hears you", "function heard()" in html and "heardring" in html)
+    check("the ring is not drawn for quiet button records", "!m.quiet" in html)
+    check("the page tints by mood, with reduced-motion respected",
+          'data-mood="love"' in html and "prefers-reduced-motion" in html)
+    from src.ui import hooks
+    rt = te.rig(with_face=True)
+    check("no mood at first", hooks._mood(rt) is None)
+    rt.face.on_user_text("thank you so much")
+    check("a thank-you shows love in the status", hooks._mood(rt) == "love", str(hooks._mood(rt)))
+    check("it fades after half a minute", rt.face.shown_mood(time.time() + 40) is None)
+    rt.face._mood = "sleepy"
+    check("then the slower mood shows", rt.face.shown_mood(time.time() + 40) == "sleepy")
+    bare = te.rig()
+    check("no face: the status just has no mood", hooks._mood(bare) is None)
+
+
 if __name__ == "__main__":
     s1()
     s2()
@@ -244,5 +263,6 @@ if __name__ == "__main__":
     s5()
     s6()
     s7()
+    s8()
     print("\nALL OK" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

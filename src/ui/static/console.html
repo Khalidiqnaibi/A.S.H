@@ -167,6 +167,22 @@ ul, ol { list-style: none; margin: 0; padding: 0; }
   border: 1px solid var(--line); box-shadow: var(--glow); overflow: hidden;
   cursor: pointer; user-select: none;
 }
+.face::before { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 2.5s ease, background 2.5s ease; }
+.face[data-mood]::before { opacity: .22; }
+.face[data-mood="love"]::before { background: radial-gradient(90% 80% at 50% 60%, #ff5c8a, transparent); }
+.face[data-mood="happy"]::before, .face[data-mood="very_happy"]::before { background: radial-gradient(90% 80% at 50% 60%, #ffd23f, transparent); }
+.face[data-mood="sad"]::before { background: radial-gradient(90% 80% at 50% 60%, #4a78ff, transparent); }
+.face[data-mood="angry"]::before, .face[data-mood="annoyed"]::before { background: radial-gradient(90% 80% at 50% 60%, #ff4a3a, transparent); }
+.face[data-mood="sleepy"]::before { background: radial-gradient(90% 80% at 50% 60%, #7a5cff, transparent); opacity: .3; }
+.face[data-mood="curious"]::before, .face[data-mood="surprised"]::before { background: radial-gradient(90% 80% at 50% 60%, #2fe3c2, transparent); }
+.face[data-mood="skeptical"]::before { background: radial-gradient(90% 80% at 50% 60%, #b0b6c4, transparent); }
+@media (prefers-reduced-motion: reduce) { .face::before { transition: none; } }
+.face::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  border: 2px solid var(--accent); opacity: 0; }
+.face.heard::after { animation: heardring 1s ease-out; }
+@keyframes heardring { 0% { opacity: .95; transform: scale(.985); box-shadow: 0 0 0 0 var(--accent); }
+  100% { opacity: 0; transform: scale(1); box-shadow: 0 0 28px 6px transparent; } }
+@media (prefers-reduced-motion: reduce) { .face.heard::after { animation: none; opacity: .8; } }
 .face canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .face-top, .face-bottom {
   position: absolute; left: 0; right: 0; display: flex; align-items: center;
@@ -561,7 +577,7 @@ function onMessage(m) {
   if (m.id) seen.add(key);
   const live = (m.ts || 0) > connectedAt - 1;
   switch (m.kind) {
-    case "user": addUser(m); break;
+    case "user": addUser(m); if (live && !m.quiet) heard(); break;
     case "ash": addAsh(m, live); break;
     case "action": addAction(m); break;
     case "system": addSys(m.text); break;
@@ -680,6 +696,13 @@ function addAction(m) {
 
 function addSys(text) { append(el("li", "sys", text)); }
 
+// A ring around the face the moment ASH hears it was spoken to, before it answers.
+function heard() {
+  const st = $("stage"); if (!st) return;
+  st.classList.remove("heard"); void st.offsetWidth; st.classList.add("heard");
+  clearTimeout(heard.t); heard.t = setTimeout(() => st.classList.remove("heard"), 1100);
+}
+
 // ---- cues ------------------------------------------------------------
 function onCue(m, live) {
   if (!live) return;      // replayed history: hello already said what is on now
@@ -709,8 +732,10 @@ function updateStatePill() {
 }
 
 // ---- status chips ----------------------------------------------------
+const MOODS = new Set(["love", "happy", "very_happy", "sad", "angry", "annoyed", "sleepy", "curious", "skeptical", "surprised"]);
 function applyStatus(s) {
   status = s;
+  const st = $("stage"); if (st) { if (s.mood && MOODS.has(s.mood)) st.dataset.mood = s.mood; else delete st.dataset.mood; }
   const chips = $("chips"); chips.textContent = "";
   for (const x of s.sensors || []) {
     const li = el("li");

@@ -60,6 +60,7 @@ class FaceBridge:
         self.idle_life = IdleLife()
         self._speaking = False
         self._owed = None
+        self._felt = None
         self._last_user_t = time.time()
 
     # ------------------------------------------------------------------
@@ -104,6 +105,14 @@ class FaceBridge:
         if cur is not None and cur.name in names:
             self.player.stop()
 
+    def shown_mood(self, now: Optional[float] = None) -> Optional[str]:
+        """The feeling the face is wearing now, for the console's tint: a reaction
+        (thanks -> love) for half a minute, else the slower drive/emotion mood."""
+        now = time.time() if now is None else now
+        if self._felt and now - self._felt[1] < 30.0:
+            return self._felt[0]
+        return self._mood
+
     def on_user_text(self, text: str):
         """The user said something with a feeling in it: the face answers before
         the voice does (thanks -> love, a laugh -> very_happy, "wow" -> surprised)."""
@@ -111,6 +120,7 @@ class FaceBridge:
         anim = reaction_to(text)
         if anim:
             self._play(anim)
+            self._felt = (anim, time.time())
             self._owed = (anim, time.time())     # and again once the reply lands, which would nod over it
             self.idle_life.reset()
 
