@@ -81,7 +81,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         # the screen turned into journaled text, so it is off with capture.
         "screenshot": {"enabled": False, "interval": 20.0, "save_frames": False,
                        "describe": True, "read_text": False,
-                       "read_text_every_s": 120.0},
+                       "read_text_every_s": 120.0, "ocr_threads": 2},
         "microphone": {"enabled": False, "keep_audio": False},
         "camera": {"enabled": False, "interval": 2.0, "index": 0},
         "serial": {"enabled": False, "port": "/dev/ttyUSB0", "baud": 115200},

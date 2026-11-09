@@ -470,8 +470,10 @@ class ScreenshotSensor(Sensor):
                  window_sensor: Optional[ActiveWindowSensor] = None,
                  hamming_threshold: int = 6, save_frames: bool = False,
                  max_frames: int = 500, read_text: bool = False,
-                 describe: bool = True, read_text_every_s: float = 120.0):
+                 describe: bool = True, read_text_every_s: float = 120.0,
+                 ocr_threads: int = 2):
         self._grab = None
+        self.ocr_threads = int(ocr_threads or 2)
         self.window_sensor = window_sensor
         self.hamming_threshold = hamming_threshold
         self.save_frames = save_frames
@@ -487,6 +489,7 @@ class ScreenshotSensor(Sensor):
         self.describe_enabled = describe
         self.read_text_every_s = float(read_text_every_s)
         self._reader = None
+        self._look_reader = None
         # OCR measured 6.6s on a 1600px frame of a 1080p screen on this
         # machine. read() is called from the ambient loop's own polling
         # thread, so doing that inline would freeze sensing for six seconds
@@ -515,7 +518,7 @@ class ScreenshotSensor(Sensor):
         """Built on first use, so a daemon with captures off never loads it."""
         if self._reader is None and self.read_text_enabled:
             from .screenread import ScreenReader
-            self._reader = ScreenReader()
+            self._reader = ScreenReader(threads=self.ocr_threads)
         return self._reader
 
     def probe(self) -> Tuple[bool, str]:
@@ -702,18 +705,20 @@ class ScreenshotSensor(Sensor):
                 return {**base, "ok": False, "error": why}
 
         img = self._capture()
-        legible = img
-        if legible.width > OCR_MAX_WIDTH:
-            legible = legible.copy()
-            legible.thumbnail((OCR_MAX_WIDTH, OCR_MAX_WIDTH))
         small = img.copy()
         small.thumbnail((640, 400))
         scene = screenread.describe(small).get("kind", "")
 
         # Asking is explicit consent to read, so this does not wait for the
-        # ambient switch; it still needs an engine that is installed.
-        reader = self._reader or screenread.ScreenReader()
-        text = reader.read_text(legible) if reader.available else ""
+        # ambient switch; it still needs an engine that is installed. The
+        # reader is kept: a fresh one per question loaded the whole engine
+        # again -- seconds, and its memory twice over beside the ambient one.
+        reader = self._reader
+        if reader is None:
+            reader = self._look_reader
+            if reader is None:
+                reader = self._look_reader = screenread.ScreenReader(threads=self.ocr_threads)
+        text = reader.read_text(img) if reader.available else ""
         base.update({"scene": scene, "text": text, "reader": reader.available})
         if text:
             self._last_view = {"title": title, "scene": scene, "text": text,
@@ -731,20 +736,27 @@ class ScreenshotSensor(Sensor):
         reader = self.reader
         if reader is None:
             return
+        # Video has no words to read, and it is exactly when OCR is least
+        # affordable: a player is already using the CPU, and every frame of
+        # it differs from the last so the throttle never rests. Of 129 frames
+        # in one hour of watching, reading any of them gave nothing.
+        if scene == "media":
+            return
         now = time.time()
         with self._ocr_lock:
             if self._ocr_busy or now - self._ocr_at < self.read_text_every_s:
                 return
             self._ocr_busy = True
 
-        legible = img.copy()
-        if legible.width > OCR_MAX_WIDTH:
-            legible.thumbnail((OCR_MAX_WIDTH, OCR_MAX_WIDTH))
+        # One allocation at the size the engine will read, not a full-size
+        # copy that is then shrunk.
+        from .screenread import fit_for_ocr
+        legible = fit_for_ocr(img)
 
         def _run():
             started, text = time.time(), ""
             try:
-                text = reader.read_text(legible)
+                text = reader.read_text(legible, ambient=True)
             finally:
                 with self._ocr_lock:
                     self._ocr_at, self._ocr_busy = time.time(), False

@@ -261,6 +261,147 @@ def main():
     check("a screen with nothing to show still says something readable",
           phrase({"kind": "text"}) == "a screen of text")
 
+    # ---- What reading costs. Stock rapidocr opens a thread per core for each
+    # of its three models: on a 12-core PC that measured 5.8 cores busy for
+    # ~16s a read, and on a machine at 99% memory it died with "bad
+    # allocation" and took the daemon with it. Everything below is about
+    # being quiet, and about surviving the read that fails.
+    import threading as _th
+    import time as _time
+    from src.senses import screenread as _sr
+
+    class _FakeEngine:
+        def __init__(self, result=None, error=None):
+            self.calls, self.result, self.error = 0, result, error
+
+        def __call__(self, arr):
+            self.calls += 1
+            if self.error:
+                raise self.error
+            return self.result, None
+
+    box = [[0, 0], [1, 0], [1, 1], [0, 1]]
+    good = [[box, "the build failed because the module could not be found", 0.97],
+            [box, "INF0 Intent candidate search sc0re", 0.31]]
+
+    def reader_with(engine):
+        r = ScreenReader(backend="definitely-not-installed")
+        r.backend, r._engine = "rapidocr", engine
+        return r
+
+    big = Image.new("RGB", (3840, 2160), "white")
+    fitted = _sr.fit_for_ocr(big)
+    check("a 4K frame is cut down to what the engine should be given",
+          max(fitted.size) <= _sr.OCR_MAX_SIDE and fitted.size[0] * fitted.size[1] <= _sr.OCR_MAX_PIXELS,
+          str(fitted.size))
+    check("a small frame is left alone", _sr.fit_for_ocr(text_img).size == text_img.size)
+
+    eng = _FakeEngine(good)
+    got = reader_with(eng).read_text(text_img)
+    check("a line the recogniser is unsure of is not reported",
+          "module could not be found" in got and "INF0" not in got, got)
+
+    # A failure: say so once, drop the engine, wait, and recover.
+    eng = _FakeEngine(error=RuntimeError("[ONNXRuntimeError] : 6 : RUNTIME_EXCEPTION : bad allocation"))
+    r = reader_with(eng)
+    check("a failed read returns nothing and does not raise", r.read_text(text_img) == "")
+    check("...counts it and starts backing off", r.status()["failures"] == 1 and r.waiting)
+    check("...and drops the engine after an allocation failure, to give the memory back",
+          r._engine is None and r.available)
+    first_wait = r._wait_until - _time.time()
+    r.read_text(text_img)
+    check("a reader that is backing off is not asked again", eng.calls == 1
+          and r.status()["skipped"]["backoff"] == 1)
+    r._wait_until = 0.0
+    recovered = _FakeEngine(good)
+    r._build_rapidocr = lambda: recovered
+    check("after the wait the engine is rebuilt and reads again",
+          "module could not be found" in r.read_text(text_img) and recovered.calls == 1)
+    check("...and a good read clears the failure streak", r._streak == 0)
+    r2 = reader_with(_FakeEngine(error=RuntimeError("boom")))
+    r2.read_text(text_img)
+    w1 = r2._wait_until - _time.time()
+    r2._wait_until = 0.0
+    r2.read_text(text_img)
+    w2 = r2._wait_until - _time.time()
+    check("each further failure waits longer, up to a cap",
+          w2 > w1 * 1.5 and w2 <= _sr.BACKOFF_MAX_S, f"{w1:.0f}s then {w2:.0f}s")
+    check("a failure that is not an allocation keeps the engine", r2._engine is not None)
+
+    # Yielding: the background read gives way to a loaded machine and to
+    # another read; a question somebody asked does not.
+    eng = _FakeEngine(good)
+    r = reader_with(eng)
+    real_pressure = _sr.pressure
+    _sr.pressure = lambda: "memory"
+    try:
+        check("a background read waits while memory is short",
+              r.read_text(text_img, ambient=True) == "" and eng.calls == 0
+              and r.status()["skipped"]["memory"] == 1)
+        check("a spoken question is read regardless of load",
+              "module could not be found" in r.read_text(text_img) and eng.calls == 1)
+    finally:
+        _sr.pressure = real_pressure
+    _sr._RUN_LOCK.acquire()
+    try:
+        eng.calls = 0
+        check("a background read never queues behind one already running",
+              r.read_text(text_img, ambient=True) == "" and eng.calls == 0
+              and r.status()["skipped"]["busy"] == 1)
+    finally:
+        _sr._RUN_LOCK.release()
+
+    # The sensor: no OCR of video, and the worker reads as the background.
+    class _WatchReader:
+        available = True
+
+        def __init__(self):
+            self.calls = []
+
+        def read_text(self, img, ambient=False):
+            self.calls.append(ambient)
+            return "the build failed because the module could not be found"
+
+    shot = ScreenshotSensor(enabled=False, read_text=True, read_text_every_s=0.0)
+    shot._reader = _WatchReader()
+    shot._maybe_read(text_img, "Stremio", "media", 1)
+    check("video is not sent to the OCR engine", shot._reader.calls == [] and not shot._ocr_busy)
+    shot._maybe_read(text_img, "Notepad", "text", 2)
+    for _ in range(100):
+        if not shot._ocr_busy:
+            break
+        _time.sleep(0.05)
+    check("a screen of text is, and as a background read", shot._reader.calls == [True],
+          str(shot._reader.calls))
+
+    # The thread count has to actually reach the engine.
+    try:
+        import rapidocr_onnxruntime as _ro
+    except Exception:
+        _ro = None
+    if _ro is not None:
+        import yaml as _yaml
+        seen = {}
+
+        class _Cap:
+            def __init__(self, config_path=None, **kw):
+                with open(config_path, "rb") as f:
+                    seen.update(_yaml.load(f, Loader=_yaml.Loader))
+
+            def __call__(self, arr):
+                return [], None
+
+        real_engine, _ro.RapidOCR = _ro.RapidOCR, _Cap
+        try:
+            ScreenReader(threads=2)
+        finally:
+            _ro.RapidOCR = real_engine
+        check("every OCR model is held to the configured number of threads",
+              all(seen.get(p, {}).get("intra_op_num_threads") == 2 for p in ("Det", "Cls", "Rec")),
+              str({p: seen.get(p, {}).get("intra_op_num_threads") for p in ("Det", "Cls", "Rec")}))
+    check("the OCR thread count is a setting",
+          DEFAULT_CONFIG["sensors"]["screenshot"]["ocr_threads"] == 2)
+
     # The blocklist is matched against the title an application actually
     # writes, not its product name. Google Meet is "Meet - abc-defg-hij -
     # Opera": the first version of this list said "google meet" and missed a
