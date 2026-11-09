@@ -322,6 +322,50 @@ def s10():
         te.stop_all(rt)
 
 
+def s11():
+    print("\n=== S11. Scenes ===")
+    from src.daemon.scenes import Scenes
+    S = Scenes({"movie": {"quiet_min": 150, "face": "sleepy", "say": "Enjoy."}})
+    for t, want in [("work mode", "work"), ("start work mode", "work"), ("wind down", "wind down"),
+                    ("it's lunch time", "break"), ("movie mode", "movie"), ("ash, deep work mode", "work")]:
+        r = S.parse(t)
+        check(f"{t!r} starts {want}", r is not None and r[0] == "start" and r[1].name == want, str(r))
+    for t in ("work", "evening", "lunch", "hello", "focus", "what time is it", "relax"):
+        check(f"{t!r} alone is just a word", S.parse(t) is None)
+    check("end / back", S.parse("end work mode")[0] == "end" and S.parse("I'm back")[0] == "end")
+    check("list", S.parse("what scenes do you have")[0] == "list")
+
+    import tst_face_react as fr
+    from src.face.bridge import attach_to_daemon
+    opened = []
+
+    class Desk:
+        apps = {}
+
+        def _open_one(self, name):
+            opened.append(name)
+            return name != "ghost"
+    rt = te.rig(scenes=True, scenes_cfg={"work": {"apps": ["code", "ghost"], "quiet_min": 60}})
+    rt.desktop = Desk()
+    p = fr.Player()
+    rt.face = attach_to_daemon(rt, p)
+    rt.say("work mode")
+    check("it says what it did, and only that", "quiet for 60 minutes" in rt.out[-1] and "opened code" in rt.out[-1]
+          and "couldn't open ghost" in rt.out[-1], rt.out[-1])
+    check("the gate is muted until then", rt.gate.muted and rt._quiet_until is not None)
+    check("the apps were opened", opened == ["code", "ghost"])
+    check("the face showed curious", "curious" in p.played, str(p.played))
+    rt.say("end work mode")
+    check("ending it unmutes", rt.out[-1] == "Okay, I'm back." and not rt.gate.muted and rt._quiet_until is None)
+    rt.say("end work mode")
+    check("ending nothing says so", rt.out[-1] == "No scene is on.")
+    rt.say("what scenes do you have")
+    check("lists them", "work" in rt.out[-1] and "wind down" in rt.out[-1] and "break" in rt.out[-1])
+    bare = te.rig()
+    bare.say("work mode")
+    check("off on a bare runtime: goes on to the model as before", bare.out[-1] == "Sure.", str(bare.out))
+
+
 if __name__ == "__main__":
     s1()
     s2()
@@ -333,5 +377,6 @@ if __name__ == "__main__":
     s8()
     s9()
     s10()
+    s11()
     print("\nALL OK" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

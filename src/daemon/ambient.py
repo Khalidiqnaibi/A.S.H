@@ -73,6 +73,7 @@ from .speech import SpeechControl, wants_brief, wants_cancel, wants_short, wants
 from .tasks import Tasks
 from . import honest, voicectl
 from . import quiet as quiet_mod
+from .scenes import Scenes
 from .repeat import RepeatGuard
 from .context import Context
 from .focus import Focus
@@ -220,6 +221,9 @@ class AmbientConfig:
     # turns it on.
     desktop: bool = False
     desktop_cfg: Optional[Dict[str, Any]] = None
+    # "Work mode", "wind down": one phrase sets quiet, face, apps (scenes.py).
+    scenes: bool = False
+    scenes_cfg: Optional[Dict[str, Any]] = None
     # Research: "look into X" is done in the background and told at a free
     # moment or in the evening briefing (research.py), with the lookup
     # sources set under wondering.lookup. Off on a bare runtime.
@@ -546,6 +550,7 @@ class AmbientRuntime:
         if self.cfg.watch:
             self.watcher = Watcher(WatchConfig.from_dict(self.cfg.watch_cfg), path=self.cfg.watch_path,
                                    clock=lambda: self.clock())
+        self.scenes = Scenes(self.cfg.scenes_cfg) if self.cfg.scenes else None
         self.desktop: Optional[Desktop] = None
         if self.cfg.desktop:
             self.desktop = Desktop(DesktopConfig.from_dict(self.cfg.desktop_cfg),
@@ -1160,6 +1165,60 @@ class AmbientRuntime:
                                              else "desktop"})())
         return True
 
+    def _scene_request(self, ev, now: float) -> bool:
+        """"Work mode" / "wind down" / "end work mode": quiet, a face and apps in
+        one phrase. Only said to ASH; the reply names what really happened."""
+        sc = self.scenes
+        if sc is None or not self._user_source(ev) or not self._meant_for_ash(ev):
+            return False
+        from src.senses.mic import MicrophoneSensor
+        got = sc.parse(MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or "")))
+        if got is None:
+            return False
+        kind, scene = got
+        if kind == "list":
+            return self._control_say(ev, sc.listing())
+        if kind == "end":
+            if sc.current is None and getattr(self, "_quiet_until", None) is None:
+                return self._control_say(ev, "No scene is on.")
+            sc.current = None
+            self._quiet_until = None
+            self.gate.mute(False)
+            self._scene_face("happy")
+            return self._control_say(ev, "Okay, I'm back.")
+        done = []
+        if scene.quiet_min > 0:
+            self.gate.mute(True)
+            self._quiet_until = now + scene.quiet_min * 60.0
+            done.append(f"quiet for {int(scene.quiet_min)} minutes")
+        if scene.face:
+            self._scene_face(scene.face)
+        opened, failed = [], []
+        if scene.apps and self.desktop is not None:
+            for a in scene.apps:
+                try:
+                    (opened if self.desktop._open_one(a) else failed).append(a)
+                except Exception:
+                    failed.append(a)
+        if opened:
+            done.append("opened " + ", ".join(opened))
+        sc.current = scene.name
+        parts = [scene.say.strip()] if scene.say.strip() else [f"{scene.name.capitalize()} on."]
+        if done:
+            parts.append("I " + (done[0] if done[0].startswith("opened") else "went " + done[0]) + (
+                " and " + " and ".join(done[1:]) if len(done) > 1 else "") + ".")
+        if failed:
+            parts.append("I couldn't open " + ", ".join(failed) + ".")
+        return self._control_say(ev, " ".join(parts))
+
+    def _scene_face(self, name: str):
+        try:
+            player = getattr(getattr(self, "face", None), "player", None)
+            if player is not None:
+                player.play(name, force=True)
+        except Exception:
+            logger.debug("Scene face failed", exc_info=True)
+
     def _voice_step(self, ev, now: float) -> bool:
         """Voice match: "learn my voice" / "forget my voice", learning from the
         next utterances, and marking a clearly different voice as a guest.
@@ -1726,6 +1785,8 @@ class AmbientRuntime:
         if self._media_request(ev, now):
             return
         if self._desktop_request(ev, now):
+            return
+        if self._scene_request(ev, now):
             return
         if self._smarthome_request(ev, now):
             return

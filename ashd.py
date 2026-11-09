@@ -344,6 +344,8 @@ def main() -> int:
                 research_path=os.path.join(os.getcwd(), "state", "research.json"),
                 desktop=bool(cfg.get("desktop", {}).get("enabled", True)),
                 desktop_cfg=cfg.get("desktop", {}),
+                scenes=bool(cfg.get("scenes", {}).get("enabled", True)) if isinstance(cfg.get("scenes", {}), dict) else True,
+                scenes_cfg={k: v for k, v in (cfg.get("scenes") or {}).items() if k != "enabled"},
                 watch=bool(cfg.get("watch", {}).get("enabled", True)),
                 watch_cfg=cfg.get("watch", {}),
                 watch_path=os.path.join(os.getcwd(), "state", "watches.json"),
