@@ -722,6 +722,19 @@ Only the animations that already exist, by rule (no language model):
   from its mood; each reply's route tag opens a "how I got this" card; each thing ASH noted or set up has an
   undo button for ten minutes.
 
+## Scenes, pretend play and greetings
+
+All by rule, on in the daemon (`scenes`, `personas`, `rituals` in `daemon.json`, `"enabled": false` to stop one).
+
+- **Scenes** (`scenes.py`): "work mode", "wind down", "break" set quiet time, a face and, if listed, apps to
+  open, in one phrase, and the reply says only what really happened. Add your own under `scenes` (`quiet_min`,
+  `apps`, `face`, `say`); "end work mode" or "I'm back" ends it; "what scenes do you have?" lists them.
+- **Pretend play** (`personas.py`): "be a pirate for ten minutes", "talk like a robot", "pretend you're a
+  detective". The model words its answers in that voice (told to stay true); rule answers like timers and
+  commands are untouched. Ends after the time (default 10 min, at most an hour) or on "be yourself".
+- **Greetings** (`rituals.py`): "good morning" gets a greeting by the real hour, plus the morning briefing the
+  first time; "good night" gets a one-line recap of the day.
+
 ## Short facts from Wikipedia (on by default)
 
 `facts` in `daemon.json`, `src/daemon/facts.py`; the switch is "Answer short
