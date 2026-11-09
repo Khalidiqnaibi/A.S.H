@@ -408,6 +408,34 @@ def s12():
     check("off on a bare runtime: goes on as before", bare.out[-1] == "Sure.", str(bare.out))
 
 
+def s13():
+    print("\n=== S13. Greeting rituals ===")
+    from src.daemon import rituals as R
+    def at(h, m=4):
+        return time.mktime((2026, 11, 9, h, m, 0, 0, 0, -1))
+    for t, want in [("good morning", "morning"), ("morning ash", "morning"), ("hey ash, good evening", "evening"),
+                    ("good afternoon", "afternoon"), ("good night", "night"), ("night night", "night"),
+                    ("I'm going to bed", "night"), ("what is the morning star", None), ("good morning to you all my friends", None)]:
+        check(f"{t!r} -> {want}", R.kind_of(t) == want, str(R.kind_of(t)))
+    brief = lambda kind, now: "Good morning. Today: standup at 10." if kind == "morning" else "Here's your day. Today you spent most of your time on ASH (3h)."
+    check("morning, first time: greeting plus the briefing",
+          R.greet("morning", at(8), "Khalid", brief) == "Good morning, Khalid. Today: standup at 10.")
+    check("morning again the same day: just the greeting",
+          R.greet("morning", at(8), "Khalid", brief, True) == "Good morning, Khalid.")
+    check("'good morning' at 3pm says the real time",
+          R.greet("morning", at(15), "Khalid", brief) == "It's 3:04 pm already -- good afternoon, Khalid.")
+    check("night adds the day's recap", R.greet("night", at(23), "Khalid", brief).startswith("Good night, Khalid. Sleep well. Today you spent"))
+    check("night at 2am says so", R.greet("night", at(2), "", None).startswith("It's 2:04 am -- good night."))
+    check("no name: no comma", R.greet("evening", at(19), "") == "Good evening.")
+
+    rt = te.rig(rituals=True)
+    rt.say("good night")
+    check("through the runtime, by rule", "night" in rt.out[-1].lower() and rt.out[-1] != "Sure.", rt.out[-1])
+    bare = te.rig()
+    bare.say("good night")
+    check("off on a bare runtime: goes on as before", bare.out[-1] == "Sure.", str(bare.out))
+
+
 if __name__ == "__main__":
     s1()
     s2()
@@ -421,5 +449,6 @@ if __name__ == "__main__":
     s10()
     s11()
     s12()
+    s13()
     print("\nALL OK" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

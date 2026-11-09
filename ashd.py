@@ -344,6 +344,7 @@ def main() -> int:
                 research_path=os.path.join(os.getcwd(), "state", "research.json"),
                 desktop=bool(cfg.get("desktop", {}).get("enabled", True)),
                 desktop_cfg=cfg.get("desktop", {}),
+                rituals=bool(cfg.get("rituals", {}).get("enabled", True)) if isinstance(cfg.get("rituals", {}), dict) else True,
                 personas=bool(cfg.get("personas", {}).get("enabled", True)) if isinstance(cfg.get("personas", {}), dict) else True,
                 scenes=bool(cfg.get("scenes", {}).get("enabled", True)) if isinstance(cfg.get("scenes", {}), dict) else True,
                 scenes_cfg={k: v for k, v in (cfg.get("scenes") or {}).items() if k != "enabled"},

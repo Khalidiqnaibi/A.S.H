@@ -74,7 +74,7 @@ from .tasks import Tasks
 from . import honest, voicectl
 from . import quiet as quiet_mod
 from .scenes import Scenes
-from . import personas
+from . import personas, rituals
 from .repeat import RepeatGuard
 from .context import Context
 from .focus import Focus
@@ -223,6 +223,7 @@ class AmbientConfig:
     desktop: bool = False
     desktop_cfg: Optional[Dict[str, Any]] = None
     # "Work mode", "wind down": one phrase sets quiet, face, apps (scenes.py).
+    rituals: bool = False           # "good morning" / "good night" answered by rule (rituals.py)
     personas: bool = False          # "be a pirate for ten minutes" (personas.py)
     scenes: bool = False
     scenes_cfg: Optional[Dict[str, Any]] = None
@@ -1214,6 +1215,25 @@ class AmbientRuntime:
             parts.append("I couldn't open " + ", ".join(failed) + ".")
         return self._control_say(ev, " ".join(parts))
 
+    def _ritual_request(self, ev, now: float) -> bool:
+        """"Good morning" / "good night": a greeting by the real clock, with the
+        briefing the first time. Only to ASH."""
+        if not self.cfg.rituals or not self._user_source(ev) or not self._meant_for_ash(ev):
+            return False
+        from src.senses.mic import MicrophoneSensor
+        kind = rituals.kind_of(MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or "")))
+        if kind is None:
+            return False
+        b = self.briefings
+        compose = b.compose if b is not None else None
+        given = bool(b is not None and b.given.get("morning") == b._date(now))
+        say = rituals.greet(kind, now, str(getattr(self.brain, "user", "") or ""), compose, given)
+        plain = rituals.greet(kind, now, str(getattr(self.brain, "user", "") or ""), None, True)
+        if b is not None and kind == "morning" and not given and say != plain:
+            b.mark("morning", now)                # the briefing was in the greeting: not owed again today
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "briefing" if len(say) > 60 else "desktop"})())
+        return True
+
     def _persona_request(self, ev, now: float) -> bool:
         """"Be a pirate for ten minutes" / "be yourself": the model's voice changes
         for a while; rule-made answers are untouched."""
@@ -1821,6 +1841,8 @@ class AmbientRuntime:
         if self._scene_request(ev, now):
             return
         if self._persona_request(ev, now):
+            return
+        if self._ritual_request(ev, now):
             return
         if self._smarthome_request(ev, now):
             return
