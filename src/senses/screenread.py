@@ -226,6 +226,43 @@ def _gist(lines: List[str]) -> str:
     return " / ".join(out)
 
 
+# ASH's own output on a screen. Window titles cannot say a terminal is ASH's
+# (it is "Windows PowerShell" like any other), and the Claude app's terminal
+# panel is not an ancestor of anything, so the last line of defence is what
+# the words themselves look like. Without it ASH read its log aloud -- "the
+# part I can read says: or': 0.066, 'mean_weight_before'" -- and the reply it
+# stored became the next thing it read. The patterns tolerate what OCR does
+# to a log: INFO as "INF0", and so on.
+_OWN_LOG = re.compile(
+    r"\bash\.(?:daemon|brain|senses|classify|router|ner|tts|memory|concepts|tools|ui|face|disamb|"
+    r"shared_model|actuators)\b"
+    r"|\b(?:INF[O0]|WARNING|ERROR|DEBUG)\s+ash(?:d|\.)"
+    r"|\bashd\.py\b|\bashctl\b"
+    r"|Intent candidate|classify_intent called|get_intent_candidates|sentiment_tool called"
+    r"|mean_weight_before|Sleep phase|Ambient runtime|VLA: registered|Constitution: \d+ hard"
+    r"|\[ANSWER via (?:speak|log|notify)\]",
+    re.I)
+_LOG_LINE = re.compile(r"\b20\d\d-\d\d-\d\d[ T]\d\d:\d\d:\d\d[,.]\d{2,3}\s+[A-Z0]{4,8}\b")
+
+
+def looks_like_own_output(lines: List[str]) -> bool:
+    """Do these lines look like ASH's own log or its own answers?
+
+    One line naming one of its modules is enough -- nothing else says
+    "ash.daemon.ambient". Timestamped log lines in general are not: another
+    program's log is the user's to have read, but three of them in a frame is
+    a terminal tailing a log, and a daemon's own is the likelier one.
+    """
+    stamped = 0
+    for raw in lines or []:
+        line = raw or ""
+        if _OWN_LOG.search(line):
+            return True
+        if _LOG_LINE.search(line):
+            stamped += 1
+    return stamped >= 3
+
+
 def _trigrams(text: str) -> set:
     flat = re.sub(r"[^a-z0-9]", "", (text or "").lower())
     return {flat[i:i + 3] for i in range(len(flat) - 2)}
@@ -259,6 +296,9 @@ class ScreenReader:
         self._wait_until = 0.0       # no reading before this, after a failure
         self._skipped = {"memory": 0, "cpu": 0, "backoff": 0, "busy": 0}
         self._last_error = ""
+        # Why the last read returned nothing, when the reason is worth acting
+        # on: "self" means the screen was showing ASH's own output.
+        self.last_note = ""
         self._probe(backend)
 
     # ------------------------------------------------------------------
@@ -342,6 +382,7 @@ class ScreenReader:
         waiting on it -- but it still takes its turn and still backs off after
         a failure, so a broken engine is not retried in a tight loop either.
         """
+        self.last_note = ""
         if not self.available or img is None:
             return ""
         if self.waiting:
@@ -365,6 +406,9 @@ class ScreenReader:
         finally:
             _RUN_LOCK.release()
         self._streak = 0
+        if looks_like_own_output(lines):
+            self.last_note = "self"
+            return ""
         return _gist(lines)
 
     def _failed(self, exc: BaseException):

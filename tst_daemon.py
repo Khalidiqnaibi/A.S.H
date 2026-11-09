@@ -402,6 +402,108 @@ def main():
     check("the OCR thread count is a setting",
           DEFAULT_CONFIG["sensors"]["screenshot"]["ocr_threads"] == 2)
 
+    # ---- ASH reading its own terminal. The terminal the daemon runs in is
+    # titled "Windows PowerShell", like every other one, so for an hour ASH
+    # read its own log off the screen, spoke it when asked what it could see,
+    # stored the reply, and read that next.
+    from src.senses import screen as _screen
+    from src.senses.screenread import looks_like_own_output
+
+    own = ["2026-11-09 14:43:43,078 INF0 Intent candidate: search (score=0.132)",
+           "ash.daemon.ambient Sleep phase complete"]
+    check("its own log lines are recognised on a screen", looks_like_own_output(own))
+    check("...even as OCR garbles them",
+          looks_like_own_output(["2026-11-09 14:43:43,078 INF0 Intent candidate: search (score=0.132)"]))
+    check("...and the dict it logs after a sleep",
+          looks_like_own_output(["or': 0.066, 'mean_weight_before': 0.1517, 'synapses': 1251},"]))
+    check("ordinary text is not", not looks_like_own_output(
+        ["the build failed because the module could not be found", "File Edit View Help"]))
+    stamped = ["2026-11-09 10:00:01,123 INFO server accepted connection",
+               "2026-11-09 10:00:02,456 INFO server closed connection"]
+    check("a couple of someone else's log lines are the user's own business",
+          not looks_like_own_output(stamped))
+    check("...but a terminal full of timestamped log is a daemon tailing itself",
+          looks_like_own_output(stamped + ["2026-11-09 10:00:03,789 WARNING server slow response"]))
+
+    r = reader_with(_FakeEngine([[box, own[0], 0.95], [box, "ash.daemon.ambient Sleep phase starting", 0.95]]))
+    check("a read of its own output returns nothing, and says why",
+          r.read_text(text_img) == "" and r.last_note == "self")
+    r = reader_with(_FakeEngine(good))
+    r.read_text(text_img)
+    check("an ordinary read leaves no such note", r.last_note == "")
+
+    class _Win:
+        def __init__(self, title="Windows PowerShell", proc="WindowsTerminal.exe", pid=0, console=False):
+            self.title, self.proc, self.last_pid, self.last_console = title, proc, pid, console
+
+        def current(self):
+            return self.title, self.proc
+
+        def is_blocked(self, title):
+            return False
+
+        def hosts_daemon(self):
+            return ActiveWindowSensor.hosts_daemon(self)
+
+    real_hosts = _screen._HOSTS
+    _screen._HOSTS = (_time.time(), frozenset({4242}))
+    try:
+        check("a window owned by the terminal ASH runs in is its own",
+              ScreenshotSensor(enabled=False, window_sensor=_Win(pid=4242))._is_self("Windows PowerShell"))
+        check("...so is the console window it is attached to",
+              ScreenshotSensor(enabled=False, window_sensor=_Win(console=True))._is_self("Windows PowerShell"))
+        check("a terminal it is not running in is not",
+              not ScreenshotSensor(enabled=False, window_sensor=_Win(pid=777))._is_self("Windows PowerShell"))
+        check("...and neither is any other window", not ScreenshotSensor(
+            enabled=False, window_sensor=_Win("brain.py - Code", "Code.exe", pid=555))._is_self("brain.py - Code"))
+        check("its own title still counts without any of that",
+              ScreenshotSensor(enabled=False, window_sensor=_Win(pid=1))._is_self("A.S.H"))
+    finally:
+        _screen._HOSTS = real_hosts
+    check("only terminal programs can host it, not an editor or a file manager",
+          "code.exe" not in _screen.TERMINAL_HOSTS and "explorer.exe" not in _screen.TERMINAL_HOSTS
+          and "windowsterminal.exe" in _screen.TERMINAL_HOSTS)
+
+    # Asked from ASH's own window it reports the last thing it read, and that
+    # is labelled as the window it was read from -- it was labelled with the
+    # window the question was typed in, so a terminal became "Edge".
+    from tools import screen_tool as _st
+    shot = ScreenshotSensor(enabled=False, window_sensor=_Win("A.S.H", "msedge.exe"))
+    shot._last_view = {"title": "brain.py - A.S.H - Visual Studio Code", "process": "Code.exe",
+                       "scene": "text", "text": "def volunteer(self, situation, context)",
+                       "at": _time.time() - 30}
+    view = shot.look_now()
+    check("asked from its own window it reports the last other thing it read",
+          view["fresh"] is False and view.get("self_focus") is True and view["text"])
+    check("...labelled as that window, not the one in front",
+          view["process"] == "Code.exe" and view["subject"] == "brain.py" and view["project"] == "A.S.H",
+          f"{view['process']} / {view['subject']}")
+    said = _st.describe_view(view)
+    check("...and says it is not looking at its own window",
+          "own window" in said and "VS Code" in said and "Edge" not in said, said)
+    old = dict(view, age_s=3000.0)
+    said = _st.describe_view(old)
+    check("a reading from long ago is described as history, not recited",
+          "volunteer" not in said and "a while back" in said, said)
+    shot._last_view = None
+    check("with nothing read yet it just says it is its own window",
+          shot.look_now().get("withheld") == "self")
+
+    # The last line of defence: a window that cannot be recognised as its own
+    # (the Claude app's terminal panel) but whose words are its own output.
+    class _OwnWords:
+        available, last_note = True, "self"
+
+        def read_text(self, img, ambient=False):
+            return ""
+
+    shot = ScreenshotSensor(enabled=False, window_sensor=_Win("Terminal", "Claude.exe", pid=9))
+    shot._grab, shot._capture, shot._reader = "pil", (lambda: text_img), _OwnWords()
+    seen_view = shot.look_now()
+    check("a screen showing only its own output is reported as its own window",
+          seen_view.get("withheld") == "self" and not seen_view["text"], str(seen_view)[:160])
+    check("...and is not remembered as something it looked at", shot._last_view is None)
+
     # The blocklist is matched against the title an application actually
     # writes, not its product name. Google Meet is "Meet - abc-defg-hij -
     # Opera": the first version of this list said "google meet" and missed a

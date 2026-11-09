@@ -35,6 +35,9 @@ _LOOKER: Optional[Callable[[], Dict[str, Any]]] = None
 # OCR is worse than one that gives the gist.
 MAX_SPOKEN_TEXT = 170
 
+# Past this, a reading is history and is described as such, not recited.
+STALE_TEXT_S = 600
+
 
 def set_looker(fn: Optional[Callable[[], Dict[str, Any]]]) -> None:
     """Called by the daemon with the live sensor's look function, or None."""
@@ -93,17 +96,28 @@ def describe_view(view: Dict[str, Any]) -> str:
         where = app
 
     parts = []
-    if not view.get("fresh", True):
-        age = int(view.get("age_s", 0))
+    age = int(view.get("age_s", 0))
+    stale = not view.get("fresh", True)
+    if stale:
         ago = f"{age} seconds" if age < 90 else f"{age // 60} minutes"
-        parts.append(f"The last thing I looked at, about {ago} ago, was"
+        # Asked from my own window, which I do not look at: say so, rather
+        # than present an old look at something else as the answer.
+        lead = ("You're talking to me in my own window, so I can't look at what you're on. "
+                if view.get("self_focus") else "")
+        parts.append(lead + f"The last thing I looked at, about {ago} ago, was"
                      + (f" {where}." if where else " another window."))
     else:
         parts.append(f"You're in {where}." if where else "I'm looking at your screen.")
 
     scene = _SCENE.get(view.get("scene", ""), "")
-    if scene:
+    if scene and not (stale and age > STALE_TEXT_S):
         parts.append(scene)
+
+    if stale and age > STALE_TEXT_S:
+        # A reading from a long time ago describes a screen that has almost
+        # certainly changed; the words from it would be passed off as now.
+        parts.append("That was a while back, so I won't guess what's on it now.")
+        return " ".join(parts)
 
     text = _spoken_text(view.get("text", ""))
     if text:

@@ -142,6 +142,47 @@ SELF_TITLE_FRAGMENTS = ("ashd.py", "python ashd", "ashctl")
 def is_self_window(title: str) -> bool:
     low = (title or "").strip().lower()
     return low in SELF_TITLES or any(f in low for f in SELF_TITLE_FRAGMENTS)
+
+
+# A title can only say a window is ASH's when ASH wrote the title. The
+# terminal ASH is running in is called "Windows PowerShell", exactly as every
+# other PowerShell is, so a title list never recognises it -- and for an hour
+# ASH read its own log off the screen, said it aloud when asked what it could
+# see, stored the reply, and read that next. What does identify it is
+# structure: the terminal program is an ancestor of this process.
+#
+# Only terminal programs count. An editor or a file manager can be an ancestor
+# too (ASH started from Explorer, or from an editor's integrated terminal),
+# and treating all of Code or Explorer as "itself" would blind ASH to the rest
+# of what the user does there.
+TERMINAL_HOSTS = frozenset({
+    "windowsterminal.exe", "openconsole.exe", "conhost.exe", "cmd.exe",
+    "powershell.exe", "pwsh.exe", "wezterm-gui.exe", "alacritty.exe",
+    "mintty.exe", "kitty.exe", "hyper.exe", "gnome-terminal-server",
+    "konsole", "xterm", "iterm2", "terminal", "kitty", "alacritty", "tmux",
+})
+_HOSTS: Tuple[float, frozenset] = (0.0, frozenset())
+
+
+def daemon_hosts(ttl: float = 60.0) -> frozenset:
+    """Process ids of the terminal programs this process is running inside."""
+    global _HOSTS
+    now = time.time()
+    if now - _HOSTS[0] < ttl:
+        return _HOSTS[1]
+    found = set()
+    try:
+        import psutil
+        for parent in psutil.Process().parents():
+            try:
+                if parent.name().lower() in TERMINAL_HOSTS:
+                    found.add(parent.pid)
+            except Exception:
+                continue
+    except Exception:
+        pass
+    _HOSTS = (now, frozenset(found))
+    return _HOSTS[1]
 # A substring list will always trail whatever the next application decides to
 # call its windows, and it only ever sees the focused one. It is the cheap
 # layer. The structural protections are capturing just that focused window
@@ -294,7 +335,14 @@ class ActiveWindowSensor(Sensor):
         # focused window is what makes the title blocklist honest, so
         # falling back to the whole monitor is worth being able to see.
         self.rect_reason: str = "not looked up yet"
+        # Which process owns the focused window, as of the last current().
+        self.last_pid: int = 0
+        self.last_console: bool = False
         super().__init__(interval=interval, enabled=enabled)
+
+    def hosts_daemon(self) -> bool:
+        """Is the focused window the terminal this daemon is running in?"""
+        return bool(self.last_console or (self.last_pid and self.last_pid in daemon_hosts()))
 
     def probe(self) -> Tuple[bool, str]:
         sysname = platform.system()
@@ -333,6 +381,15 @@ class ActiveWindowSensor(Sensor):
             proc = psutil.Process(pid.value).name()
         except Exception:
             pass
+        self.last_pid = int(pid.value or 0)
+        # A classic console window is the daemon's own when it is the one this
+        # process is attached to. (Under Windows Terminal the console window
+        # is a hidden stand-in, so that case is caught by ancestry instead.)
+        try:
+            console = ctypes.windll.kernel32.GetConsoleWindow()
+            self.last_console = bool(console) and int(hwnd or 0) == int(console)
+        except Exception:
+            self.last_console = False
         return buf.value, proc
 
     def _title_applescript(self) -> Tuple[str, str]:
@@ -611,6 +668,7 @@ class ScreenshotSensor(Sensor):
                 self._withheld += 1
                 return out
 
+        mine = self._is_self(title)
         img = self._capture()
         h = _ahash(img)
 
@@ -639,8 +697,8 @@ class ScreenshotSensor(Sensor):
         img.thumbnail((640, 400))
 
         scene = screenread.describe(img) if self.describe_enabled else {}
-        if not is_self_window(title):
-            self._maybe_read(legible, title, scene.get("kind", ""), h)
+        if not mine:
+            self._maybe_read(legible, title, scene.get("kind", ""), h, proc)
 
         # "screen changed while in X" said only that something moved; the
         # scene says what sort of screen it is. What it *says* is a separate
@@ -657,6 +715,12 @@ class ScreenshotSensor(Sensor):
                   "scene": scene.get("kind", "")},
         ))
         return out
+
+    def _is_self(self, title: str) -> bool:
+        """ASH's own window: by its title, or because it is the terminal the
+        daemon is running in (see TERMINAL_HOSTS)."""
+        return is_self_window(title) or (
+            self.window_sensor is not None and self.window_sensor.hosts_daemon())
 
     def look_now(self) -> Dict[str, Any]:
         """Look at the screen because someone asked, and say what is there.
@@ -690,13 +754,20 @@ class ScreenshotSensor(Sensor):
         if is_private_content(title, proc):
             return {**base, "withheld": "private", "subject": "", "project": ""}
 
-        if is_self_window(title) or not title:
+        if self._is_self(title) or not title:
             last = self._last_view
             if last and last.get("text"):
-                return {**base, "title": clean_title(last.get("title", "")), "fresh": False,
+                # Everything about this view is the window it was read from,
+                # not the one in front now: the process used to be the
+                # current one, so a reading of a terminal was reported as
+                # "Edge" because that is where the question was typed.
+                lt, lp = last.get("title", ""), last.get("process", "")
+                ls, lj = window_fields(lt, lp)
+                return {**base, "title": clean_title(lt), "process": lp, "fresh": False,
+                        "self_focus": True,
                         "scene": last.get("scene", ""), "text": last["text"],
                         "age_s": round(time.time() - last["at"], 1),
-                        "subject": "", "project": ""}
+                        "subject": ls, "project": lj}
             return {**base, "withheld": "self", "subject": "", "project": ""}
 
         if not self._grab:
@@ -720,12 +791,16 @@ class ScreenshotSensor(Sensor):
                 reader = self._look_reader = screenread.ScreenReader(threads=self.ocr_threads)
         text = reader.read_text(img) if reader.available else ""
         base.update({"scene": scene, "text": text, "reader": reader.available})
+        if getattr(reader, "last_note", "") == "self":
+            # What was on screen turned out to be ASH's own output -- its log
+            # in a terminal that was not recognisable as its own. Not a view.
+            return {**base, "text": "", "withheld": "self", "subject": "", "project": ""}
         if text:
-            self._last_view = {"title": title, "scene": scene, "text": text,
-                               "at": time.time()}
+            self._last_view = {"title": title, "process": proc, "scene": scene,
+                               "text": text, "at": time.time()}
         return base
 
-    def _maybe_read(self, img, title: str, scene: str, ahash: int):
+    def _maybe_read(self, img, title: str, scene: str, ahash: int, proc: str = ""):
         """Kick off an OCR pass if one is due and none is running.
 
         Never blocks: the caller is the ambient loop's polling thread, and a
@@ -769,8 +844,8 @@ class ScreenshotSensor(Sensor):
                         text = ""            # switched off while this was being read: discard
                     if text:
                         # Even a repeat is the freshest look at this page.
-                        self._last_view = {"title": title, "scene": scene, "text": text,
-                                           "at": time.time()}
+                        self._last_view = {"title": title, "process": proc, "scene": scene,
+                                           "text": text, "at": time.time()}
                     if text and not repeat:
                         self._last_read = text
                         self._ocr_pending = {
