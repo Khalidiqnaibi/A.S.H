@@ -366,6 +366,48 @@ def s11():
     check("off on a bare runtime: goes on to the model as before", bare.out[-1] == "Sure.", str(bare.out))
 
 
+def s12():
+    print("\n=== S12. Pretend play ===")
+    from src.daemon import personas as P
+    n = 1000.0
+    for t, name, mins in [("be a pirate", "pirate", 10), ("talk like a robot for 15 minutes", "robot", 15),
+                          ("pretend you're a detective", "detective", 10), ("act like a wizard for an hour", "wizard", 60),
+                          ("be a dragon", "dragon", 10), ("ash, be a butler", "butler", 10)]:
+        r = P.parse(t, n)
+        check(f"{t!r}", r is not None and r[1] == name and abs((r[4] - n) / 60 - mins) < 0.01, str(r))
+    for t in ("be quiet", "be a good boy", "be a bit quieter", "be a little faster", "be nice", "be happy", "be yourself!x",
+              "be dragon", "what is a pirate"):
+        check(f"{t!r} is not a persona", (P.parse(t, n) or ("",))[0] != "start")
+    check("be yourself ends it", P.parse("be yourself", n) == ("end",) and P.parse("stop pretending", n) == ("end",))
+
+    seen = []
+    rt = te.rig(personas=True)
+    real = rt.ash.think
+
+    def spy(q, image=None, context=""):
+        seen.append(context)
+        return real(q, image=image, context=context)
+    rt.ash.think = spy
+    rt.say("be a pirate for 5 minutes")
+    check("it opens in voice and says how long", "Arr" in rt.out[-1] and "5 min" in rt.out[-1], rt.out[-1])
+    rt.say("tell me something interesting about owls")
+    check("the model is told the voice, and to stay true", "PRETEND PLAY" in seen[-1] and "pirate" in seen[-1]
+          and "keep it true" in seen[-1], seen[-1][-200:])
+    rt.say("what is the capital of france")
+    check("it stays for later questions too", "PRETEND PLAY" in seen[-1])
+    rt.t[0] += 400
+    rt.say("tell me about cats please")
+    check("it ends by itself after the time", "PRETEND PLAY" not in seen[-1], seen[-1][-120:])
+    rt.say("be a wizard")
+    rt.say("be yourself")
+    check("be yourself ends it", rt.out[-1] == "Okay, back to my normal self." and rt._persona is None)
+    rt.say("be yourself")
+    check("ending nothing says so", rt.out[-1] == "I'm not pretending anything.")
+    bare = te.rig()
+    bare.say("be a pirate")
+    check("off on a bare runtime: goes on as before", bare.out[-1] == "Sure.", str(bare.out))
+
+
 if __name__ == "__main__":
     s1()
     s2()
@@ -378,5 +420,6 @@ if __name__ == "__main__":
     s9()
     s10()
     s11()
+    s12()
     print("\nALL OK" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

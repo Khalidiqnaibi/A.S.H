@@ -74,6 +74,7 @@ from .tasks import Tasks
 from . import honest, voicectl
 from . import quiet as quiet_mod
 from .scenes import Scenes
+from . import personas
 from .repeat import RepeatGuard
 from .context import Context
 from .focus import Focus
@@ -222,6 +223,7 @@ class AmbientConfig:
     desktop: bool = False
     desktop_cfg: Optional[Dict[str, Any]] = None
     # "Work mode", "wind down": one phrase sets quiet, face, apps (scenes.py).
+    personas: bool = False          # "be a pirate for ten minutes" (personas.py)
     scenes: bool = False
     scenes_cfg: Optional[Dict[str, Any]] = None
     # Research: "look into X" is done in the background and told at a free
@@ -551,6 +553,7 @@ class AmbientRuntime:
             self.watcher = Watcher(WatchConfig.from_dict(self.cfg.watch_cfg), path=self.cfg.watch_path,
                                    clock=lambda: self.clock())
         self.scenes = Scenes(self.cfg.scenes_cfg) if self.cfg.scenes else None
+        self._persona: Optional[tuple] = None             # (name, style, until)
         self.desktop: Optional[Desktop] = None
         if self.cfg.desktop:
             self.desktop = Desktop(DesktopConfig.from_dict(self.cfg.desktop_cfg),
@@ -1211,6 +1214,35 @@ class AmbientRuntime:
             parts.append("I couldn't open " + ", ".join(failed) + ".")
         return self._control_say(ev, " ".join(parts))
 
+    def _persona_request(self, ev, now: float) -> bool:
+        """"Be a pirate for ten minutes" / "be yourself": the model's voice changes
+        for a while; rule-made answers are untouched."""
+        if not self.cfg.personas or not self._user_source(ev) or not self._meant_for_ash(ev):
+            return False
+        from src.senses.mic import MicrophoneSensor
+        got = personas.parse(MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or "")), now)
+        if got is None:
+            return False
+        if got[0] == "end":
+            if self._persona is None:
+                return self._control_say(ev, "I'm not pretending anything.")
+            self._persona = None
+            return self._control_say(ev, "Okay, back to my normal self.")
+        _k, name, style, opener, until = got
+        self._persona = (name, style, until)
+        self._scene_face("very_happy")
+        mins = int(round((until - now) / 60.0))
+        return self._control_say(ev, f"{opener} ({name} voice for {mins} min; say “be yourself” to stop.)")
+
+    def _persona_context(self, now: float) -> str:
+        p = self._persona
+        if p is None:
+            return ""
+        if now >= p[2]:
+            self._persona = None
+            return ""
+        return personas.context_line(p[0], p[1])
+
     def _scene_face(self, name: str):
         try:
             player = getattr(getattr(self, "face", None), "player", None)
@@ -1788,6 +1820,8 @@ class AmbientRuntime:
             return
         if self._scene_request(ev, now):
             return
+        if self._persona_request(ev, now):
+            return
         if self._smarthome_request(ev, now):
             return
         if self._research_request(ev, now):
@@ -2043,6 +2077,10 @@ class AmbientRuntime:
                     # or learned from as one. See Brain.volunteer.
                     response = self.ash.volunteer(prompt, context=context)
                 else:
+                    if to_ash and self._persona is not None:
+                        pc = self._persona_context(self.clock())
+                        if pc:
+                            context = (context + "\n" + pc).strip()
                     cue = self._thinking_cue(to_ash)
                     try:
                         response = self.ash.think(prompt, image=image, context=context)
