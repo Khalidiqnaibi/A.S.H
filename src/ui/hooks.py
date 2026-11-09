@@ -135,6 +135,13 @@ def attach_ui(runtime, bus, opener: Optional[Callable[[], Any]] = None,
             logger.exception("UI hook (sink) failed")
         return orig_sink(text, meta)
 
+    def undoable(uid: int, label: str):
+        bus.publish("undoable", uid=uid, label=str(label).rstrip("."), window_s=float(runtime.undo.window_s))
+    try:
+        runtime.undo.on_push = undoable
+    except Exception:
+        logger.exception("UI hook (undo) failed")
+
     runtime._handle = handle
     runtime._respond = respond
     runtime.response_sink = sink
@@ -164,6 +171,18 @@ def attach_ui(runtime, bus, opener: Optional[Callable[[], Any]] = None,
             face = getattr(runtime, "face", None)
             if face is not None:
                 face.on_user_away(False)
+            return {"ok": True}
+        if cmd == "undo":
+            try:
+                uid = int(arg)
+            except (TypeError, ValueError):
+                return {"ok": False, "error": "undo needs a step id"}
+            said = runtime.undo.undo_id(uid)
+            if said is None:
+                bus.publish("undone", uid=uid, ok=False)
+                return {"ok": False, "error": "that one can't be undone any more"}
+            bus.publish("undone", uid=uid, ok=True)
+            bus.publish("system", text=said)
             return {"ok": True}
         if cmd == "dismiss":
             from src.senses.base import Modality, SensorEvent

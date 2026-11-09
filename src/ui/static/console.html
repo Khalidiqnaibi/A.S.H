@@ -278,6 +278,9 @@ ul, ol { list-style: none; margin: 0; padding: 0; }
   white-space: pre-wrap; overflow-wrap: anywhere;
   border: 1px solid var(--ash-line); background: var(--ash-bg); box-shadow: var(--glow);
 }
+.action.undoable { display: flex; align-items: center; gap: var(--s2); }
+.action.undoable button { margin-left: auto; }
+.action.is-undone b { text-decoration: line-through; opacity: .6; }
 .why-card { margin: 0; padding: var(--s2) var(--s3); font-size: var(--fs-sm); border-left: 3px solid var(--accent2);
   background: var(--ash-bg); opacity: .92; border-radius: 0 var(--bubble-radius) var(--bubble-radius) 0; }
 .why-card[hidden] { display: none; }
@@ -580,6 +583,8 @@ function onMessage(m) {
     case "user": addUser(m); if (live && !m.quiet) heard(); break;
     case "ash": addAsh(m, live); break;
     case "action": addAction(m); break;
+    case "undoable": addUndoable(m); break;
+    case "undone": markUndone(m); break;
     case "system": addSys(m.text); break;
     case "theme": applyTheme(m.theme, false); break;
     case "cue": onCue(m, live); break;
@@ -692,6 +697,26 @@ function addAction(m) {
   row.appendChild(txt);
   row.title = fmtTime(m.ts);
   append(row);
+}
+
+// A thing ASH just learned or set up, with a button to take it back.
+const undoRows = new Map();
+function addUndoable(m) {
+  const row = el("li", "action undoable");
+  row.appendChild(el("span", "ico", "↺"));
+  const txt = el("span"); txt.append("noted ", el("b", null, m.label)); row.appendChild(txt);
+  const b = el("button", "reply undo", "undo"); b.type = "button";
+  b.title = "Take that back";
+  b.onclick = async () => { b.disabled = true; await post("/api/control", { cmd: "undo", arg: String(m.uid) }); };
+  row.appendChild(b);
+  undoRows.set(m.uid, row);
+  setTimeout(() => { b.disabled = true; b.title = "Too old to undo"; }, Math.max(1, m.window_s || 600) * 1000);
+  append(row);
+}
+function markUndone(m) {
+  const row = undoRows.get(m.uid); if (!row) return;
+  const b = row.querySelector("button"); if (b) { b.disabled = true; b.textContent = m.ok ? "undone" : "gone"; }
+  row.classList.toggle("is-undone", !!m.ok);
 }
 
 function addSys(text) { append(el("li", "sys", text)); }

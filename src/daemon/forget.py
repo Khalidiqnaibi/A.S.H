@@ -58,12 +58,38 @@ class UndoStack:
         self.window_s = window_s
         self.clock = clock
         self.size = size
-        self._steps: List[Tuple[float, str, Callable[[], None]]] = []
+        self._steps: List[Tuple[float, str, Callable[[], None], int]] = []
+        self._uid = 0
+        self.on_push: Optional[Callable[[int, str], None]] = None     # told of each step (the console's timeline)
 
-    def push(self, label: str, fn: Callable[[], None], now: Optional[float] = None):
+    def push(self, label: str, fn: Callable[[], None], now: Optional[float] = None) -> int:
         now = self.clock() if now is None else now
-        self._steps.append((now, label, fn))
+        self._uid += 1
+        self._steps.append((now, label, fn, self._uid))
         del self._steps[:-self.size]
+        if self.on_push is not None:
+            try:
+                self.on_push(self._uid, label)
+            except Exception:
+                logger.debug("Undo listener failed", exc_info=True)
+        return self._uid
+
+    def undo_id(self, uid: int, now: Optional[float] = None) -> Optional[str]:
+        """Undo one particular step (a button on the timeline), not just the last.
+        None if it's gone: already undone, too old, or pushed out."""
+        now = self.clock() if now is None else now
+        for i, (t, label, fn, u) in enumerate(self._steps):
+            if u == uid:
+                if now - t > self.window_s:
+                    return None
+                del self._steps[i]
+                try:
+                    fn()
+                except Exception:
+                    logger.exception("An undo step failed")
+                    return "I couldn't undo that one, sorry."
+                return f"Undone: {label.rstrip('.')}."
+        return None
 
     def undo(self, now: Optional[float] = None) -> str:
         now = self.clock() if now is None else now
@@ -71,7 +97,7 @@ class UndoStack:
             self._steps.pop()
         if not self._steps:
             return "There's nothing recent to undo."
-        _t, label, fn = self._steps.pop()
+        _t, label, fn, _u = self._steps.pop()
         try:
             fn()
         except Exception:

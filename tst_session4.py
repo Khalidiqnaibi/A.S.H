@@ -255,6 +255,43 @@ def s8():
     check("no face: the status just has no mood", hooks._mood(bare) is None)
 
 
+def s9():
+    print("\n=== S9. Undo buttons on the timeline ===")
+    from src.daemon.forget import UndoStack
+    t = [100.0]
+    u = UndoStack(window_s=600, clock=lambda: t[0])
+    log = []
+    a = u.push("one", lambda: log.append("one"))
+    b = u.push("two", lambda: log.append("two"))
+    check("push returns distinct ids", a != b)
+    check("undo_id takes back an earlier one, not just the last", u.undo_id(a) == "Undone: one." and log == ["one"])
+    check("a step can't be undone twice", u.undo_id(a) is None)
+    check("the other is still there", len(u) == 1 and u.undo() == "Undone: two.")
+    c = u.push("old", lambda: log.append("old"))
+    t[0] += 700
+    check("too old: not undone", u.undo_id(c) is None and "old" not in log)
+
+    from src.ui.bus import UIBus
+    from src.ui.hooks import attach_ui
+    rt = te.rig()
+    bus = UIBus()
+    on_say, on_control, extra = attach_ui(rt, bus)
+    hit = []
+    uid = rt.undo.push("Lieth is your friend", lambda: hit.append(1), 100.0)
+    rec = [r for r in bus.history() if r["kind"] == "undoable"]
+    check("the timeline is told of it", rec and rec[-1]["uid"] == uid and rec[-1]["label"] == "Lieth is your friend", str(rec))
+    rt.undo.clock = lambda: 100.0
+    res = on_control("undo", str(uid))
+    check("the button's command really undoes it", res.get("ok") is True and hit == [1], str(res))
+    check("and the page is told", any(r["kind"] == "undone" and r["ok"] for r in bus.history()))
+    res = on_control("undo", str(uid))
+    check("again: refused, page told 'gone'", res.get("ok") is False and
+          any(r["kind"] == "undone" and not r["ok"] for r in bus.history()))
+    check("a bad id is refused", on_control("undo", "x").get("ok") is False)
+    html = open(os.path.join(HERE, "src", "ui", "static", "console.html"), encoding="utf-8").read()
+    check("the page has the undo row", "function addUndoable" in html and '"undone"' in html)
+
+
 if __name__ == "__main__":
     s1()
     s2()
@@ -264,5 +301,6 @@ if __name__ == "__main__":
     s6()
     s7()
     s8()
+    s9()
     print("\nALL OK" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)
