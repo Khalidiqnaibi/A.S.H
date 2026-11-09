@@ -113,6 +113,21 @@ class FaceBridge:
             return self._felt[0]
         return self._mood
 
+    # What the face does when something happens to ASH itself (a sense switched,
+    # privacy mode): small, and only from animations that exist.
+    _EVENTS = {
+        ("microphone", True): "curious", ("microphone", False): "sleepy",
+        ("camera", True): "surprised", ("camera", False): "sleepy",
+        ("screenshot", True): "curious", ("screenshot", False): "sleepy",
+        ("privacy", True): "sleepy", ("privacy", False): "happy",
+    }
+
+    def on_event(self, what: str, on: bool):
+        anim = self._EVENTS.get((what, bool(on)))
+        if anim:
+            self._play(anim)
+            self.idle_life.reset()
+
     def on_user_text(self, text: str):
         """The user said something with a feeling in it: the face answers before
         the voice does (thanks -> love, a laugh -> very_happy, "wow" -> surprised)."""
@@ -412,6 +427,37 @@ def attach_to_daemon(runtime, player, enabled: bool = True, sounds: bool = False
             except Exception:
                 pass
 
+    original_set_sensor = runtime.set_sensor
+    original_pause, original_resume = runtime.privacy.pause, runtime.privacy.resume
+
+    def set_sensor(name, on):
+        res = original_set_sensor(name, on)
+        try:
+            if res and res[0]:
+                bridge.on_event(name, on)
+        except Exception:
+            logger.exception("Face hook (sensor) failed")
+        return res
+
+    def pause(*a, **k):
+        r = original_pause(*a, **k)
+        try:
+            bridge.on_event("privacy", True)
+        except Exception:
+            logger.exception("Face hook (privacy) failed")
+        return r
+
+    def resume(*a, **k):
+        r = original_resume(*a, **k)
+        try:
+            bridge.on_event("privacy", False)
+        except Exception:
+            logger.exception("Face hook (privacy) failed")
+        return r
+
+    runtime.set_sensor = set_sensor
+    runtime.privacy.pause = pause
+    runtime.privacy.resume = resume
     runtime._handle = handle
     runtime._respond = respond
     runtime._sleep_phase = sleep_phase

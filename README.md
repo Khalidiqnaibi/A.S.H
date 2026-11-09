@@ -711,7 +711,16 @@ Only the animations that already exist, by rule (no language model):
 - **Idle life.** After 45 s with nobody talking ASH looks around, double-blinks, now and then perks up curious
   or winks (one every one to three minutes, never the same twice), and late at night gets sleepy. It stays
   still while ASH is answering or speaking, when you're away, and in quiet hours.
+- **Things that happen to ASH.** Mic or screen on: curious; camera on: surprised; a sense off or privacy mode: sleepy; privacy off: happy.
 - **When asked.** "Wink", "show me a big smile", "what faces do you have?" still work (voice commands).
+
+## Quiet till a time, undo buttons, "why" card
+
+- "Quiet till 9", "do not disturb for 2 hours", "quiet until 3:30 pm" mute what ASH volunteers until then
+  (it still answers you) and it returns on its own; "wake up" ends it early (`src/daemon/quiet.py`).
+- The console: a ring flashes on the face when ASH hears it was spoken to; the face stage takes a slow tint
+  from its mood; each reply's route tag opens a "how I got this" card; each thing ASH noted or set up has an
+  undo button for ten minutes.
 
 ## Short facts from Wikipedia (on by default)
 

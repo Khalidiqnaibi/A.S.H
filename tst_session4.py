@@ -292,6 +292,36 @@ def s9():
     check("the page has the undo row", "function addUndoable" in html and '"undone"' in html)
 
 
+def s10():
+    print("\n=== S10. The face reacts to things happening to ASH ===")
+    import tst_face_react as fr
+    from src.face.bridge import FaceBridge, attach_to_daemon
+    check("every event animation exists", all(a in __import__("src.face", fromlist=["BUILTINS"]).BUILTINS
+                                              for a in FaceBridge._EVENTS.values()))
+    rt = te.rig()
+    p = fr.Player()
+    attach_to_daemon(rt, p)
+    try:
+        before = len(p.played)
+        rt.say("turn on the mic", source="console")
+        check("mic on: curious", p.played[before:].count("curious") >= 1 and rt.out[-1] == "Microphone on.",
+              str(p.played[before:]))
+        before = len(p.played)
+        rt.say("turn off the mic")
+        check("mic off: sleepy", "sleepy" in p.played[before:], str(p.played[before:]))
+        before = len(p.played)
+        rt.privacy.pause("test")
+        check("privacy on: sleepy", p.played[before:] == ["sleepy"], str(p.played[before:]))
+        before = len(p.played)
+        rt.privacy.resume()
+        check("privacy off: happy", p.played[before:] == ["happy"], str(p.played[before:]))
+        before = len(p.played)
+        ok, why = rt.set_sensor("camera", True)
+        check("a refused switch does nothing to the face", ok or p.played[before:] == [], f"{ok} {why} {p.played[before:]}")
+    finally:
+        te.stop_all(rt)
+
+
 if __name__ == "__main__":
     s1()
     s2()
@@ -302,5 +332,6 @@ if __name__ == "__main__":
     s7()
     s8()
     s9()
+    s10()
     print("\nALL OK" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)
