@@ -74,6 +74,7 @@ def build_periphery(config: dict, tts_engine=None, registry=None) -> PeripheryRe
         read_text=shot_cfg.get("read_text", False),
         describe=shot_cfg.get("describe", True),
         read_text_every_s=shot_cfg.get("read_text_every_s", 120.0),
+        ocr_threads=shot_cfg.get("ocr_threads", 2),
     ))
 
     mic_cfg = s.get("microphone", {})
