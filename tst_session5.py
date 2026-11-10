@@ -206,11 +206,41 @@ def t5():
     check("the user can still forget their voice", "forgotten your voice" in out[-1], out[-1])
 
 
+def t6():
+    print("\n=== T6. Macros: save what I just did ===")
+    from src.daemon.tasks import Tasks
+    t = Tasks(os.path.join(tempfile.mkdtemp(), "t.json"))
+    check("nothing to save yet", "haven't seen" in t.hear("save that as start work", 0)["say"])
+    t.hear("open outlook and set a timer for 25 minutes", 10)
+    check("not saved before it is approved", "haven't seen" in t.hear("save that as start work", 11)["say"])
+    t.hear("open outlook and set a timer for 25 minutes", 12)
+    t.hear("yes", 13)
+    r = t.hear("save that as start work", 14)
+    check("a plan just run is kept", r.get("saved") == "start work" and t.saved["start work"]["steps"] == ["open outlook", "set a timer for 25 minutes"], str(r))
+    check("saying the name shows it and asks", "Here's the plan" in t.hear("start work", 15)["say"])
+    t.hear("pause the music", 20)
+    t.hear("mute the sound", 21)
+    r = t.hear("save the last two things as quiet desk", 22)
+    check("the last two commands", t.saved["quiet desk"]["steps"] == ["pause the music", "mute the sound"], str(r))
+    t.hear("open chrome", 30)
+    r = t.hear("make that a macro called browser", 31)
+    check("'make that a macro called ...'", t.saved["browser"]["steps"] == ["open chrome"], str(r))
+    check("old ones are not saved", "haven't seen" in t.hear("save that as late one", 31 + 5000)["say"])
+    check("it persists", "quiet desk" in Tasks(t.path).saved)
+    check("'remember that X is my friend' is not a macro", t.hear("remember that lieth is my friend", 40) is None)
+    check("a question is not noted", (t.hear("open the door?", 41), t.recent[-1][1])[1] == "open chrome")
+    rt = te.rig(tasks=True, tasks_path=os.path.join(tempfile.mkdtemp(), "t.json"))
+    rt.say("pause the music")
+    rt.say("save that as hush")
+    check("through the runtime", "hush" in rt.out[-1] and "Saved" in rt.out[-1], rt.out[-1])
+
+
 if __name__ == "__main__":
     t1()
     t2()
     t3()
     t4()
     t5()
+    t6()
     print("\nALL OK" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

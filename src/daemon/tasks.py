@@ -54,6 +54,16 @@ _YES = re.compile(r"^\s*(?:yes|yeah|yep|yup|sure|ok(?:ay)?|go(?:\s+ahead)?|do\s+
                   r"sounds\s+good|correct)\b", re.I)
 _NO = re.compile(r"^\s*(?:no|nope|nah|don'?t|cancel|never\s*mind|stop|not\s+now|wait)\b", re.I)
 
+# "Save that as start work": what was just done, kept under a name (a macro).
+_NUMW = {"a": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "a few": 3, "few": 3}
+_WHAT = r"(?P<what>that|this|it|those|the\s+last\s+(?:(?P<n>\d|two|three|four|five|a\s+few)\s+)?(?:things?|steps?|commands?|actions?))"
+_NAME = r"[\"'“]?(?P<name>[a-z][a-z0-9 '\-]{2,40}?)[\"'”]?\s*[.!]?\s*$"
+_SAVE = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:save|keep|remember|store|make|turn)\s+" + _WHAT +
+                   r"\s+(?:as|into)\s+(?:an?\s+)?(?:(?:macro|shortcut|task|routine)\s+)?(?:(?:called|named)\s+)?" + _NAME, re.I)
+_SAVE2 = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?make\s+" + _WHAT +
+                    r"\s+(?:an?\s+)?(?:macro|shortcut|task|routine)\s+(?:called|named)\s+" + _NAME, re.I)
+RECENT_S = 600.0
+
 MAX_STEPS = 8
 
 
@@ -101,7 +111,9 @@ class Tasks:
         self.confirm_window_s = confirm_window_s
         self.saved: Dict[str, Dict[str, Any]] = {}       # norm(name) -> {"name", "steps", "runs"}
         self.pending: Optional[Dict[str, Any]] = None    # {"steps", "t", "name"}
-        self.stats = {"planned": 0, "run": 0, "declined": 0, "taught": 0}
+        self.stats = {"planned": 0, "run": 0, "declined": 0, "taught": 0, "saved": 0}
+        self.last_run: Optional[tuple] = None             # (steps, t) of the plan just approved
+        self.recent: List[tuple] = []                      # (t, text) of single commands just given
         self._lock = threading.RLock()
         self._load()
 
@@ -153,6 +165,7 @@ class Tasks:
             self.pending = None
             if _YES.match(t):
                 self.stats["run"] += 1
+                self.last_run = (list(p["steps"]), now)
                 if p.get("name"):
                     with self._lock:
                         rec = self.saved.get(_norm(p["name"]))
@@ -167,6 +180,9 @@ class Tasks:
         else:
             self.pending = None
 
+        m = _SAVE.match(t) or _SAVE2.match(t)
+        if m:
+            return self.save_recent(m.group("name"), m.group("what"), m.group("n"), now)
         m = _TEACH.match(t)
         if m:
             name = (m.group("qname") or m.group("name")).strip()
@@ -205,7 +221,38 @@ class Tasks:
         steps = split_steps(t)
         if steps:
             return self._plan(steps, now)
+        self._note(t, now)
         return None
+
+    def _note(self, text: str, now: float):
+        """A single command, remembered for a few minutes so "save that as ..." has something to save."""
+        t = _LEAD.sub("", text).strip().rstrip(".!")
+        if t and not t.endswith("?") and len(t) <= 120 and _VERB.match(t):
+            self.recent = [(a, b) for a, b in self.recent if now - a <= RECENT_S][-9:] + [(now, t)]
+
+    def save_recent(self, name: str, what: str, n: Optional[str], now: float) -> Dict[str, Any]:
+        """Keep what was just done under a name. `that` is the plan just run, or
+        the last command; "the last three things" is the last three commands."""
+        what = (what or "").lower()
+        steps: List[str] = []
+        if what.startswith("the last"):
+            k = _NUMW.get((n or "").lower().strip()) or (int(n) if (n or "").isdigit() else 1 if not n else 2)
+            steps = [b for a, b in self.recent if now - a <= RECENT_S][-k:]
+        elif self.last_run is not None and now - self.last_run[1] <= RECENT_S and (
+                not self.recent or self.last_run[1] >= self.recent[-1][0]):
+            steps = list(self.last_run[0])
+        else:
+            steps = [b for a, b in self.recent if now - a <= RECENT_S][-1:]
+        if not steps:
+            return {"say": "I haven't seen anything you did just now that I can keep. Do it first, then say "
+                           "“save that as ...”."}
+        name = name.strip()
+        with self._lock:
+            self.saved[_norm(name)] = {"name": name, "steps": steps, "runs": 0}
+        self.save()
+        self.stats["saved"] += 1
+        return {"say": f"Saved. When you say “{name}”, I'll {describe(steps)} -- after checking with you.",
+                "saved": name}
 
     def hear_is_task(self, text: str) -> bool:
         """Would `text` start a plan or a kept task (without changing anything)?"""
@@ -215,7 +262,7 @@ class Tasks:
         with self._lock:
             if _norm(_LEAD.sub("", t)) in self.saved:
                 return True
-        return bool(_TEACH.match(t) or split_steps(t))
+        return bool(_TEACH.match(t) or _SAVE.match(t) or _SAVE2.match(t) or split_steps(t))
 
     def _plan(self, steps: List[str], now: float, name: Optional[str] = None) -> Dict[str, Any]:
         self.pending = {"steps": list(steps), "t": now, "name": name}

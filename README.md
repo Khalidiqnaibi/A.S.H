@@ -744,6 +744,15 @@ up the reminders entry and the model answers from it instead of guessing. It is 
 manual in step with the code (`tst_manual.py` runs every phrase it teaches). "What can you do?" still answers
 live with what is actually switched on here.
 
+## Macros, and who may do what
+
+- **Save what you just did** (`tasks.py`): after a plan you approved, say "save that as start work"; or after a
+  few commands, "save the last three things as quiet desk" / "make that a macro called wrap up". Saying the
+  name later shows the plan and asks once. "What tasks do you know?" lists them; "forget start work" removes one.
+- **Voice gating** (`voiceid.py`, once "learn my voice" is done): a guest's voice is still answered, but is
+  refused the clipboard, scenes, plans, home reminders, turning the mic, camera, privacy or ASH off, and
+  changing or forgetting the enrolled voice. A voice that is only unsure is treated as yours.
+
 ## Coming home, the clipboard, heads-up cards and the clock
 
 - **"Remind me when I get home to ..."** (`arrival.py`, `arrivals` in `daemon.json`, on by default): home is a

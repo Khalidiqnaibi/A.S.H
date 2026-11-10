@@ -60,7 +60,9 @@ ENTRIES: List[Tuple[str, int, str]] = [
     ("plans", 5,
      "ASH manual, several steps at once. \"Open Outlook, set a timer for 25 minutes and turn off the desk lamp\": ASH "
      "shows the plan and asks \"Go ahead?\"; yes runs each step and says what came of each. \"When I say get me ready for "
-     "the meeting, open the agenda and set a 25 minute timer\" keeps it as a named task. Only steps it can already do."),
+     "the meeting, open the agenda and set a 25 minute timer\" keeps it as a named task. Or just do it, then say \"save that as start work\" (or \"save the last three things as "
+     "quiet desk\") and it keeps what you just did; saying the name later shows the plan and asks once. \"What tasks do "
+     "you know?\" lists them, \"forget start work\" removes one. Only steps it can already do."),
     ("home_devices", 4,
      "ASH manual, lights and plugs. \"Turn on the living room lights\" works through Home Assistant, and only if a Home "
      "Assistant address is set up in daemon.json; otherwise ASH can't. A guest's voice can't do this."),
