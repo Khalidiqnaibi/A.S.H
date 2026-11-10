@@ -246,10 +246,7 @@ def t7():
 
     class R:
         status_code = 200
-        text = ""
-
-        def json(self):
-            return {"message": {"content": "ok"}}
+        text = '{"message": {"content": "ok"}}'
     L.requests.post = lambda url, json=None, timeout=None: (sent.append(json["model"]), R())[1]
     llm = L.LLM(mode="ollama", ollama_model="big:7b")
     msg = [L.HumanMessage(content="hi")]
@@ -270,6 +267,38 @@ def t7():
     check("warm(light=True) loads the small one", llm.warm(light=True) and sent == ["tiny:1b"], str(sent))
     check("warm() still loads the main one", llm.warm() and sent[-1] == "big:7b")
     check("no light model: warm(light=True) is False", L.LLM(mode="ollama", ollama_model="x").warm(light=True) is False)
+
+    # a small model that is not installed must not turn "hello" into an error
+    class R404:
+        status_code = 404
+        text = 'model "tiny:1b" not found'
+    calls = []
+
+    def post404(url, json=None, timeout=None):
+        calls.append(json["model"])
+        return R404() if json["model"] == "tiny:1b" else R()
+    L.requests.post = post404
+    llm.set_light_model("tiny:1b")
+    with llm.route("light"):
+        said = llm._call(msg)
+    check("missing small model: the main model answers, no error text", said == "ok" and calls == ["tiny:1b", "big:7b"], f"{said!r} {calls}")
+    calls.clear()
+    with llm.route("light") as on:
+        llm._call(msg)
+    check("and the small model is switched off afterwards", calls == ["big:7b"] and not on, str(calls))
+
+    class REmpty(R):
+        text = '{"message": {"content": ""}}'
+    calls2 = []
+
+    def postempty(url, json=None, timeout=None):
+        calls2.append(json["model"])
+        return REmpty() if json["model"] == "tiny:1b" else R()
+    L.requests.post = postempty
+    llm.set_light_model("tiny:1b")
+    with llm.route("light"):
+        said = llm._call(msg)
+    check("an empty small-model answer falls back too, and stays on", said == "ok" and llm._light_model == "tiny:1b", f"{said!r} {calls2}")
 
     from src.daemon.modelpick import pick
     light = ["hello", "thanks a lot", "how are you?", "I'm so tired", "tell me a joke", "hey ash how's it going", "good one", "I love you"]

@@ -246,8 +246,21 @@ class LLM(BaseChatModel):
         return getattr(self._route, "model", "") or self._ollama_model
 
     def _call_ollama(self, messages: List[dict]) -> str:
+        """Answer with the model this thread is routed to. If that is the small model and it
+        fails or says nothing, the main model answers instead -- small talk must never come
+        back as an error. A small model that is not installed is switched off for good."""
+        model = self._model_now()
+        out = self._call_ollama_model(messages, model)
+        if model != self._ollama_model and (not out or out.startswith("[LLM]")):
+            if out and ("404" in out or "not found" in out.lower() or "Error calling" in out):
+                print(f"[LLM] small model {model!r} is not usable -- using the main model from now on.")
+                self._light_model = ""
+            return self._call_ollama_model(messages, self._ollama_model)
+        return out
+
+    def _call_ollama_model(self, messages: List[dict], model: str) -> str:
         payload = {
-            "model": self._model_now(),
+            "model": model,
             "messages": messages,
             # Non-streaming: one JSON object back instead of an NDJSON stream.
             # The line loop below still handles a stream if a proxy forces one.
