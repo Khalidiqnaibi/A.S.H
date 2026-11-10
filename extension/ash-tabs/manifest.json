@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "ASH tabs",
+  "version": "0.1.0",
+  "description": "Tells your own ASH, running on this computer, which tabs are open. Talks only to 127.0.0.1.",
+  "permissions": ["tabs", "alarms"],
+  "host_permissions": ["http://127.0.0.1/*"],
+  "background": { "service_worker": "background.js" },
+  "incognito": "not_allowed"
+}

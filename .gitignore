@@ -26,3 +26,6 @@ data/embeddings_intents.pkl
 /logs/*.log.*
 /state/
 # (files already tracked stay tracked: git ignores nothing it already has)
+
+# ASH tabs extension: written by ASH at start-up, holds the local token
+extension/ash-tabs/config.json

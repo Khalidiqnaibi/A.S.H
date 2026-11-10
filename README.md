@@ -1534,6 +1534,35 @@ that safe: duplicates created on different days by slightly different phrasing
 collapse back into one, so the vocabulary tracks the diversity of your life
 rather than the number of things you've said.
 
+## What is open in the browser (no model)
+
+`extension/ash-tabs`, `src/senses/browsertabs.py`, `src/daemon/pagekind.py`,
+`src/daemon/ledger.py`; `tst_tabs.py`. Off until you turn it on: it is a record
+of what you browse. Set `sensors.browser_tabs.enabled` in `daemon.json`, restart
+ASH (it writes the extension's `config.json` with a port and a token), then load
+`extension/ash-tabs` unpacked in Chrome/Edge (`chrome://extensions`, developer
+mode, Load unpacked). The extension reports the tab list to `127.0.0.1` only;
+the listener refuses anything without the token or from a web page's origin.
+
+**Nothing in this path uses a language model or the network** -- `tst_tabs.py` T6
+fails if it imports a model or HTTP client, touches the model object, or opens a
+non-loopback connection. A page is classified by, in order: the user's own tag
+("that's work"), a table of well-known sites, title keywords, and a small Naive
+Bayes trained only by those tags; otherwise it is `unknown`, not guessed.
+
+Kept: per stretch of attention the site (host only, never path or query), a
+category, and the seconds it was the active tab of a focused browser window
+(idle time and a quiet extension end it). Tabs opened and dropped within seconds
+are counted as churn, not pages. Raw rows expire after `retention_days` (30) into
+daily and per-site totals. Titles are used in memory to classify and stored only
+with `keep_titles`.
+
+Never recorded, dropped on arrival and only counted: private windows; banks,
+payments, mail, chat, health, adult, dating, password managers, VPN, login and
+account pages, private-network and router pages; pages whose title says
+"symptoms", "password", "recovery key" and the like; non-web pages. The ledger
+is `state/ledger.sqlite3` and can be deleted at any time.
+
 ## What it buys you
 
 Spreading activation (2 steps — one gives direct associates, three gives

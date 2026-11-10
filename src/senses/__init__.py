@@ -9,6 +9,8 @@ returns the registry, wiring cross-references (screenshot needs the window
 sensor for its blocklist, the input actuator needs it for the same reason).
 """
 
+import os
+
 from .base import (
     PERIPHERY, PeripheryRegistry, Sensor, Actuator, SensorEvent,
     Capability, Modality, State,
@@ -66,8 +68,29 @@ def build_periphery(config: dict, tts_engine=None, registry=None) -> PeripheryRe
     ))
 
     idle_cfg = s.get("idle", {})
-    reg.add_sensor(IdleSensor(interval=idle_cfg.get("interval", 10.0),
-                              enabled=idle_cfg.get("enabled", True)))
+    idle = IdleSensor(interval=idle_cfg.get("interval", 10.0), enabled=idle_cfg.get("enabled", True))
+    reg.add_sensor(idle)
+
+    # Browser tabs, from the ash-tabs extension. Off until switched on: it is a record of what you browse.
+    bt = s.get("browser_tabs", {})
+    if bt.get("enabled", False):
+        from src.daemon.ledger import Ledger
+        from src.daemon.pagekind import Classifier
+        from .browsertabs import BrowserTabSensor, load_or_create_token, write_extension_config
+        state = os.environ.get("ASH_STATE_DIR", os.path.join(os.getcwd(), "state"))
+        token = load_or_create_token(os.path.join(state, "browser_token.txt"))
+        tabs = BrowserTabSensor(
+            interval=bt.get("interval", 2.0), enabled=True,
+            classifier=Classifier(os.path.join(state, "pagekind.json")),
+            ledger=Ledger(os.path.join(state, "ledger.sqlite3"), retention_days=bt.get("retention_days", 30),
+                          keep_titles=bt.get("keep_titles", False)),
+            port=int(bt.get("port", 47831)), token=token, listen=True,
+            min_s=bt.get("min_s", 3.0), grace_s=bt.get("grace_s", 15.0),
+            idle_s=(idle.seconds_idle if idle.state == State.ACTIVE else None),
+        )
+        reg.add_sensor(tabs)
+        ext = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "extension", "ash-tabs")
+        write_extension_config(ext, tabs.port, token)
 
     sys_cfg = s.get("system", {})
     reg.add_sensor(SystemSensor(interval=sys_cfg.get("interval", 30.0),

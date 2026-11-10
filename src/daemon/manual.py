@@ -151,6 +151,12 @@ ENTRIES: List[Tuple[str, int, str]] = [
      "tells you; \"I love this song\" or \"I can't stand this\" keeps that song; \"do I like this?\" answers. "
      "Limits: a title says what is open, not that it is audible, so a paused tab looks playing; a browser shows its front tab only; Stremio has no "
      "title; a guest's music counts as yours. sensors.now_playing turns it off."),
+    ("browsing", 4,
+     "ASH manual, browser tabs. Off until switched on (sensors.browser_tabs in daemon.json, plus loading the ash-tabs "
+     "extension from the extension folder). Then ASH keeps a local ledger of how long each site was in front, by site "
+     "and category only, no model involved. It never records private windows, banks, mail, chat, health, adult or "
+     "password pages, never the page text or full address, and never keeps titles unless told to. Old detail expires "
+     "after 30 days; only totals stay. It cannot see inside a page or what you typed."),
     ("screen", 5,
      "ASH manual, the screen. With screen capture on, ASH knows which window is focused and what it is called (the file "
      "or page, the project, the app). \"What do you see?\" or \"what's on my screen?\" makes it look at that window, say "

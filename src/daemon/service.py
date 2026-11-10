@@ -77,6 +77,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         # (Spotify, a YouTube tab, VLC...). Only known players are looked at.
         # taste.from_playing decides whether it teaches ASH what you like.
         "now_playing": {"enabled": True, "interval": 5.0, "skip_below_s": 30.0},
+        # What is open in the browser, from the ash-tabs extension (extension/ash-tabs, load it unpacked).
+        # OFF until you turn it on: it keeps a ledger of the sites you visit (host and category only, never
+        # pages, private windows, banks, mail, health...). Local, no model. retention_days: raw rows expire.
+        "browser_tabs": {"enabled": False, "port": 47831, "interval": 2.0, "retention_days": 30,
+                         "keep_titles": False, "min_s": 3.0, "grace_s": 15.0},
         "idle": {"enabled": True, "interval": 10.0},
         "system": {"enabled": True, "interval": 30.0},
         # Invasive: off until the user says otherwise.
