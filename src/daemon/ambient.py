@@ -65,6 +65,7 @@ from . import remember as remembering
 from .calendar_ics import Calendar, CalendarConfig
 from .smarthome import SmartHome, SmartHomeConfig
 from .voiceid import VoiceID, VoiceIDConfig
+from . import voiceid as voiceid_mod
 from .reminders import Reminders
 from .play import Bored, DailyTrivia, IdleRiddle, Play, Story
 from .media import Media, MediaConfig
@@ -1292,13 +1293,20 @@ class AmbientRuntime:
         True if the event was a request about it (and is spent)."""
         v = self.voice
         text = str(getattr(ev, "text", "") or "")
+        meta = getattr(ev, "meta", None)
+        vec = (meta or {}).get("voice")
         if self._user_source(ev):
+            if vec and v.enrolled and not v.learning and voiceid_mod.is_request(text) and v.who(vec) == "guest":
+                # Anyone could otherwise say "forget my voice" -- or "learn my voice" and
+                # enrol themselves in its place. Only the enrolled voice changes the print.
+                user = str(getattr(self.brain, "user", "") or "") or "the person I know"
+                self._wonder_say(ev, type("R", (), {"say": f"Sorry, only {user} can change that.",
+                                                    "outcome": "desktop"})())
+                return True
             say = v.hear_request(text)
             if say:
                 self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
                 return True
-        meta = getattr(ev, "meta", None)
-        vec = (meta or {}).get("voice")
         if not vec:
             return False
         if v.learning:
@@ -1318,8 +1326,20 @@ class AmbientRuntime:
         from .smarthome import _DIM, _ON_OFF
         from .watch import parse_request as watch_req
         from .media import _PHOTO
+        from . import arrival as arrival_mod
+        from .voicectl import parse as ctl_parse
         t = str(getattr(ev, "text", "") or "").strip()
+        ctl = ctl_parse(t)
+        if getattr(self, "_shutdown_asked", None) is not None:
+            self._shutdown_asked = None                  # a guest's voice never confirms a shutdown
+        tk = self.tasks
         acts = (watch_req(t) is not None or research_req(t) is not None
+                or (ctl is not None and ctl.name not in ("face", "faces", "status"))
+                or clipboard_mod.parse(t) is not None
+                or any(rx.match(t) for rx in (arrival_mod._WHEN, arrival_mod._WHEN_END, arrival_mod._SET, arrival_mod._FORGET,
+                                              arrival_mod._LIST, arrival_mod._CANCEL))
+                or (self.scenes is not None and (self.scenes.parse(t) or (None,))[0] in ("start", "end"))
+                or (tk is not None and (tk.awaiting(now_t := self.clock()) is not None or tk.hear_is_task(t)))
                 or wants_undo(t) or wants_forget(t) is not None
                 or any(rx.match(t) for rx in (_OPEN, _CLOSE, _SWITCH, _ROUTINE, _ON_OFF, _DIM, _PHOTO))
                 or (self.calendar is not None and self.calendar._ASK.search(t)))
@@ -1865,6 +1885,8 @@ class AmbientRuntime:
         # "Stop" / "shh" while ASH is talking: cut it off, say nothing back.
         # Before the game, the music and the questions: while ASH is talking,
         # a "stop" is for the talking.
+        if guest and self._guest_action(ev):
+            return          # before the voice commands: a guest cannot turn the mic, camera or ASH off
         if self.speech is not None and self._speech_step(ev, now):
             return
 

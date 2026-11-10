@@ -103,7 +103,9 @@ ENTRIES: List[Tuple[str, int, str]] = [
      "ASH manual, privacy and senses. \"Privacy mode\" turns the microphone, camera and screen capture off at once; "
      "\"privacy off\" in the console restores them. \"Turn off the mic\", \"turn on the camera\" (camera and screen only "
      "come on when said to ASH). Nothing is sent anywhere except what a feature says it sends. \"Learn my voice\" lets "
-     "it tell you from a guest, who then gets answers but not actions."),
+     "it tell you from a guest. A guest still gets answers, but is refused anything that acts or is private: opening or "
+     "closing apps, scenes, plans, clipboard, home reminders, turning the mic/camera/privacy or ASH itself off, and "
+     "changing or forgetting your voice."),
     ("clipboard", 4,
      "ASH manual, clipboard. Only when switched on in daemon.json and only when asked: \"what's on my clipboard\", "
      "\"summarize my clipboard\", \"copy that\" (copies what ASH last said), \"clear my clipboard\". It never watches the "

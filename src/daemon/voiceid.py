@@ -41,6 +41,12 @@ _FORGET = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:forget|dele
                      r"my voice\s*[.!]?\s*$", re.I)
 
 
+def is_request(text: str) -> bool:
+    """"learn my voice" / "forget my voice"."""
+    t = (text or "").strip()
+    return bool(_LEARN.match(t) or _FORGET.match(t))
+
+
 @dataclass
 class VoiceIDConfig:
     enabled: bool = True

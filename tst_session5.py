@@ -148,10 +148,69 @@ def t4():
         check(what, needle in page, needle)
 
 
+def t5():
+    print("\n=== T5. Only the user's voice does the sensitive things ===")
+    import tst_voiceid as tv
+    from src.daemon import AmbientConfig, AmbientRuntime, AttentionGate, Journal, PrivacyPolicy
+    from src.senses.base import Modality, PeripheryRegistry, SensorEvent
+    import tst_desktop as td
+    clock = [tw.T0]
+    out = []
+    ash = tw.Ash()
+    d = tempfile.mkdtemp()
+    box = {"v": "meeting at 3"}
+    rt = AmbientRuntime(
+        ash=ash, periphery=PeripheryRegistry(), journal=Journal(tempfile.mkdtemp()), gate=AttentionGate(), privacy=PrivacyPolicy(),
+        config=AmbientConfig(tick_seconds=0.02, sleep_after_idle_s=10 ** 9, voice=True, voice_path=os.path.join(d, "v.json"),
+                             desktop=True, wonder=True, wonder_path=os.path.join(d, "w.json"), knowledge_path=os.path.join(d, "k.json"),
+                             clipboard=True, clipboard_io=(lambda: box["v"], lambda t: True), arrivals=True, scenes=True,
+                             tasks=True, tasks_path=os.path.join(d, "t.json")),
+        response_sink=lambda t, m: out.append(t))
+    rt.clock = lambda: clock[0]
+    rt.desktop.ex = td.FakeEx()
+
+    def mic(text, vec):
+        clock[0] += 3
+        rt.submit(SensorEvent(source="microphone", modality=Modality.TEXT, text=text, addressed=True, salience=0.9,
+                              urgency=0.6, meta={"voice": vec}))
+        rt._tick()
+    rt.submit(SensorEvent(source="console", modality=Modality.TEXT, text="learn my voice", addressed=True, salience=0.9, urgency=0.6))
+    rt._tick()
+    for i in range(6):
+        mic(f"just talking number {i}", tv.USER(i))
+    check("enrolled", rt.voice.enrolled)
+    refused = "only do that for" in "|".join(["x"])  # placeholder to keep names in scope
+    for ph in ("what's on my clipboard", "copy that", "this is home", "remind me when I get home to lock up", "work mode",
+               "turn on the camera", "privacy off", "open outlook and set a timer for 5 minutes", "close word"):
+        n = len(out)
+        mic(ph, tv.GUEST(40))
+        check("a guest is refused: " + ph, out[-1].startswith("Sorry, I only do that for") and len(out) == n + 1, out[-1])
+    check("nothing was done for the guest", rt.desktop.ex.opened == [] and not rt.arrivals.pending() and rt.scenes.current is None
+          and not rt.sensor_changes if hasattr(rt, "sensor_changes") else rt.desktop.ex.opened == [])
+    mic("forget my voice", tv.GUEST(41))
+    check("a guest cannot forget the user's voice", out[-1].startswith("Sorry, only") and rt.voice.enrolled, out[-1])
+    mic("learn my voice", tv.GUEST(42))
+    check("or enrol over it", out[-1].startswith("Sorry, only") and not rt.voice.learning, out[-1])
+    n = len(ash.calls)
+    mic("what's the time", tv.GUEST(43))
+    check("a guest is still answered", len(ash.calls) == n + 1)
+    mic("smile", tv.GUEST(44))
+    check("and may ask for a face", not out[-1].startswith("Sorry, I only"), out[-1])
+    mic("open outlook and set a timer for 5 minutes", tv.USER(30))
+    check("the user gets a plan", "plan" in out[-1].lower(), out[-1])
+    mic("yes", tv.GUEST(45))
+    check("a guest's yes does not run it", rt.desktop.ex.opened == [] and out[-1].startswith("Sorry"), out[-1])
+    mic("what's on my clipboard", tv.USER(30))
+    check("the user can read the clipboard", "meeting at 3" in out[-1], out[-1])
+    mic("forget my voice", tv.USER(30))
+    check("the user can still forget their voice", "forgotten your voice" in out[-1], out[-1])
+
+
 if __name__ == "__main__":
     t1()
     t2()
     t3()
     t4()
+    t5()
     print("\nALL OK" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

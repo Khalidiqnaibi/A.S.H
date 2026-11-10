@@ -207,6 +207,16 @@ class Tasks:
             return self._plan(steps, now)
         return None
 
+    def hear_is_task(self, text: str) -> bool:
+        """Would `text` start a plan or a kept task (without changing anything)?"""
+        t = (text or "").strip()
+        if not self.enabled or not t:
+            return False
+        with self._lock:
+            if _norm(_LEAD.sub("", t)) in self.saved:
+                return True
+        return bool(_TEACH.match(t) or split_steps(t))
+
     def _plan(self, steps: List[str], now: float, name: Optional[str] = None) -> Dict[str, Any]:
         self.pending = {"steps": list(steps), "t": now, "name": name}
         self.stats["planned"] += 1
