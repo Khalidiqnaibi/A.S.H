@@ -74,6 +74,7 @@ from .tasks import Tasks
 from . import honest, voicectl
 from . import quiet as quiet_mod
 from .scenes import Scenes
+from .arrival import Arrivals
 from . import personas, rituals
 from .repeat import RepeatGuard
 from .context import Context
@@ -226,6 +227,9 @@ class AmbientConfig:
     rituals: bool = False           # "good morning" / "good night" answered by rule (rituals.py)
     personas: bool = False          # "be a pirate for ten minutes" (personas.py)
     scenes: bool = False
+    arrivals: bool = False          # "remind me when I get home" (arrival.py)
+    arrivals_path: Optional[str] = None
+    arrivals_home: str = ""
     scenes_cfg: Optional[Dict[str, Any]] = None
     # Research: "look into X" is done in the background and told at a free
     # moment or in the evening briefing (research.py), with the lookup
@@ -554,6 +558,8 @@ class AmbientRuntime:
             self.watcher = Watcher(WatchConfig.from_dict(self.cfg.watch_cfg), path=self.cfg.watch_path,
                                    clock=lambda: self.clock())
         self.scenes = Scenes(self.cfg.scenes_cfg) if self.cfg.scenes else None
+        self.arrivals = Arrivals(self.cfg.arrivals_path, home=self.cfg.arrivals_home) if self.cfg.arrivals else None
+        self._arrival_at = 0.0
         self._persona: Optional[tuple] = None             # (name, style, until)
         self.desktop: Optional[Desktop] = None
         if self.cfg.desktop:
@@ -1362,8 +1368,21 @@ class AmbientRuntime:
     def _reminder_step(self, now: float):
         """Say the reminders that are due. Asked for, so quiet hours do not
         hold them (an alarm at 7 is meant to wake you); muted or paused does."""
+        if self.arrivals is not None and now - self._arrival_at >= 30.0:
+            self._arrival_at = now
+            try:
+                self._reminder_pending.extend(self.arrivals.tick(now))
+            except Exception:
+                logger.exception("Arrival check failed")
         r = self.reminders
         if r is None:
+            if self._reminder_pending and not (self.gate.muted or self.privacy.paused):
+                while self._reminder_pending:
+                    try:
+                        self.response_sink(self._reminder_pending.pop(0), {"addressed": False, "source": "reminder",
+                                                                          "attention": None, "pathway": "reminder"})
+                    except Exception:
+                        logger.exception("Response sink failed")
             return
         try:
             self._reminder_pending.extend(r.tick(now))
@@ -1382,6 +1401,21 @@ class AmbientRuntime:
                                           "attention": None, "pathway": "reminder"})
             except Exception:
                 logger.exception("Response sink failed")
+
+    def _arrival_request(self, ev, now: float) -> bool:
+        """"Remind me when I get home to ...", "this is home": kept by network name."""
+        a = self.arrivals
+        if a is None or not self._user_source(ev):
+            return False
+        try:
+            say = a.hear(str(getattr(ev, "text", "") or ""), now)
+        except Exception:
+            logger.exception("Arrival request failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
 
     def _reminder_request(self, ev, now: float) -> bool:
         """"Remind me to ...", "set a timer for ...", "wake me at ...", "snooze":
@@ -1831,6 +1865,8 @@ class AmbientRuntime:
         if self._watch_request(ev, now):
             return
         if self._storage_request(ev, now):
+            return
+        if self._arrival_request(ev, now):
             return
         if self._reminder_request(ev, now):
             return
@@ -2877,6 +2913,7 @@ class AmbientRuntime:
             "smarthome": self.smarthome.status() if self.smarthome else None,
             "voice": self.voice.status() if self.voice else None,
             "reminders": self.reminders.status() if self.reminders else None,
+            "arrivals": self.arrivals.status() if self.arrivals else None,
             "play": self.play.status() if self.play else None,
             "media": self.media.status() if self.media else None,
             "remarks": {"logging": self.remarks is not None},
