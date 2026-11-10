@@ -353,6 +353,16 @@ def _mood(runtime):
         return None
 
 
+def _headsup(runtime):
+    """Soon-to-happen things for the small cards (headsup.py)."""
+    try:
+        from src.daemon.headsup import cards
+        return cards(runtime, time.time())
+    except Exception:
+        logger.debug("headsup failed", exc_info=True)
+        return []
+
+
 def _status(runtime) -> Dict[str, Any]:
     p = runtime.periphery
     sensors = [{"name": s.name, "on": getattr(getattr(s, "state", None), "value", "") == "active"}
@@ -376,6 +386,7 @@ def _status(runtime) -> Dict[str, Any]:
         "paused": bool(getattr(runtime.privacy, "paused", False)),
         "muted": bool(getattr(gate, "muted", False)),
         "mood": _mood(runtime),
+        "headsup": _headsup(runtime),
         "busy": round(float(getattr(runtime, "_user_busy", 0.0) or 0.0), 2),
         "waiting": waiting,          # what the next thing you say would answer
         "up_to": up_to,              # what ASH is keeping track of

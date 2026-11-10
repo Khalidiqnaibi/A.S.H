@@ -107,8 +107,51 @@ def t2():
     check("off on a bare runtime: goes to the model as before", off.out[-1] == "Sure.", str(off.out))
 
 
+def t3():
+    print("\n=== T3. Heads-up cards ===")
+    from datetime import datetime, timedelta
+    from src.daemon.headsup import cards
+    from src.daemon.calendar_ics import Event
+    now = datetime(2026, 11, 10, 9, 0).timestamp()
+
+    class Cal:
+        def events_on(self, day):
+            return [Event(datetime(2026, 11, 10, 9, 20), datetime(2026, 11, 10, 9, 50), "Standup", "Room 4"),
+                    Event(datetime(2026, 11, 10, 15, 0), None, "Dentist"),
+                    Event(datetime(2026, 11, 10, 0, 0), None, "Holiday", allday=True),
+                    Event(datetime(2026, 11, 10, 8, 0), datetime(2026, 11, 10, 8, 30), "Done already")]
+
+    rt = te.rig(reminders=True, arrivals=True)
+    rt.calendar = Cal()
+    rt.reminders._add("reminder", "call mom", now + 600, now)
+    rt.reminders._add("reminder", "far away", now + 7200, now)
+    rt.reminders._add("timer", "", now + 120, now, label="2-minute")
+    rt.arrivals.hear("remind me when I get home to water the plants", now)
+    cs = cards(rt, now)
+    titles = [c["title"] for c in cs]
+    check("soonest first, the far ones left out", titles[:3] == ["2-minute timer", "call mom", "Standup"] and "far away" not in titles and "Dentist" not in titles, str(titles))
+    check("all-day and finished events are skipped", "Holiday" not in titles and "Done already" not in titles)
+    check("home reminders come last", cs[-1]["kind"] == "home" and cs[-1]["title"] == "water the plants", str(cs[-1]))
+    check("how soon", cs[1]["in"] == "in 10 min" and cs[0]["in"] == "in 2 min", str([c["in"] for c in cs]))
+    check("none on a bare runtime", cards(te.rig(), now) == [])
+    from src.ui import hooks
+    check("it rides on the status", isinstance(hooks._status(rt).get("headsup"), list))
+
+
+def t4():
+    print("\n=== T4. The idle clock in the console ===")
+    page = open(os.path.join(HERE, "src", "ui", "static", "console.html"), encoding="utf-8").read()
+    for needle, what in (('id="clock"', "the clock screen"), ("function showClock", "shows after idle"), ("function hideClock", "any touch hides it"),
+                         ("CLOCK_IDLE_MS", "an idle limit"), ('id="headsup"', "the cards"), ("drawHeadsUp(s.headsup)", "drawn from status"),
+                         ("prefers-reduced-motion: no-preference) { .clock", "motion respects the setting"),
+                         ("cues.speaking || cues.thinking", "never while ASH is talking")):
+        check(what, needle in page, needle)
+
+
 if __name__ == "__main__":
     t1()
     t2()
+    t3()
+    t4()
     print("\nALL OK" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

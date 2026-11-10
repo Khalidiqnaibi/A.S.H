@@ -422,6 +422,25 @@ textarea::placeholder { color: var(--muted); }
 @keyframes blink { 50% { opacity: 0; } }
 @keyframes hop { 0%, 60%, 100% { transform: translateY(0); opacity: .5; } 30% { transform: translateY(-5px); opacity: 1; } }
 @keyframes fall { to { transform: translate(var(--dx, 60px), 110vh) rotate(var(--rot, 540deg)); } }
+
+/* ---- heads-up cards and the idle clock ---------------------------------- */
+.headsup { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s2, 8px); }
+.headsup[hidden] { display: none; }
+.hu { display: flex; align-items: baseline; gap: 8px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--ash-bg); font-size: .85rem; max-width: 100%; }
+.hu b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hu span { opacity: .7; white-space: nowrap; }
+.hu.soon { border-color: var(--accent); }
+.clock { position: fixed; inset: 0; z-index: 50; display: grid; place-content: center; justify-items: center; gap: 14px;
+  background: var(--stage); color: var(--text, inherit); text-align: center; padding: 24px; cursor: pointer; }
+.clock[hidden] { display: none; }
+.clock-time { font-size: clamp(64px, 20vw, 220px); font-weight: 200; letter-spacing: .02em; line-height: 1; font-variant-numeric: tabular-nums; }
+.clock-date { font-size: clamp(16px, 3vw, 28px); opacity: .75; }
+.clock .headsup { justify-content: center; }
+.clock-hint { font-size: .8rem; opacity: .45; }
+.clock-mood { font-size: 1.6rem; opacity: .8; }
+@media (prefers-reduced-motion: no-preference) { .clock:not([hidden]) { animation: clockin .8s ease; } }
+@keyframes clockin { from { opacity: 0; } }
 @keyframes drift { to { transform: translate(var(--dx, 40px), var(--dy, -30px)); } }
 @keyframes glow { 50% { opacity: .25; } }
 @keyframes twinkle { 50% { opacity: .15; } }
@@ -436,6 +455,13 @@ textarea::placeholder { color: var(--muted); }
 </head>
 <body>
 <div id="fx-bg" aria-hidden="true"></div>
+<div class="clock" id="clock" role="dialog" aria-label="Clock" hidden tabindex="-1">
+  <div class="clock-mood" id="clockMood" aria-hidden="true"></div>
+  <div class="clock-time" id="clockTime">--:--</div>
+  <div class="clock-date" id="clockDate"></div>
+  <ul class="headsup" id="clockCards" aria-label="Coming up"></ul>
+  <div class="clock-hint">tap or press any key</div>
+</div>
 <p class="banner" id="banner" role="status" hidden>Reconnecting to ASH…</p>
 
 <div class="app">
@@ -452,6 +478,8 @@ textarea::placeholder { color: var(--muted); }
       </div>
     </div>
   </header>
+
+  <ul class="headsup" id="headsup" aria-label="Coming up" hidden></ul>
 
   <nav class="toolbar" aria-label="Senses and controls">
     <ul class="sensors" id="chips" aria-label="What ASH can sense — click to turn on or off"></ul>
@@ -760,6 +788,7 @@ function updateStatePill() {
 const MOODS = new Set(["love", "happy", "very_happy", "sad", "angry", "annoyed", "sleepy", "curious", "skeptical", "surprised"]);
 function applyStatus(s) {
   status = s;
+  drawHeadsUp(s.headsup);
   const st = $("stage"); if (st) { if (s.mood && MOODS.has(s.mood)) st.dataset.mood = s.mood; else delete st.dataset.mood; }
   const chips = $("chips"); chips.textContent = "";
   for (const x of s.sensors || []) {
@@ -1213,6 +1242,49 @@ function present() {
 }
 for (const ev of ["pointermove", "keydown", "focus", "wheel"]) addEventListener(ev, present, { passive: true });
 document.addEventListener("visibilitychange", present);
+
+
+// ---- heads-up cards and the idle clock -----------------------------------------
+function huCard(c) {
+  const li = el("li", "hu" + (c["in"] === "now" || /^in \d+ min$/.test(c["in"] || "") ? " soon" : ""));
+  li.append(el("b", "", c.title || ""), el("span", "", [c["in"], c.sub].filter(Boolean).join(" · ")));
+  return li;
+}
+function drawHeadsUp(cards) {
+  for (const id of ["headsup", "clockCards"]) {
+    const ul = $(id); if (!ul) continue;
+    ul.textContent = "";
+    for (const c of cards || []) ul.appendChild(huCard(c));
+    if (id === "headsup") ul.hidden = !(cards && cards.length);
+  }
+}
+const MOOD_FACE = { love: "♥", happy: "◠‿◠", very_happy: "◠◡◠", sad: "︶︿︶", sleepy: "－ω－", curious: "◉_◉", surprised: "◎o◎", angry: "ಠ_ಠ", annoyed: "－_－", skeptical: "¬_¬" };
+function tickClock() {
+  const d = new Date();
+  $("clockTime").textContent = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  $("clockDate").textContent = d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+  $("clockMood").textContent = (status && status.mood && MOOD_FACE[status.mood]) || "";
+}
+let clockTimer = null, lastTouch = Date.now();
+const CLOCK_IDLE_MS = 120000;
+function showClock() {
+  if ($("clock").hidden === false) return;
+  tickClock(); $("clock").hidden = false; $("clock").focus({ preventScroll: true });
+  clockTimer = setInterval(tickClock, 5000);
+}
+function hideClock() {
+  lastTouch = Date.now();
+  if ($("clock").hidden) return;
+  $("clock").hidden = true; clearInterval(clockTimer); clockTimer = null; input.focus();
+}
+for (const ev of ["pointerdown", "keydown", "wheel"]) addEventListener(ev, () => { lastTouch = Date.now(); if (ev !== "wheel") hideClock(); }, { passive: true });
+addEventListener("pointermove", () => { lastTouch = Date.now(); }, { passive: true });
+$("clock").addEventListener("click", hideClock);
+setInterval(() => {
+  const busy = cues.speaking || cues.thinking || (status && status.paused);
+  if (busy) lastTouch = Date.now();
+  else if (document.visibilityState === "visible" && Date.now() - lastTouch >= CLOCK_IDLE_MS) showClock();
+}, 5000);
 
 function frame(t) { drawFace(t); requestAnimationFrame(frame); }
 

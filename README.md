@@ -735,6 +735,21 @@ All by rule, on in the daemon (`scenes`, `personas`, `rituals` in `daemon.json`,
 - **Greetings** (`rituals.py`): "good morning" gets a greeting by the real hour, plus the morning briefing the
   first time; "good night" gets a one-line recap of the day.
 
+## Coming home, the clipboard, heads-up cards and the clock
+
+- **"Remind me when I get home to ..."** (`arrival.py`, `arrivals` in `daemon.json`, on by default): home is a
+  Wi-Fi network. Say "this is home" while on it (or set `arrivals.home`); the reminder is said when the laptop
+  rejoins it after being away a few minutes. "What's waiting for me at home?", "cancel my home reminders".
+  No location services; only the network name is looked at, on this machine.
+- **Clipboard, only on request** (`clipboard.py`, off unless `"clipboard": {"enabled": true}`): "what's on my
+  clipboard", "summarize / explain / translate my clipboard" (that one copy goes to the model with the
+  question), "copy that" (what ASH last said), "clear my clipboard". Text that looks like a password or key
+  is never read out or passed on. ASH never watches the clipboard.
+- **Heads-up cards** (`headsup.py`): reminders due in the next 30 minutes, calendar events in the next hour
+  and what waits at home show as small cards under the face. Silent; speaking stays the reminders' job.
+- **Idle clock**: after two minutes with the console untouched (and ASH neither talking nor thinking), the
+  page becomes a big clock with the date, the face's mood and the cards. Any tap or key brings the console back.
+
 ## Short facts from Wikipedia (on by default)
 
 `facts` in `daemon.json`, `src/daemon/facts.py`; the switch is "Answer short
