@@ -1563,6 +1563,27 @@ account pages, private-network and router pages; pages whose title says
 "symptoms", "password", "recovery key" and the like; non-web pages. The ledger
 is `state/ledger.sqlite3` and can be deleted at any time.
 
+### Asking about it (`src/daemon/browsing.py`, `tst_browsing.py`)
+
+Said back by rule, from the ledger, with the evidence in the answer -- no model,
+and a test that fails if one is touched:
+
+| You say | It answers |
+|---|---|
+| "what have I been browsing this week / today?" | time per category |
+| "how much time did I spend on youtube / on social sites?" | one site or category, for a period |
+| "what sites do I use the most?" | top sites |
+| "what am I into lately?" | interests: sites that came back on 3+ separate days, weight halving every 14 days |
+| "when do I focus best?" | the two hours holding most of your code/docs/learning/work/reading time, and your longest unbroken stretch -- or what it still needs |
+| "what do you know about my browsing?" | what is kept, what is not, how much |
+| "tag this site as work" | teaches the site in front (and the words of its title) |
+| "stop watching my tabs" / "resume watching my tabs" | pause and resume; nothing is read while paused |
+| "forget my browsing" / "forget everything about github.com" / "forget my social browsing" / "forget my tags" | deletes it, really |
+
+A pattern needs three separate days to be called one, and the answer says how
+many days it rests on. It describes where time went, not what you are like. A
+guest's voice is refused all of it.
+
 ## What it buys you
 
 Spreading activation (2 steps — one gives direct associates, three gives

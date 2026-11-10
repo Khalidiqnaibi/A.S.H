@@ -299,7 +299,7 @@ def t6_no_llm():
     print("\n=== T6. No LLM, no network ===")
     banned = {"requests", "openai", "ollama", "langchain", "langchain_core", "transformers", "torch", "urllib3", "httpx",
               "aiohttp", "anthropic", "tools"}
-    for rel in ("src/daemon/pagekind.py", "src/daemon/ledger.py", "src/senses/browsertabs.py"):
+    for rel in ("src/daemon/pagekind.py", "src/daemon/ledger.py", "src/senses/browsertabs.py", "src/daemon/browsing.py"):
         tree = ast.parse(open(os.path.join(HERE, rel), encoding="utf-8").read())
         mods = set()
         for n in ast.walk(tree):

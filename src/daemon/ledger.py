@@ -126,6 +126,21 @@ class Ledger:
                 out[cat] = out.get(cat, 0.0) + float(secs or 0)
         return out
 
+    def totals(self, since: float, until: Optional[float] = None, by: str = "category", site: str = "",
+               category: str = "") -> List[Tuple[str, float, int]]:
+        """(name, seconds, episodes) from the raw episodes in [since, until), biggest first.
+        `by` is "category" or "site"; `site`/`category` narrow it. Only the retention window is raw."""
+        col = "site" if by == "site" else "category"
+        until = self.clock() + 1 if until is None else until
+        q, args = f"SELECT {col}, SUM(end-start), COUNT(*) FROM episodes WHERE start >= ? AND start < ?", [since, until]
+        if site:
+            q, args = q + " AND site = ?", args + [site]
+        if category:
+            q, args = q + " AND category = ?", args + [category]
+        with self._lock:
+            rows = self.db.execute(q + f" GROUP BY {col} ORDER BY SUM(end-start) DESC", args).fetchall()
+        return [(r[0], float(r[1] or 0), int(r[2])) for r in rows]
+
     def top_sites(self, limit: int = 8, category: str = "") -> List[Tuple[str, str, float, int]]:
         """(site, category, seconds, visits) over all time, raw episodes included."""
         with self._lock:

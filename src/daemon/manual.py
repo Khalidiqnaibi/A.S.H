@@ -152,11 +152,12 @@ ENTRIES: List[Tuple[str, int, str]] = [
      "Limits: a title says what is open, not that it is audible, so a paused tab looks playing; a browser shows its front tab only; Stremio has no "
      "title; a guest's music counts as yours. sensors.now_playing turns it off."),
     ("browsing", 4,
-     "ASH manual, browser tabs. Off until switched on (sensors.browser_tabs in daemon.json, plus loading the ash-tabs "
-     "extension from the extension folder). Then ASH keeps a local ledger of how long each site was in front, by site "
-     "and category only, no model involved. It never records private windows, banks, mail, chat, health, adult or "
-     "password pages, never the page text or full address, and never keeps titles unless told to. Old detail expires "
-     "after 30 days; only totals stay. It cannot see inside a page or what you typed."),
+     "ASH manual, browser tabs. Off until switched on (sensors.browser_tabs in daemon.json, plus the ash-tabs "
+     "extension). Then ASH keeps a local ledger of how long each site was in front: site and category only, no model. "
+     "Never private windows, banks, mail, chat, health or password pages, nor page text or addresses. Ask \"what have I "
+     "been browsing this week?\", \"how much time did I spend on youtube?\", \"when do I focus best?\", \"what am I into "
+     "lately?\". \"Tag this site as work\" teaches it; \"stop watching my tabs\" pauses; \"forget my browsing\" deletes. "
+     "Detail expires after 30 days. A guest's voice is refused."),
     ("screen", 5,
      "ASH manual, the screen. With screen capture on, ASH knows which window is focused and what it is called (the file "
      "or page, the project, the app). \"What do you see?\" or \"what's on my screen?\" makes it look at that window, say "

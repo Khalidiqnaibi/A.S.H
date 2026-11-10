@@ -79,6 +79,7 @@ from . import quiet as quiet_mod
 from .scenes import Scenes
 from .arrival import Arrivals
 from . import clipboard as clipboard_mod
+from . import browsing as browsing_mod
 from . import modelpick
 from . import personas, rituals
 from .repeat import RepeatGuard
@@ -446,6 +447,9 @@ class AmbientRuntime:
         self.occasion = Occasion(clock=lambda: self.clock())
         # What the now-playing sensor last reported as on (None: nothing), so "this song" means something.
         self._playing: Optional[Dict[str, Any]] = None
+        # What the browser-tab ledger says about the user, by rule (browsing.py). Inert without the sensor.
+        self.browsing = browsing_mod.Browsing(lambda: getattr(getattr(self.periphery, "sensors", {}), "get", lambda *_: None)("browser_tabs"),
+                                              clock=lambda: self.clock())
         if self.cfg.taste and self.wonder is not None:
             self.taste = Taste(self.wonder.kb, user=str(getattr(self.brain, "user", "") or ""),
                                cfg=TasteConfig.from_dict(self.cfg.taste_cfg),
@@ -1355,6 +1359,7 @@ class AmbientRuntime:
         acts = (watch_req(t) is not None or research_req(t) is not None
                 or (ctl is not None and ctl.name not in ("face", "faces", "status"))
                 or clipboard_mod.parse(t) is not None
+                or browsing_mod.parse(t) is not None
                 or any(rx.match(t) for rx in (arrival_mod._WHEN, arrival_mod._WHEN_END, arrival_mod._SET, arrival_mod._FORGET,
                                               arrival_mod._LIST, arrival_mod._CANCEL))
                 or (self.scenes is not None and (self.scenes.parse(t) or (None,))[0] in ("start", "end"))
@@ -1669,6 +1674,24 @@ class AmbientRuntime:
             say = t.answer(str(getattr(ev, "text", "") or ""), self._recent_people(now), playing=self._playing)
         except Exception:
             logger.exception("Taste question failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
+    def _browsing_request(self, ev, now: float) -> bool:
+        """"What have I been browsing?", "when do I focus best?", "stop watching my tabs", "forget my browsing":
+        from the ledger, by rule, never from the model. Not for a guest's voice."""
+        if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        if browsing_mod.parse(text) is None:
+            return False
+        try:
+            say = self.browsing.hear(text, now)
+        except Exception:
+            logger.exception("Browsing request failed")
             return False
         if not say:
             return False
@@ -2037,6 +2060,8 @@ class AmbientRuntime:
         if guest and self._guest_action(ev):
             return
         if self._focus_request(ev, now):
+            return
+        if self._browsing_request(ev, now):
             return
         if self._forget_request(ev, now):
             return
@@ -3108,6 +3133,7 @@ class AmbientRuntime:
             "wondering": self.wonder.status() if self.wonder else None,
             "activity": self.activity.status() if self.activity else None,
             "taste": self.taste.status() if self.taste else None,
+            "browsing": (lambda sn: sn.status() if sn is not None else None)(self.browsing._s()),
             "free_moments": self.moments.status() if self.moments else None,
             "followups": self.followups.status() if self.followups else None,
             "routines": self.routines.status() if self.routines else None,
