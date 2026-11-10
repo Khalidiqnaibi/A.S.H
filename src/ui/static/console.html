@@ -431,6 +431,12 @@ textarea::placeholder { color: var(--muted); }
 .hu b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hu span { opacity: .7; white-space: nowrap; }
 .hu.soon { border-color: var(--accent); }
+.learning { font-size: .85rem; border: 1px solid var(--line); border-radius: 12px; padding: 6px 12px; background: var(--ash-bg); }
+.learning[hidden] { display: none; }
+.learning summary { cursor: pointer; font-weight: 600; }
+.learning ul { margin: 8px 0 4px; padding-left: 18px; }
+.learning li { margin: 3px 0; }
+.learning p { margin: 6px 0 2px; opacity: .7; }
 .clock { position: fixed; inset: 0; z-index: 50; display: grid; place-content: center; justify-items: center; gap: 14px;
   background: var(--stage); color: var(--text, inherit); text-align: center; padding: 24px; cursor: pointer; }
 .clock[hidden] { display: none; }
@@ -480,6 +486,11 @@ textarea::placeholder { color: var(--muted); }
   </header>
 
   <ul class="headsup" id="headsup" aria-label="Coming up" hidden></ul>
+  <details class="learning" id="learning" hidden>
+    <summary>What I'm learning about you</summary>
+    <ul id="learningList"></ul>
+    <p id="learningForget"></p>
+  </details>
 
   <nav class="toolbar" aria-label="Senses and controls">
     <ul class="sensors" id="chips" aria-label="What ASH can sense — click to turn on or off"></ul>
@@ -789,6 +800,7 @@ const MOODS = new Set(["love", "happy", "very_happy", "sad", "angry", "annoyed",
 function applyStatus(s) {
   status = s;
   drawHeadsUp(s.headsup);
+  drawLearning(s.learning);
   const st = $("stage"); if (st) { if (s.mood && MOODS.has(s.mood)) st.dataset.mood = s.mood; else delete st.dataset.mood; }
   const chips = $("chips"); chips.textContent = "";
   for (const x of s.sensors || []) {
@@ -1257,6 +1269,14 @@ function drawHeadsUp(cards) {
     for (const c of cards || []) ul.appendChild(huCard(c));
     if (id === "headsup") ul.hidden = !(cards && cards.length);
   }
+}
+function drawLearning(l) {
+  const box = $("learning"); if (!box) return;
+  const lines = (l && l.lines) || [];
+  box.hidden = !lines.length;
+  const ul = $("learningList"); ul.textContent = "";
+  for (const t of lines) ul.appendChild(el("li", "", t));
+  $("learningForget").textContent = (l && l.forget) || "";
 }
 const MOOD_FACE = { love: "♥", happy: "◠‿◠", very_happy: "◠◡◠", sad: "︶︿︶", sleepy: "－ω－", curious: "◉_◉", surprised: "◎o◎", angry: "ಠ_ಠ", annoyed: "－_－", skeptical: "¬_¬" };
 function tickClock() {

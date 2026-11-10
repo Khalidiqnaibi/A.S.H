@@ -155,9 +155,15 @@ ENTRIES: List[Tuple[str, int, str]] = [
      "ASH manual, browser tabs. Off until switched on (sensors.browser_tabs in daemon.json, plus the ash-tabs "
      "extension). Then ASH keeps a local ledger of how long each site was in front: site and category only, no model. "
      "Never private windows, banks, mail, chat, health or password pages, nor page text or addresses. Ask \"what have I "
-     "been browsing this week?\", \"how much time did I spend on youtube?\", \"when do I focus best?\", \"what am I into "
-     "lately?\". \"Tag this site as work\" teaches it; \"stop watching my tabs\" pauses; \"forget my browsing\" deletes. "
-     "Detail expires after 30 days. A guest's voice is refused."),
+     "been browsing this week?\", \"how much time on youtube?\", \"when do I focus best?\", \"what am I into lately?\", "
+     "\"any suggestions about my browsing?\", \"what are my browsing habits?\". \"Tag this site as work\" teaches it; "
+     "\"stop watching my tabs\" pauses; \"forget my browsing\" deletes. A guest is refused."),
+    ("learning", 4,
+     "ASH manual, what ASH learns about you. It learns likes and dislikes (what you say, and what you play), how you "
+     "browse (if tabs are on), and how welcome its own remarks are, per kind and per what you're doing (coding, "
+     "gaming, leisure). \"How are your nudges landing?\" says what it learned; \"forget how I react\" resets it. The "
+     "console's \"What I'm learning about you\" panel lists it all. Learned by counting, not by a model; every part can "
+     "be forgotten by voice."),
     ("screen", 5,
      "ASH manual, the screen. With screen capture on, ASH knows which window is focused and what it is called (the file "
      "or page, the project, the app). \"What do you see?\" or \"what's on my screen?\" makes it look at that window, say "

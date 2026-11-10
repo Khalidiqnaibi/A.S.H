@@ -141,6 +141,14 @@ class Ledger:
             rows = self.db.execute(q + f" GROUP BY {col} ORDER BY SUM(end-start) DESC", args).fetchall()
         return [(r[0], float(r[1] or 0), int(r[2])) for r in rows]
 
+    def churn_between(self, since: float, until: Optional[float] = None) -> int:
+        """Tabs dropped within seconds, summed over whole days from `since` to `until`."""
+        until = self.clock() + 1 if until is None else until
+        with self._lock:
+            r = self.db.execute("SELECT SUM(churn) FROM daily WHERE category = '_churn' AND day >= ? AND day <= ?",
+                                (day_of(since), day_of(until))).fetchone()
+        return int(r[0] or 0)
+
     def top_sites(self, limit: int = 8, category: str = "") -> List[Tuple[str, str, float, int]]:
         """(site, category, seconds, visits) over all time, raw episodes included."""
         with self._lock:

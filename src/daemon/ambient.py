@@ -80,6 +80,7 @@ from .scenes import Scenes
 from .arrival import Arrivals
 from . import clipboard as clipboard_mod
 from . import browsing as browsing_mod
+from . import uxreport
 from . import modelpick
 from . import personas, rituals
 from .repeat import RepeatGuard
@@ -1359,7 +1360,8 @@ class AmbientRuntime:
         acts = (watch_req(t) is not None or research_req(t) is not None
                 or (ctl is not None and ctl.name not in ("face", "faces", "status"))
                 or clipboard_mod.parse(t) is not None
-                or browsing_mod.parse(t) is not None
+                or (browsing_mod.parse(t) is not None and self.browsing._on())
+                or uxreport.parse(t) is not None
                 or any(rx.match(t) for rx in (arrival_mod._WHEN, arrival_mod._WHEN_END, arrival_mod._SET, arrival_mod._FORGET,
                                               arrival_mod._LIST, arrival_mod._CANCEL))
                 or (self.scenes is not None and (self.scenes.parse(t) or (None,))[0] in ("start", "end"))
@@ -1698,6 +1700,17 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
 
+    def _ux_request(self, ev, now: float) -> bool:
+        """"How are your nudges landing?", "forget how I react": what the social learner has learned, by rule."""
+        if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        kind = uxreport.parse(str(getattr(ev, "text", "") or ""))
+        if kind is None:
+            return False
+        say = uxreport.reset(self.learner) if kind == "reset" else uxreport.describe(self.learner, now)
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
     def _track_playing(self, ev) -> None:
         """Remember what the now-playing sensor says is on, until it says it stopped."""
         m = getattr(ev, "meta", None) or {}
@@ -1995,6 +2008,9 @@ class AmbientRuntime:
         if getattr(ev, "source", "") == "now_playing":
             self._track_playing(ev)
             self._played(ev, now)
+        elif getattr(ev, "source", "") == "browser_tabs":
+            m = getattr(ev, "meta", None) or {}
+            self.occasion.page(str(m.get("category") or ""), now, stopped=(m.get("event") == "stopped"))
         elif getattr(ev, "source", "") == "active_window":
             m = getattr(ev, "meta", None) or {}
             self.occasion.window(str(m.get("process") or ""), now, blocked=bool(m.get("blocked")))
@@ -2062,6 +2078,8 @@ class AmbientRuntime:
         if self._focus_request(ev, now):
             return
         if self._browsing_request(ev, now):
+            return
+        if self._ux_request(ev, now):
             return
         if self._forget_request(ev, now):
             return
@@ -2141,7 +2159,7 @@ class AmbientRuntime:
         try:
             drives = self.brain.homeostasis.drives
             decision = self.gate.decide(ev, drives, novelty=novelty,
-                                        user_busy=self._user_busy, now=now)
+                                        user_busy=self._user_busy, now=now, activity=self.occasion.context())
         except Exception:
             logger.exception("Attention gate failed; defaulting to observe")
             decision = None

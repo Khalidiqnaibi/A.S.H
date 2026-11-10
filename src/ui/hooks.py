@@ -353,6 +353,16 @@ def _mood(runtime):
         return None
 
 
+def _learning(runtime):
+    """What ASH is learning about the user, for the console's panel (learning.py)."""
+    try:
+        from src.daemon.learning import snapshot
+        return snapshot(runtime, time.time())
+    except Exception:
+        logger.debug("learning snapshot failed", exc_info=True)
+        return {}
+
+
 def _headsup(runtime):
     """Soon-to-happen things for the small cards (headsup.py)."""
     try:
@@ -387,6 +397,7 @@ def _status(runtime) -> Dict[str, Any]:
         "muted": bool(getattr(gate, "muted", False)),
         "mood": _mood(runtime),
         "headsup": _headsup(runtime),
+        "learning": _learning(runtime),
         "busy": round(float(getattr(runtime, "_user_busy", 0.0) or 0.0), 2),
         "waiting": waiting,          # what the next thing you say would answer
         "up_to": up_to,              # what ASH is keeping track of

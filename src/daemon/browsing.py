@@ -31,6 +31,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 DAY = 86400.0
 FOCUS = frozenset({"code", "docs", "learning", "work", "reading"})
+LEISURE = ("video", "social", "games", "shopping", "news")
 HALF_LIFE_DAYS = 14.0
 MIN_DAYS = 3                      # a pattern needs this many separate days
 MIN_FOCUS_S = 2 * 3600            # ...and this much focused time
@@ -56,6 +57,12 @@ _RX: List[Tuple[str, "re.Pattern"]] = [(k, re.compile(p, re.I)) for k, p in (
               r"(?P<cat>" + _CATS + r")(?:\s+site)?"
               r"|(?:this|that)\s+(?:site|page|tab|website)\s+is\s+(?:a\s+|for\s+|about\s+)?(?P<cat2>" + _CATS + r")(?:\s+site)?"
               r"|(?:this|that)\s+is\s+a\s+(?P<cat3>" + _CATS + r")\s+(?:site|page|tab|website))" + _Z),
+    ("suggest", _A + r"(?:(?:any|some|got\s+any)\s+(?:suggestions?|tips|advice|thoughts)\s+(?:about|on|for|from)\s+my\s+(?:browsing|time|focus|habits|tabs|screen\s+time|week)"
+                r"|how\s+can\s+i\s+(?:use|spend|manage)\s+my\s+(?:time|week)\s+(?:better|more\s+wisely|well)"
+                r"|what\s+should\s+i\s+(?:change|do\s+differently)\s+(?:about|with)\s+my\s+(?:browsing|habits|time|week)"
+                r"|how\s+am\s+i\s+doing\s+(?:with|on)\s+my\s+(?:time|browsing|focus|week))" + _Z),
+    ("habits", _A + r"(?:what\s+are\s+my\s+(?:browsing|web|online)\s+habits|tell\s+me\s+about\s+my\s+(?:browsing|online)\s+habits"
+               r"|how\s+do\s+i\s+(?:browse|use\s+(?:the\s+)?(?:browser|web|internet))|what(?:'s|\s+is)\s+my\s+(?:browsing|online)\s+routine)" + _Z),
     ("status", _A + r"(?:what\s+do\s+you\s+(?:know|keep|remember)\s+about\s+my\s+(?:browsing|tabs|web\s+(?:use|habits)|websites)"
                r"|are\s+you\s+(?:watching|tracking|recording)\s+(?:my\s+)?(?:tabs|browsing|browser)"
                r"|is\s+(?:tab|browser|browsing)\s+(?:tracking|watching)\s+on)" + _Z),
@@ -206,6 +213,82 @@ class Browsing:
         return {"enough": True, "days": len(days), "total": total, "from": best, "to": (best + 2) % 24,
                 "share": (hours[best] + hours[(best + 1) % 24]) / total, "longest": longest}
 
+    def _totals(self, a: float, b: float) -> Dict[str, float]:
+        return {c: sec for c, sec, _n in self.sensor().ledger.totals(a, b) if c != "unknown"}
+
+    def suggest(self, now: float) -> str:
+        """Observations about this week against last, each with its numbers; nothing if nothing stands out.
+        Rules only. It says what changed and when focus tends to fall -- it does not tell anyone what to do."""
+        led = self.sensor().ledger
+        this, prev = self._totals(now - 7 * DAY, now + 1), self._totals(now - 14 * DAY, now - 7 * DAY)
+        t_tot, p_tot = sum(this.values()), sum(prev.values())
+        if t_tot < 2 * 3600:
+            return "I don't have enough browsing this week yet to suggest anything."
+        out: List[str] = []
+        if p_tot >= 2 * 3600:
+            for cat in LEISURE:
+                a, b = this.get(cat, 0.0), prev.get(cat, 0.0)
+                if a - b >= 3600 and a >= 1.5 * b:
+                    out.append(f"{cat} is up: {dur(a)} this week against {dur(b)} last week.")
+            fa = sum(this.get(c, 0.0) for c in FOCUS)
+            fb = sum(prev.get(c, 0.0) for c in FOCUS)
+            if fb - fa >= 3600 and fa <= 0.6 * fb:
+                out.append(f"Focused browsing is down: {dur(fa)} this week against {dur(fb)} last week.")
+            elif fa - fb >= 3600 and fa >= 1.4 * fb:
+                out.append(f"Focused browsing is up: {dur(fa)} this week against {dur(fb)} last week.")
+            c1, c0 = led.churn_between(now - 7 * DAY, now), led.churn_between(now - 14 * DAY, now - 7 * DAY)
+            r1, r0 = c1 / max(t_tot / 3600, 1e-9), c0 / max(p_tot / 3600, 1e-9)
+            if r1 >= 15 and r1 >= 1.5 * r0:
+                out.append(f"You've been hopping between tabs more: about {int(round(r1))} dropped tabs an hour, "
+                           f"up from {int(round(r0))}.")
+        late = 0.0
+        for e in led.episodes(now - 7 * DAY, now + 1, limit=200000):
+            a, b = e["start"], e["end"]
+            while a < b:
+                t = time.localtime(a)
+                nxt = min(b, a + (3600 - (t.tm_min * 60 + t.tm_sec)))
+                if t.tm_hour < 5:
+                    late += nxt - a
+                a = nxt
+        if late >= 3600 and late / t_tot >= 0.15:
+            out.append(f"{dur(late)} of this week's browsing ({int(round(100 * late / t_tot))}%) was between midnight and 5.")
+        f = self.focus_profile(now)
+        if f and f.get("enough"):
+            out.append(f"Your focused browsing clusters between {f['from']:02d}:00 and {f['to']:02d}:00 "
+                       f"({f['days']} days of it) -- that's the stretch worth keeping free.")
+        if not out:
+            return "Nothing stands out -- this week looks much like the last."
+        return "Here's what stands out: " + " ".join(out[:4])
+
+    def habits(self, now: float) -> str:
+        """A plain description of when and how the user browses, over up to 30 days."""
+        led = self.sensor().ledger
+        eps = led.episodes(now - 30 * DAY, now + 1, limit=200000)
+        days = {time.strftime("%Y-%m-%d", time.localtime(e["start"])) for e in eps}
+        total = sum(e["end"] - e["start"] for e in eps)
+        if len(days) < MIN_DAYS or total < 2 * 3600:
+            return (f"I don't have enough yet to describe your habits -- I need browsing on at least {MIN_DAYS} days "
+                    f"and a couple of hours in all; so far it's {len(days)} day{'s' if len(days) != 1 else ''}.")
+        parts = {"morning": 0.0, "afternoon": 0.0, "evening": 0.0, "night": 0.0}
+        for e in eps:
+            a, b = e["start"], e["end"]
+            while a < b:
+                t = time.localtime(a)
+                nxt = min(b, a + (3600 - (t.tm_min * 60 + t.tm_sec)))
+                h = t.tm_hour
+                parts["morning" if 5 <= h < 12 else "afternoon" if 12 <= h < 17 else "evening" if h >= 17 else "night"] += nxt - a
+                a = nxt
+        top = max(parts, key=lambda k: parts[k])
+        lens = sorted(e["end"] - e["start"] for e in eps)
+        median = lens[len(lens) // 2]
+        churn = led.churn_between(now - 30 * DAY, now)
+        bits = [f"Over {len(days)} days you browse about {dur(total / len(days))} a day, mostly in the {top} "
+                f"({int(round(100 * parts[top] / total))}%).",
+                f"A typical stretch on one site is {dur(median)}."]
+        if total >= 3600 and churn:
+            bits.append(f"You drop about {int(round(churn / (total / 3600)))} tabs an hour within seconds of opening them.")
+        return " ".join(bits)
+
     # -- answering -----------------------------------------------------------------
     def hear(self, text: str, now: Optional[float] = None) -> Optional[str]:
         p = parse(text)
@@ -215,8 +298,8 @@ class Browsing:
         now = self.clock() if now is None else now
         s = self._s()
         if s is None or getattr(s, "ledger", None) is None:
-            if kind == "tag":
-                return None                                  # "this page is work" is ordinary talk when tabs are not watched
+            if kind in ("tag", "suggest", "habits"):
+                return None                                  # ordinary talk ("how can I use my time better") when tabs are not watched
             if kind in ("pause", "resume", "status"):
                 return ("I'm not watching your tabs. It's off by default; turn on sensors.browser_tabs in daemon.json "
                         "and load the ash-tabs extension, and I'll start.")
@@ -295,6 +378,10 @@ class Browsing:
                 return ("Nothing stands out yet -- I need a site to turn up on at least three separate days before I'd "
                         "call it an interest.")
             return "Lately you keep coming back to " + _lst([f"{site} ({cat})" for site, cat, _w, _d in rows]) + "."
+        if kind == "suggest":
+            return self.suggest(now)
+        if kind == "habits":
+            return self.habits(now)
         if kind == "focus":
             f = self.focus_profile(now)
             if f is None or not f.get("enough"):

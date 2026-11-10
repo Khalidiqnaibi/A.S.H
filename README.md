@@ -1584,6 +1584,34 @@ A pattern needs three separate days to be called one, and the answer says how
 many days it rests on. It describes where time went, not what you are like. A
 guest's voice is refused all of it.
 
+### What else it does with that (`tst_insights.py`)
+
+* **"While coding" in a browser.** A code, learning, work, docs, reading or games
+  tab in front is an *activity* for `occasion.py` (a browser's window title never
+  was), so a song heard through three coding tabs becomes "listens to this while
+  coding". Video, social, news and shopping are "leisure"; nothing else is guessed.
+* **The social learner knows what you are doing.** It already learned, per kind
+  of remark and per situation, how welcome ASH is (a contextual bandit: shrinkage
+  to priors, exploration bonus, forgetting, capped shifts). The situation now
+  includes the activity -- `idle/evening/coding` -- with a middle level (kind
+  while coding), so a joke can land at leisure and not at work. With no activity
+  known nothing changes. This is the "RL-based UX": it learns from reactions
+  (thanks, "not now", a swipe, silence), inside limits it cannot move.
+* **It says what it learned.** "How are your nudges landing?" -- overall rate, best
+  and weakest kind, most and least welcome by activity, what you told it to hold
+  off on. "Forget how I react" resets it to neutral.
+* **Suggestions and habits, as observations.** "Any suggestions about my
+  browsing?" compares this week with last (leisure categories up by an hour and
+  half again, focused browsing down or up, more tab hopping, time after
+  midnight, when focus tends to fall) and says nothing if nothing stands out.
+  "What are my browsing habits?" says how much, in which part of the day, how long
+  a stretch, how many dropped tabs an hour. Counting and templates; it does not
+  tell you what to do, and it describes where time went, not what you are like.
+  With tab tracking off, these phrasings go to the model as before.
+* **What I'm learning about you.** A panel in the console lists what each part
+  holds right now -- tastes, what the ledger holds and in what form, interests,
+  focus hours, reaction rate -- and how to delete each.
+
 ## What it buys you
 
 Spreading activation (2 steps — one gives direct associates, three gives

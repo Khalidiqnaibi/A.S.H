@@ -48,6 +48,18 @@ _GROUPS = {
 ACTIVITY_OF = {p: act for act, procs in _GROUPS.items() for p in procs.split()}
 
 
+BROWSERS = frozenset({"chrome", "msedge", "firefox", "brave", "opera", "vivaldi", "chromium", "arc"})
+# What a page category says about the user's activity, once the tab sensor reports it. Video, social, news and
+# shopping say nothing (that is leisure or errands, not an activity the profile has a word for).
+LEISURE_PAGES = frozenset({"video", "music", "social", "news", "shopping"})
+PAGE_ACTIVITY = {"code": "coding", "learning": "studying", "work": "working", "docs": "working",
+                 "reading": "reading", "games": "gaming"}
+
+
+def page_activity(category: str) -> str:
+    return PAGE_ACTIVITY.get((category or "").strip().lower(), "")
+
+
 def activity_of(process: str) -> str:
     """The word for what a program says the user is doing, or ""."""
     p = re.sub(r"\.(?:exe|app|bin)$", "", (process or "").strip().lower())
@@ -63,14 +75,40 @@ class Occasion:
         self.idle_cut_s = float(idle_cut_s)
         self._segs: Deque[Tuple[float, float, str]] = deque()      # (start, end, activity), closed
         self._cur: Optional[Tuple[float, str]] = None               # (since, activity) still going
+        self._page = ""                                             # the activity of the browser tab in front, if any
+        self._browser_front = False
+        self._leisure = False                                       # the tab in front is video, social, news...
         self._lock = threading.Lock()
 
     # -- feeding it ------------------------------------------------------------
     def window(self, process: str, now: Optional[float] = None, blocked: bool = False):
         """The focused window changed."""
         now = self.clock() if now is None else now
-        act = "" if blocked else activity_of(process)
+        stem = re.sub(r"\.(?:exe|app|bin)$", "", (process or "").strip().lower())
         with self._lock:
+            self._browser_front = stem in BROWSERS
+            if not self._browser_front:
+                self._leisure = False
+            act = "" if blocked else (activity_of(process) or (self._page if self._browser_front else ""))
+            if self._cur is not None and self._cur[1] == act:
+                return
+            self._close(now)
+            self._cur = (now, act) if act else None
+
+    def page(self, category: str, now: Optional[float] = None, stopped: bool = False):
+        """The tab sensor says which kind of page is in front of a focused browser (or that it stopped).
+        A browser's window title says nothing; this does, so "while coding" works for a day of Stack Overflow."""
+        now = self.clock() if now is None else now
+        with self._lock:
+            if stopped:
+                self._page, self._leisure = "", False
+                if self._browser_front:                 # only if a browser is still what is in front: a late
+                    self._close(now)                    # "stopped" must not end what an editor started since
+                self._browser_front = False
+                return
+            act = page_activity(category)
+            self._page, self._browser_front = act, True
+            self._leisure = (category or "").strip().lower() in LEISURE_PAGES
             if self._cur is not None and self._cur[1] == act:
                 return
             self._close(now)
@@ -110,6 +148,14 @@ class Occasion:
             return ""
         top = max(got, key=lambda a: got[a])
         return top if got[top] >= span * 0.5 else ""
+
+    def context(self) -> str:
+        """The activity for the social learner: the one in front, else "leisure" if a leisure page is, else "".
+        A short fixed list, so what it learns is not spread thin over names."""
+        with self._lock:
+            if self._cur is not None and self._cur[1]:
+                return self._cur[1]
+            return "leisure" if (self._browser_front and self._leisure) else ""
 
     def now(self) -> str:
         with self._lock:

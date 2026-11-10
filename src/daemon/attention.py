@@ -158,7 +158,7 @@ class AttentionGate:
 
     # ------------------------------------------------------------------
     def decide(self, event, drives, novelty: float = 0.5,
-               user_busy: float = 0.0, now: Optional[float] = None) -> AttentionDecision:
+               user_busy: float = 0.0, now: Optional[float] = None, activity: str = "") -> AttentionDecision:
         """`user_busy` is 0..1: 0 = away from the machine, 1 = actively typing
         in a focused application."""
         now = now or time.time()
@@ -203,7 +203,7 @@ class AttentionGate:
         offer = meta.get("offer")
         kind = str(offer or getattr(event, "source", "event"))
         from .social import context_key
-        ctx = context_key(user_busy, now)
+        ctx = context_key(user_busy, now, activity)
 
         if offer:
             # An offer carries its own evidence (how stuck, how long a stretch

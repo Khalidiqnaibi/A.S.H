@@ -163,8 +163,13 @@ def compose_check_in(minutes: float, process: str = "", hour: Optional[int] = No
     return ("It's late. " + line) if late else line
 
 
-def context_key(user_busy: float, now: Optional[float] = None) -> str:
-    """The situation a remark lands in, coarse enough to learn from quickly."""
+ACTIVITIES = ("coding", "writing", "working", "reading", "designing", "gaming", "studying", "leisure")
+
+
+def context_key(user_busy: float, now: Optional[float] = None, activity: str = "") -> str:
+    """The situation a remark lands in, coarse enough to learn from quickly.
+    `activity` (what the user is doing, from occasion.py: coding, gaming, leisure...) is a third part
+    when known: a joke can land while watching videos and not while coding."""
     if user_busy >= 0.9:
         busy = "typing"
     elif user_busy >= 0.5:
@@ -176,7 +181,12 @@ def context_key(user_busy: float, now: Optional[float] = None) -> str:
     h = time.localtime(now if now is not None else time.time()).tm_hour
     part = ("morning" if 5 <= h < 12 else "afternoon" if 12 <= h < 17
             else "evening" if 17 <= h < 22 else "night")
-    return f"{busy}/{part}"
+    return f"{busy}/{part}/{activity}" if activity in ACTIVITIES else f"{busy}/{part}"
+
+
+def _activity_of(ctx: str) -> str:
+    parts = (ctx or "").split("/")
+    return parts[2] if len(parts) >= 3 else ""
 
 
 # ==============================================================================
@@ -247,7 +257,11 @@ class SocialLearner:
     def p(self, kind: str, ctx: str = "", now: Optional[float] = None) -> float:
         """Estimated welcome rate (0..1) for this kind of remark in this situation."""
         now = self._now(now)
-        return self._shrink(self._key(kind, ctx), self.p_kind(kind, now), now)
+        parent = self.p_kind(kind, now)
+        act = _activity_of(ctx)
+        if act:                                  # kind -> kind while doing X -> that, in this busy/time situation
+            parent = self._shrink(self._key(kind, "@" + act), parent, now)
+        return self._shrink(self._key(kind, ctx), parent, now)
 
     def evidence(self, kind: str, ctx: str = "", now: Optional[float] = None) -> float:
         return self._cell(self._key(kind, ctx), self._now(now))[1]
@@ -270,7 +284,9 @@ class SocialLearner:
                now: Optional[float] = None):
         now = self._now(now)
         reward = max(0.0, min(1.0, float(reward)))
-        for key in (self.GLOBAL, self._key(kind), self._key(kind, ctx)):
+        act = _activity_of(ctx)
+        for key in ((self.GLOBAL, self._key(kind), self._key(kind, ctx))
+                    + ((self._key(kind, "@" + act),) if act else ())):
             a, n = self._cell(key, now)
             self.cells[key] = [a * self.decay + weight * reward, n * self.decay + weight, now]
         self.updates += 1
