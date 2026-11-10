@@ -111,7 +111,7 @@ class Tasks:
         self.confirm_window_s = confirm_window_s
         self.saved: Dict[str, Dict[str, Any]] = {}       # norm(name) -> {"name", "steps", "runs"}
         self.pending: Optional[Dict[str, Any]] = None    # {"steps", "t", "name"}
-        self.stats = {"planned": 0, "run": 0, "declined": 0, "taught": 0, "saved": 0}
+        self.stats = {"planned": 0, "run": 0, "declined": 0, "taught": 0, "kept": 0}
         self.last_run: Optional[tuple] = None             # (steps, t) of the plan just approved
         self.recent: List[tuple] = []                      # (t, text) of single commands just given
         self._lock = threading.RLock()
@@ -250,7 +250,7 @@ class Tasks:
         with self._lock:
             self.saved[_norm(name)] = {"name": name, "steps": steps, "runs": 0}
         self.save()
-        self.stats["saved"] += 1
+        self.stats["kept"] += 1
         return {"say": f"Saved. When you say “{name}”, I'll {describe(steps)} -- after checking with you.",
                 "saved": name}
 
