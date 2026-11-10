@@ -212,6 +212,13 @@ def main() -> int:
         from src.py.ash import ash  # noqa: E402  (slow import: model loads)
         logger.info("ASH loaded in %.1fs", time.time() - t0)
 
+        # The manual: what ASH can and cannot do, in its own core memory (idempotent).
+        try:
+            from src.daemon import manual as _manual
+            logger.info("Manual in core memory: %s", _manual.seed(getattr(ash, "core_memory", None)))
+        except Exception:
+            logger.exception("Could not seed the manual")
+
         # Load the language model now, in the background: the first question
         # after a start used to wait for the whole load. ASH_PRELOAD_MODEL=0 to skip.
         if os.environ.get("ASH_PRELOAD_MODEL", "1").strip().lower() not in ("0", "false", "no", "off"):

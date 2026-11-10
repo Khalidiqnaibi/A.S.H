@@ -32,7 +32,7 @@ import time
 from typing import Callable, Dict, List, Optional
 
 _A = r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+|can you\s+|could you\s+)?"
-_Z = r"\s*[.!]*\s*$"
+_Z = r"\s*[.!?]*\s*$"
 _WHEN = re.compile(_A + r"remind me\s+(?:(?:when|as soon as|once|after)\s+(?:i\s+)?(?:get|got|come|arrive|am|reach|walk in)\s+(?:back\s+)?(?:at\s+|to\s+|in\s+)?home"
                    r"|(?:when|once)\s+(?:i'?m|i\s+am)\s+(?:back\s+)?(?:at\s+)?home|on\s+(?:getting|arriving|coming)\s+home)"
                    r"[,\s]*(?:to\s+|that\s+|about\s+)?(?P<what>.*?)" + _Z, re.I)

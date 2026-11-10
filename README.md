@@ -735,6 +735,15 @@ All by rule, on in the daemon (`scenes`, `personas`, `rituals` in `daemon.json`,
 - **Greetings** (`rituals.py`): "good morning" gets a greeting by the real hour, plus the morning briefing the
   first time; "good night" gets a one-line recap of the day.
 
+## ASH's manual (in its core memory)
+
+`src/daemon/manual.py` writes one entry per area into core memory at start-up (category `capability`, ids
+`manual_*`): what ASH can do, the words that make it do it, and what it can't (no web browsing, sending mail
+or messages, calls, buying, location). Retrieval is by meaning, so "can you remind me when I get home?" brings
+up the reminders entry and the model answers from it instead of guessing. It is idempotent and keeps the
+manual in step with the code (`tst_manual.py` runs every phrase it teaches). "What can you do?" still answers
+live with what is actually switched on here.
+
 ## Coming home, the clipboard, heads-up cards and the clock
 
 - **"Remind me when I get home to ..."** (`arrival.py`, `arrivals` in `daemon.json`, on by default): home is a

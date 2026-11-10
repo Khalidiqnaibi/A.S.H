@@ -40,8 +40,10 @@ STYLES: Dict[str, Tuple[str, str]] = {
 ALIASES = {"pirate captain": "pirate", "buccaneer": "pirate", "droid": "robot", "jarvis": "butler", "child": "kid",
            "little kid": "kid", "gamer": "bmo", "cop": "detective", "sherlock": "detective"}
 
+_NUMW = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+         "fifteen": 15, "twenty": 20, "thirty": 30, "forty": 40, "sixty": 60}
 _A = r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?"
-_FOR = (r"(?:\s+for\s+(?:(?:an?|one)\s+(?P<u1>hour|minute)|(?P<n>\d{1,2})\s*(?P<u>hours?|hrs?|h|minutes?|mins?|m)))?")
+_FOR = (r"(?:\s+for\s+(?:(?:an?|one)\s+(?P<u1>hour|minute)|(?P<n>\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|fifteen|twenty|thirty|forty|sixty)\s*(?P<u>hours?|hrs?|h|minutes?|mins?|m)))?")
 _Z = r"\s*[.!]*\s*$"
 _START = re.compile(_A + r"(?:(?:be|act\s+(?:like|as)|talk\s+like|speak\s+like|sound\s+like|pretend\s+(?:to\s+be|you'?re|you\s+are))"
                     r"\s+(?:(?:an?|the)\s+)?(?P<w>[a-z][a-z ]{1,24}?))" + _FOR + _Z, re.I)
@@ -76,7 +78,8 @@ def parse(text: str, now: float):
     if m.group("u1"):
         mins = 60.0 if m.group("u1").lower() == "hour" else 1.0
     elif m.group("n"):
-        mins = float(m.group("n")) * (60.0 if m.group("u").lower().startswith("h") else 1.0)
+        n = m.group("n").lower()
+        mins = float(_NUMW.get(n) or n) * (60.0 if m.group("u").lower().startswith("h") else 1.0)
     else:
         mins = DEFAULT_MIN
     mins = max(1.0, min(MAX_MIN, mins))
