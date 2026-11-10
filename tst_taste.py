@@ -15,6 +15,7 @@ list only when the question is about choosing something.
   T5  Undo and forget, and entity memory follows
   T6  On the runtime: said once, kept, asked back, never from a guest, never to the model
   T7  The manual teaches it, and the control command shows it
+  T8  "This song": what is playing, said and asked about
 
 Run:  PYTHONIOENCODING=utf-8 python tst_taste.py
 """
@@ -369,6 +370,71 @@ def t7_manual_and_control():
     check("...and says so when it is off", got.get("ok") is False and "not enabled" in got.get("error", ""), str(got))
 
 
+def t8_this_song():
+    print("\n=== T8. 'This song': what is playing, said and asked about ===")
+    d = tempfile.mkdtemp()
+    rt = te.rig(wonder=True, taste=True, knowledge_path=os.path.join(d, "knowledge.json"),
+                wonder_path=os.path.join(d, "wonders.json"))
+    rt.brain.user = "Khalid"
+    from src.daemon.taste import Taste, TasteConfig
+    rt.taste = Taste(rt.wonder.kb, user="Khalid", cfg=TasteConfig(), clock=lambda: rt.t[0])
+    from src.senses.base import Modality, SensorEvent
+
+    def play(event, **meta):
+        rt.submit(SensorEvent(source="now_playing", modality=Modality.TEXT, text="now playing", salience=0.1,
+                              ts=rt.t[0], persistable=False, meta=dict(event=event, **meta)))
+        rt._tick()
+
+    def items():
+        return rt.wonder.kb.tastes.get("khalid", {}).get("items", {})
+
+    rt.say("what's playing?")
+    check("nothing on: says so", rt.out[-1] == "I don't see anything playing.", rt.out[-1])
+    rt.say("I love this song")
+    check("'this song' with nothing playing is not guessed", not any("this" in k or "zq" in k for k in items()), str(list(items())))
+
+    play("started", player="Spotify", kind="music", title="Midnight City", artist="M83", item="Midnight City by M83")
+    for q in ("what's playing?", "what song is this?", "what am I listening to?", "who's singing?"):
+        rt.say(q)
+        check(f"{q!r} is answered from the player", rt.out[-1] == "That's Midnight City by M83 on Spotify.", rt.out[-1])
+    rt.say("what's playing at the cinema?")
+    check("a different question is left alone", "Midnight City" not in rt.out[-1], rt.out[-1])
+
+    rt.say("I love this song")
+    got = items().get("midnight city by m83")
+    check("'I love this song' is kept as what is playing", got and got["score"] >= 0.75 and got["kind"] == "music", str(items()))
+    rt.say("what's playing?")
+    check("and asking again says you like it", rt.out[-1].endswith("You like it."), rt.out[-1])
+    rt.say("do I like this?")
+    check("'do I like this?' is about what is playing", rt.out[-1] == "You love Midnight City by M83.", rt.out[-1])
+
+    play("changed", player="Spotify", kind="music", title="Flowers", artist="Miley Cyrus", item="Flowers by Miley Cyrus",
+         finished="Midnight City by M83", finished_title="Midnight City", finished_artist="M83", finished_kind="music",
+         finished_player="Spotify", finished_s=200, finished_how="changed", finished_skip=False,
+         finished_start=rt.t[0] - 200, finished_end=rt.t[0])
+    rt.say("I can't stand this")
+    got = items().get("flowers by miley cyrus")
+    check("it follows the song that is on now", got and got["score"] <= -0.75, str(items()))
+    rt.say("what's playing?")
+    check("...and says it is not liked", "You don't like it" in rt.out[-1] and "Flowers by Miley Cyrus" in rt.out[-1], rt.out[-1])
+    before = dict(items())
+    rt.say("I love this place")
+    rt.say("I love this idea")
+    check("this + something that is not what plays is not bound", set(items()) == set(before) or all(
+        "flowers" not in k or v["score"] < 0 for k, v in items().items()), str(items()))
+
+    play("stopped")
+    rt.say("what's playing?")
+    check("when it stops, nothing is playing", rt.out[-1] == "I don't see anything playing.", rt.out[-1])
+
+    play("started", player="Spotify", kind="music", title="Song X", artist="", item="Song X")
+    rt.t[0] += 3
+    rt.submit(SensorEvent(source="microphone", modality=Modality.TEXT, text="what's playing?", addressed=True,
+                          salience=0.9, urgency=0.6, meta={"guest": True}))
+    rt._tick()
+    check("a guest's voice is not told what you are playing", not rt.out[-1].startswith("That's"), rt.out[-1])
+
+
 if __name__ == "__main__":
     t1_reading()
     t2_keeping()
@@ -377,5 +443,6 @@ if __name__ == "__main__":
     t5_undo_forget()
     t6_runtime()
     t7_manual_and_control()
+    t8_this_song()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

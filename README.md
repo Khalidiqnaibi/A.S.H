@@ -880,6 +880,13 @@ the journal.
   `NowPlayingSensor(audible=...)` takes a function returning the pids that are
   making sound, for a platform that can say.
 
+What is playing can be asked and talked about: "what's playing?" / "what song
+is this?" is answered from the player (never for a guest's voice, never by the
+model), and while something plays, "I love this song" / "I can't stand this" /
+"this is amazing" is kept as that song, said (so it stands over what was seen),
+and "do I like this?" answers for it. "This" means the song only while one is
+on; with nothing playing, or with "this place", nothing is guessed. `tst_taste.py` T8.
+
 Settings: `sensors.now_playing` (`enabled`, `interval`, `skip_below_s`) and
 `taste.from_playing`, `listen_s`, `watch_s`. The manual in core memory has a
 `playing` entry.

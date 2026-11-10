@@ -145,13 +145,12 @@ ENTRIES: List[Tuple[str, int, str]] = [
      "only to suggest what to watch, listen to or eat. Learned from what is said and, more weakly, from what you "
      "play (see the playing entry). A guest's voice never adds to it."),
     ("playing", 4,
-     "ASH manual, what is playing. ASH notices what song or video is playing from the titles of player windows: "
-     "Spotify, a YouTube, Netflix or SoundCloud tab, VLC, mpv, foobar2000. It reads only those windows, never the "
-     "screen or the sound. A song heard to the end counts a little for it, a replay more, one skipped within thirty "
-     "seconds counts against it; three listens make it something you like. What you said always stands. Limits: a "
-     "title says what is open, not that it is audible, so a paused browser tab looks playing (Spotify goes back to "
-     "its plain name when paused); a browser shows only its front tab; Stremio has no title; a guest's music counts "
-     "as yours. sensors.now_playing and taste.from_playing in daemon.json turn it off."),
+     "ASH manual, what is playing. ASH sees what song or video is on from player window titles only (Spotify, a "
+     "YouTube, Netflix or SoundCloud tab, VLC, mpv, foobar2000), never the screen or sound. Played to the end counts "
+     "a little for it, skipped within thirty seconds against it; what you said always stands. \"What's playing?\" "
+     "tells you; \"I love this song\" or \"I can't stand this\" keeps that song; \"do I like this?\" answers. "
+     "Limits: a title says what is open, not that it is audible, so a paused tab looks playing; a browser shows its front tab only; Stremio has no "
+     "title; a guest's music counts as yours. sensors.now_playing turns it off."),
     ("screen", 5,
      "ASH manual, the screen. With screen capture on, ASH knows which window is focused and what it is called (the file "
      "or page, the project, the app). \"What do you see?\" or \"what's on my screen?\" makes it look at that window, say "

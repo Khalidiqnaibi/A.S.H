@@ -179,6 +179,13 @@ _KIND_WORDS: List[Tuple[str, "re.Pattern"]] = [(k, re.compile(p, re.I)) for k, p
 )]
 _GERUND = re.compile(r"^(?:[a-z]+ing)\b", re.I)
 
+# "I love this song" / "this is awful" said while something plays: "this" is that. Only "this" -- "that"
+# is too often something just said. The sentinel goes through the normal reader as a one-word name.
+_THIS = re.compile(r"\bthis(?:\s+(?:song|track|tune|one|album|show|video|episode|movie|film|series|artist|band|"
+                   r"playlist|stream|music))?(?=\s*(?:[.!?,;]|$)|\s+(?:so|a|because|but|when|while|too|right|much|lot|"
+                   r"really|and|is|was)\b)", re.I)
+_SENTINEL = "Zqthisitem"
+
 
 def _title_item(item: str) -> str:
     """Keep the way it was said, but tidy a shouted or all-lower phrase."""
@@ -485,7 +492,8 @@ class Taste:
 
     # -- listening ----------------------------------------------------------
     def observe(self, text: str, source: str = "console", now: Optional[float] = None,
-                people: Iterable[str] = (), guest: bool = False) -> List[str]:
+                people: Iterable[str] = (), guest: bool = False,
+                playing: Optional[Dict[str, Any]] = None) -> List[str]:
         """Learn the tastes a message states. Returns what was learned, as
         sentences ("The user loves Interstellar."), like wondering does."""
         now = self.clock() if now is None else now
@@ -496,7 +504,13 @@ class Taste:
         self.last = []
         for sent in re.split(r"(?<=[.!?])\s+|\n+", str(text)):
             self.stats["heard"] += 1
-            for f in read(sent):
+            bound = bool(playing and playing.get("item") and _THIS.search(sent))
+            for f in read(_THIS.sub(_SENTINEL, sent, count=1) if bound else sent):
+                if bound and f.item.lower() == _SENTINEL.lower():
+                    f.item = str(playing["item"])
+                    f.kind = "music" if playing.get("kind") == "music" else str(playing.get("kind") or f.kind)
+                elif bound and _SENTINEL.lower() in f.item.lower():
+                    continue
                 who = self._subject(f, people)
                 if who is None:
                     self.stats["ignored"] += 1
@@ -774,7 +788,13 @@ class Taste:
             return {"who": d.get("who") or "", "pol": str(pol), "kind": kind, "obj": (d.get("obj") or "").strip()}
         return None
 
-    def answer(self, text: str, people: Iterable[str] = ()) -> Optional[str]:
+    def feeling(self, item: str) -> float:
+        """How the user feels about an item: -1..1, 0 if the profile has nothing."""
+        with self.kb._lock:
+            e = ((self.kb.tastes.get(self.user_key) or {}).get("items") or {}).get(norm(item))
+            return float(e.get("score", 0.0)) if e else 0.0
+
+    def answer(self, text: str, people: Iterable[str] = (), playing: Optional[Dict[str, Any]] = None) -> Optional[str]:
         q = self.wants(text)
         if q is None or not self.cfg.enabled:
             return None
@@ -782,6 +802,8 @@ class Taste:
         if q.get("occ"):
             return self._during(q["occ"], kind)
         if q["obj"]:
+            if playing and playing.get("item") and re.match(r"^(?:this|this\s+\w+|it)$", q["obj"].strip(), re.I):
+                return self._do_i_like(str(playing["item"]), pol)
             return self._do_i_like(q["obj"], pol)
         who = q["who"]
         key = self.find(who) if who else self.user_key

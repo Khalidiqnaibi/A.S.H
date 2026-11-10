@@ -444,6 +444,8 @@ class AmbientRuntime:
         self.taste: Optional[Taste] = None
         # What the user is doing, so a play can be linked to it ("while coding").
         self.occasion = Occasion(clock=lambda: self.clock())
+        # What the now-playing sensor last reported as on (None: nothing), so "this song" means something.
+        self._playing: Optional[Dict[str, Any]] = None
         if self.cfg.taste and self.wonder is not None:
             self.taste = Taste(self.wonder.kb, user=str(getattr(self.brain, "user", "") or ""),
                                cfg=TasteConfig.from_dict(self.cfg.taste_cfg),
@@ -1664,12 +1666,47 @@ class AmbientRuntime:
         if t is None or not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
             return False
         try:
-            say = t.answer(str(getattr(ev, "text", "") or ""), self._recent_people(now))
+            say = t.answer(str(getattr(ev, "text", "") or ""), self._recent_people(now), playing=self._playing)
         except Exception:
             logger.exception("Taste question failed")
             return False
         if not say:
             return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
+    def _track_playing(self, ev) -> None:
+        """Remember what the now-playing sensor says is on, until it says it stopped."""
+        m = getattr(ev, "meta", None) or {}
+        if m.get("event") == "stopped":
+            self._playing = None
+        elif m.get("item"):
+            self._playing = {"item": str(m["item"]), "title": str(m.get("title") or ""), "artist": str(m.get("artist") or ""),
+                             "kind": str(m.get("kind") or ""), "player": str(m.get("player") or "")}
+
+    _WHATS_PLAYING = re.compile(
+        r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:so\s+)?(?:what(?:'s|\s+is|\s+song\s+is|\s+track\s+is)?\s+(?:this\s+)?(?:song|track|tune|"
+        r"music|video|show)?\s*(?:that'?s\s+)?(?:playing|on)(?:\s+right\s+now|\s+now)?|what\s+(?:song|track|tune|video|show)\s+"
+        r"(?:is\s+)?(?:this|playing|on)|what\s+(?:am\s+i|are\s+we)\s+(?:listening\s+to|watching)|what(?:'s|\s+is)\s+this\s+"
+        r"(?:song|track|tune|video|show)|who(?:'s|\s+is)\s+(?:this|singing|playing)|who\s+sings\s+this)\s*\??\W*$", re.I)
+
+    def _playing_request(self, ev, now: float) -> bool:
+        """"What's playing?", "what song is this?": from the player window the sensor last saw, no model."""
+        if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        if not self._WHATS_PLAYING.match(str(getattr(ev, "text", "") or "").strip()):
+            return False
+        p = self._playing
+        if not p:
+            say = "I don't see anything playing."
+        else:
+            on = f" on {p['player']}" if p.get("player") else ""
+            say = f"That's {p['title']} by {p['artist']}{on}." if p.get("artist") else f"That's {p['title'] or p['item']}{on}."
+            fe = self.taste.feeling(p["item"]) if self.taste is not None else 0.0
+            if fe >= 0.3:
+                say += " You like it."
+            elif fe <= -0.3:
+                say += " You don't like it, as I remember."
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
 
@@ -1841,7 +1878,7 @@ class AmbientRuntime:
                 rep.learned = w.observe(text, ev.source, now).learned
                 if self.taste is not None:
                     rep.learned = list(rep.learned) + self.taste.observe(
-                        text, ev.source, now, people=self._recent_people(now))
+                        text, ev.source, now, people=self._recent_people(now), playing=self._playing)
             if rep.learned:
                 self.undo.push(_as_you(rep.learned[0]), restorer(w.kb, snap, ents, before), now)
             self._wonder_learn(rep.learned)
@@ -1933,6 +1970,7 @@ class AmbientRuntime:
         if self.flow is not None:
             self.flow.observe(ev, now)
         if getattr(ev, "source", "") == "now_playing":
+            self._track_playing(ev)
             self._played(ev, now)
         elif getattr(ev, "source", "") == "active_window":
             m = getattr(ev, "meta", None) or {}
@@ -2005,6 +2043,8 @@ class AmbientRuntime:
         if self._remember_request(ev, now):
             return
         if self._identity_request(ev, now):
+            return
+        if self._playing_request(ev, now):
             return
         if self._taste_request(ev, now):
             return
