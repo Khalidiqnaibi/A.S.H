@@ -65,7 +65,50 @@ def t1():
     check("off on a bare runtime", "lock up" not in bare.out[-1] or True)
 
 
+def t2():
+    print("\n=== T2. Clipboard, on request only ===")
+    from src.daemon import clipboard as C
+    P = C.parse
+    check("read", P("what's on my clipboard") == ("read", "") and P("read my clipboard") == ("read", "") and P("what did I copy?") == ("read", ""))
+    check("ask", P("summarize my clipboard")[0] == "ask" and P("translate what I copied to french")[0] == "ask", str(P("translate what I copied to french")))
+    check("copy", P("copy that") == ("copy", "") and P("put your answer on my clipboard") == ("copy", ""))
+    check("clear", P("clear my clipboard") == ("clear", ""))
+    check("ordinary talk is not touched", all(P(x) is None for x in
+          ["summarize the news", "copy the file to my desktop", "what's on my calendar", "explain recursion", "clipboard"]))
+    box = {"v": "Meeting moved to 3pm, bring the slides.", "w": None}
+
+    def wr(t):
+        box["w"] = t
+        box["v"] = t
+        return True
+    cb = C.Clipboard(lambda: box["v"], wr)
+    check("reads it out", cb.say_contents() == "Your clipboard says: Meeting moved to 3pm, bring the slides.")
+    box["v"] = "word " * 200
+    check("a long one is cut", "characters in all" in cb.say_contents() and len(cb.say_contents()) < 300)
+    for secret in ("password: hunter2", "sk-abcdefghijklmnopqrstuv1234", "A" * 40, "-----BEGIN RSA PRIVATE KEY-----"):
+        box["v"] = secret
+        check("secret never read: " + secret[:12], "won't" in cb.say_contents() and cb.for_model()[0] == "")
+    box["v"] = ""
+    check("empty", cb.say_contents() == "Your clipboard is empty.")
+
+    box["v"] = "Meeting moved to 3pm."
+    rt = te.rig(clipboard=True, clipboard_io=(lambda: box["v"], wr))
+    rt.say("ash what's on my clipboard")
+    check("through the runtime", "Meeting moved to 3pm." in rt.out[-1], rt.out[-1])
+    check("no model for a read", not rt.ash.calls, str(rt.ash.calls))
+    rt.say("ash summarize my clipboard")
+    check("the model gets the question", rt.ash.calls and "summarize" in rt.ash.calls[-1].lower(), str(rt.ash.calls))
+    rt.say("ash copy that")
+    check("copy that copies the last thing said", box["w"] == "Sure.", str(box["w"]))
+    rt.say("ash copy that")
+    check("twice still copies the answer, not 'Copied.'", box["w"] == "Sure.", str(box["w"]))
+    off = te.rig()
+    off.say("ash what's on my clipboard")
+    check("off on a bare runtime: goes to the model as before", off.out[-1] == "Sure.", str(off.out))
+
+
 if __name__ == "__main__":
     t1()
+    t2()
     print("\nALL OK" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

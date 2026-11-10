@@ -347,6 +347,7 @@ def main() -> int:
                 rituals=bool(cfg.get("rituals", {}).get("enabled", True)) if isinstance(cfg.get("rituals", {}), dict) else True,
                 personas=bool(cfg.get("personas", {}).get("enabled", True)) if isinstance(cfg.get("personas", {}), dict) else True,
                 scenes=bool(cfg.get("scenes", {}).get("enabled", True)) if isinstance(cfg.get("scenes", {}), dict) else True,
+                clipboard=bool((cfg.get("clipboard") or {}).get("enabled", False)) if isinstance(cfg.get("clipboard"), dict) else False,
                 arrivals=bool(cfg.get("arrivals", {}).get("enabled", True)) if isinstance(cfg.get("arrivals", {}), dict) else True,
                 arrivals_path=os.path.join(os.getcwd(), "state", "arrivals.json"),
                 arrivals_home=str((cfg.get("arrivals") or {}).get("home", "")) if isinstance(cfg.get("arrivals", {}), dict) else "",
