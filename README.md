@@ -839,12 +839,50 @@ about them. Now what you say about taste is kept, per person:
 - **Used** only when the question is about choosing something -- "what should I
   watch tonight?", "recommend some music" -- as background the model is told
   not to read back. Never for a guest's voice, which also never writes to it.
-- **Not yet**: nothing is learned from the screen or from what is played; those
-  are weaker evidence than being told, and will arrive as their own sources.
+- **Also from what is played** (below), as a weaker source: it never overrides
+  what you said.
 
 `ashctl.py profile` shows it, `ashctl.py profile forget [name]` clears one
 person's or everyone's. Settings under `taste` in `daemon.json`: `enabled`,
-`learn_from_others`, `mirror`, `in_answers`.
+`learn_from_others`, `mirror`, `in_answers`, `from_playing`, `listen_s`, `watch_s`.
+
+## What is playing (a song or a video, from window titles)
+
+`src/senses/nowplaying.py`; `tst_nowplaying.py`. A player puts what it is
+playing in its window title, so ASH reads the titles of the windows that are
+open -- and only of known players: Spotify ("Artist - Song"), a YouTube,
+YouTube Music, Netflix, Disney+, Crunchyroll, Twitch or SoundCloud tab in
+Chrome, Edge, Firefox, Brave, Opera or Vivaldi, VLC, mpv, foobar2000,
+MusicBee. Every other title is dropped on the spot. Nothing on the screen is
+read and no sound is heard; a window on your blocked list, or a private one,
+is not reported. It looks every 5 seconds (about 30 ms) and says nothing
+unless something starts, changes or stops. Those events are never written to
+the journal.
+
+- **Each play is followed from start to finish**, one slot per player, so a
+  song and a show at the same time are two plays. A change has to be seen
+  twice (titles flicker); a pause shorter than 12 seconds is not a stop; a
+  pause and a resume of the same song is one listen, not two fragments.
+- **What it says about taste** (`Taste.watch`): a song heard for 90 seconds or
+  more counts +0.10 for it (the artist gets half), one replaced within 30
+  seconds counts -0.20 against it (the artist is not blamed), a stop is never
+  a skip, a show or video watched for 10 minutes counts +0.10, a show dropped
+  under two minutes counts against it, and hopping between videos counts
+  for nothing. Three listens make a song something you like; two skips,
+  something you don't. Behaviour never goes past +/-0.60 ("likes", never
+  "loves") and never changes what you said yourself. When a song first
+  makes it into the profile that is an undo step ("undo that").
+- **Limits, stated in the manual too**: a title says what is *open*, not that
+  it is making sound, so a paused browser tab looks like a playing one (Spotify
+  is the exception: it goes back to its plain name when paused); a browser
+  window shows only its front tab; Stremio keeps a blank title, so it is not
+  seen; and ASH cannot tell whose music it is, so a guest's counts as yours.
+  `NowPlayingSensor(audible=...)` takes a function returning the pids that are
+  making sound, for a platform that can say.
+
+Settings: `sensors.now_playing` (`enabled`, `interval`, `skip_below_s`) and
+`taste.from_playing`, `listen_s`, `watch_s`. The manual in core memory has a
+`playing` entry.
 
 ## Where a sentence goes (and the test that pins it)
 

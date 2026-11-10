@@ -73,6 +73,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "sensors": {
         # Cheap and non-invasive: on.
         "active_window": {"enabled": True, "interval": 3.0},
+        # What song or video is playing, from the titles of player windows
+        # (Spotify, a YouTube tab, VLC...). Only known players are looked at.
+        # taste.from_playing decides whether it teaches ASH what you like.
+        "now_playing": {"enabled": True, "interval": 5.0, "skip_below_s": 30.0},
         "idle": {"enabled": True, "interval": 10.0},
         "system": {"enabled": True, "interval": 30.0},
         # Invasive: off until the user says otherwise.
@@ -208,6 +212,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "learn_from_others": True,   # "Ali likes jazz", on the user's word
         "mirror": True,              # a short likes/dislikes on the person's entity
         "in_answers": True,          # background for "what should I watch?"
+        # What is played, from the now_playing sensor: a song heard to the end
+        # counts a little for it, one skipped counts against it, a favourite
+        # builds up over plays. Weaker than being told, and never overrides it.
+        "from_playing": True,
+        "listen_s": 90.0,            # a song this long counts as listened to
+        "watch_s": 600.0,            # a video or an episode this long counts as watched
     },
     # Follow-ups: "my interview is on Thursday" is remembered, and once it is
     # over ASH asks how it went, at a free moment, once. Meetings and calls are

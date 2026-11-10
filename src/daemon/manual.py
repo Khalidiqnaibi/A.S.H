@@ -142,8 +142,16 @@ ENTRIES: List[Tuple[str, int, str]] = [
      "(he/she is whoever you just mentioned). Ask \"what do I like?\", \"what do I hate?\", \"what music do I like?\", "
      "\"what does Ali like?\", \"do I like jazz?\": answered from what you said, never guessed. Saying the opposite later "
      "replaces it. \"Undo that\" reverses the last one; \"forget Interstellar\" or \"forget Ali\" removes it. It is used "
-     "only to suggest what to watch, listen to or eat. Only from what is said: it does not yet learn tastes from the "
-     "screen or from what you play, and a guest's voice never adds to it."),
+     "only to suggest what to watch, listen to or eat. Learned from what is said and, more weakly, from what you "
+     "play (see the playing entry). A guest's voice never adds to it."),
+    ("playing", 4,
+     "ASH manual, what is playing. ASH notices what song or video is playing from the titles of player windows: "
+     "Spotify, a YouTube, Netflix or SoundCloud tab, VLC, mpv, foobar2000. It reads only those windows, never the "
+     "screen or the sound. A song heard to the end counts a little for it, a replay more, one skipped within thirty "
+     "seconds counts against it; three listens make it something you like. What you said always stands. Limits: a "
+     "title says what is open, not that it is audible, so a paused browser tab looks playing (Spotify goes back to "
+     "its plain name when paused); a browser shows only its front tab; Stremio has no title; a guest's music counts "
+     "as yours. sensors.now_playing and taste.from_playing in daemon.json turn it off."),
     ("screen", 5,
      "ASH manual, the screen. With screen capture on, ASH knows which window is focused and what it is called (the file "
      "or page, the project, the app). \"What do you see?\" or \"what's on my screen?\" makes it look at that window, say "

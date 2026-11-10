@@ -18,10 +18,10 @@ conversation. This keeps them, the way the rest of what ASH is told is kept:
     * handed to the model, as background, only when the question is about
       choosing something -- what to watch, listen to, eat.
 
-What it does not do, deliberately, yet: infer anything from the screen or from
-what is played. Those are weaker evidence than a person saying so, and they
-arrive as their own sources with their own weight (`by`), so they can be added
-without changing what is stored here.
+Behaviour is a second, weaker source: what the now-playing sensor
+(senses/nowplaying.py) sees played to the end, replayed or skipped moves a
+score in small steps (`watch()`), capped below "love" and never overriding what
+the person said. Nothing is learned from the pixels of the screen.
 
 A taste is {item, kind, score, n, by, when}. `score` runs from -1 (hates) to 1
 (loves). Saying it again strengthens it; saying the opposite replaces it,
@@ -32,6 +32,7 @@ he's sad" is kept as exactly that.
 
 from __future__ import annotations
 
+import copy
 import logging
 import re
 import threading
@@ -54,6 +55,9 @@ class TasteConfig:
     learn_from_others: bool = True      # "Ali likes jazz" -- on the user's word
     mirror: bool = True                 # short likes/dislikes on the entity
     in_answers: bool = True             # background for choosing something
+    from_playing: bool = True           # what is played, finished or skipped (senses/nowplaying.py)
+    listen_s: float = 90.0              # a song played this long counts as listened to
+    watch_s: float = 600.0              # a video or episode watched this long counts as watched
     max_items_per_subject: int = 200
     like_at: float = 0.30               # |score| below this is not worth saying
     strong_at: float = 0.75             # "love" and "hate", not "like"
@@ -413,6 +417,7 @@ class Taste:
         self.scrub = scrub
         self.stats = {"heard": 0, "learned": 0, "ignored": 0}
         self.last: List[Tuple[str, str]] = []           # (subject key, item key) of the last learning
+        self.last_undo: Optional[Callable[[], None]] = None   # reverses the last watch() that said something
 
     # -- who ---------------------------------------------------------------
     @property
@@ -525,6 +530,86 @@ class Taste:
         self.stats["learned"] += 1
         self.last.append((key, ik))
         return self.sentence(name, is_user, cur)
+
+    # -- what is played ------------------------------------------------------------
+    def watch(self, meta: Dict[str, Any], now: Optional[float] = None) -> List[str]:
+        """Learn from what the now-playing sensor reports has just finished.
+
+        Behaviour is weaker evidence than being told, so it moves a score in
+        small steps (a listen to the end +0.10, a skip -0.20), never past
+        +/-0.60 ("likes", not "loves"), and never changes what the person said
+        themselves. Three listens make a song something they like; two skips,
+        something they don't. Returns a sentence only when an item first
+        crosses into the profile, so a play is not an announcement.
+        """
+        now = self.clock() if now is None else now
+        cfg = self.cfg
+        if not (cfg.enabled and cfg.from_playing) or not isinstance(meta, dict) or not meta.get("finished"):
+            return []
+        kind, secs = str(meta.get("finished_kind") or ""), float(meta.get("finished_s") or 0)
+        title, artist = str(meta.get("finished_title") or ""), str(meta.get("finished_artist") or "")
+        skipped = bool(meta.get("finished_skip"))
+        changed = meta.get("finished_how") == "changed"
+        if kind == "music":
+            delta = -0.20 if skipped else (0.10 if secs >= cfg.listen_s else 0.0)
+        elif kind in ("show", "media"):
+            delta = -0.15 if changed and secs < 120 else (0.10 if secs >= cfg.watch_s else 0.0)
+        elif kind in ("video", "stream"):
+            delta = 0.10 if secs >= cfg.watch_s else 0.0         # hopping between videos says nothing
+        else:
+            delta = 0.0
+        if not delta or not title:
+            return []
+        by = "action" if delta < 0 else "habit"
+        item = f"{title} by {artist}" if artist else title
+        rows = [(item, "music" if kind == "music" else kind, delta)]
+        if artist and delta > 0:
+            rows.append((artist, "music", delta / 2))             # the artist gets half the credit, never the blame
+        key = self.user_key
+        sentences: List[str] = []
+        undo: List[Tuple[str, Optional[Dict[str, Any]]]] = []
+        with self.kb._lock:
+            subj = self.kb.tastes.setdefault(key, {"name": self.user or "you", "user": True, "items": {}})
+            subj["user"] = True
+            items = subj.setdefault("items", {})
+            for name, k, d in rows:
+                ik = norm(name)
+                if not ik:
+                    continue
+                cur = items.get(ik)
+                undo.append((ik, copy.deepcopy(cur)))
+                before = float(cur.get("score", 0.0)) if cur else 0.0
+                if cur is None:
+                    if len(items) >= cfg.max_items_per_subject:
+                        worst = min(items, key=lambda x: (abs(items[x].get("score", 0)), items[x].get("last", 0)))
+                        del items[worst]
+                    cur = items[ik] = {"item": name, "kind": k, "score": 0.0, "n": 0, "first": now, "last": now,
+                                       "by": by, "flips": 0, "when": {}}
+                cur["n"] = int(cur.get("n", 0)) + 1
+                cur["last"] = now
+                if cur.get("by") not in ("said", "opinion"):         # their own word stands
+                    cur["score"] = round(max(-0.6, min(0.6, before + d)), 3)
+                    cur["by"] = by if abs(cur["score"]) >= abs(before) else cur.get("by", by)
+                now_score = float(cur["score"])
+                if abs(before) < cfg.like_at <= abs(now_score):
+                    sentences.append(self.sentence(self.user or "you", True, cur))
+            self.kb.save()
+        self.stats["played"] = self.stats.get("played", 0) + 1
+
+        def revert(undo=undo, key=key):
+            with self.kb._lock:
+                its = (self.kb.tastes.get(key) or {}).get("items", {})
+                for ik, old in undo:
+                    if old is None:
+                        its.pop(ik, None)
+                    else:
+                        its[ik] = old
+                self.kb.save()
+            self._mirror({key})
+        self.last_undo = revert if sentences else None
+        if sentences:
+            self._mirror({key})
+        return sentences
 
     # -- saying ---------------------------------------------------------------
     @staticmethod

@@ -14,6 +14,7 @@ from .base import (
     Capability, Modality, State,
 )
 from .screen import ActiveWindowSensor, ScreenshotSensor, IdleSensor
+from .nowplaying import NowPlayingSensor
 from .devices import CameraSensor, SystemSensor, SerialSensor
 from .actuators import (
     NotifyActuator, SpeakActuator, LaunchActuator, InputActuator,
@@ -23,7 +24,7 @@ from .actuators import (
 __all__ = [
     "PERIPHERY", "PeripheryRegistry", "Sensor", "Actuator", "SensorEvent",
     "Capability", "Modality", "State",
-    "ActiveWindowSensor", "ScreenshotSensor", "IdleSensor",
+    "ActiveWindowSensor", "ScreenshotSensor", "IdleSensor", "NowPlayingSensor",
     "CameraSensor", "SystemSensor", "SerialSensor",
     "NotifyActuator", "SpeakActuator", "LaunchActuator", "InputActuator",
     "ClipboardActuator", "MotorActuator", "ShellActuator",
@@ -55,6 +56,14 @@ def build_periphery(config: dict, tts_engine=None, registry=None) -> PeripheryRe
         use_default_blocklist=priv.get("use_default_blocklist", True),
     )
     reg.add_sensor(window)
+
+    np_cfg = s.get("now_playing", {})
+    reg.add_sensor(NowPlayingSensor(
+        interval=np_cfg.get("interval", 5.0),
+        enabled=np_cfg.get("enabled", True),
+        window_sensor=window,
+        skip_below_s=np_cfg.get("skip_below_s", 30.0),
+    ))
 
     idle_cfg = s.get("idle", {})
     reg.add_sensor(IdleSensor(interval=idle_cfg.get("interval", 10.0),

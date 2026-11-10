@@ -343,7 +343,8 @@ def t7_manual_and_control():
     ids = {e[0]: e[2] for e in manual.ENTRIES}
     check("the manual has likes and dislikes, with the phrases that work",
           "taste" in ids and all(p in ids["taste"] for p in ("what do I like", "forget Interstellar", "Undo that")))
-    check("...and says what it does not do", "does not yet learn tastes from the screen" in ids["taste"])
+    check("...and says what it learns from, and that a guest never adds", "more weakly, from what you play" in ids["taste"]
+          and "guest" in ids["taste"])
     check("the screen and what-you-do entries exist", "screen" in ids and "activity" in ids)
     check("the default config has the section, on", DEFAULT_CONFIG["taste"]["enabled"] is True)
 

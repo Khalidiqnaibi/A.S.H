@@ -1848,6 +1848,21 @@ class AmbientRuntime:
             logger.exception("Wondering failed on an utterance")
             return None
 
+    def _played(self, ev, now: float):
+        """A play has ended (finished, replaced or stopped): what it says about
+        what the user likes goes to the profile, the same one what they say
+        goes to. Not an utterance, so it never reaches wondering or the model."""
+        if self.taste is None:
+            return
+        try:
+            said = self.taste.watch(getattr(ev, "meta", None) or {}, now)
+            if said:
+                self._wonder_learn(said)
+                if self.taste.last_undo is not None:
+                    self.undo.push(_as_you(said[0]), self.taste.last_undo, now)
+        except Exception:
+            logger.exception("Taste failed on what was played")
+
     def _wonder_reaction(self, rep, now: float):
         """The user's reply to a question is a reaction to it. An addressed
         reply was already read by the reaction tracker; one heard without
@@ -1909,6 +1924,8 @@ class AmbientRuntime:
         guest = bool((getattr(ev, "meta", None) or {}).get("guest"))
         if self.flow is not None:
             self.flow.observe(ev, now)
+        if getattr(ev, "source", "") == "now_playing":
+            self._played(ev, now)
         if self.activity is not None:
             try:
                 self.activity.observe(ev, now)
