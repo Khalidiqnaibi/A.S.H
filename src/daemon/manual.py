@@ -30,7 +30,7 @@ ENTRIES: List[Tuple[str, int, str]] = [
      "ASH manual, overview. ASH can: set reminders, timers and alarms; remind you when you get home; watch things and "
      "tell you when they happen; open, switch to and close apps; control music; do several steps after you approve a "
      "plan; keep scenes, quiet time and focus mode; answer short who/what facts from Wikipedia; read your calendar, "
-     "weather and mail when set up; remember people and what you tell it; play games and tell stories; read or copy "
+     "weather and mail when set up; remember people, what you tell it and what you like; play games and tell stories; read or copy "
      "your clipboard when asked; show a face and clock. ASH cannot browse the web, send email or messages, make calls, "
      "buy things or see your location. Ask \"what can you do?\" for what is switched on right now."),
     ("reminders", 5,
@@ -136,6 +136,25 @@ ENTRIES: List[Tuple[str, int, str]] = [
      "language model words the rest. If a small second model is set (llm.light_model in daemon.json, or "
      "ASH_OLLAMA_LIGHT_MODEL), small talk like hello, thanks, how are you gets the small model for a faster reply, and "
      "questions, tasks, pictures and pretend play get the main one. Neither can browse the web."),
+    ("taste", 5,
+     "ASH manual, likes and dislikes. Say \"I love Interstellar\", \"I can't stand horror films\", \"my favourite band is "
+     "Radiohead\", \"I listen to lo-fi when I'm coding\", or about someone else, \"Ali likes jazz\", \"he hates cilantro\" "
+     "(he/she is whoever you just mentioned). Ask \"what do I like?\", \"what do I hate?\", \"what music do I like?\", "
+     "\"what does Ali like?\", \"do I like jazz?\": answered from what you said, never guessed. Saying the opposite later "
+     "replaces it. \"Undo that\" reverses the last one; \"forget Interstellar\" or \"forget Ali\" removes it. It is used "
+     "only to suggest what to watch, listen to or eat. Only from what is said: it does not yet learn tastes from the "
+     "screen or from what you play, and a guest's voice never adds to it."),
+    ("screen", 5,
+     "ASH manual, the screen. With screen capture on, ASH knows which window is focused and what it is called (the file "
+     "or page, the project, the app). \"What do you see?\" or \"what's on my screen?\" makes it look at that window, say "
+     "what kind of screen it is and read out the gist of the words. It never looks at its own window or terminal, at "
+     "windows on its blocked list, or at chats and mail (those protections are switched off for you in daemon.json "
+     "under privacy, not for others). It cannot click or type in what it sees."),
+    ("activity", 4,
+     "ASH manual, what you do. ASH keeps one short sentence for each real stretch of work (\"spent 12 minutes on brain.py "
+     "in A.S.H\"), keeps topics that connect to something it already knows, and at a free moment may ask what one of "
+     "them is. It uses window titles and a few keywords, never the text on screen. \"What was I doing this morning?\" "
+     "is answered from it. activity.enabled in daemon.json turns it off; ashctl activity shows it."),
     ("limits", 7,
      "ASH manual, what ASH cannot do. It cannot browse the web or open links, send email, texts or chat messages, make "
      "calls, buy or order anything, know your location, control other people's devices, or see the screen unless "

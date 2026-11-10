@@ -57,7 +57,8 @@ def m2():
     lim = [t for i, _p, t in manual.ENTRIES if i == "limits"][0]
     check("the limits say no email, calls, buying", all(w in lim for w in ("send email", "make calls", "buy")))
     areas = ["reminders", "home", "watch", "apps", "music", "plans", "quiet", "scenes", "pretend", "greetings", "facts", "memory",
-             "face", "privacy", "clipboard", "info", "games", "care", "routines", "explain", "limits", "overview"]
+             "face", "privacy", "clipboard", "info", "games", "care", "routines", "explain", "limits", "overview",
+             "taste", "screen", "activity"]
     check("every area is covered", all(a in ids for a in areas), str([a for a in areas if a not in ids]))
 
 
@@ -90,6 +91,14 @@ def m3():
     for ph in ("what's on my clipboard", "summarize my clipboard", "copy that", "clear my clipboard"):
         check("clipboard: " + ph, clipboard.parse(ph) is not None, ph)
     check("rituals: good morning / good night", rituals.kind_of("good morning") == "morning" and rituals.kind_of("good night") == "night")
+    from src.daemon.taste import Taste, read as read_taste
+    from src.daemon.wondering import Knowledge
+    tk = Taste(Knowledge(None), user="Khalid")
+    for ph in ("what do I like?", "what do I hate?", "what music do I like?", "what does Ali like?", "do I like jazz?"):
+        check("taste: " + ph, tk.wants(ph) is not None, ph)
+    for ph in ("I love Interstellar", "I can't stand horror films", "my favourite band is Radiohead",
+               "I listen to lo-fi when I'm coding", "Ali likes jazz", "he hates cilantro"):
+        check("taste: " + ph, bool(read_taste(ph)), ph)
     from src.daemon import focus, voicectl, forget
     check("focus phrases", focus.parse("focus for 45 minutes", now) is not None if hasattr(focus, "parse") else True)
 

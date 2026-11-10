@@ -470,6 +470,11 @@ class Knowledge:
         self.facts: Dict[str, str] = {}
         self.aliases: Dict[str, str] = {}               # bare name -> full name chosen
         self.procedures: Dict[str, Dict[str, Any]] = {}  # norm name -> {name, steps}
+        # What people like and dislike, said or seen (taste.py): norm subject ->
+        # {name, user, items{norm item -> {item, kind, score, ...}}}. Held here,
+        # not in a file of its own, so it is saved, snapshotted for undo,
+        # forgotten and mirrored into entity memory by the same code as the rest.
+        self.tastes: Dict[str, Dict[str, Any]] = {}
         self._load()
 
     # -- persistence ---------------------------------------------------
@@ -485,6 +490,7 @@ class Knowledge:
             self.facts = dict(raw.get("facts") or {})
             self.aliases = dict(raw.get("aliases") or {})
             self.procedures = dict(raw.get("procedures") or {})
+            self.tastes = dict(raw.get("tastes") or {})
         except Exception:
             logger.exception("Knowledge file unreadable; starting empty")
             _quarantine(self.path)
@@ -494,7 +500,7 @@ class Knowledge:
             return
         _atomic_write(self.path, {"people": self.people, "roles": self.roles, "terms": self.terms,
                                   "facts": self.facts, "aliases": self.aliases,
-                                  "procedures": self.procedures})
+                                  "procedures": self.procedures, "tastes": self.tastes})
 
     # -- entity memory as a source ----------------------------------------
     def _entity_people(self) -> List[Any]:
@@ -690,7 +696,8 @@ class Knowledge:
         with self._lock:
             return {"people": len(self.people), "roles": len(self.roles),
                     "terms": len(self.terms), "facts": len(self.facts),
-                    "procedures": len(self.procedures)}
+                    "procedures": len(self.procedures),
+                    "tastes": sum(len(t.get("items") or {}) for t in self.tastes.values())}
 
 
 def _atomic_write(path: str, obj: Any):

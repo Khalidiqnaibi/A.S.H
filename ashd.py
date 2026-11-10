@@ -313,6 +313,8 @@ def main() -> int:
                 activity=bool(cfg.get("activity", {}).get("enabled", True)),
                 activity_cfg=cfg.get("activity", {}),
                 activity_path=os.path.join(os.getcwd(), "state", "activity", "topics.json"),
+                taste=bool(cfg.get("taste", {}).get("enabled", True)),
+                taste_cfg=cfg.get("taste", {}),
                 corrections=bool(cfg.get("corrections", {}).get("enabled", True)),
                 remarks_dir=(os.path.join(os.getcwd(), "state", "remarks")
                              if cfg.get("remarks", {}).get("enabled", True) else None),

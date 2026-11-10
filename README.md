@@ -813,6 +813,39 @@ repeated observation within 20 s isn't re-processed; `ashctl history` lists
 answered turns (add `all` for observations too); a markdown link or a
 placeholder address (`@email.com`) in a reply is dropped even if memory holds it.
 
+## Likes and dislikes (a profile, from what is said)
+
+`src/daemon/taste.py`; `tst_taste.py`. ASH knew who people were and nothing
+about them. Now what you say about taste is kept, per person:
+
+- **Learned from** "I love Interstellar", "I can't stand horror films", "my
+  favourite band is Radiohead", "I'm not a fan of country music", "Interstellar
+  is amazing", "I skipped Tenet", "I listen to lo-fi when I'm coding", and the
+  same about someone else on your word -- "Ali likes jazz", "he hates cilantro"
+  (he/she is whoever you just mentioned; with nobody mentioned it is not
+  guessed). "Love" and "hate" count for more than "like"; "kind of" for less.
+  Saying it again strengthens it, saying the opposite replaces it. The occasion
+  is kept with it ("when he's sad", "while coding") from a short list of moods
+  and activities. Questions, "if/wish/would", "I like how this works" and
+  "I like your idea" are not tastes. A capitalised word that entity memory
+  already has as an organisation ("Netflix likes...") is not a person.
+- **Where it lives**: in the knowledge store (`state/wonder/knowledge.json`,
+  `tastes`), so it is saved, undone ("undo that"), forgotten ("forget
+  Interstellar", "forget Ali") and mirrored into entity memory as a short
+  `likes` / `dislikes` on the person by the code that already does all of that.
+- **Asked back by rule**, never guessed: "what do I like?", "what do I hate?",
+  "what music do I like?", "what do I like to watch?", "what does Ali like?",
+  "do I like jazz?". "Who am I?" mentions it too.
+- **Used** only when the question is about choosing something -- "what should I
+  watch tonight?", "recommend some music" -- as background the model is told
+  not to read back. Never for a guest's voice, which also never writes to it.
+- **Not yet**: nothing is learned from the screen or from what is played; those
+  are weaker evidence than being told, and will arrive as their own sources.
+
+`ashctl.py profile` shows it, `ashctl.py profile forget [name]` clears one
+person's or everyone's. Settings under `taste` in `daemon.json`: `enabled`,
+`learn_from_others`, `mirror`, `in_answers`.
+
 ## Where a sentence goes (and the test that pins it)
 
 `tst_replay.py` runs real utterances from the real sessions through the real

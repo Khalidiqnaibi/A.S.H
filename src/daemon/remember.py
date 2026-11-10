@@ -137,6 +137,15 @@ def who_am_i(kb, user: str = "") -> str:
     for k in ("birthday", "anniversary"):
         if facts.get(k):
             bits.append(f"Your {k} is {facts[k]}.")
-    if not people and user:
+    liked = ""
+    try:
+        from .taste import Taste
+        t = Taste(kb, user)
+        liked = t.describe(t.user_key, 0, "", you=True) if t.user_key in kb.tastes else ""
+    except Exception:
+        liked = ""
+    if liked:
+        bits.append(liked)
+    if not people and not liked and user:
         bits.append("I don't know much else about you yet.")
     return " ".join(bits)

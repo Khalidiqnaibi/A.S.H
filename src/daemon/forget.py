@@ -116,7 +116,7 @@ def snapshot(kb) -> Dict[str, Any]:
     import copy
     with kb._lock:
         return copy.deepcopy({k: getattr(kb, k) for k in ("people", "roles", "terms", "facts", "aliases",
-                                                           "procedures")})
+                                                           "procedures", "tastes") if hasattr(kb, k)})
 
 
 def entity_ids(entities) -> set:
@@ -159,6 +159,7 @@ def forget_subject(name: str, kb=None, entities=None, wonderer=None, now: Option
     gone: List[str] = []
     if not n:
         return gone
+    felt: List[str] = []
     if kb is not None:
         with kb._lock:
             if n in kb.people:
@@ -179,7 +180,27 @@ def forget_subject(name: str, kb=None, entities=None, wonderer=None, now: Option
             if n in kb.procedures:
                 del kb.procedures[n]
                 gone.append("the routine")
+            tastes = getattr(kb, "tastes", None)
+            if tastes:
+                # Both ways: "forget Omar" drops what Omar likes, and
+                # "forget Interstellar" drops how anyone felt about it.
+                if n in tastes:
+                    del tastes[n]
+                    gone.append("what they like")
+                felt = []
+                for k, t in tastes.items():
+                    if n in (t.get("items") or {}):
+                        del t["items"][n]
+                        felt.append(k)
+                if felt:
+                    gone.append("how it was liked or disliked")
             kb.save()
+        if tastes and felt:
+            try:
+                from .taste import mirror
+                mirror(kb, felt)
+            except Exception:
+                logger.debug("Could not refresh tastes on entities", exc_info=True)
     if entities is not None:
         try:
             for e in list(entities.store.all()):

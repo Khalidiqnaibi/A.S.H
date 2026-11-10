@@ -52,6 +52,7 @@ from .attention import AttentionGate, Disposition
 from .journal import Journal
 from .privacy import PrivacyPolicy
 from .activity import ActivityConfig, ActivityMemory
+from .taste import Taste, TasteConfig
 from .followups import FollowUpActivity, FollowUps, FollowUpsConfig
 from .freemoment import FreeMoments, ProviderActivity, default_moments, mood_of
 from .lookup import Lookup, LookupConfig
@@ -197,6 +198,11 @@ class AmbientConfig:
     activity: bool = False
     activity_cfg: Optional[Dict[str, Any]] = None
     activity_path: Optional[str] = None      # state/activity/topics.json
+    # Taste: what the user, and the people they talk about, like and dislike,
+    # learned from what is said (taste.py) and kept in the knowledge store.
+    # Needs wonder. Off on a bare runtime; the daemon turns it on.
+    taste: bool = False
+    taste_cfg: Optional[Dict[str, Any]] = None
     # Follow-ups: an event the user mentions ("my interview on Thursday") is
     # asked about after it happened, at a free moment (followups.py). Needs
     # moments to be asked. Off on a bare runtime; the daemon turns it on.
@@ -344,7 +350,7 @@ def _as_you(sentence: str) -> str:
     s = re.sub(r"\bThe user's\b", "Your", sentence)
     s = re.sub(r"\bthe user's\b", "your", s)
     s = re.sub(r"\bthe user\b", "you", s, flags=re.I)
-    return s
+    return re.sub(r"\byou (loves|likes|hates|dislikes)\b", lambda m: "you " + m.group(1)[:-1], s)
 
 
 class AmbientRuntime:
@@ -433,6 +439,12 @@ class AmbientRuntime:
                 wonder=self.wonder, knowledge=(self.wonder.kb if self.wonder else None),
                 user=str(getattr(self.brain, "user", "") or ""),
                 clock=lambda: self.clock(), scrub=self.privacy.scrub)
+        # Taste: likes and dislikes, from what is said, kept in the knowledge store.
+        self.taste: Optional[Taste] = None
+        if self.cfg.taste and self.wonder is not None:
+            self.taste = Taste(self.wonder.kb, user=str(getattr(self.brain, "user", "") or ""),
+                               cfg=TasteConfig.from_dict(self.cfg.taste_cfg),
+                               clock=lambda: self.clock(), scrub=self.privacy.scrub)
         # Routines: openings that repeat, offered to keep.
         self.routines: Optional[Routines] = None
         if self.cfg.routines:
@@ -1633,6 +1645,30 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
 
+    def _recent_people(self, now: float) -> List[str]:
+        """Names that came up lately, newest last: who "he" and "she" are."""
+        c = getattr(self, "context", None)
+        try:
+            return [n for t, n in c.people if now - t <= c.window_s] if c is not None else []
+        except Exception:
+            return []
+
+    def _taste_request(self, ev, now: float) -> bool:
+        """"What do I like?", "what does Ali hate?", "do I like jazz?": from
+        what was said, never from the model. Not for a guest's voice."""
+        t = self.taste
+        if t is None or not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        try:
+            say = t.answer(str(getattr(ev, "text", "") or ""), self._recent_people(now))
+        except Exception:
+            logger.exception("Taste question failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
     def _crash_request(self, ev, now: float) -> bool:
         """"Did my computer crash?": from the Windows event log, no model."""
         c = self.crashwatch
@@ -1799,6 +1835,9 @@ class AmbientRuntime:
             if not rep.consumed:
                 # Not an answer: learn what it states, note what it leaves open.
                 rep.learned = w.observe(text, ev.source, now).learned
+                if self.taste is not None:
+                    rep.learned = list(rep.learned) + self.taste.observe(
+                        text, ev.source, now, people=self._recent_people(now))
             if rep.learned:
                 self.undo.push(_as_you(rep.learned[0]), restorer(w.kb, snap, ents, before), now)
             self._wonder_learn(rep.learned)
@@ -1938,6 +1977,8 @@ class AmbientRuntime:
         if self._remember_request(ev, now):
             return
         if self._identity_request(ev, now):
+            return
+        if self._taste_request(ev, now):
             return
         if self._explain_request(ev, now):
             return
@@ -2230,6 +2271,10 @@ class AmbientRuntime:
                         cc = self._clipboard_context(self.clock())
                         if cc:
                             context = (context + "\n" + cc).strip()
+                    if to_ash and self.taste is not None and not meta.get("guest"):
+                        tc = self.taste.context(prompt, self.clock(), self._recent_people(self.clock()))
+                        if tc:
+                            context = (context + "\n" + tc).strip()
                     cue = self._thinking_cue(to_ash)
                     try:
                         with self._model_route(prompt, image is not None, bool(context.strip())):
@@ -2994,6 +3039,7 @@ class AmbientRuntime:
                         "flow": self.flow.status() if self.flow else None}),
             "wondering": self.wonder.status() if self.wonder else None,
             "activity": self.activity.status() if self.activity else None,
+            "taste": self.taste.status() if self.taste else None,
             "free_moments": self.moments.status() if self.moments else None,
             "followups": self.followups.status() if self.followups else None,
             "routines": self.routines.status() if self.routines else None,

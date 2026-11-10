@@ -197,6 +197,18 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "episode_min_s": 300.0,  # a stretch this long earns a sentence
         "max_episodes_per_hour": 6,
     },
+    # Taste: what the user, and the people they talk about, like and dislike
+    # ("I love Interstellar", "Ali likes jazz when he's sad"), learned from
+    # what is said and kept with what ASH knows about people (taste.py). It
+    # answers "what do I like?" itself and gives the model the list only when
+    # the question is about choosing something. Never learned from a guest's
+    # voice.
+    "taste": {
+        "enabled": True,
+        "learn_from_others": True,   # "Ali likes jazz", on the user's word
+        "mirror": True,              # a short likes/dislikes on the person's entity
+        "in_answers": True,          # background for "what should I watch?"
+    },
     # Follow-ups: "my interview is on Thursday" is remembered, and once it is
     # over ASH asks how it went, at a free moment, once. Meetings and calls are
     # followed up too unless routine is off; they are worth less than an exam.
@@ -582,12 +594,21 @@ class ControlServer:
                 a.forget()
                 return {"ok": True, "report": "activity memory cleared"}
             return {"ok": True, "report": a.report(), "status": a.status()}
+        if cmd == "profile":
+            t = getattr(rt, "taste", None)
+            if t is None:
+                return {"ok": False, "error": "taste is not enabled (daemon.json: taste.enabled)"}
+            what = arg.strip()
+            if what.startswith("forget"):
+                gone = t.forget(what[len("forget"):].strip())
+                return {"ok": True, "report": f"forgot {gone} taste(s)"}
+            return {"ok": True, "report": t.report(), "status": t.status()}
         if cmd == "shutdown":
             threading.Thread(target=rt.stop, daemon=True).start()
             return {"ok": True, "stopping": True}
         return {"ok": False, "error": f"unknown command {cmd!r}",
                 "commands": ["status", "pause", "resume", "mute", "unmute", "say",
-                             "why", "history", "sleep", "rollup", "sensors", "face", "wonders", "wonder", "activity", "followups", "corrections", "routines", "briefing", "watches", "review",
+                             "why", "history", "sleep", "rollup", "sensors", "face", "wonders", "wonder", "activity", "profile", "followups", "corrections", "routines", "briefing", "watches", "review",
                              "enable", "disable", "simulate", "shutdown"]}
 
     # ------------------------------------------------------------------
