@@ -362,7 +362,7 @@ class NowPlayingSensor(Sensor):
         secs = max(0.0, s.last_seen - s.since) + s.carried
         if how == "stopped":
             self._carry[s.cur.ident] = (secs, s.last_seen)
-        return {"p": s.cur, "secs": secs, "how": how}
+        return {"p": s.cur, "secs": secs, "how": how, "start": s.since, "end": s.last_seen}
 
     def _event(self, what: str, c: Optional[Playing], done: Optional[Dict[str, Any]], now: float) -> SensorEvent:
         meta: Dict[str, Any] = {"event": what}
@@ -372,7 +372,8 @@ class NowPlayingSensor(Sensor):
             p = done["p"]
             meta.update(finished=p.item, finished_title=p.title, finished_artist=p.artist, finished_kind=p.kind,
                         finished_player=p.player, finished_s=int(done["secs"]), finished_how=done["how"],
-                        finished_skip=bool(done["how"] == "changed" and done["secs"] < self.skip_below_s))
+                        finished_skip=bool(done["how"] == "changed" and done["secs"] < self.skip_below_s),
+                        finished_start=round(done["start"], 1), finished_end=round(done["end"], 1))
         if c is not None:
             text = f"now playing {c.item} on {c.player}"
         elif done is not None:

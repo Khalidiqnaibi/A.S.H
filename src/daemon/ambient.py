@@ -52,6 +52,7 @@ from .attention import AttentionGate, Disposition
 from .journal import Journal
 from .privacy import PrivacyPolicy
 from .activity import ActivityConfig, ActivityMemory
+from .occasion import Occasion
 from .taste import Taste, TasteConfig
 from .followups import FollowUpActivity, FollowUps, FollowUpsConfig
 from .freemoment import FreeMoments, ProviderActivity, default_moments, mood_of
@@ -441,6 +442,8 @@ class AmbientRuntime:
                 clock=lambda: self.clock(), scrub=self.privacy.scrub)
         # Taste: likes and dislikes, from what is said, kept in the knowledge store.
         self.taste: Optional[Taste] = None
+        # What the user is doing, so a play can be linked to it ("while coding").
+        self.occasion = Occasion(clock=lambda: self.clock())
         if self.cfg.taste and self.wonder is not None:
             self.taste = Taste(self.wonder.kb, user=str(getattr(self.brain, "user", "") or ""),
                                cfg=TasteConfig.from_dict(self.cfg.taste_cfg),
@@ -930,6 +933,7 @@ class AmbientRuntime:
                 self.reactions.expire(now)
             if idle_s is None:
                 idle_s = self._idle_seconds()
+            self.occasion.tick(now, idle_s)
             if self.activity is not None:
                 try:
                     self.activity.tick(now, idle_s)
@@ -1855,7 +1859,11 @@ class AmbientRuntime:
         if self.taste is None:
             return
         try:
-            said = self.taste.watch(getattr(ev, "meta", None) or {}, now)
+            meta = getattr(ev, "meta", None) or {}
+            occ = ""
+            if meta.get("finished_end"):
+                occ = self.occasion.during(float(meta.get("finished_start") or 0), float(meta["finished_end"]), now)
+            said = self.taste.watch(meta, now, occasion=occ)
             if said:
                 self._wonder_learn(said)
                 if self.taste.last_undo is not None:
@@ -1926,6 +1934,9 @@ class AmbientRuntime:
             self.flow.observe(ev, now)
         if getattr(ev, "source", "") == "now_playing":
             self._played(ev, now)
+        elif getattr(ev, "source", "") == "active_window":
+            m = getattr(ev, "meta", None) or {}
+            self.occasion.window(str(m.get("process") or ""), now, blocked=bool(m.get("blocked")))
         if self.activity is not None:
             try:
                 self.activity.observe(ev, now)

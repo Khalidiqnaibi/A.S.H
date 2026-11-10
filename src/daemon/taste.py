@@ -384,7 +384,8 @@ def mirror(kb, keys: Iterable[str], user: str = "", like_at: float = 0.30) -> No
         if is_user and (not user and name.strip().lower() in ("", "you", "user")):
             continue                      # an unnamed user would become an entity called "you"
         rows.sort(key=lambda r: (-abs(float(r.get("score", 0))), -float(r.get("last", 0))))
-        likes = ", ".join(r["item"] for r in rows if float(r.get("score", 0)) >= like_at)[:200]
+        likes = ", ".join((f"{r['item']} ({_while(occasion_of(r))})" if occasion_of(r) else r["item"])
+                          for r in rows if float(r.get("score", 0)) >= like_at)[:200]
         dis = ", ".join(r["item"] for r in [r for r in rows if float(r.get("score", 0)) <= -like_at][:4])[:160]
         if not subj and not likes and not dis:
             continue
@@ -403,6 +404,29 @@ _LOVE_WORDS = {1: ("loves", "likes"), -1: ("hates", "dislikes")}
 
 def _band(score: float, strong: float = 0.75) -> str:
     return "loves" if score >= strong else "likes" if score > 0 else "hates" if score <= -strong else "dislikes"
+
+
+LINK_AT = 3          # times seen with the same activity before it is called a habit
+LINK_SHARE = 0.5     # ...and at least this share of the plays
+
+
+def occasion_of(entry: Dict[str, Any]) -> str:
+    """What this is liked "when" or "while": what the person said, else what has
+    been seen often enough. One sighting is a coincidence; three, most of the
+    plays, is "listens to this while coding"."""
+    said = entry.get("when") or {}
+    if said:
+        return max(said, key=lambda k: said[k])
+    seen = entry.get("seen_when") or {}
+    if seen:
+        top = max(seen, key=lambda k: seen[k])
+        if seen[top] >= LINK_AT and seen[top] >= LINK_SHARE * max(1, int(entry.get("n", 1))):
+            return top
+    return ""
+
+
+def _while(act: str) -> str:
+    return f"while {act}" if act.endswith("ing") else f"when feeling {act}"
 
 
 class Taste:
@@ -532,7 +556,7 @@ class Taste:
         return self.sentence(name, is_user, cur)
 
     # -- what is played ------------------------------------------------------------
-    def watch(self, meta: Dict[str, Any], now: Optional[float] = None) -> List[str]:
+    def watch(self, meta: Dict[str, Any], now: Optional[float] = None, occasion: str = "") -> List[str]:
         """Learn from what the now-playing sensor reports has just finished.
 
         Behaviour is weaker evidence than being told, so it moves a score in
@@ -577,6 +601,7 @@ class Taste:
                 if not ik:
                     continue
                 cur = items.get(ik)
+                prev_entry = copy.deepcopy(cur) or {}
                 undo.append((ik, copy.deepcopy(cur)))
                 before = float(cur.get("score", 0.0)) if cur else 0.0
                 if cur is None:
@@ -587,11 +612,15 @@ class Taste:
                                        "by": by, "flips": 0, "when": {}}
                 cur["n"] = int(cur.get("n", 0)) + 1
                 cur["last"] = now
+                if delta > 0 and occasion in _ACTIVITIES:            # heard through, and what they were doing
+                    sw = cur.setdefault("seen_when", {})
+                    sw[occasion] = int(sw.get(occasion, 0)) + 1
                 if cur.get("by") not in ("said", "opinion"):         # their own word stands
                     cur["score"] = round(max(-0.6, min(0.6, before + d)), 3)
                     cur["by"] = by if abs(cur["score"]) >= abs(before) else cur.get("by", by)
                 now_score = float(cur["score"])
-                if abs(before) < cfg.like_at <= abs(now_score):
+                linked = bool(occasion_of(cur)) and not occasion_of(prev_entry)
+                if abs(before) < cfg.like_at <= abs(now_score) or (linked and abs(now_score) >= cfg.like_at):
                     sentences.append(self.sentence(self.user or "you", True, cur))
             self.kb.save()
         self.stats["played"] = self.stats.get("played", 0) + 1
@@ -616,10 +645,8 @@ class Taste:
     def sentence(name: str, is_user: bool, entry: Dict[str, Any], strong: float = 0.75) -> str:
         who = "The user" if is_user else name
         verb = _band(float(entry.get("score", 0.0)), strong)
-        when = ""
-        if entry.get("when"):
-            top = max(entry["when"], key=lambda k: entry["when"][k])
-            when = f", {'while' if top.endswith('ing') else 'when feeling'} {top}"
+        occ = occasion_of(entry)
+        when = f", {_while(occ)}" if occ else ""
         return f"{who} {verb} {entry.get('item', '')}{when}."
 
     def items(self, key: str, polarity: int = 0, kind: str = "", limit: int = 8,
@@ -705,7 +732,15 @@ class Taste:
                    r"(?:\s+(?:to\s+)?(?P<act>watch|listen\s+to|play|eat|read|drink))?\s*\??\W*$", re.I),
         re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?do\s+i\s+(?P<v>like|love|enjoy|hate|dislike)\s+(?P<obj>.{2,40}?)"
                    r"\s*\??\W*$", re.I),
+        # "what do I listen to while I'm coding?" -- the link between a thing and what was going on
+        re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:so\s+)?what\s+(?:do|did)\s+i\s+(?:usually\s+|normally\s+|"
+                   r"typically\s+|often\s+|always\s+)?(?P<act>listen\s+to|watch|play|eat|read)\s+"
+                   r"(?:when|while|whenever)\s+(?:i'?m\s+|i\s+am\s+|i\s+|feeling\s+)?(?P<occ>[a-z]{3,14})\s*\??\W*$",
+                   re.I),
     ]
+    _OCC_VERBS = {"code": "coding", "work": "working", "study": "studying", "game": "gaming", "read": "reading",
+                  "write": "writing", "cook": "cooking", "drive": "driving", "design": "designing",
+                  "run": "running", "clean": "cleaning", "train": "training", "exercise": "exercising"}
     _KIND_CANON = {"songs": "music", "song": "music", "music": "music", "bands": "music", "band": "music",
                    "artists": "music", "artist": "music", "movies": "movie", "movie": "movie", "films": "movie",
                    "film": "movie", "shows": "show", "show": "show", "series": "show", "anime": "show",
@@ -721,6 +756,12 @@ class Taste:
             if not m:
                 continue
             d = m.groupdict()
+            if d.get("occ"):
+                occ = self._OCC_VERBS.get(d["occ"].lower(), d["occ"].lower())
+                if occ not in _ACTIVITIES and occ not in _MOODS:
+                    continue                          # not something it keeps: leave the question to the model
+                act = re.sub(r"\s+", " ", d["act"].lower())
+                return {"who": "", "pol": "1", "kind": self._ACT_KIND.get(act, ""), "obj": "", "occ": occ}
             v = re.sub(r"\s+", " ", (d.get("v") or "").lower())
             pol = -1 if re.search(r"hate|dislike|stand", v) else 1 if re.search(r"like|love|enjoy|favou?rite", v) else 0
             if re.search(r"likes|tastes?|preferences|what i like", v):
@@ -738,6 +779,8 @@ class Taste:
         if q is None or not self.cfg.enabled:
             return None
         pol, kind = int(q["pol"]), q["kind"]
+        if q.get("occ"):
+            return self._during(q["occ"], kind)
         if q["obj"]:
             return self._do_i_like(q["obj"], pol)
         who = q["who"]
@@ -754,6 +797,20 @@ class Taste:
             return (f"You haven't told me what you {what}{of} yet. Say \"I love Interstellar\" or \"I can't stand "
                     f"horror films\" and I'll remember it.")
         return f"I don't have anything on what {who} {what}s{of} yet."
+
+    def linked(self, occ: str, key: str = "", kind: str = "", limit: int = 6) -> List[Dict[str, Any]]:
+        """What a subject likes that goes with an occasion, said or seen often enough."""
+        key = key or self.user_key
+        return [r for r in self.items(key, 1, kind, 40) if occasion_of(r) == occ][:limit]
+
+    def _during(self, occ: str, kind: str) -> str:
+        rows = self.linked(occ, kind=kind)
+        what = {"music": "listen to", "show": "watch", "movie": "watch", "game": "play", "food": "eat",
+                "book": "read"}.get(kind, "like")
+        if not rows:
+            return (f"I haven't noticed what you {what} {_while(occ)} yet. Tell me -- say \"I listen to lo-fi "
+                    f"while I'm coding\" -- or I'll notice it as it happens.")
+        return f"{_while(occ).capitalize()}, you {what} {self._list(rows)}."
 
     def _do_i_like(self, obj: str, pol: int) -> str:
         item = _clean_item(obj) or obj
@@ -791,9 +848,17 @@ class Taste:
             if re.search(r"\b" + kw + r"\b", q, re.I):
                 kind = canon
                 break
+        occ = ""
+        mo = re.search(r"\b(?:when|while|whenever)\s+(?:i'?m\s+|i\s+am\s+|i\s+)?([a-z]{3,14})\b", q, re.I)
+        if mo:
+            occ = self._OCC_VERBS.get(mo.group(1).lower(), mo.group(1).lower())
+            occ = occ if occ in _ACTIVITIES or occ in _MOODS else ""
         lines = []
         for key in [self.user_key] + mentioned[:2]:
             likes = self.items(key, 1, kind, 8)
+            if key == self.user_key and occ:
+                first = self.linked(occ, key, kind)
+                likes = first + [r for r in likes if r not in first]
             dis = self.items(key, -1, kind, 5)
             if not likes and not dis and kind:
                 likes, dis = self.items(key, 1, "", 6), self.items(key, -1, "", 4)
@@ -815,11 +880,8 @@ class Taste:
 
     @staticmethod
     def _with_when(r: Dict[str, Any]) -> str:
-        w = r.get("when") or {}
-        if w:
-            top = max(w, key=lambda k: w[k])
-            return f"{r['item']} (when {top})" if not top.endswith("ing") else f"{r['item']} (while {top})"
-        return r["item"]
+        occ = occasion_of(r)
+        return f"{r['item']} ({_while(occ)})" if occ else r["item"]
 
     # -- entity memory -------------------------------------------------------------
     def _mirror(self, keys: Iterable[str]):

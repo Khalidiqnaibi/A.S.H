@@ -884,6 +884,35 @@ Settings: `sensors.now_playing` (`enabled`, `interval`, `skip_below_s`) and
 `taste.from_playing`, `listen_s`, `watch_s`. The manual in core memory has a
 `playing` entry.
 
+## What goes with what ("you listen to this while coding")
+
+`src/daemon/occasion.py`; `tst_occasion.py`. A song and a stretch of work are
+two facts; the link between them is kept only once it has happened more than
+once.
+
+- **What you were doing** comes from which program was in front: editors and
+  IDEs (VS Code, Cursor, PyCharm, JetBrains, Visual Studio, Sublime...) are
+  *coding*; Word, Obsidian, Typora *writing*; Excel, PowerPoint, Outlook, Teams,
+  Slack, Zoom *working*; PDF and e-book readers *reading*; Figma, Photoshop,
+  Blender *designing*; Steam and a few games *gaming*. A browser or a terminal
+  says nothing (it could be anything, and ASH's own terminal is one), so the
+  occasion is left empty rather than guessed. Idle time is not an activity.
+  Only the program name is used -- no titles, no screen text -- and two hours of
+  segments are kept in memory.
+- **The link**: a song or show heard through is counted against what covered
+  at least half of it. Once the same activity has been seen **three times and
+  in at least half of the plays**, the item is kept as liked "while coding",
+  and that is said once and is an undo step. Skips never count. What you said
+  ("I listen to lo-fi while I'm studying") stands over what was seen.
+- **Asked back**: "what do I listen to while coding?" (also "when I'm sad",
+  "what do I watch while exercising?"). With nothing seen it says so and how to
+  teach it. "What should I listen to while coding?" is a request, so it goes
+  to the model with what goes with coding listed first. Entity memory's `likes`
+  carries it: "Lofi Beats by Lofi Girl (while coding)".
+- **Not yet**: one app opened while another is in front ("opens this while
+  looking at that"), and other people's habits -- those are only ever from what
+  you say.
+
 ## Where a sentence goes (and the test that pins it)
 
 `tst_replay.py` runs real utterances from the real sessions through the real

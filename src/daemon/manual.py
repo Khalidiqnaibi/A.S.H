@@ -163,6 +163,14 @@ ENTRIES: List[Tuple[str, int, str]] = [
      "in A.S.H\"), keeps topics that connect to something it already knows, and at a free moment may ask what one of "
      "them is. It uses window titles and a few keywords, never the text on screen. \"What was I doing this morning?\" "
      "is answered from it. activity.enabled in daemon.json turns it off; ashctl activity shows it."),
+    ("occasion", 4,
+     "ASH manual, what goes with what. ASH links what you play to what you were doing: once a song or show has played "
+     "through at least three times, mostly with the same kind of program in front, it keeps \"you listen to this while "
+     "coding\". It can tell editors and IDEs (coding), Word and Obsidian (writing), Office and chat tools (working), PDF "
+     "readers (reading), Figma and Photoshop (designing) and games (gaming); a browser or terminal says nothing, so it "
+     "guesses nothing, and idle time is not an activity. Ask \"what do I listen to while coding?\". What you say, like "
+     "\"I listen to lo-fi while I'm studying\", stands over what it saw. It uses program names only, never titles or "
+     "screen text."),
     ("limits", 7,
      "ASH manual, what ASH cannot do. It cannot browse the web or open links, send email, texts or chat messages, make "
      "calls, buy or order anything, know your location, control other people's devices, or see the screen unless "

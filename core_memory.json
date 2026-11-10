@@ -403,5 +403,14 @@
     "hard": false,
     "created_at": 1794326715.0005047,
     "updated_at": 1794326715.0005047
+  },
+  "manual_occasion": {
+    "rule_id": "manual_occasion",
+    "category": "capability",
+    "text": "ASH manual, what goes with what. ASH links what you play to what you were doing: once a song or show has played through at least three times, mostly with the same kind of program in front, it keeps \"you listen to this while coding\". It can tell editors and IDEs (coding), Word and Obsidian (writing), Office and chat tools (working), PDF readers (reading), Figma and Photoshop (designing) and games (gaming); a browser or terminal says nothing, so it guesses nothing, and idle time is not an activity. Ask \"what do I listen to while coding?\". What you say, like \"I listen to lo-fi while I'm studying\", stands over what it saw. It uses program names only, never titles or screen text.",
+    "priority": 4,
+    "hard": false,
+    "created_at": 1794327685.4899542,
+    "updated_at": 1794327685.4899542
   }
 }
