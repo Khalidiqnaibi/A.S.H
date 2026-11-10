@@ -3,6 +3,8 @@ import os
 import re
 import json
 import requests
+import threading
+import contextlib
 from dotenv import load_dotenv
 from typing import Optional, List, Sequence, Any
 
@@ -100,6 +102,9 @@ class LLM(BaseChatModel):
         self._timeout = timeout
 
         self._bound_tools: Optional[Any] = None
+        # A second, smaller Ollama model for small talk (ASH_OLLAMA_LIGHT_MODEL or daemon.json llm.light_model).
+        self._light_model: str = os.environ.get("ASH_OLLAMA_LIGHT_MODEL", "").strip()
+        self._route = threading.local()
 
         if self._mode == "hf" and not self._hf_token:
             raise RuntimeError("HUGGINGFACE_API_TOKEN not found for mode='hf'")
@@ -223,9 +228,26 @@ class LLM(BaseChatModel):
             print(f"[LLM ERROR] Local request failed: {e}")
             return f"Error calling Local API: {e}"
 
+    def set_light_model(self, name: str):
+        self._light_model = (name or "").strip()
+
+    @contextlib.contextmanager
+    def route(self, kind: str = ""):
+        """`with llm.route("light"):` answers with the small model for this thread, if one is set
+        (ollama only). Anything else, or no light model, leaves the main model in use."""
+        old = getattr(self._route, "model", "")
+        self._route.model = self._light_model if (kind == "light" and self._mode == "ollama") else ""
+        try:
+            yield bool(self._route.model)
+        finally:
+            self._route.model = old
+
+    def _model_now(self) -> str:
+        return getattr(self._route, "model", "") or self._ollama_model
+
     def _call_ollama(self, messages: List[dict]) -> str:
         payload = {
-            "model": self._ollama_model,
+            "model": self._model_now(),
             "messages": messages,
             # Non-streaming: one JSON object back instead of an NDJSON stream.
             # The line loop below still handles a stream if a proxy forces one.
@@ -299,13 +321,14 @@ class LLM(BaseChatModel):
             print(f"[LLM ERROR] Ollama request failed: {e}")
             return f"[LLM] Error calling Ollama API: {e}"
 
-    def warm(self) -> bool:
+    def warm(self, light: bool = False) -> bool:
         """Load the Ollama model into memory now, so the first real question
-        does not pay for it. One token, no thinking. True if the model answered."""
-        if self._mode != "ollama":
+        does not pay for it. One token, no thinking. True if the model answered.
+        `light=True` loads the small-talk model instead (False if none is set)."""
+        if self._mode != "ollama" or (light and not self._light_model):
             return False
         payload = {
-            "model": self._ollama_model,
+            "model": self._light_model if light else self._ollama_model,
             "messages": [{"role": "user", "content": "hi"}],
             "stream": False,
             "options": {"num_predict": 1, "temperature": 0.0},

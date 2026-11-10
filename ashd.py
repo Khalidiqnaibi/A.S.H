@@ -230,6 +230,11 @@ def main() -> int:
                     ok = False
                 logger.info("Model preload %s (%.1fs)", "done" if ok else "skipped", time.time() - t1)
             threading.Thread(target=_warm, name="ash-preload", daemon=True).start()
+            _light = str((cfg.get("llm") or {}).get("light_model", "") or "")
+            if _light and hasattr(getattr(ash, "llm", None), "set_light_model"):
+                ash.llm.set_light_model(_light)
+                threading.Thread(target=lambda: logger.info("Small-talk model %s: %s", _light, "ready" if ash.llm.warm(light=True) else "not loaded"),
+                                 name="ash-preload-light", daemon=True).start()
 
         # ---- periphery ------------------------------------------------------
         from src.senses import build_periphery  # noqa: E402

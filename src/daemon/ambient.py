@@ -77,6 +77,7 @@ from . import quiet as quiet_mod
 from .scenes import Scenes
 from .arrival import Arrivals
 from . import clipboard as clipboard_mod
+from . import modelpick
 from . import personas, rituals
 from .repeat import RepeatGuard
 from .context import Context
@@ -1464,6 +1465,19 @@ class AmbientRuntime:
         self._last_out = keep
         return True
 
+    def _model_route(self, prompt: str, has_image: bool, has_context: bool):
+        """The small model for small talk, if one is set up (modelpick.py); else a no-op."""
+        import contextlib
+        llm = getattr(self.ash, "llm", None)
+        route = getattr(llm, "route", None)
+        if route is None or self._persona is not None:
+            return contextlib.nullcontext()
+        kind = modelpick.pick(prompt, has_image)
+        if kind != "light":
+            return contextlib.nullcontext()
+        self.stats["light_model"] = self.stats.get("light_model", 0) + 1
+        return route("light")
+
     def _clipboard_context(self, now: float) -> str:
         c, self._clip_ask = self._clip_ask, None
         if not c or now - c[2] > 30.0:
@@ -2218,7 +2232,8 @@ class AmbientRuntime:
                             context = (context + "\n" + cc).strip()
                     cue = self._thinking_cue(to_ash)
                     try:
-                        response = self.ash.think(prompt, image=image, context=context)
+                        with self._model_route(prompt, image is not None, bool(context.strip())):
+                            response = self.ash.think(prompt, image=image, context=context)
                     finally:
                         if cue is not None:
                             cue.cancel()

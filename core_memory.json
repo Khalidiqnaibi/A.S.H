@@ -209,11 +209,11 @@
   "manual_plans": {
     "rule_id": "manual_plans",
     "category": "capability",
-    "text": "ASH manual, several steps at once. \"Open Outlook, set a timer for 25 minutes and turn off the desk lamp\": ASH shows the plan and asks \"Go ahead?\"; yes runs each step and says what came of each. \"When I say get me ready for the meeting, open the agenda and set a 25 minute timer\" keeps it as a named task. Only steps it can already do.",
+    "text": "ASH manual, several steps at once. \"Open Outlook, set a timer for 25 minutes and turn off the desk lamp\": ASH shows the plan and asks \"Go ahead?\"; yes runs each step and says what came of each. \"When I say get me ready for the meeting, open the agenda and set a 25 minute timer\" keeps it as a named task. Or just do it, then say \"save that as start work\" (or \"save the last three things as quiet desk\") and it keeps what you just did; saying the name later shows the plan and asks once. \"What tasks do you know?\" lists them, \"forget start work\" removes one. Only steps it can already do.",
     "priority": 5,
     "hard": false,
     "created_at": 1794288508.2551916,
-    "updated_at": 1794288508.2551916
+    "updated_at": 1794304269.064779
   },
   "manual_home_devices": {
     "rule_id": "manual_home_devices",
@@ -290,11 +290,11 @@
   "manual_privacy": {
     "rule_id": "manual_privacy",
     "category": "capability",
-    "text": "ASH manual, privacy and senses. \"Privacy mode\" turns the microphone, camera and screen capture off at once; \"privacy off\" in the console restores them. \"Turn off the mic\", \"turn on the camera\" (camera and screen only come on when said to ASH). Nothing is sent anywhere except what a feature says it sends. \"Learn my voice\" lets it tell you from a guest, who then gets answers but not actions.",
+    "text": "ASH manual, privacy and senses. \"Privacy mode\" turns the microphone, camera and screen capture off at once; \"privacy off\" in the console restores them. \"Turn off the mic\", \"turn on the camera\" (camera and screen only come on when said to ASH). Nothing is sent anywhere except what a feature says it sends. \"Learn my voice\" lets it tell you from a guest. A guest still gets answers, but is refused anything that acts or is private: opening or closing apps, scenes, plans, clipboard, home reminders, turning the mic/camera/privacy or ASH itself off, and changing or forgetting your voice.",
     "priority": 6,
     "hard": false,
     "created_at": 1794288508.2551916,
-    "updated_at": 1794288508.2551916
+    "updated_at": 1794304269.064779
   },
   "manual_clipboard": {
     "rule_id": "manual_clipboard",
@@ -358,5 +358,14 @@
     "hard": false,
     "created_at": 1794288508.2551916,
     "updated_at": 1794288508.2551916
+  },
+  "manual_models": {
+    "rule_id": "manual_models",
+    "category": "capability",
+    "text": "ASH manual, which model answers. Facts, timers and commands are done by rules and tools, not the model. The language model words the rest. If a small second model is set (llm.light_model in daemon.json, or ASH_OLLAMA_LIGHT_MODEL), small talk like hello, thanks, how are you gets the small model for a faster reply, and questions, tasks, pictures and pretend play get the main one. Neither can browse the web.",
+    "priority": 4,
+    "hard": false,
+    "created_at": 1794304269.064779,
+    "updated_at": 1794304269.064779
   }
 }

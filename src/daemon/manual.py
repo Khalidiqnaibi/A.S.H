@@ -131,6 +131,11 @@ ENTRIES: List[Tuple[str, int, str]] = [
     ("explain", 5,
      "ASH manual, explaining itself. Every reply in the console has a small tag saying how it was made (model, tool, "
      "rule, Wikipedia...); tapping it shows why. Things ASH sets up or learns appear with an Undo button."),
+    ("models", 4,
+     "ASH manual, which model answers. Facts, timers and commands are done by rules and tools, not the model. The "
+     "language model words the rest. If a small second model is set (llm.light_model in daemon.json, or "
+     "ASH_OLLAMA_LIGHT_MODEL), small talk like hello, thanks, how are you gets the small model for a faster reply, and "
+     "questions, tasks, pictures and pretend play get the main one. Neither can browse the web."),
     ("limits", 7,
      "ASH manual, what ASH cannot do. It cannot browse the web or open links, send email, texts or chat messages, make "
      "calls, buy or order anything, know your location, control other people's devices, or see the screen unless "

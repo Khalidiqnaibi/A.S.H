@@ -235,6 +235,70 @@ def t6():
     check("through the runtime", "hush" in rt.out[-1] and "Saved" in rt.out[-1], rt.out[-1])
 
 
+def t7():
+    print("\n=== T7. A small model for small talk ===")
+    import contextlib
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("ash_llm_s5", os.path.join(HERE, "tools", "LLM.py"))
+    L = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(L)
+    sent = []
+
+    class R:
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {"message": {"content": "ok"}}
+    L.requests.post = lambda url, json=None, timeout=None: (sent.append(json["model"]), R())[1]
+    llm = L.LLM(mode="ollama", ollama_model="big:7b")
+    msg = [L.HumanMessage(content="hi")]
+    llm._call(msg)
+    with llm.route("light") as on:
+        none_set = on
+        llm._call(msg)
+    check("no light model set: the main model answers", sent == ["big:7b", "big:7b"] and not none_set, str(sent))
+    llm.set_light_model("tiny:1b")
+    sent.clear()
+    with llm.route("light") as on:
+        llm._call(msg)
+    llm._call(msg)
+    with llm.route("heavy"):
+        llm._call(msg)
+    check("light inside the block, main outside and for other kinds", sent == ["tiny:1b", "big:7b", "big:7b"] and on, str(sent))
+    sent.clear()
+    check("warm(light=True) loads the small one", llm.warm(light=True) and sent == ["tiny:1b"], str(sent))
+    check("warm() still loads the main one", llm.warm() and sent[-1] == "big:7b")
+    check("no light model: warm(light=True) is False", L.LLM(mode="ollama", ollama_model="x").warm(light=True) is False)
+
+    from src.daemon.modelpick import pick
+    light = ["hello", "thanks a lot", "how are you?", "I'm so tired", "tell me a joke", "hey ash how's it going", "good one", "I love you"]
+    heavy = ["what is a black hole", "who is Omar", "explain recursion", "thanks, can you write a poem", "I'm tired of this error",
+             "set a timer for 5 minutes", "hello " * 12, "hello", ]
+    check("small talk is light", all(pick(x) == "light" for x in light), str([x for x in light if pick(x) != "light"]))
+    check("questions and tasks are not", all(pick(x) == "default" for x in heavy[:-1]), str([x for x in heavy[:-1] if pick(x) != "default"]))
+    check("a picture is never light", pick("hello", has_image=True) == "default")
+
+    used = []
+
+    class FakeLLM:
+        @contextlib.contextmanager
+        def route(self, kind):
+            used.append(kind)
+            yield True
+    rt = te.rig()
+    rt.ash.llm = FakeLLM()
+    rt.say("ash thanks a lot")
+    rt.say("ash what is a black hole")
+    check("the runtime routes only the small talk", used == ["light"], str(used))
+    check("and counts it", rt.stats.get("light_model") == 1, str(rt.stats.get("light_model")))
+    used.clear()
+    rt.say("ash be a pirate for ten minutes") if False else None
+    bare = te.rig()
+    bare.say("ash thanks a lot")
+    check("no llm.route: nothing breaks", bare.out[-1] == "Sure.", str(bare.out))
+
+
 if __name__ == "__main__":
     t1()
     t2()
@@ -242,5 +306,6 @@ if __name__ == "__main__":
     t4()
     t5()
     t6()
+    t7()
     print("\nALL OK" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

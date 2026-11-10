@@ -753,6 +753,13 @@ live with what is actually switched on here.
   refused the clipboard, scenes, plans, home reminders, turning the mic, camera, privacy or ASH off, and
   changing or forgetting the enrolled voice. A voice that is only unsure is treated as yours.
 
+## A small model for small talk
+
+Set `"llm": {"light_model": "qwen2.5:1.5b"}` in `daemon.json` (or `ASH_OLLAMA_LIGHT_MODEL`) and ollama keeps that
+model loaded too. A greeting, a thanks, "how are you", "I'm tired" or a joke (`src/daemon/modelpick.py`) is answered
+by it; any question, task, number, link, picture or pretend-play line goes to the main model. When in doubt, main.
+With no light model set nothing changes.
+
 ## Coming home, the clipboard, heads-up cards and the clock
 
 - **"Remind me when I get home to ..."** (`arrival.py`, `arrivals` in `daemon.json`, on by default): home is a
