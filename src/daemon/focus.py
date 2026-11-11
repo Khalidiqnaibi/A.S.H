@@ -27,6 +27,7 @@ from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
 from .followups import resolve_when
+from .numwords import digits
 
 _ON = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:i'?m\s+(?:going to\s+)?focus(?:ing)?|i\s+need\s+to\s+focus|"
                  r"let\s+me\s+focus|focus\s+mode|(?:turn\s+on\s+|start\s+)?(?:focus|do\s+not\s+disturb|dnd)(?:\s+mode)?|"
@@ -61,7 +62,7 @@ class Focus:
         if not self.enabled:
             return None
         now = self.clock() if now is None else now
-        t = (text or "").strip()
+        t = digits((text or "").strip())
         if not t or len(t) > 100:
             return None
         if _OFF.match(t):

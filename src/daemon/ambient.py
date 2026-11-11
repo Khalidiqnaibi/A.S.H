@@ -47,7 +47,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Deque, Dict, List, Optional
 
 from src.senses import address
-from src.senses.base import Modality, SensorEvent
+from src.senses.base import Modality, SensorEvent, State
 from .attention import AttentionGate, Disposition
 from .journal import Journal
 from .privacy import PrivacyPolicy
@@ -241,6 +241,7 @@ class AmbientConfig:
     scenes: bool = False
     clipboard_io: Optional[tuple] = None      # (read, write) callables; tests pass fakes
     clipboard: bool = False         # read/summarize/copy the clipboard, on request only (clipboard.py)
+    grammar: bool = False           # a command a handler understands counts as "probably for ASH" (grammar.py)
     arrivals: bool = False          # "remind me when I get home" (arrival.py)
     arrivals_path: Optional[str] = None
     arrivals_home: str = ""
@@ -587,6 +588,9 @@ class AmbientRuntime:
         self.scenes = Scenes(self.cfg.scenes_cfg) if self.cfg.scenes else None
         self.arrivals = Arrivals(self.cfg.arrivals_path, home=self.cfg.arrivals_home) if self.cfg.arrivals else None
         self._arrival_at = 0.0
+        if self.cfg.grammar:
+            from .grammar import Grammar
+            address.register_grammar(Grammar(self))
         self.clipboard = clipboard_mod.Clipboard(*self.cfg.clipboard_io) if (self.cfg.clipboard and self.cfg.clipboard_io) else (
             clipboard_mod.Clipboard() if self.cfg.clipboard else None)
         self._clip_ask = None
@@ -1410,8 +1414,20 @@ class AmbientRuntime:
         m = self.media
         if m is None or not self._user_source(ev):
             return False
+        text = str(getattr(ev, "text", "") or "")
+        if not self._meant_for_ash(ev):
+            # Overheard speech (a video saying "pause", "next one") must never press a key. The one exception is
+            # a short bare command while something is playing: that is almost certainly for ASH.
+            if not (self._playing and len(text.split()) <= 3):
+                return False
+        elif self._playing is None and re.match(r"^\s*(?:please\s+)?(?:pause|stop)\b", text, re.I):
+            np = getattr(self.periphery, "sensors", {}).get("now_playing")
+            if np is not None and getattr(np, "state", None) == State.ACTIVE:
+                # The sensor is watching and nothing is on: a play/pause key would START something.
+                self._wonder_say(ev, type("R", (), {"say": "Nothing seems to be playing.", "outcome": "desktop"})())
+                return True
         try:
-            say = m.hear(str(getattr(ev, "text", "") or ""), privacy_paused=bool(self.privacy.paused))
+            say = m.hear(text, privacy_paused=bool(self.privacy.paused))
         except Exception:
             logger.exception("Media request failed")
             return False
@@ -2943,6 +2959,11 @@ class AmbientRuntime:
             subject = wants_forget(text)
             if subject is None:
                 return False
+            tk = self.tasks
+            if tk is not None:
+                from .tasks import _norm as _task_norm
+                if _task_norm(subject) in tk.saved:
+                    return False          # "forget start work" is a saved task: tasks.py forgets it, not the memory
             w = self.wonder
             gone = forget_subject(subject, kb=(w.kb if w else None),
                                   entities=getattr(self.ash, "entity_memory", None), wonderer=w, now=now)

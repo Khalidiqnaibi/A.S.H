@@ -33,12 +33,14 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional
 
-_A = r"^\s*(?:(?:hey|hi|ok(?:ay)?)\s+)?(?:ash[,\s]+)?(?:(?:please|can\s+you|could\s+you)[,\s]+)*"
+_A = (r"^\s*(?:(?:hey|hi|ok(?:ay)?)\s+)?(?:ash[,\s]+)?"
+      r"(?:(?:please|can\s+you|could\s+you|are\s+you\s+(?:able|going)\s+to|do\s+you\s+know\s+how\s+to)[,\s]+)*")
 _Z = r"(?:[,\s]+(?:ash|please|now|for\s+me|right\s+now|for\s+now|today))*\s*[.!?]*\s*$"
 
 _CAPS = re.compile(_A + r"(?:what\s+(?:can|could|do)\s+you\s+(?:do|help\s+(?:me\s+)?with|know\s+how\s+to\s+do)"
                    r"|what\s+are\s+(?:all\s+)?(?:your|the)\s+(?:capabilities|abilities|features|skills|commands)"
                    r"|what\s+can\s+i\s+(?:ask|say\s+to|tell)\s+you|what\s+(?:are\s+)?you\s+(?:good|able)\s+(?:at|to\s+do)"
+                   r"|what\s+(?:are|is)\s+your\s+(?:limits|limitations|restrictions|weaknesses)|what\s+can'?t\s+you\s+do"
                    r"|help(?:\s+me)?|list\s+(?:your\s+)?(?:commands|features))" + _Z, re.I)
 
 _WEB = re.compile(_A + r"(?:(?:show|find|get|fetch|search|look\s+up|look\s+for|pull\s+up|bring\s+up)\b[^.?!]{0,60}"
@@ -75,8 +77,13 @@ def limit_reply(text: str) -> Optional[str]:
     return None
 
 
+_ASK_FOR_HELP = re.compile(r"^\s*(?:hey\s+)?(?:ash[,\s]+)?(?:can|could|would|will)\s+you\s+(?:please\s+)?help(?:\s+me)?\s*[.!?]*\s*$", re.I)
+
+
 def asks_capabilities(text: str) -> bool:
     t = (text or "").strip()
+    if _ASK_FOR_HELP.match(t):
+        return False                  # "can you help me" asks for help; the answer is "sure, with what?", not a manual
     return bool(t) and len(t) <= 80 and bool(_CAPS.match(t))
 
 

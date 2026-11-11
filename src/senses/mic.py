@@ -95,11 +95,23 @@ def trusted_text(segs) -> str:
 _MISHEARD = re.compile(r"^(\s*(?:hey|hi|ok|okay)?[\s,]*)(?:ass|asch|ashe)(?=[\s,]+\w)", re.I)
 
 
+_MISHEARD_TAIL = re.compile(
+    r"((?:what'?s\s+up|how\s+are\s+you(?:\s+doing)?|how'?s\s+it\s+going|are\s+you\s+there|you\s+there|"
+    r"what'?s\s+your\s+status|what\s+are\s+you\s+doing|how\s+are\s+we\s+doing)[\s,]+)(?:bash|as|ass|ashe|asch)"
+    r"(?=\s*[?.!]*\s*$)", re.I)
+_MISHEARD_GREETED = re.compile(r"^(\s*(?:hey|hi|yo|ok|okay)[\s,]+)bash(?=[\s,]+\w)", re.I)
+
+
 def fix_name(text: str) -> str:
     """Whisper's usual mishearings of the name at the start of a sentence
     ("Ass system status") read as the name. Only at the start, and only
     with more words after it."""
-    return _MISHEARD.sub(lambda m: m.group(1) + "Ash", text or "", count=1)
+    t = _MISHEARD.sub(lambda m: m.group(1) + "Ash", text or "", count=1)
+    # "Yo, what's up bash?" / "What's your status as?" -- the name at the END, heard as another word. Only after a
+    # question that is plainly a question to a listener, so "as" and "bash" elsewhere are left alone. "bash" at the
+    # start counts only after a greeting ("hey bash how are you"): on its own it is a shell.
+    t = _MISHEARD_TAIL.sub(lambda m: m.group(1) + "Ash", t, count=1)
+    return _MISHEARD_GREETED.sub(lambda m: m.group(1) + "Ash", t, count=1)
 
 
 def build_event(source: str, text: str, verdict, data=None, **meta) -> SensorEvent:

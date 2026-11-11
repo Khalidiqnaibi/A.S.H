@@ -371,6 +371,81 @@ def _apply_priors(query: str, scored):
     return out
 
 
+# What a tool must find IN THE SENTENCE, beyond a similar-sounding embedding.
+#
+# The embedding model scores "I'm so stressed today" 0.23 for get_time (it has
+# "today"), "time to eat" 0.24 (it has "time"), "what are you doing" 0.25 for
+# system_stats (it has "doing"), "open the browser" 0.22 for read_file, and "it
+# rained all weekend" 0.40 for get_weather. The threshold is 0.21, so each of
+# those called a tool and answered with a clock, a CPU table, a file read or a
+# forecast. Similar words are not a request: a tool that reads the clock, the
+# machine, the disk or the weather only fires when the sentence names what it
+# reads, and (for the ones that answer a question) is itself a question or an
+# order, not a statement about the speaker's day. A guard that fails drops the
+# candidate; the next one that passes is used, else it is conversation.
+_ASKS = re.compile(
+    r"\?\s*$|^\s*(?:so\s+|and\s+|ok(?:ay)?\s+|hey\s+|um\s+|uh\s+)*(?:what|what's|whats|which|when|where|how|will|would|"
+    r"is|are|am|do|does|did|can|could|should|tell|give|show|check|get|find|look|any|anything|is\s+there)\b", re.I)
+_HOWTO = re.compile(r"^\s*(?:so\s+|and\s+|ok(?:ay)?\s+)?(?:how\s+(?:do|does|can|could|would|should|to)\b|"
+                    r"what(?:'s|\s+is|\s+are)\s+(?:a|an)\b)", re.I)
+_STATEMENT = re.compile(
+    r"^\s*(?:i|i'm|im|i've|i'll|i'd|we|we're|my|it's|it|it\s+is|it\s+was|that's|that\s+is|he|she|they|"
+    r"the\s+[\w\s]{1,25}?\s+(?:is|was|are|were|has|had|keeps|seems)|this\s+[\w\s]{1,20}?\s+(?:is|was))\b", re.I)
+
+
+def _request_shape(q: str) -> bool:
+    """A question, or a short telegraphic order ("weather in Amman tomorrow", "current date please") -- and not a
+    statement about the speaker's day ("it rained all weekend", "I can't focus today")."""
+    if _STATEMENT.match(q) and not q.strip().endswith("?"):
+        return False
+    return bool(_ASKS.search(q)) or len(q.split()) <= 6
+
+
+def _time_evidence(q: str) -> bool:
+    """A question or a short order about the clock or calendar -- not "time to eat" or "it's break time at school"."""
+    if not re.search(r"\b(?:time|date|day|clock)\b|\b(?:morning|evening|afternoon)\s+or\s+(?:morning|evening|afternoon|night)\b", q, re.I):
+        return False
+    if re.search(r"\btime\s+(?:to|for|of|off)\b|\b(?:day|time)\s+(?:job|shift|zone)\b", q, re.I) and not _ASKS.search(q):
+        return False
+    return _request_shape(q)
+
+
+_EVIDENCE: Dict[str, Any] = {
+    "get_time": lambda q: _time_evidence(q),
+    "get_weather": lambda q: _request_shape(q) and bool(re.search(
+        r"\b(?:weather|forecast|rain(?:ing|y)?|snow(?:ing)?|umbrella|sunny|windy|humid|storm(?:y|ing)?|"
+        r"(?:cold|hot|warm|cool|freezing|chilly)\s+(?:out|outside|today|tomorrow)|temperature\s+(?:outside|today|tomorrow|in)|"
+        r"degrees)\b", q, re.I)),
+    "set_reminder": lambda q: bool(re.search(
+        r"\b(?:remind(?:er|ers)?|timer|alarm|wake\s+me|snooze|notify\s+me|alert\s+me|ping\s+me|"
+        r"don'?t\s+let\s+me\s+forget)\b", q, re.I)) and not _HOWTO.search(q),
+    "system_stats": lambda q: bool(re.search(
+        r"\b(?:cpu|ram|memory|mem|disk|storage|battery|temperature|temp|uptime|processor|gpu|performance|usage|"
+        r"system|computer|laptop|machine|pc|resources?|load|fan|swap|hardware|specs?|pi|raspberry|"
+        r"overheat\w*|throttl\w*|diagnostics?|health\s*check)\b"
+        r"|\bhow\s+hot\s+(?:is|are)\s+(?:the\s+)?(?:pi|machine|laptop|cpu|you|it)\b"
+        r"|\b(?:you|it)(?:'re|\s+are|'s|\s+is)?\s+(?:running|getting)\s+hot\b", q, re.I)),
+}
+_FILE_EVIDENCE = re.compile(
+    r"\b(?:files?|folders?|director(?:y|ies)|documents?|docs?|downloads|desktop|logs?|csv|json|txt|pdf|"
+    r"py|md|xlsx?|docx?|png|jpe?g|zip|grep|ls|dir|cat|tree|src|repo|codebase|project)\b|[\w.\-]+[/\\][\w.\-]+|\b[\w\-]+\.[A-Za-z0-9]{1,5}\b", re.I)
+# "it rained all weekend" and "I'll tell you when I'm done" are statements; the general lookup tools are for
+# questions and orders ("explain", "define", "tell me about", "who is").
+_ASKS_MORE = re.compile(
+    r"^\s*(?:so\s+|and\s+|ok(?:ay)?\s+|hey\s+)*(?:explain|define|describe|name|list|say|recommend|suggest|translate|"
+    r"compare|summari[sz]e|teach|who|whose|why|whom|search|lookup|google|wiki|read|open|run)\b", re.I)
+for _t in ("question", "search"):
+    _EVIDENCE[_t] = (lambda q: bool(_ASKS.search(q)) or bool(_ASKS_MORE.search(q)))
+for _t in ("read_file", "file_info", "list_directory", "search_files"):
+    _EVIDENCE[_t] = (lambda q: bool(_FILE_EVIDENCE.search(q)) and not _HOWTO.search(q))
+
+
+def _has_evidence(intent: str, query: str) -> bool:
+    """False when `intent` is a tool that needs something in the sentence and it is not there."""
+    guard = _EVIDENCE.get(intent)
+    return True if guard is None else bool(guard(query or ""))
+
+
 # Asking ASH to look at the screen. "what you see" with no noun is a real
 # request ("Yo ash, what you see?"), so this is phrases, not just "screen".
 #
@@ -392,6 +467,7 @@ def _ranked(query: str, top_k: int):
     wide = max(top_k, len(set(cat.labels)))          # priors may promote a lower-ranked intent
     ranked = _apply_priors(query, cat.most_similar(query, top_k=wide))
     # What the user corrected before: the wrong reading down, the meant one up.
+    before = dict(ranked)
     try:
         from src.brain import corrections as _corrections
         ranked = _corrections.default().adjust(query, ranked)
@@ -399,6 +475,9 @@ def _ranked(query: str, top_k: int):
         logger.exception("Correction priors unavailable")
     if not _SCREEN_ASK.search(query or ""):
         ranked = [(i, sc) for i, sc in ranked if i != "screen_view"]
+    # The evidence guard drops a tool the sentence gives no reason for -- unless the user said that is what they
+    # meant (a correction raised it): their word beats the heuristic.
+    ranked = [(i, sc) for i, sc in ranked if _has_evidence(i, query) or sc > before.get(i, sc) + 1e-9]
     return ranked[:top_k]
 
 

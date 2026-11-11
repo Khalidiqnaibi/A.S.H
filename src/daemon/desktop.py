@@ -42,6 +42,9 @@ APPS: Dict[str, Tuple[str, str]] = {
     "outlook": ("outlook", "outlook.exe|olk.exe"), "teams": ("ms-teams:", "ms-teams.exe"),
     "chrome": ("chrome", "chrome.exe"), "google chrome": ("chrome", "chrome.exe"),
     "edge": ("msedge", "msedge.exe"), "firefox": ("firefox", "firefox.exe"), "opera": ("opera", "opera.exe"),
+    # "open the browser": any of them counts as running; Chrome is what gets started (add desktop.apps to change it)
+    "browser": ("chrome", "chrome.exe|msedge.exe|firefox.exe"), "web browser": ("chrome", "chrome.exe|msedge.exe|firefox.exe"),
+    "the browser": ("chrome", "chrome.exe|msedge.exe|firefox.exe"),
     "word": ("winword", "winword.exe"), "excel": ("excel", "excel.exe"),
     "powerpoint": ("powerpnt", "powerpnt.exe"), "notepad": ("notepad", "notepad.exe"),
     "calculator": ("calc", "calculatorapp.exe"), "spotify": ("spotify:", "spotify.exe"),

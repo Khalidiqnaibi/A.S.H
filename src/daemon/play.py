@@ -42,6 +42,7 @@ _START = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:let'?s|can we|could we|wan
                     r"(?:\s+game)?\s*[.!?]?\s*$"
                     r"|^\s*(?:play|start)\s+(?:a\s+|the\s+)?(?P<which2>" + _WHICH + r")"
                     r"(?:\s+game)?\s*[.!]?\s*$"
+                    r"|^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?play\s+(?:a|another|some)\s+game(?:\s+with\s+me)?\s*[.!]?\s*$"
                     r"|^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:tell|give|ask)\s+me\s+(?:a|another|today'?s)\s+"
                     r"(?P<which3>riddle|trivia(?:\s+question)?)\s*[.!?]?\s*$", re.I)
 _STOP = re.compile(r"^\s*(?:stop|quit|enough|i'?m done|end (?:the )?game|let'?s stop|i give up|give up)\b", re.I)

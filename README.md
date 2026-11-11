@@ -1612,6 +1612,26 @@ guest's voice is refused all of it.
   holds right now -- tastes, what the ledger holds and in what form, interests,
   focus hours, reaction rate -- and how to delete each.
 
+## How ASH tells what a sentence is (`tst_intents.py`)
+
+Three layers decide what happens to a sentence, and each had its own way of being wrong. A measurement of 267
+real and realistic sentences found:
+
+| Layer | What was wrong | What changed |
+|---|---|---|
+| **Addressing** (`senses/address.py`) | 98 commands ASH's own handlers understand ("switch to spotify", "work mode", "next song", "quiet for an hour") scored 0 and were silently dropped; "can you pass me that cable" scored 1.0; feedback like "you are working really fast" scored 0.25; "bash" for "Ash" was not heard as the name | `daemon/grammar.py` asks the handlers' own parsers ("is this a command I have?") and lifts a recognised command to *probably for ASH* (never to certain). Cues for the room ("you guys"), for a pair of hands ("can you pass...", "did you see..."), and kitchen appliances cap a sentence below "probably" unless the name was said or a handler recognises it. Remarks about the listener count as for it. "bash"/"as" at the end of a greeting-style question are read as the name. `address.grammar` in `daemon.json` (on by default) |
+| **Routing** (the rule chain in `ambient.py`) | "make it louder", "lower the volume a bit", "play some music", "play a game", "open the browser", spoken numbers ("quiet for forty five minutes", "until three") matched nothing; "can you help me" recited the capability list; "forget start work" was taken by memory, so a saved task could not be forgotten by voice | those phrasings; `numwords.py`; `honest` no longer answers a request for help with a manual; a saved task wins "forget X" |
+| **The tool router** (`tools/classification.py`) | the embedding threshold is 0.21, so a similar word called a tool: "I'm so stressed today" -> the clock, "what are you doing" -> a CPU table, "open the browser" -> read a file, "it rained all weekend" -> a forecast (27 of 267) | each tool that fires on weak similarity needs evidence in the sentence itself: a time/date word for `get_time`, a weather word for `get_weather` (both only for a question or a short request, not a statement about your day), a reminder word for `set_reminder`, a machine noun for `system_stats`, a file noun or path for the file tools, a question or order for the general lookups. A user's correction ("no, I meant X") still overrides it |
+
+Also found and fixed: the media handler was the one acting handler with no "meant for ASH" check, so overheard
+speech could press a media key; and "pause"/"stop" with nothing playing would have *started* something (the
+now-playing sensor is now asked). Real attempts are caught: the test makes the real media and desktop executors
+unable to act and records any try -- an earlier version of this measurement launched Excel, Calculator and Chrome on
+the machine it ran on.
+
+Not changed on purpose: a greeting with no name ("hello", "good morning") and a lone "yes"/"no"/"stop" are still not
+taken for ASH unless it just spoke or was named -- they are as likely said to a person.
+
 ## What it buys you
 
 Spreading activation (2 steps — one gives direct associates, three gives

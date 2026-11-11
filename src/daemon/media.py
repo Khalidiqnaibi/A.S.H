@@ -37,16 +37,22 @@ KEYS = {"play_pause": 0xB3, "next": 0xB0, "previous": 0xB1, "volume_up": 0xAF, "
 _MUSIC = [
     (re.compile(r"^\s*(?:please\s+)?(?:pause|stop)\s+(?:the\s+)?(?:music|song|video|playback|it)\s*[.!]?\s*$"
                 r"|^\s*(?:pause|stop)\s*[.!]?\s*$", re.I), "play_pause", "Paused."),
-    (re.compile(r"^\s*(?:please\s+)?(?:resume|play|unpause|continue)(?:\s+(?:the\s+)?(?:music|song|playback|it))?"
+    (re.compile(r"^\s*(?:please\s+)?(?:resume|play|unpause|continue)(?:\s+(?:the\s+|some\s+|my\s+)?(?:music|songs?|playback|it|tunes))?"
                 r"\s*[.!]?\s*$", re.I), "play_pause", "Playing."),
     (re.compile(r"^\s*(?:please\s+)?(?:next|skip)(?:\s+(?:this\s+|the\s+)?(?:song|track|one))?\s*[.!]?\s*$"
                 r"|^\s*(?:play\s+)?(?:the\s+)?next\s+(?:song|track)\s*[.!]?\s*$", re.I), "next", "Next one."),
     (re.compile(r"^\s*(?:please\s+)?(?:previous|go back|last)(?:\s+(?:song|track|one))?\s*[.!]?\s*$"
                 r"|^\s*(?:play\s+)?(?:the\s+)?previous\s+(?:song|track)\s*[.!]?\s*$", re.I), "previous", "Going back."),
-    (re.compile(r"^\s*(?:please\s+)?(?:turn\s+(?:it|the\s+(?:volume|music|sound))\s+up|volume\s+up|louder)\s*[.!]?\s*$",
+    (re.compile(r"^\s*(?:please\s+)?(?:(?:can|could)\s+you\s+)?(?:make\s+it\s+(?:a\s+(?:bit|little)\s+)?louder"
+                r"|(?:turn|bring|pump|crank)\s+(?:it|the\s+(?:volume|music|sound))\s+up(?:\s+(?:a\s+)?(?:bit|little|notch))?"
+                r"|(?:raise|increase|boost)\s+the\s+volume(?:\s+(?:a\s+)?(?:bit|little|notch))?"
+                r"|volume\s+up|(?:a\s+(?:bit|little)\s+)?louder)(?:\s+please)?\s*[.!]?\s*$",
                 re.I), "volume_up", "Louder."),
-    (re.compile(r"^\s*(?:please\s+)?(?:turn\s+(?:it|the\s+(?:volume|music|sound))\s+down|volume\s+down|quieter|softer)"
-                r"\s*[.!]?\s*$", re.I), "volume_down", "Quieter."),
+    (re.compile(r"^\s*(?:please\s+)?(?:(?:can|could)\s+you\s+)?(?:make\s+it\s+(?:a\s+(?:bit|little)\s+)?(?:quieter|softer|lower)"
+                r"|(?:turn|bring)\s+(?:it|the\s+(?:volume|music|sound))\s+down(?:\s+(?:a\s+)?(?:bit|little|notch))?"
+                r"|(?:lower|reduce|decrease)\s+the\s+volume(?:\s+(?:a\s+)?(?:bit|little|notch))?"
+                r"|volume\s+down|(?:a\s+(?:bit|little)\s+)?(?:quieter|softer))(?:\s+please)?\s*[.!]?\s*$",
+                re.I), "volume_down", "Quieter."),
     (re.compile(r"^\s*(?:please\s+)?(?:mute|unmute)\s+(?:the\s+)?(?:sound|volume|audio|music)\s*[.!]?\s*$", re.I),
      "mute", "Done."),
 ]

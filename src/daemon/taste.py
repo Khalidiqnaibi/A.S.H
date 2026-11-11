@@ -510,7 +510,10 @@ class Taste:
         self.last = []
         for sent in re.split(r"(?<=[.!?])\s+|\n+", str(text)):
             self.stats["heard"] += 1
-            bound = bool(playing and playing.get("item") and _THIS.search(sent))
+            # "remember that I like coffee" / "note that Ali hates cilantro": the same statement, asked to be kept.
+            sent = re.sub(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:remember|note|keep\s+in\s+mind|don'?t\s+forget)\s+that\s+",
+                          "", sent, flags=re.I)
+            bound =bool(playing and playing.get("item") and _THIS.search(sent))
             for f in read(_THIS.sub(_SENTINEL, sent, count=1) if bound else sent):
                 if bound and f.item.lower() == _SENTINEL.lower():
                     f.item = str(playing["item"])

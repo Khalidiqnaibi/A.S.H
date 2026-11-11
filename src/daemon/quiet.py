@@ -20,6 +20,8 @@ import re
 import time
 from typing import Optional, Tuple
 
+from .numwords import digits
+
 _LEAD = (r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:(?:be|go|stay)\s+quiet|quiet(?:\s+mode)?|"
          r"do\s+not\s+disturb|don'?t\s+disturb\s+me|silence|mute\s+(?:yourself|ash)|no\s+interruptions|"
          r"leave\s+me\s+alone|stop\s+talking)\s*")
@@ -30,7 +32,7 @@ _UNTIL = re.compile(_LEAD + r"(?:till|until|til|to)\s+(?:(?P<word>noon|midnight)
 
 
 def parse(text: str, now: float) -> Optional[Tuple[float, str]]:
-    t = (text or "").strip()
+    t = digits((text or "").strip())
     if not t or len(t) > 80:
         return None
     m = _FOR.match(t)

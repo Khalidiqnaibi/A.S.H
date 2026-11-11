@@ -159,8 +159,60 @@ _BACKCHANNEL = re.compile(
     r"yeah|yep|yup|yes|right|sure|cool|nice|alright|i\s+see|got\s+it|gotcha|"
     r"true|exactly|indeed)[\s.!,?]*$", re.I)
 
+# Remarks about how the listener is doing, said to the listener: "you are working really fast", "you're wrong",
+# "you need a few improvements". With "you" as the subject and no other addressee this is feedback to ASH -- the
+# only thing in the room it can be said to -- and it scored 0.25, under the bar, so it was never answered.
+_FEEDBACK = re.compile(
+    r"^\s*(?:(?:so|but|and|well|oh|hey|wow|damn|hmm+|ok(?:ay)?|honestly|actually|man)[,\s]+)*"
+    r"(?:oh\s+my\s+(?:god|gosh)[,\s]+)?"
+    r"you(?:'re|\s+are|\s+were|\s+need\s+to|\s+should|\s+keep|\s+did|\s+didn'?t|\s+don'?t|\s+never|\s+always|\s+sound|"
+    r"\s+seem|\s+just|\s+really|\s+actually|\s+still|\s+better|\s+can'?t|\s+cannot)\b", re.I)
+
+# ...also after a first clause: "So fix that, but otherwise you are working well actually."
+_FEEDBACK_MID = re.compile(r"[,;]\s*(?:but|and|though|although)?\s*(?:otherwise\s+|honestly\s+|actually\s+)?you(?:'re|\s+are|\s+were)\b", re.I)
+
 # Plain narration about oneself, with nobody else in it.
 _FIRST_PERSON_ONLY = re.compile(r"^\s*(?:i|i'm|im|i've|ive|my|we|we're)\b", re.I)
+
+# Said to someone else in the room. "Can you pass me that cable" is a polite request (+0.55) with "you" (+0.25),
+# a question (+0.35) and the pair bonus (+0.15): 1.3, certain, for a sentence about a cable. Stacked weak cues
+# are not evidence of ASH when the sentence itself says who it is for.
+_OTHER_PEOPLE = re.compile(
+    r"\byou\s+(?:guys|all|two|both|lot|folks)\b|\by'?all\b|\b(?:guys|everyone|everybody|folks|kids|children)\b"
+    r"|,\s*(?:mom|mum|mama|dad|papa|honey|babe|baby|sweetie|bro|dude|buddy|sir|boss)\s*[?!.]*\s*$"
+    r"|^\s*(?:tell|ask)\s+(?:him|her|them|everyone|everybody)\b", re.I)
+# A favour that needs hands, or a question about the other person's day. (Not "can you hear me" / "can you see":
+# those are very likely a check on ASH's own microphone and camera.)
+_HUMAN_ERRAND = re.compile(
+    r"^\s*(?:hey\s+)?(?:can|could|would|will|do)\s+(?:you|u)\s+(?:please\s+)?(?:pass|hand|bring|grab|fetch|carry|pour|hold|"
+    r"move|come|wait|eat|sleep|wanna|mind|know\s+(?:him|her|them|where|who))\b"
+    r"|^\s*(?:did|do|are|were)\s+(?:you|u)\s+(?:see|hear|watch|eat|sleep|coming|going|want|wanna|like|get|catch|finish|"
+    r"go|have\s+(?:a|any|fun|dinner|lunch))\b", re.I)
+# Kitchen and laundry appliances ASH has no hold of. Only a cue when no handler recognises the sentence:
+# "set the timer on the oven for me" is for a person, "remind me in an hour to check the oven" is for ASH.
+_OTHER_DEVICE = re.compile(r"\b(?:oven|stove|microwave|kettle|washer|washing\s+machine|dryer|dishwasher|toaster|fridge)\b", re.I)
+CAP_OTHERS = 0.30        # just under "probably for ASH": heard, not acted on
+
+# Hooks that let the daemon say "that is a command one of my handlers understands" (daemon/grammar.py). Returns
+# 0..1; it lifts the confidence to at least that, never above it, so a recognised command is "probably" for ASH.
+_GRAMMARS: List = []
+
+
+def register_grammar(fn) -> None:
+    """Add (or replace the daemon's) command-grammar hook. `fn(text) -> float`."""
+    _GRAMMARS.clear()
+    if fn is not None:
+        _GRAMMARS.append(fn)
+
+
+def _grammar(text: str) -> float:
+    best = 0.0
+    for fn in _GRAMMARS:
+        try:
+            best = max(best, float(fn(text) or 0.0))
+        except Exception:
+            continue
+    return best
 
 
 @dataclass
@@ -303,6 +355,9 @@ def score(text: str, now: Optional[float] = None,
         # whoever is listening, and ASH is always listening.
         conf += 0.15
         reasons.append("asking you something")
+    if (_FEEDBACK.match(raw) or _FEEDBACK_MID.search(raw)) and not _OTHER_PEOPLE.search(raw) and not _OTHER_ADDRESSEE.search(raw):
+        conf += 0.30
+        reasons.append("remarking on you")
     if command:
         conf += 0.20 if second else 0.45
         reasons.append("an instruction")
@@ -330,6 +385,22 @@ def score(text: str, now: Optional[float] = None,
         # "I'm exhausted", "my back hurts" -- said out loud, not to anyone.
         conf -= 0.20
         reasons.append("talking to themselves")
+
+    # ---- a command one of ASH's own handlers understands -----------------
+    # Asked of the handlers, not guessed from a verb list: "next song", "work mode", "switch to spotify".
+    g = _grammar(raw)
+    if g > 0 and g > conf and not other:
+        conf = g
+        reasons.append("a command I know")
+
+    # ---- plainly for someone else, whatever else adds up ----------------
+    # The name settles it: "ash, can you pass the salt" is for ASH. Without it, a sentence that says it is for
+    # the room ("you guys"), or for a pair of hands, or about another person's day, is capped below "probably".
+    if not vocative and open_now < 0.3 and (_OTHER_PEOPLE.search(raw) or _HUMAN_ERRAND.search(raw)
+                                            or (g == 0 and _OTHER_DEVICE.search(raw))):
+        if conf > CAP_OTHERS:
+            conf = CAP_OTHERS
+            reasons.append("said to someone else")
 
     conf = max(0.0, min(1.0, conf))
     return AddressVerdict(conf, reasons)

@@ -54,7 +54,7 @@ ENTRIES: List[Tuple[str, int, str]] = [
      "daemon.json. \"Run my morning check\" runs a routine you kept. It cannot click inside apps or type for you."),
     ("music", 5,
      "ASH manual, music and photos. \"Pause the music\", \"play\", \"next song\", \"previous track\", \"turn it up\", \"mute "
-     "the sound\": sent as media keys, so it works with Spotify or a browser video without knowing which. \"Take a "
+     "the sound\", \"make it louder\", \"lower the volume a bit\", \"play some music\": sent as media keys, so it works with Spotify or a browser video without knowing which. \"Take a "
      "photo\" saves one webcam frame to Pictures/ASH, only when asked and never while privacy is on. It can't pick a "
      "specific song or playlist."),
     ("plans", 5,
@@ -67,7 +67,7 @@ ENTRIES: List[Tuple[str, int, str]] = [
      "ASH manual, lights and plugs. \"Turn on the living room lights\" works through Home Assistant, and only if a Home "
      "Assistant address is set up in daemon.json; otherwise ASH can't. A guest's voice can't do this."),
     ("quiet", 6,
-     "ASH manual, quiet and focus. \"Quiet for an hour\", \"quiet until 9\", \"go to sleep\" (wake up ends it): ASH stops "
+     "ASH manual, quiet and focus. \"Quiet for an hour\", \"quiet for forty five minutes\", \"quiet until 9\", \"go to sleep\" (wake up ends it): ASH stops "
      "volunteering but still answers you. \"Focus for 45 minutes\", \"do not disturb until 3\", \"I'm done focusing\": "
      "same, and it tells you in one line what it held back. Reminders and watches still go off. It silences itself "
      "only, not other apps' notifications."),
