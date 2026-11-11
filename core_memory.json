@@ -398,11 +398,11 @@
   "manual_playing": {
     "rule_id": "manual_playing",
     "category": "capability",
-    "text": "ASH manual, what is playing. ASH notices what song or video is playing from the titles of player windows: Spotify, a YouTube, Netflix or SoundCloud tab, VLC, mpv, foobar2000. It reads only those windows, never the screen or the sound. A song heard to the end counts a little for it, a replay more, one skipped within thirty seconds counts against it; three listens make it something you like. What you said always stands. Limits: a title says what is open, not that it is audible, so a paused browser tab looks playing (Spotify goes back to its plain name when paused); a browser shows only its front tab; Stremio has no title; a guest's music counts as yours. sensors.now_playing and taste.from_playing in daemon.json turn it off.",
+    "text": "ASH manual, what is playing. ASH sees what song or video is on from player window titles only (Spotify, a YouTube, Netflix or SoundCloud tab, VLC, mpv, foobar2000), never the screen or sound. Played to the end counts a little for it, skipped within thirty seconds against it; what you said always stands. \"What's playing?\" tells you; \"I love this song\" or \"I can't stand this\" keeps that song; \"do I like this?\" answers. Limits: a title says what is open, not that it is audible, so a paused tab looks playing; a browser shows its front tab only; Stremio has no title; a guest's music counts as yours. sensors.now_playing turns it off.",
     "priority": 4,
     "hard": false,
     "created_at": 1794326715.0005047,
-    "updated_at": 1794326715.0005047
+    "updated_at": 1794402077.3460057
   },
   "manual_occasion": {
     "rule_id": "manual_occasion",
@@ -412,5 +412,23 @@
     "hard": false,
     "created_at": 1794327685.4899542,
     "updated_at": 1794327685.4899542
+  },
+  "manual_browsing": {
+    "rule_id": "manual_browsing",
+    "category": "capability",
+    "text": "ASH manual, browser tabs. Off until switched on (sensors.browser_tabs in daemon.json, plus the ash-tabs extension). Then ASH keeps a local ledger of how long each site was in front: site and category only, no model. Never private windows, banks, mail, chat, health or password pages, nor page text or addresses. Ask \"what have I been browsing this week?\", \"how much time on youtube?\", \"when do I focus best?\", \"what am I into lately?\", \"any suggestions about my browsing?\", \"what are my browsing habits?\". \"Tag this site as work\" teaches it; \"stop watching my tabs\" pauses; \"forget my browsing\" deletes. A guest is refused.",
+    "priority": 4,
+    "hard": false,
+    "created_at": 1794402077.3460057,
+    "updated_at": 1794402077.3460057
+  },
+  "manual_learning": {
+    "rule_id": "manual_learning",
+    "category": "capability",
+    "text": "ASH manual, what ASH learns about you. It learns likes and dislikes (what you say, and what you play), how you browse (if tabs are on), and how welcome its own remarks are, per kind and per what you're doing (coding, gaming, leisure). \"How are your nudges landing?\" says what it learned; \"forget how I react\" resets it. The console's \"What I'm learning about you\" panel lists it all. Learned by counting, not by a model; every part can be forgotten by voice.",
+    "priority": 4,
+    "hard": false,
+    "created_at": 1794402077.3460057,
+    "updated_at": 1794402077.3460057
   }
 }

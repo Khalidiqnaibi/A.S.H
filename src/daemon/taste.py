@@ -499,6 +499,12 @@ class Taste:
         now = self.clock() if now is None else now
         if not self.cfg.enabled or guest or not text:
             return []
+        try:
+            # "hey ash, I love Interstellar" is how most of it is said aloud.
+            from src.senses.mic import MicrophoneSensor
+            text = MicrophoneSensor.strip_address(str(text)) or str(text)
+        except Exception:
+            pass
         people = list(people)
         learned: List[str] = []
         self.last = []

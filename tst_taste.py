@@ -337,6 +337,22 @@ def t6_runtime():
     check("without the setting there is no taste (a bare runtime behaves as it did)", bare.taste is None)
 
 
+def t6b_said_to_ash():
+    print("\n=== T6b. Said to ASH by name ===")
+    from src.daemon.taste import Taste, TasteConfig
+    d = tempfile.mkdtemp()
+    rt = te.rig(wonder=True, taste=True, knowledge_path=os.path.join(d, "k.json"), wonder_path=os.path.join(d, "w.json"))
+    rt.brain.user = "Khalid"
+    rt.taste = Taste(rt.wonder.kb, user="Khalid", cfg=TasteConfig(), clock=lambda: rt.t[0])
+    items = lambda: rt.wonder.kb.tastes.get("khalid", {}).get("items", {})
+    rt.say("hey ash, I can't stand Blade Runner")
+    check("'hey ash, I can't stand X' -- how it is said aloud -- is learned (found live: it was not)",
+          (items().get("blade runner") or {}).get("score", 0) < 0, str(rt.wonder.kb.tastes))
+    rt.say("Ash I love Interstellar")
+    check("...with or without the comma", "interstellar" in items(), str(items()))
+    check("a bare reading of the same sentence still works", bool(rt.taste.observe("hey ash I love Dune", "mic", rt.t[0])))
+
+
 def t7_manual_and_control():
     print("\n=== T7. The manual and the control command ===")
     from src.daemon import manual
@@ -442,6 +458,7 @@ if __name__ == "__main__":
     t4_using()
     t5_undo_forget()
     t6_runtime()
+    t6b_said_to_ash()
     t7_manual_and_control()
     t8_this_song()
     print("\nALL PASS" if tw.OK else "\nFAILED")
