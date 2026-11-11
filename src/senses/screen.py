@@ -118,7 +118,7 @@ def looks_private(title: str, process: str = "") -> bool:
 # a machine, sit in calls, or just would rather it did not read their DMs.
 # Everything ASH does is local, so for someone who does not mind it reading
 # their own screen it is a switch, privacy.protect_private_content.
-_PROTECT_PRIVATE_CONTENT = True
+_PROTECT_PRIVATE_CONTENT = False
 
 
 def set_private_content_protection(on: bool) -> None:
