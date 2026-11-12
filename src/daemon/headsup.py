@@ -71,5 +71,42 @@ def cards(runtime, now: float, reminder_window_s: float = 1800.0, event_window_s
                             "sub": f"+{len(p) - 1} more" if len(p) > 1 else "Waiting for you"})
         except Exception:
             pass
+    out += _browsing_cards(runtime, now)
     out.sort(key=lambda c: (c["at"] == 0, c["at"]))
     return out[:5]
+
+
+_GOAL_CACHE: Dict[int, tuple] = {}
+
+
+def _browsing_cards(runtime, now: float) -> List[Dict[str, Any]]:
+    """A goal you are over, and a leisure page in front during focus mode. Console only: nothing here is ever
+    said aloud, and nothing appears unless tab tracking is on."""
+    b = getattr(runtime, "browsing", None)
+    sensor = b._s() if b is not None else None
+    if sensor is None or getattr(sensor, "ledger", None) is None or getattr(sensor, "paused", False):
+        return []
+    out: List[Dict[str, Any]] = []
+    try:
+        hit = _GOAL_CACHE.get(id(runtime))
+        if hit is None or now - hit[0] >= 60.0:                     # the console asks often; the ledger is a database
+            hit = (now, [g for g in b.goal_progress(now) if g["over"]])
+            _GOAL_CACHE[id(runtime)] = hit
+        for g in hit[1]:
+            label = "today" if g["per"] == "day" else "this week"
+            from .browsing import dur
+            out.append({"kind": "goal", "title": f"Over your {g['category']} goal", "at": 0, "in": label,
+                        "sub": f"{dur(g['used'])} of {dur(g['limit'])}"})
+    except Exception:
+        pass
+    try:
+        fo = getattr(runtime, "focus", None)
+        cur = sensor.current()
+        if fo is not None and fo.active(now) and cur and cur.get("category") in ("video", "social", "games", "shopping", "news") \
+                and now - float(cur.get("start") or now) >= 600.0:
+            mins = int((now - cur["start"]) // 60)
+            out.append({"kind": "focus", "title": f"{mins} min on {cur['category']} in focus mode", "at": 0, "in": "now",
+                        "sub": cur["site"]})
+    except Exception:
+        pass
+    return out

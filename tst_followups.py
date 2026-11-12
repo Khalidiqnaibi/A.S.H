@@ -539,6 +539,48 @@ def feature_goals():
     check("they survive a restart", Ledger(p).goals() == [("news", 1800.0, "day")])
 
 
+@section
+def feature_goal_and_focus_cards():
+    print("\n=== FEATURE: console cards for a goal you are over, and a leisure page during focus mode ===")
+    import tst_effects as te
+    from src.daemon import headsup
+    from src.daemon.focus import Focus
+    s, led, now = _world()
+    rt = te.rig()
+    rt.periphery.sensors["browser_tabs"] = s
+    rt.t[0] = now
+    headsup._GOAL_CACHE.clear()
+    check("no goals, no focus: no browsing cards", [c for c in headsup.cards(rt, now) if c["kind"] in ("goal", "focus")] == [])
+    led.set_goal("video", 7200, "week")
+    led.set_goal("news", 3 * 3600, "week")
+    headsup._GOAL_CACHE.clear()
+    cards = [c for c in headsup.cards(rt, now) if c["kind"] == "goal"]
+    check("a goal you are over is a card, one you are not is not", [c["title"] for c in cards] == ["Over your video goal"], str(cards))
+    check("...saying what it is: 4 hours of 2, this week", cards and cards[0]["in"] == "this week" and cards[0]["sub"] == "4 hours of 2 hours", str(cards))
+    check("it is never at a time (so it sorts after the things that are)", cards[0]["at"] == 0)
+    s.pause()
+    check("with tab tracking paused there are no browsing cards at all", [c for c in headsup.cards(rt, now) if c["kind"] in ("goal", "focus")] == [])
+    s.resume()
+    headsup._GOAL_CACHE.clear()
+
+    # focus mode with a leisure page in front for ten minutes
+    rt.focus = Focus(clock=lambda: now)
+    rt.focus.hear("focus for an hour", now)
+    s.submit({"focused": True, "tabs": [dict(id=1, url="https://www.youtube.com/watch?v=1", title="x", active=True, audible=False, incognito=False)]})
+    s.read()
+    check("focus on, a leisure page just opened: no card yet", [c for c in headsup.cards(rt, s.current()["start"] + 60) if c["kind"] == "focus"] == [])
+    later = s.current()["start"] + 12 * 60
+    focus = [c for c in headsup.cards(rt, later) if c["kind"] == "focus"]
+    check("ten minutes in, a card says so", focus and focus[0]["title"] == "12 min on video in focus mode" and focus[0]["sub"] == "youtube.com", str(focus))
+    rt.focus.hear("I'm done focusing", later)
+    check("focus off: no card", [c for c in headsup.cards(rt, later) if c["kind"] == "focus"] == [])
+    rt.focus.hear("focus for an hour", later)
+    s.submit({"focused": True, "tabs": [dict(id=2, url="https://github.com/x", title="x", active=True, audible=False, incognito=False)]})
+    s.read()
+    check("...so no card for it", [c for c in headsup.cards(rt, s.current()["start"] + 20 * 60) if c["kind"] == "focus"] == [])
+    check("the cards are limited to five, whatever is queued", len(headsup.cards(rt, now)) <= 5)
+
+
 def time_str(ts):
     import time as _t
     return _t.strftime("%H:%M", _t.localtime(ts))
