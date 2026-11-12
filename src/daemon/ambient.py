@@ -273,6 +273,9 @@ class AmbientConfig:
     # BMO's moods: feelings that last (cheer, energy), from what happened; "how are you feeling?" (feelings.py).
     feelings: bool = False
     feelings_path: Optional[str] = None
+    # BMO-style play: jokes, made-up songs, inside jokes remembered from what made you laugh (fun.py).
+    fun: bool = False
+    fun_path: Optional[str] = None
     situation_probe: Optional[Callable[[], Any]] = None      # () -> (battery (percent, plugged) | None, memory %); tests
     arrivals: bool = False          # "remind me when I get home" (arrival.py)
     arrivals_path: Optional[str] = None
@@ -639,6 +642,12 @@ class AmbientRuntime:
         if self.cfg.phone:
             from .phone import Phone, PhoneConfig
             self.phone = Phone(PhoneConfig.from_dict(self.cfg.phone_cfg), **(self.cfg.phone_io or {}))
+        self.fun = None
+        self._last_out_at = 0.0
+        self._joke_at = -1e9
+        if self.cfg.fun:
+            from .fun import Fun
+            self.fun = Fun(self.cfg.fun_path, clock=lambda: self.clock())
         self.feelings = None
         self._feeling_shown = ("", 0.0)
         self._feelings_at = 0.0
@@ -757,6 +766,7 @@ class AmbientRuntime:
             return None
         if text and meta.get("outcome") != "thinking_cue" and meta.get("source") != "reminder":
             self._last_out = text
+            self._last_out_at = self.clock()
         if self.remarks is not None and text:
             try:
                 self.remarks.said(text, meta)
@@ -1788,6 +1798,24 @@ class AmbientRuntime:
                       r"(?:show|open|bring\s+up|pop\s+up|put\s+up)\s+(?:me\s+)?(?:the\s+|your\s+|a\s+)?"
                       r"(?:hud|heads[-\s]?up(?:\s+(?:display|panel|widget))?|widget|status\s+panel)\s*(?:please)?\s*[.!]?\s*$", re.I)
 
+    def _fun_request(self, ev, now: float) -> bool:
+        """"Tell me a joke", "sing me a song about my cat", "what are our inside jokes?" -- by rule (fun.py)."""
+        f = self.fun
+        if f is None or not self._user_source(ev) or not self._meant_for_ash(ev):
+            return False
+        say = f.hear(str(getattr(ev, "text", "") or ""), last_was_joke=(now - self._joke_at) < 180.0)
+        if not say:
+            return False
+        if not say.startswith(("Forgotten", "Ours", "We don't")):
+            self._joke_at = now
+            if getattr(self, "face", None) is not None:
+                try:
+                    self.face._play("very_happy")
+                except Exception:
+                    pass
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
+        return True
+
     def _feelings_request(self, ev, now: float) -> bool:
         """"How are you feeling?": from what actually happened today (feelings.py), not made up by the model."""
         f = self.feelings
@@ -1808,7 +1836,7 @@ class AmbientRuntime:
             shown, since = self._feeling_shown
             if anim != shown:
                 self._feeling_shown = (anim, now)
-            elif now - since >= 300.0 and self.face is not None and hasattr(self.face, "on_feeling"):
+            elif now - since >= 300.0 and getattr(self, "face", None) is not None and hasattr(self.face, "on_feeling"):
                 self.face.on_feeling(anim)
             if int(now) % 300 < 60:
                 f.save()
@@ -2546,6 +2574,11 @@ class AmbientRuntime:
                     self.feelings.hear(str(ev.text), now)
                 except Exception:
                     logger.exception("Feelings failed on a line")
+            if self.fun is not None and self._meant_for_ash(ev) and not (getattr(ev, "meta", None) or {}).get("guest"):
+                try:
+                    self.fun.heard(str(ev.text), getattr(self, "_last_out", None), self._last_out_at, now)
+                except Exception:
+                    logger.exception("Fun failed on a line")
         if self.voice is not None and self._voice_step(ev, now):
             return
         guest = bool((getattr(ev, "meta", None) or {}).get("guest"))
@@ -2747,6 +2780,8 @@ class AmbientRuntime:
         if not loose and self._identity_request(ev, now):
             return True
         if not loose and self._feelings_request(ev, now):
+            return True
+        if not loose and self._fun_request(ev, now):
             return True
         if self._notes_request(ev, now):
             return True
@@ -3865,6 +3900,7 @@ class AmbientRuntime:
             "phone": self.phone.status() if self.phone is not None else None,
             "guard": self.guard.status() if self.guard is not None else None,
             "feelings": self.feelings.status() if self.feelings is not None else None,
+            "fun": self.fun.status() if self.fun is not None else None,
             "free_moments": self.moments.status() if self.moments else None,
             "followups": self.followups.status() if self.followups else None,
             "routines": self.routines.status() if self.routines else None,

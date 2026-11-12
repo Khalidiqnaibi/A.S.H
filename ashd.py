@@ -326,6 +326,8 @@ def main() -> int:
                 guard=bool(cfg.get("guard", {}).get("enabled", True)),
                 feelings=bool(cfg.get("feelings", {}).get("enabled", True)),
                 feelings_path=os.path.join(os.getcwd(), "state", "feelings.json"),
+                fun=bool(cfg.get("fun", {}).get("enabled", True)),
+                fun_path=os.path.join(os.getcwd(), "state", "fun.json"),
                 filesearch=bool(cfg.get("filesearch", {}).get("enabled", True)),
                 filesearch_folders=list((cfg.get("filesearch") or {}).get("folders") or ["~/Documents", "~/Desktop", "~/Downloads"]),
                 filesearch_path=os.path.join(os.getcwd(), "state", "files.json"),
