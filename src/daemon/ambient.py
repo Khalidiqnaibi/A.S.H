@@ -541,7 +541,7 @@ class AmbientRuntime:
         if self.cfg.weekly:
             self.weekly = Weekly(self.cfg.weekly_path, clock=lambda: self.clock(), activity=self.activity,
                                  followups=self.followups, wonder=self.wonder, reminders=self.reminders,
-                                 day=self.cfg.weekly_day)
+                                 day=self.cfg.weekly_day, extra=lambda n: self.browsing.weekly_line(n))
         self.care: Optional[Care] = None
         if self.cfg.care:
             self.care = Care(clock=lambda: self.clock())

@@ -304,6 +304,23 @@ class Browsing:
             say += " Nothing moved by more than ten minutes."
         return say
 
+    def weekly_line(self, now: float) -> Optional[str]:
+        """One line for the weekly review: where the browser time went this week. None when tab tracking is off or
+        paused, or there is too little to say (the review should not claim a quiet week was a browsing one)."""
+        s = self._s()
+        if s is None or getattr(s, "ledger", None) is None or getattr(s, "paused", False):
+            return None
+        rows = [(c, sec) for c, sec in self._totals(now - 7 * DAY, now + 1).items() if c != "unknown"]
+        total = sum(sec for _c, sec in rows)
+        if total < 3600:
+            return None
+        rows.sort(key=lambda r: (-r[1], r[0]))
+        line = f"In the browser: {dur(total)} -- " + _lst([f"{c} {dur(sec)}" for c, sec in rows[:3]]) + "."
+        over = [g["category"] for g in self.goal_progress(now) if g["over"]]
+        if over:
+            line += " Over your " + _lst(over) + (" goals." if len(over) > 1 else " goal.")
+        return line
+
     def goal_progress(self, now: float) -> List[Dict[str, Any]]:
         """Each goal with what has been used: a day goal counts from midnight, a week goal over the last seven days."""
         led = self.sensor().ledger

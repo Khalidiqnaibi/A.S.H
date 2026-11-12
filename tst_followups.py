@@ -756,6 +756,46 @@ def feature_compare_days_and_weeks():
     check("with tabs off it says so", "off" in Browsing(lambda: None).hear("compare today with yesterday"))
 
 
+@section
+def feature_weekly_review_includes_browsing():
+    print("\n=== FEATURE: 'how was my week?' includes where the browser time went ===")
+    import tst_effects as te
+    from src.daemon.browsing import Browsing
+    from src.daemon.weekly import Weekly
+    s, led, now = _world()
+    b = Browsing(lambda: s, clock=lambda: now)
+    line = b.weekly_line(now)
+    check("the line says the total and the top three, biggest first", line == "In the browser: 14 hours 30 minutes -- code 6 hours 30 minutes, "
+          "video 4 hours and docs 3 hours.", str(line))
+    led.set_goal("video", 7200, "week")
+    check("...and names a goal you are over", b.weekly_line(now).endswith("Over your video goal."), b.weekly_line(now))
+    led.set_goal("code", 3600, "week")
+    check("...several, together", b.weekly_line(now).endswith("Over your code and video goals."), b.weekly_line(now))
+    s.pause()
+    check("paused: nothing is said (and nothing is made up)", b.weekly_line(now) is None)
+    s.resume()
+    check("tab tracking off: nothing", Browsing(lambda: None).weekly_line(now) is None)
+    from src.daemon.ledger import Ledger
+    from src.senses.browsertabs import BrowserTabSensor
+    thin = BrowserTabSensor(enabled=True, ledger=Ledger(clock=lambda: now), clock=lambda: now)
+    thin.ledger.record(now - 3600, now - 3000, "github.com", "code", "table")
+    check("ten minutes is not a browsing week", Browsing(lambda: thin, clock=lambda: now).weekly_line(now) is None)
+
+    w = Weekly(None, clock=lambda: now, extra=b.weekly_line)
+    check("the review carries it", "In the browser: 14 hours 30 minutes" in w.compose(now), w.compose(now))
+    w2 = Weekly(None, clock=lambda: now, extra=Browsing(lambda: None).weekly_line)
+    check("without it, the review is as it was ('a quiet week')", w2.compose(now).startswith("A quiet week"), w2.compose(now))
+    w3 = Weekly(None, clock=lambda: now, extra=lambda n: 1 / 0)
+    check("a failing extra never breaks the review", w3.compose(now).startswith("A quiet week"))
+
+    rt = te.rig(weekly=True)
+    rt.periphery.sensors["browser_tabs"] = s
+    rt.browsing.clock = lambda: now
+    rt.t[0] = now
+    rt.say("how was my week?")
+    check("on the runtime: asked by voice, it is in the answer", "In the browser:" in rt.out[-1], rt.out[-1])
+
+
 def time_str(ts):
     import time as _t
     return _t.strftime("%H:%M", _t.localtime(ts))

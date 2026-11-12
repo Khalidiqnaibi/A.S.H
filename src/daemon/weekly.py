@@ -54,8 +54,10 @@ def _hours(seconds: float) -> str:
 
 class Weekly:
     def __init__(self, path: Optional[str] = None, clock: Callable[[], float] = time.time,
-                 activity=None, followups=None, wonder=None, reminders=None, day: str = "sunday"):
+                 activity=None, followups=None, wonder=None, reminders=None, day: str = "sunday",
+                 extra: Optional[Callable[[float], Optional[str]]] = None):
         self.path = path
+        self.extra = extra          # one more line for the review from somewhere else (the browser ledger), or None
         self.clock = clock
         self.activity = activity
         self.followups = followups
@@ -191,6 +193,13 @@ class Weekly:
         ppl = self.top_people(now)
         if ppl:
             parts.append(f"{ppl[0]} came up most" + (f", then {ppl[1]}." if len(ppl) > 1 else "."))
+        if self.extra is not None:
+            try:
+                more = self.extra(now)
+                if more:
+                    parts.append(more)
+            except Exception:
+                pass
         if not parts:
             return "A quiet week -- I don't have much on it yet."
         return " ".join(parts)
