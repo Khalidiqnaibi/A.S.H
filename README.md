@@ -828,8 +828,22 @@ never the model, because the model made up the confirmation:
   is Omar" / "Omar is Sara's cousin" is written to the people ASH knows (and
   entity memory) and answered as written ("Got it -- Lieth is your friend.").
   "Best", "close" and "good" friend are all *friend*. A family tie that clashes
-  with one on record is refused, saying so; "undo that" takes it back. Any
-  other "remember ..." still goes to the model.
+  with one on record is refused, saying so; "undo that" takes it back.
+- Anything else to remember is a **note** (`src/daemon/notes.py`; `tst_notes.py`):
+  "remember that I parked on level 3", "note that the wifi password is hunter2",
+  "keep in mind I'm allergic to peanuts", "don't forget the passports are in the
+  top drawer". It is kept as said, turned round to be said back ("Noted: you
+  parked on level 3."), in `state/notes.json` on this computer. Asked "where did
+  I park?", "when is my sister's birthday?", "do you remember where I put the
+  passports?", it answers from the note -- the newest one, and when it was told
+  ("You told me you parked on level 3 (this morning)."). Every word that matters
+  in the question must be in the note, and a note about someone the question
+  does not name is never used: "when is my birthday?" is not answered with your
+  sister's. "What did I tell you about the wifi?" lists them, or says it was told
+  nothing; "what do you remember?" reads the last few. "Forget where I parked"
+  and "undo that" drop one. "Remember to call mom" is a reminder, not a note.
+  Not from overheard speech, not for a guest, and an answer waits while someone
+  ASH doesn't know is in view. `notes.enabled` switches it off.
 - "Who am I?" / "who's the user?" / "what do you know about me?" says your name
   and the people on record, or that it doesn't have your name.
 - "Where did you get that?" says whether the last answer was a tool, the

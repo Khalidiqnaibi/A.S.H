@@ -250,6 +250,9 @@ class AmbientConfig:
     # A command said loosely -- "Ash, can you pause the music for me", "pasue the musci", "pause the music that's
     # playing" -- still runs by rule instead of going to the model (commands.py). Only for lines meant for ASH.
     loose_commands: bool = True
+    # "Remember that I parked on level 3" ... "where did I park?": kept and found by rule (notes.py).
+    notes: bool = False
+    notes_path: Optional[str] = None
     arrivals: bool = False          # "remind me when I get home" (arrival.py)
     arrivals_path: Optional[str] = None
     arrivals_home: str = ""
@@ -597,6 +600,10 @@ class AmbientRuntime:
         self.arrivals = Arrivals(self.cfg.arrivals_path, home=self.cfg.arrivals_home) if self.cfg.arrivals else None
         self._arrival_at = 0.0
         self._dym = None                          # a "Did you mean ...?" waiting for yes or no: (phrase, when)
+        self.notes = None
+        if self.cfg.notes:
+            from .notes import Notes
+            self.notes = Notes(self.cfg.notes_path)
         self._commands = None
         if self.cfg.loose_commands:
             try:
@@ -1704,6 +1711,30 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
 
+    def _notes_request(self, ev, now: float) -> bool:
+        """"Remember that I parked on level 3" kept; "where did I park?" answered from it -- by rule, never the model.
+        Only for a line meant for ASH, never for a guest; an answer waits while a stranger is in view."""
+        nt = self.notes
+        if nt is None or not self._user_source(ev) or not self._meant_for_ash(ev)                 or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        try:
+            body = nt.wants_note(text)
+            if body is not None:
+                say, note = nt.keep_note(body, now)
+                self.undo.push(f"noting that {note.back}", lambda nid=note.id: nt.drop(nid), now)
+            else:
+                say = nt.recall(text, now)
+                if say is None:
+                    return False
+                say = self._maybe_hold(say, now)
+        except Exception:
+            logger.exception("Notes failed")
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "notes"}
+        return True
+
     def _identity_request(self, ev, now: float) -> bool:
         """"Who am I?": from the name and the people on record, not the model."""
         w = self.wonder
@@ -2362,6 +2393,8 @@ class AmbientRuntime:
         if not loose and self._remember_request(ev, now):
             return True
         if not loose and self._identity_request(ev, now):
+            return True
+        if self._notes_request(ev, now):
             return True
         if self._playing_request(ev, now):
             return True
@@ -3248,6 +3281,8 @@ class AmbientRuntime:
             w = self.wonder
             gone = forget_subject(subject, kb=(w.kb if w else None),
                                   entities=getattr(self.ash, "entity_memory", None), wonderer=w, now=now)
+            if self.notes is not None:
+                gone = list(gone) + [f"the note that {n}" for n in self.notes.forget(subject)]
             say = (f"Forgotten: {', '.join(gone)} -- for {subject}." if gone
                    else f"I don't have anything about {subject} to forget.")
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
@@ -3459,6 +3494,7 @@ class AmbientRuntime:
             "taste": self.taste.status() if self.taste else None,
             "browsing": (lambda sn: sn.status() if sn is not None else None)(self.browsing._s()),
             "vision": ({**self.looking.status(), "presence_stuck": self.presence_stuck} if self.looking is not None else None),
+            "notes": self.notes.status() if self.notes is not None else None,
             "free_moments": self.moments.status() if self.moments else None,
             "followups": self.followups.status() if self.followups else None,
             "routines": self.routines.status() if self.routines else None,

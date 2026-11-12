@@ -47,7 +47,8 @@ _SPELLED = {"whats": "what's", "wheres": "where's", "whos": "who's", "hows": "ho
             "plz": "please", "vol": "volume", "tmrw": "tomorrow", "tmr": "tomorrow", "2moro": "tomorrow",
             "pic": "picture", "msg": "message", "calc": "calculator", "rn": "right now", "teh": "the", "hte": "the",
             "wat": "what", "wht": "what", "ths": "this", "tis": "this", "adn": "and", "yuo": "you", "thats": "that's",
-            "whta": "what", "tiem": "time"}
+            "whta": "what", "tiem": "time", "wher": "where", "whre": "where", "wehre": "where", "wen": "when",
+            "whn": "when", "wich": "which", "hw": "how"}
 _WORD = re.compile(r"[A-Za-z][A-Za-z']*|\d+(?:[.:]\d+)?|\S")
 
 
@@ -296,4 +297,5 @@ EXTRA_VOCAB = (
     "remind reminder reminders timer alarm focus minutes hours tomorrow tonight morning evening weather forecast rain "
     "calendar meetings schedule email emails inbox briefing brief notepad calculator chrome firefox edge word excel "
     "outlook spotify discord teams explorer settings photo picture selfie lights light lamp brightness forget remember "
-    "holding look around who what time date today convert miles kilometers").split()
+    "holding look around who what where when which time date today convert miles kilometers note notes park parked "
+    "password birthday").split()

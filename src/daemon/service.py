@@ -331,6 +331,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # from Open-Meteo (no account or key). Set city (or lat and lon); until
     # then nothing is fetched. Only the place is sent, at most hourly.
     "weather": {"enabled": True, "city": "", "lat": None, "lon": None},
+    # "Remember that I parked on level 3" ... "where did I park?": kept in state/notes.json and found by rule.
+    "notes": {"enabled": True},
     # Media: "pause the music", "next song", "turn it up" (the media keys, any
     # player); a chime with reminders and alerts; "take a photo" (one webcam
     # frame to photo_dir, on request only, never while paused).

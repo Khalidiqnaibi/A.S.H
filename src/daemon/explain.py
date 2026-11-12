@@ -109,6 +109,8 @@ def source_reply(why: Optional[Dict[str, Any]]) -> str:
         return "That was my own rules acting on what you asked -- the language model wasn't involved."
     if kind == "facts":
         return "That was the first paragraph of Wikipedia's page on it, fetched when you asked."
+    if kind == "notes":
+        return "That came from what you asked me to remember, kept on this computer -- not from the language model."
     return "That was something I noticed myself, from your activity on the computer -- not from the language model."
 
 
@@ -152,6 +154,8 @@ def explain(why: Optional[Dict[str, Any]]) -> str:
                 else "You asked me for a briefing.")
     if kind == "watch":
         return f"You asked me to tell you when {why.get('what', 'that happened')}."
+    if kind == "notes":
+        return "You asked me to remember that, or asked about something you'd told me to remember."
     if kind == "asked":
         return f"You asked me to: \"{why.get('query', '')}\"."
     if kind == "answered":

@@ -306,6 +306,8 @@ def main() -> int:
                 check_in_with_model=rcfg.get("check_in_with_model", False),
                 flow_min_burst_s=rcfg.get("flow_min_burst_s", 600.0),
                 loose_commands=bool(rcfg.get("loose_commands", True)),
+                notes=bool(cfg.get("notes", {}).get("enabled", True)),
+                notes_path=os.path.join(os.getcwd(), "state", "notes.json"),
                 wonder=bool(cfg.get("wondering", {}).get("enabled", True)),
                 wonder_cfg=cfg.get("wondering", {}),
                 lookup=bool((cfg.get("wondering", {}).get("lookup") or {}).get("enabled", True)),
