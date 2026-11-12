@@ -199,8 +199,10 @@ class VisualMemory:
     # -- taking it with you -------------------------------------------------------
     def export(self, path: str) -> int:
         """A readable copy without the embeddings: who and what is known, when taught and last seen."""
-        rows = [dict(label=v.label, kind=v.kind, taught=time.strftime("%Y-%m-%d %H:%M", time.localtime(v.created)),
-                     last_seen=time.strftime("%Y-%m-%d %H:%M", time.localtime(v.last_seen)), times_seen=v.seen,
+        def when(ts: float) -> str:
+            return time.strftime("%Y-%m-%d %H:%M", time.localtime(max(ts, 86400.0)))      # an unset clock must not crash an export
+        rows = [dict(label=v.label, kind=v.kind, taught=when(v.created),
+                     last_seen=when(v.last_seen), times_seen=v.seen,
                      looks_kept=len(v.embeds), photo=v.photo) for v in self.list()]
         os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
         with open(path, "w", encoding="utf-8") as fh:

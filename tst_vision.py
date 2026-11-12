@@ -843,6 +843,123 @@ def step4_presence_and_the_stranger_hold():
     check("...and presence is off unless asked for", LookingConfigDefaults().presence is False)
 
 
+@section
+def step5_manage_what_it_knows():
+    print("\n=== STEP 5: what it knows, forgetting it, saving a photo -- and where it shows ===")
+    import json
+    import time as _t
+    from src.daemon.looking import parse
+    omar, ali = vec(1), vec(2)
+    ok = {"what have you saved": "list", "what faces do you know": "list", "who do you know by sight": "list", "what have I shown you": "list",
+          "export the faces": "export", "export what you've seen": "export", "save that photo": "save_photo", "save the last picture": "save_photo",
+          "forget all the faces": "forget_kind", "forget things": "forget_kind", "forget everything you've seen": "forget_kind",
+          "forget Omar's face": "forget", "forget my blue mug": "forget"}
+    check("the ways people ask", all((parse(q) or (None,))[0] == k for q, k in ok.items()), str({q: parse(q) for q in ok if (parse(q) or (None,))[0] != ok[q]}))
+
+    def shelf():
+        lk = looking(faces=[face()], vectors=[omar], presence=True)
+        lk.memory.enroll("Omar", "person", omar)
+        lk.memory.enroll("Ali", "person", ali)
+        lk.memory.enroll("my blue mug", "thing", vec(3, dim=224))
+        lk.memory.get("Omar").last_seen = 1000.0 - 600
+        lk.memory.get("Ali").last_seen = 1000.0 - 90000
+        return lk
+    lk = shelf()
+    say = lk.hear("what have you saved", 1000.0)
+    check("the list: people then things, most recently seen first, with when, and that they are numbers", say.startswith("I know 2 people: Omar (last seen 10 minutes ago) and Ali (last seen ")
+          and "1 thing: your blue mug (last seen just now)" in say and say.endswith("I keep numbers describing them, not pictures."), say)
+    check("nothing taught yet: it says how", "haven't been taught anyone or anything yet" in looking().hear("what have you saved"))
+    many = looking()
+    for i in range(10):
+        many.memory.enroll(f"Person {chr(65 + i)}", "person", vec(100 + i))
+    check("a long list is cut and counted", "10 people:" in many.hear("what have you saved") and ", and 2 more" in many.hear("what have you saved"))
+    check("a list takes no picture", lk.eye.looks == 0)
+
+    # forgetting
+    lk.memory.get("my blue mug").photo = "C:/Users/x/Pictures/ASH/ASH-1-my-blue-mug.jpg"
+    lk.presence.update(["Omar"], 1000.0)
+    say = lk.hear("forget Omar's face", 1000.0)
+    check("a person: gone, the numbers say so, and what was said in conversation is separate",
+          say.startswith("Forgotten: Omar. I've deleted the numbers I recognised them by.") and 'forget what I said about Omar' in say and lk.memory.get("Omar") is None, say)
+    check("...and no longer counted as here", "Omar" not in lk.presence.here(1001.0))
+    say = lk.hear("forget my blue mug", 1000.0)
+    check("a thing: gone, and the saved photo is the user's file", say.startswith("Forgotten: my blue mug. I've deleted the numbers I recognised it by.") and "still where it was" in say and lk.memory.get("blue mug") is None, say)
+    check("...forgetting something not taught is left alone (and no frame)", not lk.wants("forget Zed") and lk.hear("forget Zed") is None)
+    lk = shelf()
+    say = lk.hear("forget all the faces", 1000.0)
+    check("all faces", say == "Forgotten: 2 people -- the numbers I recognised them by are gone." and lk.memory.list("person") == [] and len(lk.memory.list("thing")) == 1, say)
+    check("...none left to forget", lk.hear("forget the faces") == "I don't have any people to forget.")
+    check("all things", lk.hear("forget things") == "Forgotten: 1 thing -- the numbers I recognised them by are gone.")
+    lk = shelf()
+    check("everything", lk.hear("forget everything you've seen").startswith("Forgotten: 3 entries") and lk.memory.list() == [])
+
+    # photos: the picture it just took, for a minute, only if asked
+    folder = tempfile.mkdtemp()
+    ph = looking([thing("cup", .8)], photo_dir=folder)
+    check("no picture taken: it says so", ph.hear("save that photo").startswith("I don't have a picture from the last minute"))
+    ph.hear("look around", 2000.0)
+    say = ph.hear("save that photo", 2001.0)
+    files = os.listdir(folder)
+    check("after a look: the photo is saved, named by the time", len(files) == 1 and files[0].startswith("ASH-") and files[0].endswith(".jpg") and files[0] in say, f"{files} {say}")
+    check("...and the picture is dropped once saved", ph.hear("save that photo", 2002.0).startswith("I don't have a picture"))
+    ph.hear("look around", 3000.0)
+    ph.t[0] = 3000.0 + 90
+    check("a minute later it is gone", ph.hear("save the picture", 3000.0 + 90).startswith("I don't have a picture") and len(os.listdir(folder)) == 1)
+    pp = looking([thing("cup", .8)], photo_dir=tempfile.mkdtemp())
+    pp.hear("look around", 4000.0)
+    pp.eye.paused = lambda: True
+    check("privacy mode drops it before it can be saved", pp.hear("save that photo", 4001.0).startswith("I don't have a picture"))
+
+    # export: labels and times, never the numbers
+    lk = shelf()
+    say = lk.hear("export the faces", 1000.0)
+    path = say.split("Saved 3 entries to ")[1].split(". It lists")[0]
+    data = json.load(open(path, encoding="utf-8"))
+    check("an export is readable, lists who and when, and holds no numbers", sorted(i["label"] for i in data["items"]) == ["Ali", "Omar", "my blue mug"]
+          and "embeds" not in json.dumps(data) and all("taught" in i and "last_seen" in i for i in data["items"]), say)
+    os.remove(path)
+
+    # the panel and the cards
+    import tst_effects as te
+    from src.daemon import headsup, learning
+    from src.senses.base import Modality, SensorEvent
+    from src.vision.eye import Eye
+    from src.vision.memory import VisualMemory
+    mem = VisualMemory(None)
+    mem.enroll("Omar", "person", omar)
+    mem.enroll("my blue mug", "thing", vec(3, dim=224))
+    rt = te.rig(vision=True, vision_io=dict(eye=Eye(grab=lambda: frame()), faces=FakeFaces([face()], [omar]), objects=FakeObjects([]), memory=mem),
+                vision_cfg=dict(presence=True))
+    rt.brain.user = "Khalid"
+    learning._CACHE.clear()
+    lines = learning.snapshot(rt, 1000.0).get("lines", [])
+    check("the panel lists what it can recognise, and says it is numbers", any(l == "Faces and things I can recognise: 1 person (Omar); 1 thing (my blue mug) -- kept as numbers, not pictures." for l in lines), str(lines))
+    rt.looking.presence.update(["Omar"], 1000.0)
+    learning._CACHE.clear()
+    check("...and who has been in view", any(l == "In view lately: Omar" for l in learning.snapshot(rt, 1001.0).get("lines", [])))
+    cards = [c for c in headsup.cards(rt, 1001.0) if c["kind"] == "presence"]
+    check("a card says who is here", [c["title"] for c in cards] == ["Omar is here"], str(cards))
+    rt.looking.presence.update([None], 1010.0)
+    rt.looking.presence.update([None], 1018.0)
+    cards = [c["title"] for c in headsup.cards(rt, 1019.0) if c["kind"] == "presence"]
+    check("...and a stranger gets one, saying private things are held", "Someone I don't know is in view" in cards, str(cards))
+    bare = te.rig()
+    check("with vision off there are no cards and no panel line", [c for c in headsup.cards(bare, 1.0) if c["kind"] == "presence"] == []
+          and not any("recognise" in l for l in learning.snapshot(bare, 1.0).get("lines", [])))
+
+    # on the runtime: the camera's own commands win over the memory's, only for what was taught
+    rt.say("what have you saved")
+    check("by voice: the list", rt.out[-1].startswith("I know 1 person: Omar"), rt.out[-1])
+    rt.say("forget Zed")
+    check("'forget Zed' (never taught) goes to the memory as it always did", "Forgotten: Zed" not in rt.out[-1] and "numbers I recognised" not in rt.out[-1], rt.out[-1])
+    rt.t[0] += 5
+    rt.submit(SensorEvent(source="microphone", modality=Modality.TEXT, text="forget Omar's face", addressed=True, salience=0.9, urgency=0.6, meta={"guest": True}))
+    rt._tick()
+    check("a guest cannot make it forget anyone", rt.out[-1].startswith("Sorry, I only do that for Khalid") and mem.get("Omar") is not None, rt.out[-1])
+    rt.say("forget Omar's face")
+    check("by voice: forgotten", mem.get("Omar") is None and "numbers I recognised them by" in rt.out[-1], rt.out[-1])
+
+
 if __name__ == "__main__":
     for fn in SECTIONS:
         fn()

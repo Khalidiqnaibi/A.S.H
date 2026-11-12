@@ -63,6 +63,23 @@ def _lines(rt, now: float) -> List[str]:
                     out.append(f"Focus: mostly {f['from']:02d}:00-{f['to']:02d}:00 (over {f['days']} days)")
             except Exception:
                 pass
+    lk = getattr(rt, "looking", None)
+    if lk is not None and lk.memory is not None:
+        try:
+            people, things = lk.memory.list("person"), lk.memory.list("thing")
+            if people or things:
+                bits = []
+                if people:
+                    bits.append(f"{len(people)} {'person' if len(people) == 1 else 'people'} ({', '.join(v.label for v in people[:5])})")
+                if things:
+                    bits.append(f"{len(things)} thing{'s' if len(things) != 1 else ''} ({', '.join(v.label for v in things[:5])})")
+                out.append("Faces and things I can recognise: " + "; ".join(bits) + " -- kept as numbers, not pictures.")
+            if lk.cfg.presence:
+                names, stranger = lk.presence.here(now), lk.presence.stranger(now)
+                if names or stranger:
+                    out.append("In view lately: " + ", ".join(names + (["someone I don't know"] if stranger else [])))
+        except Exception:
+            pass
     lr = getattr(rt, "learner", None)
     if lr is not None and int(getattr(lr, "updates", 0)) >= 5:
         out.append(f"Reactions: about {int(round(100 * lr.p_general(now)))}% of what I volunteer lands well "

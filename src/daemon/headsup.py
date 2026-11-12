@@ -72,8 +72,28 @@ def cards(runtime, now: float, reminder_window_s: float = 1800.0, event_window_s
         except Exception:
             pass
     out += _browsing_cards(runtime, now)
+    out += _vision_cards(runtime, now)
     out.sort(key=lambda c: (c["at"] == 0, c["at"]))
     return out[:5]
+
+
+def _vision_cards(runtime, now: float) -> List[Dict[str, Any]]:
+    """Who the camera has seen lately, when presence is on. Console only; names and times, never a picture."""
+    lk = getattr(runtime, "looking", None)
+    if lk is None or not lk.cfg.presence:
+        return []
+    out: List[Dict[str, Any]] = []
+    try:
+        names = lk.presence.here(now)
+        if names:
+            out.append({"kind": "presence", "title": (names[0] + " is here") if len(names) == 1 else ", ".join(names) + " are here",
+                        "at": 0, "in": "here", "sub": "seen by the camera"})
+        if lk.presence.stranger(now):
+            out.append({"kind": "presence", "title": "Someone I don't know is in view", "at": 0, "in": "now",
+                        "sub": "private things are held back"})
+    except Exception:
+        pass
+    return out
 
 
 _GOAL_CACHE: Dict[int, tuple] = {}

@@ -42,6 +42,14 @@ _RX: List[Tuple[str, "re.Pattern"]] = [(k, re.compile(p, re.I)) for k, p in (
                           + r"|this\s+(?:person\s+)?is\s+" + _L("3") + r",?\s*(?:please\s+)?(?:remember|learn)\s+(?:his|her|their)\s+face" + _P("3") + r")" + _Z),
     ("teach_thing", _A + r"(?:(?:remember|learn)\s+this\s+(?:thing\s+|object\s+)?(?:as|is)\s+" + _L() + _P()
                          + r"|this\s+is\s+" + _L("2") + r",?\s*(?:please\s+)?(?:remember|learn)\s+(?:it|that|this)" + _P("2") + r")" + _Z),
+    # Managing what it knows. "forget X" only counts when X is something it was taught (Looking.wants).
+    ("list", _A + r"(?:what\s+(?:faces|people|things)\s+do\s+you\s+(?:know|recogni[sz]e)|who\s+(?:do\s+you\s+know\s+by\s+sight|have\s+you\s+(?:learned|been\s+(?:taught|shown)))"
+                  r"|what\s+(?:have\s+you\s+(?:saved|learned\s+to\s+recogni[sz]e)|have\s+i\s+(?:shown|taught)\s+you)|what\s+do\s+you\s+(?:remember\s+seeing|recogni[sz]e)"
+                  r"|list\s+(?:the\s+)?(?:faces|people|things)\s+you\s+know)" + _Z),
+    ("export", _A + r"export\s+(?:the\s+)?(?:faces|visual\s+memory|what\s+you(?:'ve|\s+have)\s+(?:seen|saved|learned\s+to\s+recogni[sz]e))" + _Z),
+    ("save_photo", _A + r"(?:save|keep)\s+(?:that|the|this)\s+(?:last\s+)?(?:photo|picture)" + _Z),
+    ("forget_kind", _A + r"forget\s+(?:all\s+)?(?:the\s+)?(?:(?P<kind>faces|people|things)(?:\s+you\s+know)?|everything\s+you(?:'ve|\s+have)\s+(?:seen|learned\s+by\s+looking))" + _Z),
+    ("forget", _A + r"forget\s+(?:(?P<label>[a-z][a-z0-9' \-]{0,38}?)'s\s+face|(?:the\s+)?(?P<label2>my\s+[a-z][a-z0-9' \-]{0,30}?)|(?:the\s+)?(?P<label3>[a-z][a-z0-9' \-]{0,38}?))" + _Z),
     # Recognising. "is this X" and "where is my X" are everyday sentences, so they only count when X is something
     # it was taught (Looking.wants) -- the pattern alone is not enough.
     ("who", _A + r"(?:who(?:'s|\s+is)\s+(?:this|that|there|here|in\s+front\s+of\s+(?:you|the\s+camera|the\s+webcam)|at\s+the\s+(?:door|camera))"
@@ -75,6 +83,8 @@ def parse(text: str) -> Optional[Tuple[str, Dict[str, str]]]:
                 out["label"] = re.sub(r"\s+", " ", label).strip(" -'")
             if any(k.startswith("photo") for k in g):
                 out["photo"] = "1"
+            if "kind" in g:
+                out["kind"] = g["kind"].lower()
             return kind, out
     return None
 
@@ -181,7 +191,7 @@ class Looking:
         p = parse(text)
         if p is None or not self.cfg.enabled:
             return False
-        if p[0] in ("is_this", "where"):
+        if p[0] in ("is_this", "where", "forget"):
             return self.memory is not None and self.memory.get(p[1].get("label", "")) is not None
         return True
 
@@ -190,6 +200,8 @@ class Looking:
             return None
         kind, _d = parse(text)
         now = self.clock() if now is None else now
+        if kind in ("list", "export", "save_photo", "forget", "forget_kind"):
+            return self.manage(kind, _d, now)                # no new picture for any of these
         if kind == "who" and self.cfg.presence and self.presence.fresh(now, 3 * self.cfg.presence_interval_s):
             return self.who_from_state(now)                  # already watching: answered from that, no new capture
         frame, why = self.eye.look(now)
@@ -391,6 +403,7 @@ class Looking:
     @staticmethod
     def _when(ts: float, now: float) -> str:
         d = max(0.0, now - ts)
+        ts, now = max(ts, 86400.0), max(now, 86400.0)                # a clock that has not been set must not crash the answer
         if d < 60:
             return "just now"
         if d < 3600:
@@ -499,6 +512,68 @@ class Looking:
             seen = f" (it looks like {_a(note)})" if note else ""
             return f"Okay, I'll recognise {label}{seen}. Show it to me again in a different position and I'll be surer."
         return f"Got another look at {label} ({len(v.embeds)} now)."
+
+    # -- managing what it knows -----------------------------------------------------------
+    def manage(self, kind: str, d: Dict[str, str], now: float) -> str:
+        mem = self.memory
+        if kind == "save_photo":
+            frame = self.eye.recent(now)
+            if frame is None:
+                return "I don't have a picture from the last minute. Say \"look around\" first, and then ask me to save it."
+            path = self.eye.save(frame, self.cfg.photo_dir, "", now)
+            self.eye.drop()
+            if not path:
+                return "I couldn't save the picture."
+            return f"Saved as {path.replace(chr(92), '/').rsplit('/', 1)[-1]} in {self.cfg.photo_dir.replace(chr(92), '/').rstrip('/').rsplit('/', 1)[-1]}."
+        if mem is None:
+            return "I have nowhere to keep anything."
+        if kind == "export":
+            import os
+            folder = os.path.join(os.environ.get("ASH_STATE_DIR", os.path.join(os.getcwd(), "state")), "exports")
+            path = os.path.join(folder, time.strftime("vision-%Y%m%d-%H%M%S.json", time.localtime(now)))
+            n = mem.export(path)
+            return f"Saved {n} entries to {path}. It lists who and what I know and when -- not the numbers I recognise them by."
+        if kind == "forget":
+            item = mem.get(d["label"])
+            if item is None:
+                return ""
+            had_photo = bool(item.photo)
+            mem.forget(d["label"])
+            self.presence.present.pop(item.label, None)
+            them = "them" if item.kind == "person" else "it"
+            say = f"Forgotten: {item.label}. I've deleted the numbers I recognised {them} by."
+            if item.kind == "person":
+                say += f" What you've told me about {item.label} is separate -- \"forget what I said about {item.label}\" removes that."
+            if had_photo:
+                say += " The photo you asked me to save is still where it was -- that file is yours to delete."
+            return say
+        if kind == "forget_kind":
+            k = {"faces": "person", "people": "person", "things": "thing"}.get(d.get("kind", ""), None)
+            photos = any(v.photo for v in mem.list(k))
+            n = mem.forget(kind=k)
+            if k in (None, "person"):
+                self.presence.clear()
+            noun = {"person": ("person", "people"), "thing": ("thing", "things"), None: ("entry", "entries")}[k]
+            if not n:
+                return f"I don't have any {noun[1]} to forget."
+            say = f"Forgotten: {n} {noun[0] if n == 1 else noun[1]} -- the numbers I recognised them by are gone."
+            if photos:
+                say += " Photos you asked me to save are still where they were."
+            return say
+        return self.listing(now)
+
+    def listing(self, now: float) -> str:
+        mem = self.memory
+        people, things = mem.list("person"), mem.list("thing")
+        if not people and not things:
+            return "I haven't been taught anyone or anything yet. Say \"remember this as my blue mug\" or \"remember Omar's face\" while showing me."
+        bits = []
+        for rows, kind, one, many in ((people, "person", "person", "people"), (things, "thing", "thing", "things")):
+            if rows:
+                shown = [f"{self._yours(v.label, kind)} (last seen {self._when(v.last_seen, now)})" for v in rows[:8]]
+                more = f", and {len(rows) - 8} more" if len(rows) > 8 else ""
+                bits.append(f"{len(rows)} {one if len(rows) == 1 else many}: {_list(shown)}{more}")
+        return "I know " + "; ".join(bits) + ". I keep numbers describing them, not pictures."
 
     # -- who is here (presence) --------------------------------------------------------------
     def watch(self, frame, now: Optional[float] = None) -> List[Tuple[str, str]]:
