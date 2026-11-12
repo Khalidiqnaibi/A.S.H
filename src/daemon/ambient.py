@@ -270,6 +270,9 @@ class AmbientConfig:
     phone_io: Optional[Dict[str, Any]] = None                 # tests: {"cli": path or None, "runner": fake, "poster": fake}
     # Guard mode: while you're away the camera watches; strangers and movement go to your phone (guard.py).
     guard: bool = False
+    # BMO's moods: feelings that last (cheer, energy), from what happened; "how are you feeling?" (feelings.py).
+    feelings: bool = False
+    feelings_path: Optional[str] = None
     situation_probe: Optional[Callable[[], Any]] = None      # () -> (battery (percent, plugged) | None, memory %); tests
     arrivals: bool = False          # "remind me when I get home" (arrival.py)
     arrivals_path: Optional[str] = None
@@ -636,6 +639,12 @@ class AmbientRuntime:
         if self.cfg.phone:
             from .phone import Phone, PhoneConfig
             self.phone = Phone(PhoneConfig.from_dict(self.cfg.phone_cfg), **(self.cfg.phone_io or {}))
+        self.feelings = None
+        self._feeling_shown = ("", 0.0)
+        self._feelings_at = 0.0
+        if self.cfg.feelings:
+            from .feelings import Feelings
+            self.feelings = Feelings(self.cfg.feelings_path, clock=lambda: self.clock())
         self.guard = None
         if self.cfg.guard:
             from .guard import Guard
@@ -1057,6 +1066,7 @@ class AmbientRuntime:
             self._presence_step(now)
             self._situation_step(now, idle_s)
             self._guard_step(now)
+            self._feelings_step(now)
             if self.filesearch is not None and not self.privacy.paused:
                 try:
                     self.filesearch.refresh(now)            # in the background, at most once an hour
@@ -1777,6 +1787,33 @@ class AmbientRuntime:
     _HUD = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:please|can\s+you|could\s+you)[,\s]+)*"
                       r"(?:show|open|bring\s+up|pop\s+up|put\s+up)\s+(?:me\s+)?(?:the\s+|your\s+|a\s+)?"
                       r"(?:hud|heads[-\s]?up(?:\s+(?:display|panel|widget))?|widget|status\s+panel)\s*(?:please)?\s*[.!]?\s*$", re.I)
+
+    def _feelings_request(self, ev, now: float) -> bool:
+        """"How are you feeling?": from what actually happened today (feelings.py), not made up by the model."""
+        f = self.feelings
+        if f is None or not self._user_source(ev) or not self._meant_for_ash(ev) or not f.wants(str(getattr(ev, "text", "") or "")):
+            return False
+        self._wonder_say(ev, type("R", (), {"say": f.say(now), "outcome": "moment"})())
+        return True
+
+    def _feelings_step(self, now: float):
+        """Once a minute: let the feelings drift; a feeling that has held for five minutes shows on the face."""
+        f = self.feelings
+        if f is None or now - self._feelings_at < 60.0:
+            return
+        self._feelings_at = now
+        try:
+            f.tick(now)
+            anim = f.face(now)
+            shown, since = self._feeling_shown
+            if anim != shown:
+                self._feeling_shown = (anim, now)
+            elif now - since >= 300.0 and self.face is not None and hasattr(self.face, "on_feeling"):
+                self.face.on_feeling(anim)
+            if int(now) % 300 < 60:
+                f.save()
+        except Exception:
+            logger.exception("Feelings step failed")
 
     def _guard_request(self, ev, now: float) -> bool:
         """"Guard mode on" / "I'm back": the camera watches while you're away (guard.py)."""
@@ -2504,6 +2541,11 @@ class AmbientRuntime:
         self._reaction = None
         if self._user_source(ev) and getattr(ev, "text", ""):
             self._recent_user.append(str(ev.text))
+            if self.feelings is not None and self._meant_for_ash(ev) and not (getattr(ev, "meta", None) or {}).get("guest"):
+                try:
+                    self.feelings.hear(str(ev.text), now)
+                except Exception:
+                    logger.exception("Feelings failed on a line")
         if self.voice is not None and self._voice_step(ev, now):
             return
         guest = bool((getattr(ev, "meta", None) or {}).get("guest"))
@@ -2703,6 +2745,8 @@ class AmbientRuntime:
         if not loose and self._remember_request(ev, now):
             return True
         if not loose and self._identity_request(ev, now):
+            return True
+        if not loose and self._feelings_request(ev, now):
             return True
         if self._notes_request(ev, now):
             return True
@@ -3820,6 +3864,7 @@ class AmbientRuntime:
             "filesearch": self.filesearch.status() if self.filesearch is not None else None,
             "phone": self.phone.status() if self.phone is not None else None,
             "guard": self.guard.status() if self.guard is not None else None,
+            "feelings": self.feelings.status() if self.feelings is not None else None,
             "free_moments": self.moments.status() if self.moments else None,
             "followups": self.followups.status() if self.followups else None,
             "routines": self.routines.status() if self.routines else None,

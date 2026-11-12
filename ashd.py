@@ -324,6 +324,8 @@ def main() -> int:
                 phone=bool(cfg.get("phone", {}).get("enabled", True)),
                 phone_cfg=cfg.get("phone", {}),
                 guard=bool(cfg.get("guard", {}).get("enabled", True)),
+                feelings=bool(cfg.get("feelings", {}).get("enabled", True)),
+                feelings_path=os.path.join(os.getcwd(), "state", "feelings.json"),
                 filesearch=bool(cfg.get("filesearch", {}).get("enabled", True)),
                 filesearch_folders=list((cfg.get("filesearch") or {}).get("folders") or ["~/Documents", "~/Desktop", "~/Downloads"]),
                 filesearch_path=os.path.join(os.getcwd(), "state", "files.json"),

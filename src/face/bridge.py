@@ -280,6 +280,19 @@ class FaceBridge:
         self._mood_since = now
         self._play(candidate)
 
+    def on_feeling(self, animation: str):
+        """A lasting feeling (src/daemon/feelings.py): worn as the face's slow mood until it changes. "" = none."""
+        if not self.enabled:
+            return
+        name = animation or None
+        if name == self._mood:
+            return
+        if name is not None and name not in getattr(self.player, "library", {name: 1}):
+            return
+        self._mood, self._mood_since = name, time.time()
+        if name:
+            self._play(name)
+
     @staticmethod
     def _mood_from_drives(drives):
         """Coarse mood from the drive vector. Returns (name, strength) where

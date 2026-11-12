@@ -349,6 +349,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "phone": {"enabled": True, "device": "", "contacts": {}, "ntfy_url": "", "allow_sms": True},
     # "Guard mode on": while you're away the camera watches; someone unknown or movement is sent to your phone (no pictures).
     "guard": {"enabled": True},
+    # BMO's moods: feelings that last (thanks and laughs lift them, being told off lowers them, hours alone bore it,
+    # late nights make it sleepy), shown on the face; "how are you feeling?" answered from them. state/feelings.json.
+    "feelings": {"enabled": True},
     # "Find the contract I was editing last week": these folders, indexed on this computer (names, dates, the start
     # of the text), refreshed hourly in the background. Nothing leaves the machine.
     "filesearch": {"enabled": True, "folders": ["~/Documents", "~/Desktop", "~/Downloads"]},
