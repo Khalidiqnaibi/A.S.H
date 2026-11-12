@@ -230,6 +230,28 @@ class Looking:
             return ("I'm paused for privacy, so I'm not looking." if why == "privacy"
                     else "I couldn't get a picture -- there's no camera I can open.")
         self.stats["looks"] += 1
+        self._clear_faults()
+        answer = self._answer(kind, _d, frame, now)
+        fault = self._fault()
+        if fault:                                            # a model that broke is not "nobody there"
+            self.stats["faults"] = self.stats.get("faults", 0) + 1
+            return (f"I got a picture, but my {fault} stopped working, so I can't tell you what I see. "
+                    "It is in the log -- \"python ashctl.py vision\" shows whether it keeps happening.")
+        return answer
+
+    def _clear_faults(self):
+        for b in (self.faces, self.objects):
+            if b is not None and hasattr(b, "last_error"):
+                b.last_error = None
+
+    def _fault(self) -> str:
+        """Which model broke on the last picture, in words, or "" when none did."""
+        for name, b in (("face model", self.faces), ("object model", self.objects)):
+            if b is not None and getattr(b, "last_error", None):
+                return name
+        return ""
+
+    def _answer(self, kind, _d, frame, now) -> str:
         if kind in ("teach_me", "teach_person", "teach_thing"):
             return self.teach(kind, _d, frame, now)
         if kind in ("read", "describe", "ask"):
@@ -622,7 +644,11 @@ class Looking:
         if not (self.cfg.enabled and self.cfg.presence) or not self.can_see_faces():
             return []
         now = self.clock() if now is None else now
+        self._clear_faults()
         people = self._people(frame)
+        if self._fault():                                   # a broken model is not an empty room: leave who-is-here as it was
+            self.stats["faults"] = self.stats.get("faults", 0) + 1
+            return []
         for who, _near, _f in people:
             if who and self.memory is not None:
                 self.memory.seen_now(who, now)
@@ -657,4 +683,5 @@ class Looking:
         now = self.clock()
         return {"enabled": self.cfg.enabled, "faces": self.can_see_faces(), "objects": self.can_see_things(),
                 "presence": bool(self.cfg.presence), "here": self.presence.here(now) if self.cfg.presence else [],
-                "stranger": self.presence.stranger(now) if self.cfg.presence else False, **self.stats}
+                "stranger": self.presence.stranger(now) if self.cfg.presence else False,
+                "fault": self._fault(), **self.stats}

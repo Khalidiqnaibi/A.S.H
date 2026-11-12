@@ -1155,6 +1155,36 @@ def wiring_config_control_and_installer():
     check("...and says so when vision is off", got.get("ok") is False and "vision.enabled" in got.get("error", ""), str(got))
 
 
+@section
+def broken_model_is_not_an_empty_room():
+    print("\n=== A model that breaks is said to be broken, not 'nobody there' ===")
+    from src.vision.backends import FaceBackend
+
+    class Broken(FakeFaces):
+        broken = True
+
+        def detect(self, img):
+            self.calls += 1
+            self.last_error = "face detection failed" if self.broken else None
+            return [] if self.broken else list(self.faces)
+    bf = Broken([face()], [vec(1)])
+    lk = looking(faces_backend=bf)
+    out = lk.hear("who is this")
+    check("a failing face model is reported, not 'I don't see anyone'", "stopped working" in out and "don't see anyone" not in out, out)
+    check("...and counted in the status", lk.status()["fault"] == "face model" and lk.status()["faults"] == 1, str(lk.status()))
+    bf.broken = False
+    out = lk.hear("who is this")
+    check("once it works again the fault goes away", "stopped working" not in out and lk.status()["fault"] == "", out + str(lk.status()))
+    check("the base backends carry the flag too", FaceBackend.last_error is None)
+    pl = looking(faces_backend=Broken([face()], [vec(1)]), presence=True)
+    pl.t[0] = 5000.0
+    pl.presence.update(["Omar"], pl.t[0])
+    pl.t[0] += 5
+    got = pl.watch(frame(size=(480, 640)), pl.t[0])
+    check("a broken reading leaves who-is-here as it was, instead of reporting everyone gone",
+          got == [] and pl.presence.here(pl.t[0]) == ["Omar"], str(pl.presence.here(pl.t[0])))
+
+
 if __name__ == "__main__":
     for fn in SECTIONS:
         fn()

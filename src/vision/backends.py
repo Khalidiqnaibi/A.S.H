@@ -73,6 +73,7 @@ class Thing:
 class FaceBackend:
     """detect(img) -> [Face]; embed(img, face) -> a unit vector. `available()` says whether it can work at all."""
 
+    last_error = None          # set when the last call failed (a broken model), cleared when one works
     def available(self) -> bool:
         return False
 
@@ -120,9 +121,11 @@ class OpenCVFaces(FaceBackend):
                 x, y, fw, fh = (int(round(float(v))) for v in r[:4])
                 out.append(Face(box=(x, y, fw, fh), score=float(r[-1]), row=np.asarray(r, dtype=np.float32)))
             out.sort(key=lambda f: -(f.box[2] * f.box[3]))
+            self.last_error = None
             return out
         except Exception:
             logger.exception("Face detection failed")
+            self.last_error = "face detection failed"
             return []
 
     def embed(self, img: Any, face: Face) -> Optional[np.ndarray]:
@@ -134,9 +137,11 @@ class OpenCVFaces(FaceBackend):
             aligned = self._rec.alignCrop(bgr, face.row)
             feat = np.asarray(self._rec.feature(aligned), dtype=np.float32).ravel()
             n = float(np.linalg.norm(feat))
+            self.last_error = None
             return feat / n if n > 1e-9 else None
         except Exception:
             logger.exception("Face embedding failed")
+            self.last_error = "face embedding failed"
             return None
 
 
@@ -199,6 +204,7 @@ def parse_yolov8(output: np.ndarray, ratio: float, pad: Tuple[int, int], shape: 
 
 
 class ObjectBackend:
+    last_error = None          # set when the last call failed (a broken model), cleared when one works
     def available(self) -> bool:
         return False
 
@@ -232,9 +238,12 @@ class ONNXObjects(ObjectBackend):
             x = canvas[:, :, ::-1].astype(np.float32).transpose(2, 0, 1)[None] / 255.0
             name = self._sess.get_inputs()[0].name
             out = self._sess.run(None, {name: np.ascontiguousarray(x)})[0]
-            return parse_yolov8(out, ratio, pad, bgr.shape[:2], self.labels, self.conf, self.iou)
+            res = parse_yolov8(out, ratio, pad, bgr.shape[:2], self.labels, self.conf, self.iou)
+            self.last_error = None
+            return res
         except Exception:
             logger.exception("Object detection failed")
+            self.last_error = "object detection failed"
             return []
 
 
