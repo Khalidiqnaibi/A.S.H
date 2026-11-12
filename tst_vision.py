@@ -328,18 +328,27 @@ def face(box=(200, 100, 120, 140)):
     return Face(box=box, score=0.95, row=np.zeros(15, np.float32))
 
 
-def looking(things=(), faces=(), vectors=(), eye_paused=False, grab=True, **kw):
-    """A Looking with a fake eye (a synthetic frame), fake models, an in-memory visual memory."""
+def looking(things=(), faces=(), vectors=(), eye_paused=False, grab=True, frames=None, **kw):
+    """A Looking with a fake eye (a synthetic frame, or the `frames` in turn), fake models, an in-memory visual memory."""
     from src.daemon.looking import Looking, LookingConfig
     from src.vision.backends import ThingEmbedder
     from src.vision.eye import Eye
     from src.vision.memory import VisualMemory
     t = [1000.0]
-    eye = Eye(grab=(lambda: frame(size=(480, 640))) if grab else (lambda: None), paused=lambda: eye_paused, clock=lambda: t[0])
+    seq = list(frames) if frames else None
+    n = [0]
+
+    def grab_fn():
+        if seq:
+            n[0] += 1
+            return seq[(n[0] - 1) % len(seq)]
+        return frame(size=(480, 640))
+    eye = Eye(grab=grab_fn if grab else (lambda: None), paused=lambda: eye_paused, clock=lambda: t[0])
     objs = kw.pop("objects", FakeObjects(things))
     fcs = kw.pop("faces_backend", FakeFaces(faces, vectors))
     mem = kw.pop("memory", VisualMemory(None, clock=lambda: t[0]))
-    lk = Looking(eye, fcs, objs, ThingEmbedder(), mem, LookingConfig(enabled=True, **kw), clock=lambda: t[0])
+    user = kw.pop("user", lambda: "")
+    lk = Looking(eye, fcs, objs, ThingEmbedder(), mem, LookingConfig(enabled=True, **kw), clock=lambda: t[0], user=user)
     lk.t = t
     return lk
 
@@ -418,6 +427,114 @@ def step1_look_around_and_what_am_i_holding():
     check("with vision off a bare runtime has no eyes", bare.looking is None and bare.status()["vision"] is None)
     bare.say("look around")
     check("...and the sentence is left to the rest of ASH", "I see" not in bare.out[-1])
+
+
+@section
+def step2_teach_by_showing():
+    print("\n=== STEP 2: 'remember this as my blue mug' / 'this is Omar, remember his face' -- numbers, not pictures ===")
+    from src.daemon.looking import parse
+    ok = {"remember this as my blue mug": ("teach_thing", "my blue mug"), "remember this is my blue mug": ("teach_thing", "my blue mug"),
+          "this is my blue mug, remember it": ("teach_thing", "my blue mug"), "remember this person as Omar": ("teach_person", "Omar"),
+          "remember Omar's face": ("teach_person", "Omar"), "this is Omar, remember his face": ("teach_person", "Omar"),
+          "learn this face as Ali": ("teach_person", "Ali"), "remember my face": ("teach_me", None)}
+    bad = {q: parse(q) for q, (k, lab) in ok.items() if (parse(q) or (None, {}))[0] != k or (lab and parse(q)[1].get("label") != lab)}
+    check("the ways people teach it", not bad, str(bad))
+    check("the photo clause is understood, with or without the comma", parse("remember this as my mug, and save the photo")[1].get("photo") == "1"
+          and parse("learn my face and save the photo")[1].get("photo") == "1")
+    check("'this is X' alone, and other 'remember's, are ordinary talk", all(parse(q) is None for q in (
+        "this is great", "this is my blue mug", "remember to call mom", "remember this", "remember Omar is my cousin", "remember that I like coffee")))
+
+    # ---- people
+    omar, ali = vec(1), vec(2)
+    lk = looking(faces=[face()], vectors=[omar])
+    say = lk.hear("remember this person as Omar", 1000.0)
+    check("a face is taught: numbers, not the picture, only here, and a nudge for another angle",
+          say.startswith("Okay, I'll recognise Omar. I keep numbers describing the face, not the picture") and "another angle" in say, say)
+    v = lk.memory.get("Omar")
+    check("...kept as a person with one look", v.kind == "person" and len(v.embeds) == 1 and v.photo == "")
+    lk.faces.vectors = [vec(1, noise=0.1, base=omar)]
+    check("a second look adds to it", lk.hear("remember Omar's face", 1001.0) == "Got another look at Omar (2 now).")
+    lk.faces.vectors = [vec(1, noise=0.15, base=omar)]
+    say = lk.hear("remember this person as Ali", 1002.0)
+    check("the same face under a second name is refused, with how to fix it", say.startswith("That looks like Omar, who I already know.")
+          and 'say "forget Omar" first' in say and lk.memory.get("Ali") is None, say)
+    lk.faces.vectors = [ali]
+    check("a different face is a different person", lk.hear("remember this person as Ali", 1003.0).startswith("Okay, I'll recognise Ali.")
+          and len(lk.memory.list("person")) == 2)
+
+    nof = looking(faces=[], vectors=[])
+    check("no face in view: it says so", nof.hear("remember Omar's face") == "I can't see a face. Face the camera and say it again.")
+    two = looking(faces=[face((10, 10, 100, 100)), face((300, 10, 110, 110))], vectors=[omar, ali])
+    check("two faces of similar size: it will not guess which", "more than one face" in two.hear("remember Omar's face") and two.memory.list() == [])
+    near = looking(faces=[face((10, 10, 60, 60)), face((300, 10, 200, 200))], vectors=[omar, ali])
+    near.hear("remember Ali's face")
+    check("one clearly the nearest: that is the one (a passer-by behind is not enrolled)", near.memory.get("Ali") is not None
+          and near.memory.match(ali, "person", 0.9) is not None and near.memory.match(omar, "person", 0.9) is None)
+    check("without the face models: it says how to install them", "face models aren't installed" in
+          looking(faces_backend=FakeFaces(available=False)).hear("remember Omar's face"))
+    check("an unreadable face is not stored", "couldn't read that face" in looking(faces=[face()], vectors=[]).hear("remember Omar's face"))
+    me = looking(faces=[face()], vectors=[omar], user=lambda: "Khalid")
+    check("'remember my face' uses your name", me.hear("remember my face").startswith("Okay, I'll recognise Khalid.") and me.memory.get("Khalid") is not None)
+    check("...and asks if it does not know it", "don't know your name yet" in looking(faces=[face()], vectors=[omar]).hear("remember my face"))
+    check("a name that is not a name is refused", "I need a name" in looking(faces=[face()], vectors=[omar]).hear("remember this person as it"))
+
+    # ---- things
+    blue = frame(square=((200, 80, 20), (220, 140, 200, 200)))
+    blue2 = frame(square=((205, 85, 25), (225, 150, 190, 190)), noise=5, seed=2)
+    red = frame(square=((30, 30, 210), (220, 140, 200, 200)))
+    th = looking([thing("cup", 0.8, (220, 140, 200, 200))], frames=[blue, blue2, red])
+    say = th.hear("remember this as my blue mug", 1000.0)
+    check("a thing is taught, with what the detector took it for", say == "Okay, I'll recognise my blue mug (it looks like a cup). "
+          "Show it to me again in a different position and I'll be surer.", say)
+    check("...kept as a thing", th.memory.get("blue mug").kind == "thing")
+    check("a second look adds to it", th.hear("this is my blue mug, remember it", 1001.0) == "Got another look at my blue mug (2 now).")
+    th.objects.things = [thing("cup", 0.8, (220, 140, 200, 200))]
+    say = th.hear("remember this as my red mug", 1002.0)
+    check("a differently coloured one is a different thing", say.startswith("Okay, I'll recognise my red mug") and len(th.memory.list("thing")) == 2, say)
+    again = looking([thing("cup", 0.8, (220, 140, 200, 200))], frames=[blue], memory=th.memory)
+    say = again.hear("remember this as my tea cup", 1003.0)
+    check("the same thing under a second name is refused", say.startswith("That looks like my blue mug, which I already know.") and th.memory.get("tea cup") is None, say)
+    nomodel = looking(objects=FakeObjects(available=False), frames=[blue])
+    check("with no object model it still learns it, from the middle of the frame, without claiming to know what it is",
+          nomodel.hear("remember this as my blue mug") == "Okay, I'll recognise my blue mug. Show it to me again in a different position and I'll be surer.")
+    check("a thing cannot take a person's name", "already a person" in looking([thing("cup", .8)], faces=[face()], vectors=[omar], memory=lk.memory).hear("remember this as Omar"))
+
+    # ---- photos, privacy, nothing kept on failure
+    folder = tempfile.mkdtemp()
+    ph = looking([thing("cup", 0.8, (220, 140, 200, 200))], frames=[blue], photo_dir=folder)
+    say = ph.hear("remember this as my blue mug, and save the photo")
+    saved = [f for f in os.listdir(folder)]
+    check("a photo is saved only when asked, named for the thing, and the pointer is kept",
+          len(saved) == 1 and saved[0].endswith("-my-blue-mug.jpg") and saved[0] in say and ph.memory.get("blue mug").photo.endswith(saved[0]), f"{saved} {say}")
+    folder2 = tempfile.mkdtemp()
+    nop = looking([thing("cup", 0.8, (220, 140, 200, 200))], frames=[blue], photo_dir=folder2)
+    nop.hear("remember this as my blue mug")
+    check("without the ask, nothing is written to disk", os.listdir(folder2) == [])
+    paused = looking(faces=[face()], vectors=[omar], eye_paused=True)
+    check("in privacy mode nothing is looked at or learned", paused.hear("remember Omar's face") == "I'm paused for privacy, so I'm not looking."
+          and paused.memory.list() == [])
+
+    # ---- on the runtime
+    import tst_effects as te
+    from src.senses.base import Modality, SensorEvent
+    from src.vision.eye import Eye
+    from src.vision.memory import VisualMemory
+    mem = VisualMemory(None)
+    io = dict(eye=Eye(grab=lambda: blue), faces=FakeFaces([face()], [omar]), objects=FakeObjects([thing("cup", .8, (220, 140, 200, 200))]), memory=mem)
+    rt = te.rig(vision=True, vision_io=io)
+    rt.brain.user = "Khalid"
+    rt.say("remember this as my blue mug")
+    check("by voice: taught", rt.out[-1].startswith("Okay, I'll recognise my blue mug") and mem.get("blue mug") is not None, rt.out[-1])
+    rt.say("remember my face")
+    check("'remember my face' uses the name the runtime knows", mem.get("Khalid") is not None, rt.out[-1])
+    rt.t[0] += 5
+    rt.submit(SensorEvent(source="microphone", modality=Modality.TEXT, text="remember this person as Eve", addressed=True, salience=0.9, urgency=0.6, meta={"guest": True}))
+    rt._tick()
+    check("a guest's voice cannot teach it anyone", rt.out[-1].startswith("Sorry, I only do that for Khalid") and mem.get("Eve") is None, rt.out[-1])
+    rt.t[0] += 5
+    rt.submit(SensorEvent(source="microphone", modality=Modality.TEXT, text="remember this person as Eve", addressed=False, salience=0.4, meta={}))
+    rt._tick()
+    check("overheard speech teaches it nothing", mem.get("Eve") is None)
 
 
 if __name__ == "__main__":

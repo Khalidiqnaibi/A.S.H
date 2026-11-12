@@ -598,7 +598,8 @@ class AmbientRuntime:
             from .looking import build as build_looking
             self.looking = build_looking(self.cfg.vision_cfg, self.cfg.vision_io,
                                          lambda: getattr(getattr(self.periphery, "sensors", {}), "get", lambda *_: None)("camera"),
-                                         lambda: bool(self.privacy.paused), lambda: self.clock(), self.cfg.vision_path)
+                                         lambda: bool(self.privacy.paused), lambda: self.clock(), self.cfg.vision_path,
+                                         user=lambda: str(getattr(self.brain, "user", "") or ""))
         if self.cfg.grammar:
             from .grammar import Grammar
             address.register_grammar(Grammar(self))
@@ -2125,6 +2126,8 @@ class AmbientRuntime:
             return
         if self._focus_request(ev, now):
             return
+        if self._look_request(ev, now):
+            return          # before the memory's own "forget X" / "remember X": "forget Omar's face" is the camera's
         if self._browsing_request(ev, now):
             return
         if self._ux_request(ev, now):
@@ -2154,8 +2157,6 @@ class AmbientRuntime:
         if self._arrival_request(ev, now):
             return
         if self._clipboard_request(ev, now):
-            return
-        if self._look_request(ev, now):
             return
         if self._reminder_request(ev, now):
             return
