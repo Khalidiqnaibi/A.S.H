@@ -114,6 +114,7 @@ class LookingConfig:
     # Who is here, from the camera sensor's own frames every few seconds (presence.py). Off until switched on.
     presence: bool = False
     presence_interval_s: float = 8.0
+    presence_background: bool = True   # read the frame on a worker thread so a slow detector never stalls the loop
     away_after_s: float = 90.0            # not seen for this long: gone
     stranger_hold_s: float = 120.0        # after an unknown face, private things are not read aloud for this long
     hold_when_stranger: bool = True

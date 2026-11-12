@@ -594,6 +594,8 @@ class AmbientRuntime:
         self.arrivals = Arrivals(self.cfg.arrivals_path, home=self.cfg.arrivals_home) if self.cfg.arrivals else None
         self._arrival_at = 0.0
         self.looking = None
+        self._presence_job = None
+        self._presence_exec = None
         if self.cfg.vision:
             from .looking import build as build_looking
             self.looking = build_looking(self.cfg.vision_cfg, self.cfg.vision_io,
@@ -1734,6 +1736,7 @@ class AmbientRuntime:
         """Every few seconds, who is in view: read from the camera sensor's own latest frame (never a new capture, never
         kept). Only while the camera is on, not paused for privacy, and vision.presence is switched on."""
         lk = self.looking
+        self._presence_collect()
         if lk is None or not lk.cfg.presence or self.privacy.paused:
             return
         if now - getattr(self, "_presence_at", 0.0) < lk.cfg.presence_interval_s:
@@ -1745,11 +1748,45 @@ class AmbientRuntime:
         frame, ts = getattr(cam, "last_frame", None), float(getattr(cam, "last_frame_ts", 0.0) or 0.0)
         if frame is None or time.time() - ts > 10.0:
             return
+        if lk.cfg.presence_background:
+            # The detector can take a good part of a second on a CPU: never on the loop. One reading at a time; the
+            # frame is copied (the camera thread keeps writing); its answer is picked up on a later step.
+            if self._presence_job is not None:
+                return
+            try:
+                snap = frame.copy()
+            except Exception:
+                return
+            self._presence_job = self._presence_pool().submit(lk.watch, snap, now)
+            return
         try:
             events = lk.watch(frame, now)
         except Exception:
             logger.exception("Presence reading failed")
             return
+        self._presence_events(lk, events)
+
+    def _presence_pool(self):
+        if self._presence_exec is None:
+            from concurrent.futures import ThreadPoolExecutor
+            self._presence_exec = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ash-presence")
+        return self._presence_exec
+
+    def _presence_collect(self):
+        """Pick up a finished background reading, if there is one, and act on what it found."""
+        job = self._presence_job
+        if job is None or not job.done():
+            return
+        self._presence_job = None
+        try:
+            events = job.result()
+        except Exception:
+            logger.exception("Presence reading failed")
+            return
+        if not self.privacy.paused:
+            self._presence_events(self.looking, events)
+
+    def _presence_events(self, lk, events):
         for kind, who in events:
             self.stats["presence_" + kind] = self.stats.get("presence_" + kind, 0) + 1
             line = lk.announcement(kind, who, str(getattr(self.brain, "user", "") or ""))

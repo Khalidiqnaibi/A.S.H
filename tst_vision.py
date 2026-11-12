@@ -753,7 +753,7 @@ def step4_presence_and_the_stranger_hold():
 
     def runtime(**cfg):
         io = dict(eye=Eye(grab=lambda: frame()), faces=faces, objects=FakeObjects([]), memory=mem)
-        rt = te.rig(vision=True, vision_io=io, vision_cfg=dict(presence=True, presence_interval_s=1.0, **cfg.pop("vcfg", {})),
+        rt = te.rig(vision=True, vision_io=io, vision_cfg=dict({"presence": True, "presence_interval_s": 1.0, "presence_background": False}, **cfg.pop("vcfg", {})),
                     clipboard=True, clipboard_io=(lambda: "some private text", lambda t: True), briefings=True, **cfg)
         rt.brain.user = "Khalid"
         cam = type("Cam", (), {"due": lambda self, now: False, "name": "camera", "close": lambda self: None,
@@ -794,6 +794,26 @@ def step4_presence_and_the_stranger_hold():
     check("when they have gone for the hold time, private things are read again", not rt.looking.stranger_present(rt.t[0]))
     rt.say("what's on my clipboard")
     check("...", "some private text" in rt.out[-1], rt.out[-1])
+
+    # the reading runs on a worker thread: a slow detector never holds the loop
+    import threading as _th
+    gate_ev = _th.Event()
+    slow = FakeFaces([face((10, 10, 100, 100))], [omar])
+    real_detect = slow.detect
+    slow.detect = lambda fr: (gate_ev.wait(5), real_detect(fr))[1]
+    faces_keep, faces = faces, slow
+    bg = runtime(vcfg=dict(presence_background=True))
+    t0 = _t.time()
+    pulse(bg)
+    check("a slow detector does not hold the tick", _t.time() - t0 < 1.0 and bg.looking.presence.here(bg.t[0]) == [], str(_t.time() - t0))
+    pulse(bg)
+    check("...and only one reading is in flight", slow.calls == 0 and bg._presence_job is not None)
+    gate_ev.set()
+    bg._presence_job.result(5)
+    pulse(bg)
+    check("the answer is picked up on a later tick", bg.looking.presence.here(bg.t[0]) == ["Omar"], str(bg.status()["vision"]))
+    bg._presence_exec.shutdown(wait=True)
+    faces = faces_keep
 
     quiet = runtime(vcfg=dict(hold_when_stranger=False))
     faces.faces, faces.vectors = [face((10, 10, 100, 100)), face((300, 10, 100, 100))], [omar, vec(9)]
