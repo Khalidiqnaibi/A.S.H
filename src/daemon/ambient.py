@@ -1378,7 +1378,7 @@ class AmbientRuntime:
                 or clipboard_mod.parse(t) is not None
                 or (browsing_mod.parse(t) is not None and self.browsing._on())
                 or uxreport.parse(t) is not None
-                or (self.looking is not None and looking_mod.parse(t) is not None)
+                or (self.looking is not None and self.looking.wants(t))
                 or any(rx.match(t) for rx in (arrival_mod._WHEN, arrival_mod._WHEN_END, arrival_mod._SET, arrival_mod._FORGET,
                                               arrival_mod._LIST, arrival_mod._CANCEL))
                 or (self.scenes is not None and (self.scenes.parse(t) or (None,))[0] in ("start", "end"))
@@ -1718,7 +1718,7 @@ class AmbientRuntime:
         if lk is None or not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
             return False
         text = str(getattr(ev, "text", "") or "")
-        if looking_mod.parse(text) is None:
+        if not lk.wants(text):
             return False
         try:
             say = lk.hear(text, now)

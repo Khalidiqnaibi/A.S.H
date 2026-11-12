@@ -314,8 +314,8 @@ class FakeFaces:
         return list(self.faces)
 
     def embed(self, img, face):
-        i = self.faces.index(face)
-        return self.vectors[i] if i < len(self.vectors) else None
+        i = next((k for k, f in enumerate(self.faces) if f is face), -1)          # identity: Face holds an array
+        return self.vectors[i] if 0 <= i < len(self.vectors) else None
 
 
 def thing(label, score, box=(280, 200, 80, 80)):
@@ -368,7 +368,7 @@ def step1_look_around_and_what_am_i_holding():
 
     lk = looking([thing("cup", 0.8), thing("cup", 0.7), thing("laptop", 0.55), thing("person", 0.9)])
     say = lk.hear("look around", 1000.0)
-    check("what is in view, most first, with counts", say == "I see 2 cups, a laptop and a person.", say)
+    check("what is in view: people first, then things by count", say == "I see a person, 2 cups and a laptop.", say)
     check("one frame was taken, and nothing was kept of it but the minute in memory", lk.eye.looks == 1 and lk.eye.recent() is not None)
     check("people are 'people', and more than five things are not read out one by one",
           looking([thing("person", .9), thing("person", .8), thing("bottle", .9), thing("book", .9), thing("clock", .9), thing("vase", .9),
@@ -535,6 +535,149 @@ def step2_teach_by_showing():
     rt.submit(SensorEvent(source="microphone", modality=Modality.TEXT, text="remember this person as Eve", addressed=False, salience=0.4, meta={}))
     rt._tick()
     check("overheard speech teaches it nothing", mem.get("Eve") is None)
+
+
+def near(base, cos, seed=5):
+    """A unit vector whose cosine similarity to `base` is `cos`."""
+    r = np.random.RandomState(seed).randn(len(base)).astype(np.float32)
+    r -= float(np.dot(r, base)) * base
+    r /= np.linalg.norm(r)
+    return (cos * base + np.sqrt(1 - cos * cos) * r).astype(np.float32)
+
+
+@section
+def step3_recognise_who_and_what():
+    print("\n=== STEP 3: 'who's this?', 'is this my mug?', 'where are my keys?' -- cautious, and honest about close calls ===")
+    import time as _t
+    from src.daemon.looking import parse
+    omar, ali = vec(1), vec(2)
+    check("the ways people ask", all((parse(q) or (None,))[0] == k for q, k in (
+        ("who's this", "who"), ("who is in front of the camera", "who"), ("do you recognize me", "who"), ("is this my blue mug", "is_this"),
+        ("is this Omar", "is_this"), ("where are my keys", "where"), ("where did I leave my keys", "where"))))
+    check("'who am I' is the memory's, not the camera's; everyday 'is this...' / 'where is...' are not it",
+          parse("who am I") is None and parse("is this correct") is None and parse("is this the right way") is None)
+
+    def people(**kw):
+        lk = looking(faces=[face()], vectors=[omar], **kw)
+        lk.memory.enroll("Omar", "person", omar)
+        lk.memory.enroll("Ali", "person", ali)
+        return lk
+    lk = people()
+    check("a known face is named", lk.hear("who's this", 1000.0) == "That's Omar.")
+    lk.t[0] = 5000.0
+    lk.hear("who's this", 5000.0)
+    check("...and seeing someone updates when and how often", lk.memory.get("Omar").last_seen == 5000.0 and lk.memory.get("Omar").seen == 3)
+    lk.faces.vectors = [vec(9)]
+    check("an unknown face is not named, and it says how to teach it", lk.hear("who is that").startswith("I don't know them.") and "remember this person as <name>" in lk.hear("who is that"))
+    lk.faces.vectors = [near(omar, 0.35)]
+    check("a face that is nearly someone: hedged, not claimed", lk.hear("who's this") == "That might be Omar, but I'm not sure.")
+    lk.faces.vectors = [near(omar, 0.30)]
+    check("...but not too nearly (0.30 is nobody)", lk.hear("who's this").startswith("I don't know them."))
+    twin = people()
+    twin.memory.enroll("Twin", "person", near(omar, 0.97, seed=7))
+    check("two people who look alike: not sure rather than a guess (the margin)", not twin.hear("who's this").startswith("That's "), twin.hear("who's this"))
+    check("nobody in view", looking(faces=[], vectors=[]).hear("who's this") == "I don't see anyone.")
+    check("without the face models: it says so", "face models aren't installed" in looking(faces_backend=FakeFaces(available=False)).hear("who's this"))
+    two = looking(faces=[face((10, 10, 100, 100)), face((300, 10, 100, 100))], vectors=[omar, ali])
+    two.memory.enroll("Omar", "person", omar)
+    two.memory.enroll("Ali", "person", ali)
+    check("two known people", two.hear("who do you see") == "I see Omar and Ali.")
+    mixed = looking(faces=[face((10, 10, 100, 100)), face((300, 10, 100, 100)), face((500, 10, 90, 90))], vectors=[omar, vec(8), vec(9)])
+    mixed.memory.enroll("Omar", "person", omar)
+    check("known and unknown together", mixed.hear("who do you see") == "I see Omar, and 2 people I don't know.")
+    allunk = looking(faces=[face((10, 10, 100, 100)), face((300, 10, 100, 100))], vectors=[vec(8), vec(9)])
+    check("nobody known", allunk.hear("who do you see") == "I see 2 people and I don't know any of them.")
+
+    # is this X
+    check("'is this Omar?' when Omar is not someone it was taught is left alone, and no frame is taken",
+          people().hear("is this Zed") is None and not people().wants("is this Zed") and people().eye.looks == 0)
+    check("...and 'is this correct' never takes a frame", people().hear("is this correct") is None)
+    lk = people()
+    check("yes", lk.hear("is this Omar") == "Yes, that's Omar.")
+    lk.faces.vectors = [ali]
+    check("no -- it is someone else it knows", lk.hear("is this Omar") == "No -- that looks like Ali.")
+    lk.faces.vectors = [vec(9)]
+    check("no -- a stranger", lk.hear("is this Omar") == "No, that doesn't look like Omar.")
+    lk.faces.vectors = [near(omar, 0.35)]
+    check("might be", lk.hear("is this Omar") == "It might be Omar, but I'm not sure.")
+    check("no face in view", looking(faces=[], vectors=[]).hear("is this Omar") is None)
+
+    # things
+    blue = frame(square=((200, 80, 20), (220, 140, 200, 200)))
+    red = frame(square=((30, 30, 210), (220, 140, 200, 200)))
+    cup = [thing("cup", 0.8, (220, 140, 200, 200))]
+
+    def shelf(*frames, things_=cup, **kw):
+        lk = looking(list(things_), frames=list(frames), **kw)
+        return lk
+    lk = shelf(blue, red, blue)
+    lk.hear("remember this as my blue mug")
+    lk.hear("remember this as my red mug")
+    check("holding something it was taught: it says which, ahead of what a detector calls it", lk.hear("what am I holding") == "That's your blue mug.")
+    check("is this my blue mug: yes (blue is in front)", lk.hear("is this my blue mug") is not None)
+    lk.eye._grab = lambda: red
+    check("...no, it looks like the red one", lk.hear("is this my blue mug") == "No -- that looks like your red mug.")
+    lk.eye._grab = lambda: frame(square=((60, 160, 60), (220, 140, 200, 200)))
+    check("something it was never shown: not that one, and says so", lk.hear("is this my blue mug") == "I don't think so -- it doesn't look like your blue mug.")
+    lk.eye._grab = lambda: blue
+    check("what is in view names what it knows and describes the rest", lk.hear("look around") == "I see your blue mug.")
+    lk.objects.things = cup + [thing("laptop", .8, (10, 300, 100, 100)), thing("person", .9, (0, 0, 100, 200))]
+    check("...with people and things together", lk.hear("look around") == "I see a person, your blue mug and a laptop.")
+    lk.faces.faces, lk.faces.vectors = [face()], [omar]
+    lk.memory.enroll("Omar", "person", omar)
+    check("...by name when the person is known", lk.hear("look around") == "I see Omar, your blue mug and a laptop.")
+
+    # where
+    now0 = _t.mktime((2026, 6, 15, 12, 0, 0, 0, 0, -1))
+    keys = shelf(blue, things_=cup)
+    keys.t[0] = now0 - 3 * 3600
+    keys.memory.clock = lambda: keys.t[0]
+    keys.hear("remember this as my keys", keys.t[0])
+    check("where is it, with the camera on it right now", keys.hear("where are my keys", now0) == "Your keys are in view right now.")
+    keys.eye._grab = lambda: red
+    keys.memory.get("keys").last_seen = now0 - 3 * 3600
+    keys.memory.get("keys").seen = 3
+    check("not in view: when it was last seen, today", keys.hear("where are my keys", now0) == "I last saw your keys at 09:00 today. I can only say what the camera has shown me, not where things are in the room.")
+    for ago, phrase in ((30, "just now"), (600, "10 minutes ago"), (86400, "yesterday at 12:00"), (5 * 86400, "on 10 Jun at 12:00")):
+        keys.memory.get("keys").last_seen = now0 - ago
+        check(f"...{phrase}", keys.hear("where did I leave my keys", now0).startswith(f"I last saw your keys {phrase}."), keys.hear("where did I leave my keys", now0))
+    only = shelf(blue, things_=cup)
+    only.memory.enroll("my wallet", "thing", vec(4, dim=224))
+    check("only known from being shown: it says so", only.hear("where is my wallet", now0).startswith("I only know your wallet from when you showed me"), str(only.hear("where is my wallet", now0)))
+    om = people()
+    check("a person in view", om.wants("where is Omar") and om.hear("where is Omar", now0) == "Omar is in view right now.")
+    om.faces.vectors = [vec(9)]
+    om.memory.get("Omar").last_seen = now0 - 7200
+    om.memory.get("Omar").seen = 4
+    check("a person not in view: when they were last seen (at 10:00 today)", om.hear("where is Omar", now0).startswith("I last saw Omar at 10:00 today."),
+          str(om.hear("where is Omar", now0)))
+    check("'where is the nearest cafe' takes no frame", shelf(blue).hear("where is the nearest cafe") is None)
+
+    # runtime
+    import tst_effects as te
+    from src.senses.base import Modality, SensorEvent
+    from src.vision.eye import Eye
+    from src.vision.memory import VisualMemory
+    mem = VisualMemory(None)
+    mem.enroll("Omar", "person", omar)
+    eye = Eye(grab=lambda: frame(size=(480, 640)))
+    rt = te.rig(vision=True, vision_io=dict(eye=eye, faces=FakeFaces([face()], [omar]), objects=FakeObjects([]), memory=mem), grammar=True)
+    rt.brain.user = "Khalid"
+    rt.say("who's this")
+    check("by voice", rt.out[-1] == "That's Omar.", rt.out[-1])
+    n = eye.looks
+    rt.say("is this correct")
+    check("an everyday 'is this...' does not open the camera", eye.looks == n)
+    rt.say("is this Omar")
+    check("'is this Omar' does", rt.out[-1] == "Yes, that's Omar." and eye.looks == n + 1, rt.out[-1])
+    rt.t[0] += 5
+    rt.submit(SensorEvent(source="microphone", modality=Modality.TEXT, text="who's this", addressed=True, salience=0.9, urgency=0.6, meta={"guest": True}))
+    rt._tick()
+    check("a guest cannot ask who is in front of the camera", rt.out[-1].startswith("Sorry, I only do that for Khalid") and eye.looks == n + 1, rt.out[-1])
+    rt.t[0] += 5
+    rt.submit(SensorEvent(source="microphone", modality=Modality.TEXT, text="where is the nearest cafe", addressed=True, salience=0.9, urgency=0.6, meta={"guest": True}))
+    rt._tick()
+    check("...but an everyday question from a guest is not refused", not rt.out[-1].startswith("Sorry, I only do that"), rt.out[-1])
 
 
 if __name__ == "__main__":

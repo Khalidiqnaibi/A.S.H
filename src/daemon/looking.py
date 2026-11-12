@@ -42,6 +42,13 @@ _RX: List[Tuple[str, "re.Pattern"]] = [(k, re.compile(p, re.I)) for k, p in (
                           + r"|this\s+(?:person\s+)?is\s+" + _L("3") + r",?\s*(?:please\s+)?(?:remember|learn)\s+(?:his|her|their)\s+face" + _P("3") + r")" + _Z),
     ("teach_thing", _A + r"(?:(?:remember|learn)\s+this\s+(?:thing\s+|object\s+)?(?:as|is)\s+" + _L() + _P()
                          + r"|this\s+is\s+" + _L("2") + r",?\s*(?:please\s+)?(?:remember|learn)\s+(?:it|that|this)" + _P("2") + r")" + _Z),
+    # Recognising. "is this X" and "where is my X" are everyday sentences, so they only count when X is something
+    # it was taught (Looking.wants) -- the pattern alone is not enough.
+    ("who", _A + r"(?:who(?:'s|\s+is)\s+(?:this|that|there|here|in\s+front\s+of\s+(?:you|the\s+camera|the\s+webcam)|at\s+the\s+(?:door|camera))"
+                 r"|who\s+(?:can|do)\s+you\s+see|do\s+you\s+(?:know|recogni[sz]e)\s+(?:me|this\s+(?:person|face)|who\s+this\s+is))" + _Z),
+    ("is_this", _A + r"is\s+(?:this|that)\s+(?:(?P<label>my\s+[a-z][a-z0-9' \-]{0,30}?)|(?P<label2>(?-i:[A-Z][a-z]{1,19}(?:\s[A-Z][a-z]{1,19})?)))" + _Z),
+    ("where", _A + r"(?:where(?:'s|\s+is|\s+are)\s+(?:my\s+)?(?P<label>[a-z][a-z0-9' \-]{1,30}?)|where\s+did\s+i\s+(?:leave|put)\s+(?:my\s+)?(?P<label2>[a-z][a-z0-9' \-]{1,30}?))"
+                  r"(?:\s+right\s+now)?" + _Z),
     ("holding",_A + r"(?:what\s+(?:am\s+i|are\s+we)\s+holding|what(?:'s|\s+is)\s+(?:this|that)\s+(?:in\s+my\s+hand|i'?m\s+holding)"
                      r"|what(?:'s|\s+is)\s+in\s+my\s+hand|look\s+at\s+this(?:\s+(?:thing|object))?"
                      r"|what\s+is\s+this\s+(?:thing|object)(?:\s+i'?m\s+holding)?)" + _Z),
@@ -159,11 +166,19 @@ class Looking:
                 "\"python ashctl.py vision install\" (it asks first); an object model is any YOLOv8 ONNX file -- see the README.")
 
     # -- answering -------------------------------------------------------------------
-    def hear(self, text: str, now: Optional[float] = None) -> Optional[str]:
+    def wants(self, text: str) -> bool:
+        """A request for the camera -- and for "is this X" / "where is my X", only when X is something it was taught."""
         p = parse(text)
         if p is None or not self.cfg.enabled:
+            return False
+        if p[0] in ("is_this", "where"):
+            return self.memory is not None and self.memory.get(p[1].get("label", "")) is not None
+        return True
+
+    def hear(self, text: str, now: Optional[float] = None) -> Optional[str]:
+        if not self.wants(text):
             return None
-        kind, _d = p
+        kind, _d = parse(text)
         now = self.clock() if now is None else now
         frame, why = self.eye.look(now)
         if frame is None:
@@ -172,9 +187,15 @@ class Looking:
         self.stats["looks"] += 1
         if kind in ("teach_me", "teach_person", "teach_thing"):
             return self.teach(kind, _d, frame, now)
+        if kind == "who":
+            return self.who(frame, now)
+        if kind == "is_this":
+            return self.is_this(_d["label"], frame, now)
+        if kind == "where":
+            return self.where(_d["label"], frame, now)
         if kind == "holding":
-            return self.holding(frame)
-        return self.around(frame)
+            return self.holding(frame, now)
+        return self.around(frame, now)
 
     def _things(self, frame) -> List[Any]:
         try:
@@ -190,42 +211,212 @@ class Looking:
             logger.exception("Face detection failed")
             return []
 
-    def around(self, frame) -> str:
-        """What is in view, from the labels."""
+    # -- recognising -----------------------------------------------------------------------
+    @staticmethod
+    def _yours(label: str, kind: str = "thing") -> str:
+        """How a taught label is said back: "my blue mug" -> "your blue mug"; a bare thing gets "the"; a person is the name."""
+        if kind == "person":
+            return label
+        low = label.lower()
+        if low.startswith("my "):
+            return "your " + label[3:]
+        return label if low.startswith(("the ", "a ", "an ", "your ")) else "the " + label
+
+    def _people(self, frame) -> List[Tuple[Optional[str], Optional[str], Any]]:
+        """For each face in view (nearest first, at most five): (who, who it might be, the face). who is None when
+        it is nobody taught; 'might be' is a close second, for a hedged answer."""
+        if not self.can_see_faces():
+            return []
+        out: List[Tuple[Optional[str], Optional[str], Any]] = []
+        for f in sorted(self._faces(frame), key=lambda f: -(f.box[2] * f.box[3]))[:5]:
+            vec = self.faces.embed(frame, f)
+            who, near = None, None
+            if vec is not None and self.memory is not None:
+                m = self.memory.match(vec, kind="person", threshold=self.cfg.face_threshold, margin=self.cfg.face_margin)
+                if m is not None:
+                    who = m.label
+                else:
+                    sc = self.memory.scores(vec, "person")
+                    if sc and sc[0][1] >= self.cfg.face_threshold - 0.08:
+                        near = sc[0][0]
+            out.append((who, near, f))
+        return out
+
+    def _thing_match(self, frame, box):
+        """The taught thing that crop looks like, or None."""
+        if self.memory is None or not self.memory.list("thing"):
+            return None
+        vec = self.embedder.embed(frame, box)
+        if vec is None:
+            return None
+        return self.memory.match(vec, kind="thing", threshold=self.cfg.thing_threshold, margin=self.cfg.thing_margin)
+
+    def around(self, frame, now: Optional[float] = None) -> str:
+        """What is in view: people by name where they are known, taught things by name, the rest by what the detector says."""
         if not (self.can_see_things() or self.can_see_faces()):
             return self._no_models()
-        things, faces = self._things(frame), self._faces(frame)
+        now = self.clock() if now is None else now
+        things = self._things(frame)
+        people = self._people(frame)
+        names: List[str] = []
+        for who, _near, _f in people:
+            if who and who not in names:
+                names.append(who)
+                self.memory.seen_now(who, now)
+        det_people = sum(1 for t in things if t.label == "person")
+        total_people = max(len(people), det_people)
+        unknown = max(0, total_people - len(names))
+        yours: List[str] = []
         counts: Dict[str, int] = {}
         for t in things:
-            counts[t.label] = counts.get(t.label, 0) + 1
-        if faces:
-            counts["person"] = max(counts.get("person", 0), len(faces))
-        if not counts:
+            if t.label == "person":
+                continue
+            m = self._thing_match(frame, t.box) if len(yours) + len(counts) < 8 else None
+            if m is not None:
+                label = self._yours(m.label)
+                if label not in yours:
+                    yours.append(label)
+                    self.memory.seen_now(m.label, now)
+            else:
+                counts[t.label] = counts.get(t.label, 0) + 1
+        pieces: List[str] = []
+        if names and unknown:
+            pieces.append(f"{_list(names)} and " + ("someone I don't know" if unknown == 1 else f"{unknown} people I don't know"))
+        elif names:
+            pieces.append(_list(names))
+        elif unknown:
+            pieces.append(_count("person", unknown))
+        pieces += yours
+        pieces += [_count(k, counts[k]) for k in sorted(counts, key=lambda k: (-counts[k], k))]
+        if not pieces:
             return "I don't see anything I recognise."
-        order = sorted(counts, key=lambda k: (-counts[k], k))
         sure = [t for t in things if t.score >= self.cfg.sure_conf]
-        shown = [_count(k, counts[k]) for k in order[:5]]
-        hedge = "" if (sure or faces) else " -- though I'm not very sure"
-        extra = f", and {len(order) - 5} other things" if len(order) > 5 else ""
-        return f"I see {_list(shown)}{extra}{hedge}."
+        hedge = "" if (sure or people or yours) else " -- though I'm not very sure"
+        extra = f", and {len(pieces) - 5} other things" if len(pieces) > 5 else ""
+        return f"I see {_list(pieces[:5])}{extra}{hedge}."
 
-    def holding(self, frame) -> str:
-        """The thing nearest the middle that is not a person or furniture: what is held up to the camera."""
-        if not self.can_see_things():
-            return ("I can't tell what's in your hand without an object model installed. Any YOLOv8 ONNX file works -- see the README."
-                    if not self.can_see_faces() else "I can tell people apart, but I have no object model to say what you're holding.")
+    def _held(self, frame):
+        """What is held up to the camera: the detection nearest the middle that is not a person or furniture."""
         things = [t for t in self._things(frame) if t.label not in _BIG]
         if not things:
-            return "I can't make out what you're holding -- try holding it closer to the camera."
+            return None
         h, w = frame.shape[:2]
 
         def off(t):
             x, y, bw, bh = t.box
             return ((x + bw / 2 - w / 2) / w) ** 2 + ((y + bh / 2 - h / 2) / h) ** 2
-        best = min(things, key=lambda t: (off(t) - 0.15 * t.score))
+        return min(things, key=lambda t: (off(t) - 0.15 * t.score))
+
+    def holding(self, frame, now: Optional[float] = None) -> str:
+        now = self.clock() if now is None else now
+        best = self._held(frame)
+        m = self._thing_match(frame, best.box if best is not None else None)
+        if m is not None:                                           # what it was taught beats what a detector calls it
+            self.memory.seen_now(m.label, now)
+            return f"That's {self._yours(m.label)}."
+        if not self.can_see_things():
+            return ("I can't tell what's in your hand without an object model installed. Any YOLOv8 ONNX file works -- see the README."
+                    if not self.can_see_faces() else "I can tell people apart, but I have no object model to say what you're holding.")
+        if best is None:
+            return "I can't make out what you're holding -- try holding it closer to the camera."
         if best.score >= self.cfg.sure_conf:
             return f"That looks like {_a(best.label)}."
         return f"That might be {_a(best.label)}, but I'm not sure."
+
+    def who(self, frame, now: Optional[float] = None) -> str:
+        """"Who's this?": the people in view, by name where they are known."""
+        if not self.can_see_faces():
+            return ("I can't tell faces apart yet -- the face models aren't installed. \"python ashctl.py vision install\" "
+                    "fetches them, and asks first.")
+        now = self.clock() if now is None else now
+        people = self._people(frame)
+        if not people:
+            return "I don't see anyone."
+        for who, _n, _f in people:
+            if who:
+                self.memory.seen_now(who, now)
+        if len(people) == 1:
+            who, near, _f = people[0]
+            if who:
+                return f"That's {who}."
+            if near:
+                return f"That might be {near}, but I'm not sure."
+            return "I don't know them. If you tell me who it is -- say \"remember this person as <name>\" -- I will."
+        names = [w for w, _n, _f in people if w]
+        unknown = len(people) - len(names)
+        if not names:
+            return f"I see {len(people)} people and I don't know any of them."
+        return f"I see {_list(names)}" + (f", and {'someone' if unknown == 1 else str(unknown) + ' people'} I don't know." if unknown else ".")
+
+    def is_this(self, label: str, frame, now: Optional[float] = None) -> str:
+        """"Is this Omar?" / "is this my mug?": checked against what it was taught, and honest about close calls."""
+        item = self.memory.get(label)
+        now = self.clock() if now is None else now
+        if item.kind == "person":
+            if not self.can_see_faces():
+                return "I can't tell faces apart yet -- the face models aren't installed."
+            people = self._people(frame)
+            if not people:
+                return "I can't see a face."
+            who, near, _f = people[0]
+            if who and who.lower() == item.label.lower():
+                self.memory.seen_now(item.label, now)
+                return f"Yes, that's {item.label}."
+            if who:
+                return f"No -- that looks like {who}."
+            if near and near.lower() == item.label.lower():
+                return f"It might be {item.label}, but I'm not sure."
+            return f"No, that doesn't look like {item.label}."
+        best = self._held(frame)
+        m = self._thing_match(frame, best.box if best is not None else None)
+        if m is not None and m.label.lower() == item.label.lower():
+            self.memory.seen_now(item.label, now)
+            return f"Yes, that's {self._yours(item.label)}."
+        if m is not None:
+            return f"No -- that looks like {self._yours(m.label)}."
+        return f"I don't think so -- it doesn't look like {self._yours(item.label)}."
+
+    @staticmethod
+    def _when(ts: float, now: float) -> str:
+        d = max(0.0, now - ts)
+        if d < 60:
+            return "just now"
+        if d < 3600:
+            return f"{int(d // 60)} minutes ago"
+        clock = time.strftime("%H:%M", time.localtime(ts))
+        today = time.strftime("%Y-%m-%d", time.localtime(now))
+        day = time.strftime("%Y-%m-%d", time.localtime(ts))
+        yday = time.strftime("%Y-%m-%d", time.localtime(now - 86400))
+        return (f"at {clock} today" if day == today else f"yesterday at {clock}" if day == yday
+                else "on " + time.strftime("%d %b", time.localtime(ts)) + f" at {clock}")
+
+    def where(self, label: str, frame, now: Optional[float] = None) -> str:
+        """"Where are my keys?": in view right now, or when it was last seen. ASH has no map of the room: it can only say
+        what the camera has shown it."""
+        item = self.memory.get(label)
+        now = self.clock() if now is None else now
+        if item.kind == "person":
+            if self.can_see_faces() and any(w and w.lower() == item.label.lower() for w, _n, _f in self._people(frame)):
+                self.memory.seen_now(item.label, now)
+                return f"{item.label} is in view right now."
+        else:
+            boxes = [t.box for t in self._things(frame) if t.label != "person"][:8]
+            found = False
+            for box in [None] + boxes:
+                m = self._thing_match(frame, box)
+                if m is not None and m.label.lower() == item.label.lower():
+                    found = True
+                    break
+            if found:
+                self.memory.seen_now(item.label, now)
+                name = self._yours(item.label)
+                return f"{name[0].upper() + name[1:]} {'are' if name.endswith('s') else 'is'} in view right now."
+        name = self._yours(item.label, item.kind)
+        if item.seen <= 1:
+            return (f"I only know {name} from when you showed me, {self._when(item.created, now)} -- I haven't seen "
+                    f"{'them' if name.endswith('s') or item.kind == 'person' else 'it'} since.")
+        return (f"I last saw {name} {self._when(item.last_seen, now)}. I can only say what the camera has shown me, "
+                f"not where things are in the room.")
 
     # -- teaching: by showing -------------------------------------------------------------
     _NOT_A_NAME = frozenset("this that it here there me you him her them everything something someone somebody".split())
