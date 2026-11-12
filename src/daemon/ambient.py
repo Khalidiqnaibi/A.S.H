@@ -313,6 +313,7 @@ class AmbientConfig:
     # an IMAP account is set. Off on a bare runtime.
     email: bool = False
     email_cfg: Optional[Dict[str, Any]] = None
+    email_send: Optional[Callable[[Dict[str, Any], Any], None]] = None     # tests pass a fake sender (drafts.py)
     # The weekly review (weekly.py): asked for, and in the Sunday evening
     # briefing. Off on a bare runtime.
     weekly: bool = False
@@ -548,8 +549,20 @@ class AmbientRuntime:
         if self.cfg.weather:
             self.weather = Weather(WeatherConfig.from_dict(self.cfg.weather_cfg), clock=lambda: self.clock())
         self.inbox: Optional[Inbox] = None
+        self.drafts = None
         if self.cfg.email:
             self.inbox = Inbox(InboxConfig.from_dict(self.cfg.email_cfg), clock=lambda: self.clock())
+            from .drafts import Drafts
+            ecfg = dict(self.cfg.email_cfg or {})
+            self.drafts = Drafts(self.inbox, account=lambda: {**dict(self.cfg.email_cfg or {}),
+                                                              "host": self.inbox.cfg.host, "user": self.inbox.cfg.user,
+                                                              "password": self.inbox.cfg.password},
+                                 allow_send=bool(ecfg.get("allow_send", False)), send=self.cfg.email_send or None,
+                                 polish=self._polish_draft, signer=lambda: str(getattr(self.brain, "user", "") or ""),
+                                 clock=lambda: self.clock())
+            if self.drafts.send is None:
+                from .drafts import smtp_send
+                self.drafts.send = smtp_send
         self.calendar: Optional[Calendar] = None
         self._calendar_at = -1e18
         if self.cfg.calendar:
@@ -2125,6 +2138,35 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "briefing"})())
         return True
 
+    def _polish_draft(self, body: str, how: str) -> Optional[str]:
+        """"Make it more formal": the one draft step that uses the language model, and only because it was asked."""
+        llm = getattr(self.ash, "llm", None)
+        if llm is None or not hasattr(llm, "invoke"):
+            return None
+        prompt = (f"Rewrite this short email so it is {how}. Keep its meaning, its greeting and its sign-off name; add "
+                  f"nothing that is not in it; no subject line; reply with the email text only.\n\n{body}")
+        out = llm.invoke(prompt)
+        return str(getattr(out, "content", out) or "").strip() or None
+
+    def _drafts_request(self, ev, now: float) -> bool:
+        """"Reply to Omar saying I'll be late", "send it": drafted by rule, read back, sent only on "send it" (and only
+        with email.allow_send on). Only for lines said to ASH, never a guest; the read-back waits for a stranger."""
+        d = getattr(self, "drafts", None)
+        if d is None or not self._user_source(ev) or not self._meant_for_ash(ev)                 or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        try:
+            say = d.hear(str(getattr(ev, "text", "") or ""), now)
+        except Exception:
+            logger.exception("Drafts failed")
+            return False
+        if not say:
+            return False
+        if say.startswith("Here's the draft"):
+            say = self._maybe_hold(say, now)
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "asked", "query": str(getattr(ev, "text", ""))[:80]}
+        return True
+
     def _email_request(self, ev, now: float) -> bool:
         """"Any new email?": the unread count and senders, read-only, no model."""
         b = self.inbox
@@ -2597,6 +2639,8 @@ class AmbientRuntime:
         if self._calendar_request(ev, now):
             return True
         if self._weather_request(ev, now):
+            return True
+        if self._drafts_request(ev, now):
             return True
         if self._email_request(ev, now):
             return True
@@ -3678,6 +3722,7 @@ class AmbientRuntime:
             "focus": self.focus.status() if self.focus else None,
             "weather": self.weather.status() if self.weather else None,
             "email": self.inbox.status() if self.inbox else None,
+            "drafts": self.drafts.status() if self.drafts is not None else None,
             "weekly": self.weekly.status() if self.weekly else None,
             "crashes": self.crashwatch.status() if self.crashwatch else None,
             "facts": self.facts.status() if self.facts else None,

@@ -16,8 +16,10 @@ sends, moves or deletes.
     "who emailed me?"     the same, with the subjects
     "what are they about" the subjects
 
-Drafting and sending are not here. When they come, sending will always be
-confirmed first.
+Drafting and sending are in drafts.py, and sending is always read back and
+confirmed first. For a reply to be addressed and threaded, the header fetch
+here also keeps each newest message's address and Message-ID -- still headers
+only, never a body.
 """
 
 from __future__ import annotations
@@ -103,8 +105,8 @@ def sender_name(raw_from: str) -> str:
     return addr or "someone"
 
 
-def _imap_fetch(cfg: InboxConfig) -> Tuple[int, List[Tuple[str, str]]]:
-    """(unread count, [(sender, subject)] newest first). Read-only."""
+def _imap_fetch(cfg: InboxConfig) -> Tuple[int, List[Tuple[str, ...]]]:
+    """(unread count, [(sender, subject, address, message-id)] newest first). Read-only, headers only."""
     m = imaplib.IMAP4_SSL(cfg.host, cfg.port, timeout=cfg.timeout_s)
     try:
         m.login(cfg.user, cfg.password)
@@ -115,11 +117,13 @@ def _imap_fetch(cfg: InboxConfig) -> Tuple[int, List[Tuple[str, str]]]:
         ids = (data[0] or b"").split() if typ == "OK" and data else []
         out: List[Tuple[str, str]] = []
         for i in reversed(ids[-cfg.keep:]):
-            typ, msg = m.fetch(i, "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT)])")
+            typ, msg = m.fetch(i, "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT MESSAGE-ID)])")
             if typ != "OK" or not msg or not isinstance(msg[0], tuple):
                 continue
             h = email.message_from_bytes(msg[0][1])
-            out.append((sender_name(h.get("From", "")), _decode(h.get("Subject", ""))[:80]))
+            addr = email.utils.parseaddr(_decode(h.get("From", "")))[1]
+            out.append((sender_name(h.get("From", "")), _decode(h.get("Subject", ""))[:80], addr,
+                        (h.get("Message-ID", "") or "").strip()))
         return len(ids), out
     finally:
         try:
@@ -149,6 +153,7 @@ class Inbox:
         self._lock = threading.Lock()
         self.unread: Optional[int] = None
         self.recent: List[Tuple[str, str]] = []
+        self.headers: List[Tuple[str, str, str, str]] = []     # (sender, subject, address, message-id), for replies
         self.checked_at = -1e18
         self._inflight = False
         self.last_error = ""
@@ -176,7 +181,9 @@ class Inbox:
         try:
             n, rows = self.fetch(self.cfg)
             with self._lock:
-                self.unread, self.recent = int(n), list(rows)
+                self.unread = int(n)
+                self.recent = [(r[0], r[1]) for r in rows]
+                self.headers = [tuple(r[:4]) for r in rows if len(r) >= 4]
             self.stats["checked"] += 1
             self.last_error = ""
         except Exception as e:
@@ -195,6 +202,22 @@ class Inbox:
         self.last_error = ""
 
     # -- saying it ---------------------------------------------------------
+    def last_from(self, who: str) -> Optional[Tuple[str, str, str, str]]:
+        """The newest message whose sender matches `who` ("Omar", "omar@x.com", "the last one"), or None."""
+        w = (who or "").strip().lower()
+        with self._lock:
+            rows = list(self.headers)
+        if not rows:
+            return None
+        if w in ("", "it", "that", "last", "latest", "the last", "the latest", "the last one", "the last email", "the latest one",
+                 "the latest email", "that email", "that one", "the newest", "the newest one", "the most recent one"):
+            return rows[0]
+        for r in rows:
+            name, _subj, addr, _mid = r
+            if w == addr.lower() or w in name.lower().split() or w == name.lower() or (len(w) >= 3 and name.lower().startswith(w)):
+                return r
+        return None
+
     def summary(self, subjects: bool = False) -> Optional[str]:
         with self._lock:
             n, rows = self.unread, list(self.recent)

@@ -326,7 +326,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # Water, a stretch, "you've been at it three hours" -- at a free moment,
     # only when the mood is fine, at most once an hour.
     "care": {"enabled": True},
-    "email": {"enabled": True, "host": "", "port": 993, "user": "", "password": "", "folder": "INBOX"},
+    "email": {"enabled": True, "host": "", "port": 993, "user": "", "password": "", "folder": "INBOX",
+              # Drafts ("reply to Omar saying I'll be late") are read back; sending needs this switched on, and then
+              # happens only on "send it". smtp_host empty: taken from host (imap.x -> smtp.x); port 465 SSL, 587 STARTTLS.
+              "allow_send": False, "smtp_host": "", "smtp_port": 465},
     # The weather in the briefings and for "what's the weather like today",
     # from Open-Meteo (no account or key). Set city (or lat and lon); until
     # then nothing is fetched. Only the place is sent, at most hourly.

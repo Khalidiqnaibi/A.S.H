@@ -75,11 +75,12 @@ def e1_server():
         cfg = ib.InboxConfig(host="imap.x.com", user="me", password="pw", keep=3)
         n, rows = ib._imap_fetch(cfg)
         check("the unread count", n == 4)
-        check("the newest few, newest first", rows == [("Sara Ali", "Budget for March"), ("Omar", "Lunch?"),
-                                                       ("github", "[ash] CI failed")], str(rows))
+        check("the newest few, newest first (with the address and Message-ID, for a reply)",
+              [r[:3] for r in rows] == [("Sara Ali", "Budget for March", "sara@x.com"), ("Omar", "Lunch?", "omar@y.com"),
+                                        ("github", "[ash] CI failed", "noreply@github.com")] and all(len(r) == 4 for r in rows), str(rows))
         check("opened read-only", ("select", "INBOX", True) in FakeIMAP.log)
         fetches = [e for e in FakeIMAP.log if e[0] == "fetch"]
-        check("headers only, peeked (never marked read)", fetches and all("BODY.PEEK[HEADER.FIELDS (FROM SUBJECT)]" in e[2]
+        check("headers only, peeked (never marked read)", fetches and all("BODY.PEEK[HEADER.FIELDS (FROM SUBJECT MESSAGE-ID)]" in e[2]
                                                                          for e in fetches))
         check("only the newest `keep` fetched", [e[1] for e in fetches] == [b"12", b"9", b"7"])
         check("nothing stored, moved or deleted", not any(e[0] == "STORE" for e in FakeIMAP.log))
