@@ -582,6 +582,8 @@ def main():
     from src.senses.screen import (clean_title, is_private_content, is_self_window,
                                    window_fields)
     from src.senses.screenread import _gist, similar
+    from src.senses.screen import set_private_content_protection as _protect
+    _protect(True)         # these checks are about what the protection does; whether it is on is the config's business
 
     # The first day with OCR on, ASH read and journaled a private chat, a
     # mailbox and a company dashboard, and the blocklist said nothing.
@@ -619,7 +621,11 @@ def main():
           ActiveWindowSensor(enabled=False, blocklist=["my crm"],
                              use_default_blocklist=False).is_blocked("My CRM"))
 
-    check("the chat/mail protection is on by default", is_private_content("x - Discord", "Discord.exe"))
+    # The module's own starting value is off (a deliberate choice); the daemon turns it on from its config, which
+    # is what "by default" means for a running ASH.
+    set_private_content_protection(False)
+    build_periphery({"privacy": dict(DEFAULT_CONFIG["privacy"])}, registry=PeripheryRegistry())
+    check("the daemon's default config turns the chat/mail protection on", is_private_content("x - Discord", "Discord.exe"))
     set_private_content_protection(False)
     check("...and off when asked: contents may be read",
           not is_private_content("x - Discord", "Discord.exe")
