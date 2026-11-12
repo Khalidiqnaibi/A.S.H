@@ -3,12 +3,13 @@
 import json
 from typing import Dict, List, Optional
 from .core_model import CoreRule
+from ..paths import memory_file
 
 
 class CoreStore:
 
-    def __init__(self, path: str = "core_memory.json"):
-        self.path = path
+    def __init__(self, path: Optional[str] = None):
+        self.path = memory_file("core_memory.json", path)
         self.rules: Dict[str, CoreRule] = {}
         self._load()
 

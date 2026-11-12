@@ -8,7 +8,7 @@ from .entity_resolver import EntityResolver
 
 class EntityManager:
 
-    def __init__(self, path="entities.json"):
+    def __init__(self, path=None):
         self.store = EntityStore(path)
         self.resolver = EntityResolver(self.store)
 

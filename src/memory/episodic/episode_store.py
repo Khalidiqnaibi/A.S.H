@@ -3,6 +3,8 @@
 from dataclasses import asdict, fields
 import json
 import os
+
+from ..paths import memory_file
 from typing import Dict, List
 from .episode_model import Episode
 
@@ -24,8 +26,8 @@ class EpisodeStore:
     see EpisodicMemory.prune() and mark_accessed() below.
     """
 
-    def __init__(self, path="episodic_memory.jsonl"):
-        self.path = path
+    def __init__(self, path=None):
+        self.path = memory_file("episodic_memory.jsonl", path)
         self.episodes: Dict[str, Episode] = {}
         self._load()
 

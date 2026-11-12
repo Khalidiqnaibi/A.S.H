@@ -13,7 +13,7 @@ logger = logging.getLogger("ash.memory.episodic")
 
 class EpisodicMemory:
 
-    def __init__(self, embedder, path="episodic_memory.jsonl"):
+    def __init__(self, embedder, path=None):
         self.store = EpisodeStore(path)
         self.index = EpisodeIndex(embedder)
         self.ranker = EpisodeRanker()

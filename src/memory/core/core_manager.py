@@ -8,7 +8,7 @@ from .core_index import CoreIndex
 
 class CoreMemoryEngine:
 
-    def __init__(self, embedder, path="core_memory.json"):
+    def __init__(self, embedder, path=None):
         self.store = CoreStore(path)
         self.index = CoreIndex(embedder)
         self._rebuild_index()

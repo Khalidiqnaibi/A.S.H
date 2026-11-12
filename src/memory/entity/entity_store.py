@@ -5,11 +5,12 @@ from typing import Dict, List, Optional
 
 from dataclasses import asdict
 from .entity_model import Entity
+from ..paths import memory_file
 
 
 class EntityStore:
-    def __init__(self, path: str = "entities.json"):
-        self.path = path
+    def __init__(self, path: Optional[str] = None):
+        self.path = memory_file("entities.json", path)
         self.entities: Dict[str, Entity] = {}
         self._load()
 
