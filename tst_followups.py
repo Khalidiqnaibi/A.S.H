@@ -359,6 +359,56 @@ def feature_timed_private_mode():
     check("an ordinary pause has no timer and never ends by itself", s.paused)
 
 
+@section
+def feature_never_track_a_site():
+    print("\n=== FEATURE: 'never track youtube' -- a site you keep out ===")
+    from src.daemon.browsing import Browsing, parse
+    from src.daemon.pagekind import Classifier
+    from src.daemon.ledger import Ledger
+    from src.senses.browsertabs import BrowserTabSensor
+    ok = {"never track youtube": ("ignore_site", "youtube.com"), "don't track reddit.com": ("ignore_site", "reddit.com"),
+          "ignore github.com": ("ignore_site", "github.com"), "stop tracking netflix": ("ignore_site", "netflix.com"),
+          "start tracking youtube again": ("unignore_site", "youtube.com"), "resume tracking reddit.com": ("unignore_site", "reddit.com"),
+          "what sites are you ignoring": ("ignored_list", None)}
+    bad = {}
+    for q, (kind, site) in ok.items():
+        got = parse(q)
+        if got is None or got[0] != kind or got[1].get("site") != site:
+            bad[q] = got
+    check("the ways people say it", not bad, str(bad))
+    check("'stop tracking my tabs' is still the pause, not a site called 'my'", parse("stop tracking my tabs")[0] == "pause")
+    check("a word that is not a site it can name is left alone", parse("never track homework") is None and parse("ignore the noise") is None)
+
+    t = [1000.0]
+    p = os.path.join(tempfile.mkdtemp(), "pk.json")
+    cls = Classifier(p)
+    led = Ledger(clock=lambda: t[0])
+    s = BrowserTabSensor(enabled=True, classifier=cls, ledger=led, clock=lambda: t[0])
+    led.record(100, 700, "youtube.com", "video", "table")
+    led.record(800, 900, "github.com", "code", "table")
+    b = Browsing(lambda: s, clock=lambda: t[0])
+    say = b.hear("never track youtube", t[0])
+    check("it says what it did, and that it deleted what it had", "won't record anything about youtube.com" in say and "deleted what I had" in say, say)
+    check("what it held about the site is gone", led.totals(0, 1e9, site="youtube.com") == [] and led.totals(0, 1e9, category="video") == [])
+    check("other sites are untouched", led.totals(0, 1e9, site="github.com") != [])
+
+    def tab(i, url, active=False):
+        return dict(id=i, url=url, title="x", active=active, audible=False, incognito=False)
+    s.submit({"focused": True, "tabs": [tab(1, "https://www.youtube.com/watch?v=1", True)]})
+    s.read()
+    check("from then on the site is dropped on arrival, and not even an episode starts", s.current() is None and s.dropped["ignored"] == 1, str(s.dropped))
+    check("...subdomains too", s.sanitize(tab(2, "https://music.youtube.com/x")) is None)
+    check("...but a site that only looks similar is not (youtube.com.evil.net is another site)", s.sanitize(tab(3, "https://notyoutube.com/x")) is not None)
+    check("it asks 'what are you ignoring' honestly", "youtube.com" in b.hear("what sites are you ignoring", t[0]))
+    check("it survives a restart", Classifier(p).is_ignored("youtube.com") and Classifier(p).is_ignored("www.youtube.com"))
+    check("saying it twice is fine", "already" in b.hear("ignore youtube.com", t[0]))
+    check("and it comes back when asked", "track youtube.com again" in b.hear("start tracking youtube again", t[0]) and not cls.is_ignored("youtube.com"))
+    s.submit({"focused": True, "tabs": [tab(4, "https://www.youtube.com/watch?v=1", True)]})
+    s.read()
+    check("...and is recorded again", s.current() is not None and s.current()["site"] == "youtube.com")
+    check("a guest cannot change it", parse("never track youtube") is not None)         # gated like every browsing command
+
+
 def time_str(ts):
     import time as _t
     return _t.strftime("%H:%M", _t.localtime(ts))

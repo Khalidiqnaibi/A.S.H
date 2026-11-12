@@ -115,7 +115,7 @@ class BrowserTabSensor(Sensor):
         self.listen = bool(listen)
         self.paused = False
         self.resume_at: Optional[float] = None           # a timed pause ("don't record for an hour") ends here
-        self.dropped: Dict[str, int] = {"private": 0, "sensitive": 0, "scheme": 0}
+        self.dropped: Dict[str, int] = {"private": 0, "sensitive": 0, "scheme": 0, "ignored": 0}
         self.tabs_n = 0
         self.stats = {"reports": 0, "episodes": 0, "churn": 0, "rejected": 0}
         self._lock = threading.RLock()
@@ -170,6 +170,9 @@ class BrowserTabSensor(Sensor):
             self.dropped["scheme"] += 1
             return None
         host = host_of(url)
+        if self.cls.is_ignored(host):                    # "never track youtube": not even counted by site
+            self.dropped["ignored"] += 1
+            return None
         raw_title = str(tab.get("title") or "")
         if is_sensitive(host, raw_title):
             self.dropped["sensitive"] += 1

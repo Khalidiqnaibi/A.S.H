@@ -222,6 +222,7 @@ class Classifier:
         self.tags: Dict[str, str] = {}                       # site -> category, said by the user
         self.counts: Dict[str, Dict[str, int]] = {}          # category -> token -> count
         self.docs: Dict[str, int] = {}                       # category -> number of examples
+        self.ignored: set = set()                            # sites the user said never to track
         self._load()
 
     # -- keeping ----------------------------------------------------------------
@@ -234,8 +235,9 @@ class Classifier:
             self.tags = {str(k): str(v) for k, v in (raw.get("tags") or {}).items()}
             self.counts = {c: {str(t): int(n) for t, n in d.items()} for c, d in (raw.get("counts") or {}).items()}
             self.docs = {str(c): int(n) for c, n in (raw.get("docs") or {}).items()}
+            self.ignored = {str(s) for s in (raw.get("ignored") or [])}
         except Exception:
-            self.tags, self.counts, self.docs = {}, {}, {}
+            self.tags, self.counts, self.docs, self.ignored = {}, {}, {}, set()
 
     def save(self):
         if not self.path:
@@ -244,10 +246,34 @@ class Classifier:
             os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
             tmp = self.path + ".tmp"
             with open(tmp, "w", encoding="utf-8") as fh:
-                json.dump({"tags": self.tags, "counts": self.counts, "docs": self.docs}, fh)
+                json.dump({"tags": self.tags, "counts": self.counts, "docs": self.docs, "ignored": sorted(self.ignored)}, fh)
             os.replace(tmp, self.path)
         except Exception:
             pass
+
+    # -- sites the user never wants recorded -----------------------------------------------
+    def ignore(self, host: str) -> str:
+        """"Never track youtube": from now on nothing about it is kept. Returns the site name."""
+        site = site_of(host_of(host))
+        with self._lock:
+            self.ignored.add(site)
+            self.tags.pop(site, None)
+            self.save()
+        return site
+
+    def unignore(self, host: str) -> bool:
+        site = site_of(host_of(host))
+        with self._lock:
+            had = site in self.ignored
+            self.ignored.discard(site)
+            if had:
+                self.save()
+        return had
+
+    def is_ignored(self, host: str) -> bool:
+        h = host_of(host)
+        with self._lock:
+            return bool(self.ignored) and (site_of(h) in self.ignored or any(s in self.ignored for s in _suffixes(h)))
 
     # -- teaching ------------------------------------------------------------------
     def teach(self, host: str, category: str, title: str = "") -> bool:

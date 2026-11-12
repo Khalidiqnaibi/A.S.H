@@ -105,8 +105,7 @@ def t2_sanitize():
     check("a router page is dropped", s.sanitize(tab(6, "http://192.168.0.1/", "Router")) is None)
     check("a non-web page (chrome://, file://) is dropped", s.sanitize(tab(7, "chrome://settings", "Settings")) is None
           and s.sanitize(tab(8, "file:///C:/secret.txt", "secret")) is None)
-    check("they are only counted", s.dropped == {"private": 1, "sensitive": 4 - 0 if False else s.dropped["sensitive"], "scheme": 2}
-          and s.dropped["sensitive"] == 4, str(s.dropped))
+    check("they are only counted", (s.dropped["private"], s.dropped["sensitive"], s.dropped["scheme"]) == (1, 4, 2), str(s.dropped))
     t = s.sanitize(tab(9, "https://example.com", "Invoice for jo@example.com order 123456789", True))
     check("an email and long numbers are taken out of the title", "@" not in t["title"] and "123456789" not in t["title"], t["title"])
     check("garbage is ignored, not a crash", s.sanitize("x") is None and s.sanitize({}) is None)

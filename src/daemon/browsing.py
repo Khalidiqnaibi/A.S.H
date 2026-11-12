@@ -57,6 +57,12 @@ _RX: List[Tuple[str, "re.Pattern"]] = [(k, re.compile(p, re.I)) for k, p in (
               r"|" + _A + r"pause\s+(?:the\s+)?(?:tab|browser|browsing)\s+(?:tracking|watching|ledger)" + _Z),
     ("resume", _A + r"(?:resume|start|continue|restart|begin)\s+(?:watching|tracking|recording|logging)\s+(?:my\s+)?(?:tabs?|browser|browsing|websites?)"
                r"|" + _A + r"resume\s+(?:the\s+)?(?:tab|browser|browsing)\s+(?:tracking|watching)" + _Z),
+    # "never track youtube" / "ignore reddit.com" / "start tracking youtube again" / "what are you not tracking?"
+    ("ignore_site", _A + r"(?:(?:never|don'?t|do\s+not|stop)\s+(?:track|tracking|record|recording|log|logging|watch|watching)|ignore|exclude)\s+"
+                    r"(?:" + _SITE + r"|(?P<name>[a-z][a-z0-9]{2,20}))" + _Z),
+    ("unignore_site", _A + r"(?:(?:start|resume|begin)\s+(?:tracking|recording|logging|watching)|include)\s+"
+                      r"(?:" + _SITE + r"|(?P<name>[a-z][a-z0-9]{2,20}))(?:\s+again)?" + _Z),
+    ("ignored_list", _A + r"what\s+(?:sites\s+|websites\s+)?(?:am\s+i|are\s+you)\s+(?:ignoring|not\s+tracking|excluding)(?:\s+(?:from|in)\s+my\s+browsing)?" + _Z),
     ("forget_all", _A + r"(?:forget|delete|erase|clear|wipe)\s+(?:all\s+|everything\s+(?:about\s+)?)?(?:of\s+)?my\s+(?:browsing|tab|tabs|web|website)"
                    r"(?:\s+(?:history|data|record|records|ledger|habits))?" + _Z),
     ("forget_tags", _A + r"(?:forget|clear|reset)\s+(?:all\s+)?my\s+(?:site\s+tags|tags)" + _Z),
@@ -121,7 +127,7 @@ def parse(text: str) -> Optional[Tuple[str, Dict[str, str]]]:
             if per:
                 d["per"] = re.sub(r"\s+", " ", per.lower())
             name = d.pop("name", "")
-            if kind == "time_on" and name and not d.get("site") and not d.get("cat"):
+            if kind in ("time_on", "ignore_site", "unignore_site") and name and not d.get("site") and not d.get("cat"):
                 if name.lower() not in _NAMES:
                     return None                  # "how long did I spend on homework": not a site we can name
                 d["site"] = _NAMES[name.lower()]
@@ -321,6 +327,21 @@ class Browsing:
             return ("I'm not keeping track of your browsing -- it's off. Turn on sensors.browser_tabs in daemon.json "
                     "and load the ash-tabs extension if you want that.")
         led = s.ledger
+        if kind in ("ignore_site", "unignore_site", "ignored_list"):
+            if kind == "ignored_list":
+                ig = sorted(s.cls.ignored)
+                return ("I'm not ignoring any site, apart from the private kinds I never record (banks, mail, chat, health...)."
+                        if not ig else "I'm keeping out: " + _lst(ig) + ". Plus the private kinds I never record (banks, mail, chat, health...).")
+            from .pagekind import host_of, site_of
+            site = site_of(host_of(d["site"]))
+            if kind == "unignore_site":
+                return (f"Okay, I'll track {site} again." if s.cls.unignore(site) else f"I wasn't ignoring {site}.")
+            if s.cls.is_ignored(site):
+                return f"I'm already keeping {site} out."
+            s.cls.ignore(site)
+            n = led.forget(site=site)
+            gone = f" and deleted what I had ({n} records)" if n else ""
+            return f"Okay, I won't record anything about {site} from now on{gone}. Say \"start tracking {site} again\" to undo."
         if kind == "pause_for":
             secs = float(d["secs"])
             s.pause(secs)
