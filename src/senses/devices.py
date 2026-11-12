@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -53,7 +54,27 @@ class CameraSensor(Sensor):
         self._bg = None
         self._frames_seen = 0
         self._motion_events = 0
+        self._cap_lock = threading.Lock()      # the sensor's loop and a "look" must not read the device at once
+        self.last_frame = None                 # the latest frame, in memory only, for a "look" a moment later
+        self.last_frame_ts = 0.0
         super().__init__(interval=interval, enabled=enabled)
+
+    def grab_now(self, max_age_s: float = 1.5):
+        """One frame for someone who asked to look: the sensor's own latest if it is fresh, else a new read from the
+        device it already holds (a second VideoCapture on the same camera would fail). None if there is none."""
+        f, ts = self.last_frame, self.last_frame_ts
+        if f is not None and time.time() - ts <= max_age_s:
+            return f.copy()
+        try:
+            with self._cap_lock:
+                cap = self._open()
+                ok, frame = cap.read()
+            if ok:
+                self.last_frame, self.last_frame_ts = frame, time.time()
+                return frame.copy()
+        except Exception:
+            logger.debug("grab_now failed", exc_info=True)
+        return None
 
     def probe(self) -> Tuple[bool, str]:
         try:
@@ -77,10 +98,12 @@ class CameraSensor(Sensor):
         import cv2
         import numpy as np
 
-        cap = self._open()
-        ok, frame = cap.read()
+        with self._cap_lock:
+            cap = self._open()
+            ok, frame = cap.read()
         if not ok:
             raise RuntimeError("camera read failed")
+        self.last_frame, self.last_frame_ts = frame, time.time()
 
         self._frames_seen += 1
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
@@ -129,6 +152,7 @@ class CameraSensor(Sensor):
         super().disable()
         self.close()
         self._bg = None
+        self.last_frame = None                 # the picture goes with the light
         self._frames_seen = 0
 
     def status(self) -> Dict[str, Any]:

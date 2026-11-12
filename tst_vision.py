@@ -200,6 +200,93 @@ def step0_backends_and_installer():
     check("a file that is obviously not a model (an error page) is refused and removed", len(r["failed"]) == 2 and r["done"] == [])
 
 
+@section
+def step0_the_eye():
+    print("\n=== STEP 0: one frame on request -- in memory for a minute, on disk only if asked ===")
+    import cv2
+    from src.vision.eye import Eye, capture_once
+    from src.senses.devices import CameraSensor
+
+    class FakeCap:
+        opened, released = [], []
+
+        def __init__(self, index=0):
+            self.index, self.n = index, 0
+            FakeCap.opened.append(index)
+
+        def isOpened(self):
+            return True
+
+        def set(self, *a):
+            return True
+
+        def read(self):
+            self.n += 1
+            return True, frame(color=(self.n * 10, self.n * 10, self.n * 10), size=(48, 64))
+
+        def release(self):
+            FakeCap.released.append(self.index)
+    real = cv2.VideoCapture
+    cv2.VideoCapture = FakeCap                                    # nothing below can reach a real camera
+    try:
+        f = capture_once(0, warmup=4)
+        check("capture_once skips frames so the exposure settles, keeps the last, and lets the device go",
+              f is not None and int(f[0, 0, 0]) == 40 and FakeCap.released == [0], f"{None if f is None else f[0, 0]} {FakeCap.released}")
+
+        t = [1000.0]
+        paused = [False]
+        shots = []
+
+        def grab():
+            shots.append(1)
+            return frame(color=(10, 20, 30), size=(48, 64))
+        eye = Eye(grab=grab, paused=lambda: paused[0], clock=lambda: t[0])
+        fr, how = eye.look()
+        check("with no sensor running, it opens the camera for a moment", fr is not None and how == "camera" and len(shots) == 1)
+        check("...and keeps that frame in memory only, for the next question", eye.recent() is fr)
+        t[0] += 59
+        check("for a minute", eye.recent() is not None)
+        t[0] += 2
+        check("...then it is gone", eye.recent() is None and eye._frame is None)
+        eye.look()
+        paused[0] = True
+        check("privacy mode drops it at once", eye.recent() is None)
+        fr, why = eye.look()
+        check("...and nothing is looked at while it is on", fr is None and why == "privacy" and len(shots) == 2)
+        paused[0] = False
+        none = Eye(grab=lambda: None, clock=lambda: t[0])
+        check("no camera: said, not a crash", none.look() == (None, "no camera"))
+        eye.drop()
+        check("a frame can be dropped once used", eye.recent() is None)
+
+        s = CameraSensor(enabled=True)
+        check("the camera sensor (on a fake device) is active", s.state.value == "active", s.state.value)
+        s.read()
+        check("it keeps its latest frame in memory", s.last_frame is not None and s.last_frame_ts > 0)
+        e2 = Eye(sensor=lambda: s, grab=lambda: (_ for _ in ()).throw(AssertionError("a second capture must not be opened")))
+        before = len(FakeCap.opened)
+        fr, how = e2.look()
+        check("with the sensor running, a look uses the sensor's own device: no second capture", fr is not None and how == "sensor" and len(FakeCap.opened) == before)
+        s.last_frame_ts = 0.0
+        fr, how = e2.look()
+        check("a stale latest frame is replaced by a fresh read from the same device", fr is not None and how == "sensor")
+        s.disable()
+        check("turning the camera off drops the picture with the light", s.last_frame is None)
+        s2 = CameraSensor(enabled=False)
+        check("a sensor that is off is not asked: the eye opens the camera itself", Eye(sensor=lambda: s2, grab=grab).look()[1] == "camera")
+    finally:
+        cv2.VideoCapture = real
+
+    # saving: the only way a frame reaches the disk
+    folder = tempfile.mkdtemp()
+    eye = Eye(clock=lambda: 1_800_000_000.0)
+    path = eye.save(frame(color=(10, 90, 200), size=(48, 64)), folder, "Blue Mug!")
+    check("a saved photo is a JPEG with the label in its name", path and path.endswith("-blue-mug.jpg") and os.path.isfile(path), str(path))
+    check("...and it is the picture", cv2.imread(path) is not None and cv2.imread(path).shape[:2] == (48, 64))
+    check("nothing else was written", os.listdir(folder) == [os.path.basename(path)])
+    check("a bad frame saves nothing and does not crash", eye.save(None, folder) is None)
+
+
 if __name__ == "__main__":
     for fn in SECTIONS:
         fn()
