@@ -89,6 +89,14 @@ class LookingConfig:
     object_conf: float = 0.35
     sure_conf: float = 0.60               # above this a label is stated; between this and object_conf it is hedged
     photo_dir: str = "~/Pictures/ASH"
+    # Who is here, from the camera sensor's own frames every few seconds (presence.py). Off until switched on.
+    presence: bool = False
+    presence_interval_s: float = 8.0
+    away_after_s: float = 90.0            # not seen for this long: gone
+    stranger_hold_s: float = 120.0        # after an unknown face, private things are not read aloud for this long
+    hold_when_stranger: bool = True
+    announce_known: bool = False          # say "Omar just came in" -- off: it only shows on the console and answers "who's here?"
+    announce_strangers: bool = False      # say "someone I don't know came into view"
 
     @classmethod
     def from_dict(cls, d: Optional[Dict[str, Any]]) -> "LookingConfig":
@@ -152,6 +160,8 @@ class Looking:
         self.memory = memory
         self.cfg = cfg or LookingConfig()
         self.clock = clock
+        from src.vision.presence import Presence
+        self.presence = Presence(self.cfg.away_after_s, self.cfg.stranger_hold_s)
         self.stats = {"looks": 0}
 
     # -- what can be done at all ----------------------------------------------------
@@ -180,6 +190,8 @@ class Looking:
             return None
         kind, _d = parse(text)
         now = self.clock() if now is None else now
+        if kind == "who" and self.cfg.presence and self.presence.fresh(now, 3 * self.cfg.presence_interval_s):
+            return self.who_from_state(now)                  # already watching: answered from that, no new capture
         frame, why = self.eye.look(now)
         if frame is None:
             return ("I'm paused for privacy, so I'm not looking." if why == "privacy"
@@ -488,5 +500,46 @@ class Looking:
             return f"Okay, I'll recognise {label}{seen}. Show it to me again in a different position and I'll be surer."
         return f"Got another look at {label} ({len(v.embeds)} now)."
 
+    # -- who is here (presence) --------------------------------------------------------------
+    def watch(self, frame, now: Optional[float] = None) -> List[Tuple[str, str]]:
+        """One reading for the presence state: who is in this frame. Returns arrivals, departures, strangers. The frame is
+        not kept and nothing but names and times is."""
+        if not (self.cfg.enabled and self.cfg.presence) or not self.can_see_faces():
+            return []
+        now = self.clock() if now is None else now
+        people = self._people(frame)
+        for who, _near, _f in people:
+            if who and self.memory is not None:
+                self.memory.seen_now(who, now)
+        return self.presence.update([who for who, _n, _f in people], now)
+
+    def stranger_present(self, now: Optional[float] = None) -> bool:
+        return bool(self.cfg.presence and self.cfg.hold_when_stranger and self.presence.stranger(self.clock() if now is None else now))
+
+    def announcement(self, kind: str, who: str, user: str = "") -> str:
+        """What to say aloud about a change, if the user switched announcing on; "" otherwise."""
+        if kind == "stranger":
+            return "Someone I don't know just came into view." if self.cfg.announce_strangers else ""
+        if not self.cfg.announce_known:
+            return ""
+        if kind == "arrived":
+            return "Welcome back." if user and who.lower() == user.lower() else f"{who} just came in."
+        return ""
+
+    def who_from_state(self, now: float) -> str:
+        """"Who's here?" answered from the presence state: no new picture."""
+        names = self.presence.here(now)
+        stranger = self.presence.stranger(now)
+        if not names and not stranger:
+            return "I don't see anyone."
+        if names and stranger:
+            return f"I see {_list(names)}, and someone I don't know."
+        if names:
+            return f"{names[0]} is here." if len(names) == 1 else f"I see {_list(names)}."
+        return "I see someone I don't know."
+
     def status(self) -> Dict[str, Any]:
-        return {"enabled": self.cfg.enabled, "faces": self.can_see_faces(), "objects": self.can_see_things(), **self.stats}
+        now = self.clock()
+        return {"enabled": self.cfg.enabled, "faces": self.can_see_faces(), "objects": self.can_see_things(),
+                "presence": bool(self.cfg.presence), "here": self.presence.here(now) if self.cfg.presence else [],
+                "stranger": self.presence.stranger(now) if self.cfg.presence else False, **self.stats}

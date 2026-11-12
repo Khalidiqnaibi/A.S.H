@@ -969,6 +969,7 @@ class AmbientRuntime:
                     logger.exception("Routines failed on a tick")
             self._watch_step(now)
             self._reminder_step(now)
+            self._presence_step(now)
             if self.weather is not None:
                 try:
                     self.weather.refresh(now)
@@ -1498,6 +1499,10 @@ class AmbientRuntime:
             return False
         kind, arg = got
         keep = self._last_out
+        if kind not in ("copy", "clear") and self._stranger_hold(now):
+            self._control_say(ev, self.HOLD_LINE)          # reading it out, or sending it to the model, waits
+            self._last_out = keep
+            return True
         try:
             if kind == "read":
                 say = cb.say_contents()
@@ -1711,6 +1716,49 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
 
+    HOLD_LINE = "Someone I don't know is in view, so I'll hold that -- ask me again when it's just you."
+
+    def _stranger_hold(self, now: float) -> bool:
+        """An unknown face is in view (vision.hold_when_stranger): private things are not read aloud."""
+        lk = self.looking
+        try:
+            return bool(lk is not None and lk.stranger_present(now))
+        except Exception:
+            return False
+
+    def _maybe_hold(self, say: str, now: float) -> str:
+        return self.HOLD_LINE if self._stranger_hold(now) else say
+
+    def _presence_step(self, now: float):
+        """Every few seconds, who is in view: read from the camera sensor's own latest frame (never a new capture, never
+        kept). Only while the camera is on, not paused for privacy, and vision.presence is switched on."""
+        lk = self.looking
+        if lk is None or not lk.cfg.presence or self.privacy.paused:
+            return
+        if now - getattr(self, "_presence_at", 0.0) < lk.cfg.presence_interval_s:
+            return
+        self._presence_at = now
+        cam = getattr(self.periphery, "sensors", {}).get("camera")
+        if cam is None or getattr(getattr(cam, "state", None), "value", "") != "active":
+            return
+        frame, ts = getattr(cam, "last_frame", None), float(getattr(cam, "last_frame_ts", 0.0) or 0.0)
+        if frame is None or time.time() - ts > 10.0:
+            return
+        try:
+            events = lk.watch(frame, now)
+        except Exception:
+            logger.exception("Presence reading failed")
+            return
+        for kind, who in events:
+            self.stats["presence_" + kind] = self.stats.get("presence_" + kind, 0) + 1
+            line = lk.announcement(kind, who, str(getattr(self.brain, "user", "") or ""))
+            if line and not (self.gate.muted or self.privacy.paused) and getattr(self, "_quiet_until", None) is None:
+                try:
+                    self.response_sink(line, {"addressed": False, "source": "presence", "attention": None,
+                                              "pathway": "wonder", "outcome": "presence"})
+                except Exception:
+                    logger.exception("Presence announcement failed")
+
     def _look_request(self, ev, now: float) -> bool:
         """"Look around", "what am I holding?", "who's this?": the camera, asked, answered by rule. Not for a guest's
         voice, and only on a line meant for ASH -- overheard speech never opens the camera."""
@@ -1837,6 +1885,7 @@ class AmbientRuntime:
             return False
         if not say:
             return False
+        say = self._maybe_hold(say, now)
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
 
@@ -1868,6 +1917,7 @@ class AmbientRuntime:
             return False
         if not say:
             return False
+        say = self._maybe_hold(say, now)
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "research"})())
         return True
 
@@ -1897,6 +1947,7 @@ class AmbientRuntime:
             return False
         text = b.compose(kind, now) or "Nothing much to report: no events I know of, and no questions waiting."
         b.stats["asked"] += 1
+        text = self._maybe_hold(text, now)
         self._wonder_say(ev, type("R", (), {"say": text, "outcome": "briefing"})())
         return True
 

@@ -680,6 +680,169 @@ def step3_recognise_who_and_what():
     check("...but an everyday question from a guest is not refused", not rt.out[-1].startswith("Sorry, I only do that"), rt.out[-1])
 
 
+@section
+def step4_presence_and_the_stranger_hold():
+    print("\n=== STEP 4: who is here, from the camera's own frames -- a state, never a recording ===")
+    from src.vision.presence import Presence
+    from src.daemon.looking import LookingConfig as LookingConfigDefaults
+    p = Presence(away_after_s=90.0, hold_s=120.0, confirm=2)
+    check("someone seen is an arrival", p.update(["Omar"], 100.0) == [("arrived", "Omar")] and p.here(100.0) == ["Omar"])
+    check("...seen again is not another", p.update(["Omar"], 108.0) == [] and p.here(110.0) == ["Omar"])
+    check("not seen for a while is not yet gone (a head turned away)", p.update([], 150.0) == [] and p.here(150.0) == ["Omar"])
+    check("gone after the away window, said once", p.update([], 200.0) == [("left", "Omar")] and p.here(200.0) == [] and p.update([], 210.0) == [])
+    check("...and back is an arrival again", p.update(["Omar"], 400.0) == [("arrived", "Omar")])
+    two = Presence()
+    check("two at once, in name order", two.update(["Omar", "Ali"], 10.0) == [("arrived", "Ali"), ("arrived", "Omar")])
+
+    s = Presence(away_after_s=90.0, hold_s=120.0, confirm=2)
+    check("one reading of an unknown face is not a stranger (a bad angle)", s.update([None], 10.0) == [] and not s.stranger(10.0))
+    check("...two in a row is", s.update([None], 18.0) == [("stranger", "")] and s.stranger(18.0))
+    check("...said once, while they stay", s.update([None], 26.0) == [] and s.update([None], 34.0) == [])
+    check("the hold outlasts the last sighting by the hold time", s.stranger(34.0 + 119) and not s.stranger(34.0 + 121))
+    check("a flicker (unknown, nobody, unknown) is not a stranger", Presence().update([None], 1.0) == [] and
+          (lambda q: (q.update([None], 1.0), q.update([], 9.0), q.update([None], 17.0))[2] == [])(Presence()))
+    check("a stranger who went and a different one later: a new sighting", s.update([], 400.0) == [] and s.update([None], 410.0) == []
+          and s.update([None], 418.0) == [("stranger", "")])
+    m = Presence()
+    check("a known person and an unknown one together", m.update(["Omar", None], 1.0) == [("arrived", "Omar")] and m.update(["Omar", None], 9.0) == [("stranger", "")])
+    check("it reports whether there is a recent reading to answer from", m.fresh(10.0, 24.0) and not m.fresh(100.0, 24.0) and not Presence().fresh(5.0, 24.0))
+    m.clear()
+    check("clearing forgets everyone", m.here(9.0) == [] and not m.stranger(9.0))
+    check("the state holds names and times only", all(isinstance(k, str) and isinstance(v, float) for k, v in p.present.items()))
+
+    # Looking.watch
+    omar, ali = vec(1), vec(2)
+    lk = looking(faces=[face()], vectors=[omar], presence=True)
+    lk.memory.enroll("Omar", "person", omar)
+    check("a reading: Omar arrives, and 'last seen' follows", lk.watch(frame(), 2000.0) == [("arrived", "Omar")] and lk.memory.get("Omar").last_seen == 2000.0)
+    lk.faces.vectors = [vec(9)]
+    check("an unknown face twice: a stranger", lk.watch(frame(), 2008.0) == [] and lk.watch(frame(), 2016.0) == [("stranger", "")])
+    check("the hold is on", lk.stranger_present(2016.0) and not lk.stranger_present(2016.0 + 130))
+    lk.cfg.hold_when_stranger = False
+    check("...unless it was switched off", not lk.stranger_present(2016.0))
+    off = looking(faces=[face()], vectors=[omar])
+    off.memory.enroll("Omar", "person", omar)
+    check("presence off: watch does nothing", off.watch(frame(), 1.0) == [] and not off.stranger_present(1.0))
+    check("no face models: watch does nothing", looking(faces_backend=FakeFaces(available=False), presence=True).watch(frame(), 1.0) == [])
+    check("announcements are off unless asked", lk.announcement("arrived", "Omar") == "" and lk.announcement("stranger", "") == "")
+    lk.cfg.announce_known = lk.cfg.announce_strangers = True
+    check("...and then plain", lk.announcement("arrived", "Omar", "Khalid") == "Omar just came in." and lk.announcement("arrived", "Khalid", "Khalid") == "Welcome back."
+          and lk.announcement("stranger", "") == "Someone I don't know just came into view." and lk.announcement("left", "Omar") == "")
+    st = looking(faces=[face()], vectors=[omar], presence=True)
+    st.memory.enroll("Omar", "person", omar)
+    check("who is here, with nothing read yet: a new picture is taken", st.hear("who's here", 3000.0) == "That's Omar." and st.eye.looks == 1)
+    st.watch(frame(), 3010.0)
+    n = st.eye.looks
+    check("who is here, once it is watching: answered from that, no new capture", st.hear("who's here", 3015.0) == "Omar is here." and st.eye.looks == n)
+    st.faces.vectors = [omar, vec(9)]
+    st.faces.faces = [face((10, 10, 100, 100)), face((300, 10, 100, 100))]
+    st.watch(frame(), 3020.0)
+    st.watch(frame(), 3028.0)
+    check("...with a stranger in it", st.hear("who's here", 3030.0) == "I see Omar, and someone I don't know.")
+    check("...stale, it looks again", st.hear("who's here", 3030.0 + 600) is not None and st.eye.looks == n + 1)
+
+    # on the runtime: the camera sensor's own frame, a hold on private things, announcements
+    import tst_effects as te
+    from src.senses.base import State
+    from src.vision.eye import Eye
+    from src.vision.memory import VisualMemory
+    import time as _t
+    mem = VisualMemory(None)
+    mem.enroll("Omar", "person", omar)
+    faces = FakeFaces([face((10, 10, 100, 100))], [omar])
+
+    def runtime(**cfg):
+        io = dict(eye=Eye(grab=lambda: frame()), faces=faces, objects=FakeObjects([]), memory=mem)
+        rt = te.rig(vision=True, vision_io=io, vision_cfg=dict(presence=True, presence_interval_s=1.0, **cfg.pop("vcfg", {})),
+                    clipboard=True, clipboard_io=(lambda: "some private text", lambda t: True), briefings=True, **cfg)
+        rt.brain.user = "Khalid"
+        cam = type("Cam", (), {"due": lambda self, now: False, "name": "camera", "close": lambda self: None,
+                               "status": lambda self: {}, "disable": lambda self: None, "enable": lambda self: None})()
+        cam.state, cam.last_frame, cam.last_frame_ts = State.ACTIVE, frame(), _t.time()
+        rt.periphery.sensors["camera"] = cam
+        rt.cam = cam
+        return rt
+
+    def pulse(rt, secs=5):
+        rt.t[0] += secs
+        rt.cam.last_frame_ts = _t.time()
+        rt._tick()
+    rt = runtime()
+    pulse(rt)
+    check("the runtime reads the camera sensor's frame on a tick: Omar is here", rt.looking.presence.here(rt.t[0]) == ["Omar"] and rt.status()["vision"]["here"] == ["Omar"],
+          str(rt.status()["vision"]))
+    n = faces.calls
+    rt.t[0] += 0.2
+    rt._tick()
+    check("...and not more often than the interval", faces.calls == n)
+    rt.say("what's on my clipboard")
+    check("no stranger: private things are read out", "some private text" in rt.out[-1], rt.out[-1])
+    faces.faces, faces.vectors = [face((10, 10, 100, 100)), face((300, 10, 100, 100))], [omar, vec(9)]
+    pulse(rt)
+    pulse(rt)
+    check("a stranger in view", rt.looking.stranger_present(rt.t[0]) and rt.status()["vision"]["stranger"])
+    rt.say("what's on my clipboard")
+    check("the clipboard is NOT read out while they are there", rt.out[-1] == rt.HOLD_LINE and "some private text" not in rt.out[-1], rt.out[-1])
+    rt.say("summarize my clipboard")
+    check("...nor sent to the model", rt.out[-1] == rt.HOLD_LINE)
+    rt.say("brief me")
+    check("...nor the day's briefing", rt.out[-1] == rt.HOLD_LINE, rt.out[-1])
+    check("a hold is a plain line to say, not a silence", rt._maybe_hold("secret", rt.t[0]) == rt.HOLD_LINE)
+    faces.faces, faces.vectors = [face((10, 10, 100, 100))], [omar]
+    rt.t[0] += 400
+    pulse(rt)
+    check("when they have gone for the hold time, private things are read again", not rt.looking.stranger_present(rt.t[0]))
+    rt.say("what's on my clipboard")
+    check("...", "some private text" in rt.out[-1], rt.out[-1])
+
+    quiet = runtime(vcfg=dict(hold_when_stranger=False))
+    faces.faces, faces.vectors = [face((10, 10, 100, 100)), face((300, 10, 100, 100))], [omar, vec(9)]
+    pulse(quiet)
+    pulse(quiet)
+    quiet.say("what's on my clipboard")
+    check("hold_when_stranger off: no hold", "some private text" in quiet.out[-1], quiet.out[-1])
+
+    spoken = runtime(vcfg=dict(announce_strangers=True, announce_known=True))
+    faces.faces, faces.vectors = [face((10, 10, 100, 100)), face((300, 10, 100, 100))], [omar, vec(9)]
+    n_out = len(spoken.out)
+    pulse(spoken)
+    pulse(spoken)
+    check("announcing on: it says so aloud", "Omar just came in." in spoken.out[n_out:] and "Someone I don't know just came into view." in spoken.out[n_out:], str(spoken.out[n_out:]))
+    silent = runtime()
+    n_out = len(silent.out)
+    pulse(silent)
+    pulse(silent)
+    check("announcing off (the default): nothing is said, it shows on the console and answers when asked", silent.out[n_out:] == [])
+    muted = runtime(vcfg=dict(announce_strangers=True))
+    muted.gate.muted = True
+    n_out = len(muted.out)
+    pulse(muted)
+    pulse(muted)
+    check("muted: nothing is said even then", muted.out[n_out:] == [])
+    paused = runtime()
+    paused.privacy.paused = True
+    n = faces.calls
+    pulse(paused)
+    check("privacy mode: the camera frame is not even looked at", faces.calls == n)
+    off = runtime()
+    off.cam.state = State.DISABLED
+    n = faces.calls
+    pulse(off)
+    check("camera sensor off: nothing is read", faces.calls == n)
+    old = runtime()
+    old.cam.last_frame_ts = 1.0
+    n = faces.calls
+    old.t[0] += 5
+    old._tick()
+    check("a frame that is old is not used (the camera has stopped)", faces.calls == n)
+    no_presence = runtime()
+    no_presence.looking.cfg.presence = False
+    n = faces.calls
+    pulse(no_presence)
+    check("presence off: a runtime with vision on but no presence reads nothing", faces.calls == n)
+    check("...and presence is off unless asked for", LookingConfigDefaults().presence is False)
+
+
 if __name__ == "__main__":
     for fn in SECTIONS:
         fn()
