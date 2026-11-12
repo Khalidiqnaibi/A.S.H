@@ -287,6 +287,139 @@ def step0_the_eye():
     check("a bad frame saves nothing and does not crash", eye.save(None, folder) is None)
 
 
+# ----- fakes for everything above the models --------------------------------------------------------------------------
+class FakeObjects:
+    def __init__(self, things=(), available=True):
+        self.things, self._ok, self.calls = list(things), available, 0
+
+    def available(self):
+        return self._ok
+
+    def detect(self, img):
+        self.calls += 1
+        return list(self.things)
+
+
+class FakeFaces:
+    """detect() returns Face boxes; embed() returns the vector for whoever `who` says is in the frame."""
+
+    def __init__(self, faces=(), vectors=(), available=True):
+        self.faces, self.vectors, self._ok, self.calls = list(faces), list(vectors), available, 0
+
+    def available(self):
+        return self._ok
+
+    def detect(self, img):
+        self.calls += 1
+        return list(self.faces)
+
+    def embed(self, img, face):
+        i = self.faces.index(face)
+        return self.vectors[i] if i < len(self.vectors) else None
+
+
+def thing(label, score, box=(280, 200, 80, 80)):
+    from src.vision.backends import Thing
+    return Thing(label, score, box)
+
+
+def face(box=(200, 100, 120, 140)):
+    from src.vision.backends import Face
+    return Face(box=box, score=0.95, row=np.zeros(15, np.float32))
+
+
+def looking(things=(), faces=(), vectors=(), eye_paused=False, grab=True, **kw):
+    """A Looking with a fake eye (a synthetic frame), fake models, an in-memory visual memory."""
+    from src.daemon.looking import Looking, LookingConfig
+    from src.vision.backends import ThingEmbedder
+    from src.vision.eye import Eye
+    from src.vision.memory import VisualMemory
+    t = [1000.0]
+    eye = Eye(grab=(lambda: frame(size=(480, 640))) if grab else (lambda: None), paused=lambda: eye_paused, clock=lambda: t[0])
+    objs = kw.pop("objects", FakeObjects(things))
+    fcs = kw.pop("faces_backend", FakeFaces(faces, vectors))
+    mem = kw.pop("memory", VisualMemory(None, clock=lambda: t[0]))
+    lk = Looking(eye, fcs, objs, ThingEmbedder(), mem, LookingConfig(enabled=True, **kw), clock=lambda: t[0])
+    lk.t = t
+    return lk
+
+
+@section
+def step1_look_around_and_what_am_i_holding():
+    print("\n=== STEP 1: 'look around' and 'what am I holding?' -- from the labels, no model ===")
+    from src.daemon.looking import parse
+    ok = {"look around": "see", "what's in front of the camera": "see", "can you see me": "see", "use the camera": "see",
+          "what do you see through the camera": "see", "check the webcam and tell me what you see": "see",
+          "what am I holding": "holding", "look at this": "holding", "what's in my hand": "holding", "what is this thing I'm holding": "holding",
+          "hey ash, look around please": "see"}
+    check("the ways people ask", all((parse(q) or (None,))[0] == k for q, k in ok.items()), str({q: parse(q) for q in ok if (parse(q) or (None,))[0] != ok[q]}))
+    check("bare 'what do you see?' is the SCREEN's and stays so", parse("what do you see") is None and parse("what's on my screen") is None)
+    check("ordinary talk is not taken for it", all(parse(q) is None for q in ("look at the weather", "I'm looking around for my keys",
+                                                                              "what is this", "hold on", "look it up")))
+
+    lk = looking([thing("cup", 0.8), thing("cup", 0.7), thing("laptop", 0.55), thing("person", 0.9)])
+    say = lk.hear("look around", 1000.0)
+    check("what is in view, most first, with counts", say == "I see 2 cups, a laptop and a person.", say)
+    check("one frame was taken, and nothing was kept of it but the minute in memory", lk.eye.looks == 1 and lk.eye.recent() is not None)
+    check("people are 'people', and more than five things are not read out one by one",
+          looking([thing("person", .9), thing("person", .8), thing("bottle", .9), thing("book", .9), thing("clock", .9), thing("vase", .9),
+                   thing("mouse", .9), thing("cat", .9)]).hear("look around").startswith("I see 2 people, ")
+          and "and 3 other things" in looking([thing(c, .9) for c in ("a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1")]).hear("look around"))
+    check("when it is not sure of anything, it says so", looking([thing("cup", 0.4)]).hear("look around") == "I see a cup -- though I'm not very sure.")
+    check("below the confidence floor is not reported at all", looking([thing("cup", 0.2)]).hear("look around") == "I don't see anything I recognise.")
+    check("faces count as people even when the object model does not say so", looking([thing("cup", .9)], faces=[face(), face()]).hear("look around")
+          == "I see 2 people and a cup.")
+    check("nothing in view", looking([]).hear("look around") == "I don't see anything I recognise.")
+    nm = looking(objects=FakeObjects(available=False), faces_backend=FakeFaces(available=False))
+    check("with no model installed it says so and how to install", "no model installed" in nm.hear("look around") and "vision install" in nm.hear("look around"))
+
+    hold = looking([thing("person", .95, (0, 0, 640, 480)), thing("laptop", .9, (0, 200, 300, 200)), thing("cup", .8, (20, 20, 60, 60)),
+                    thing("bottle", .85, (290, 180, 70, 120))])
+    check("what is held is the thing nearest the middle that is not a person or furniture", hold.hear("what am I holding") == "That looks like a bottle.")
+    check("unsure: hedged", looking([thing("cup", 0.45, (290, 200, 60, 80))]).hear("look at this") == "That might be a cup, but I'm not sure.")
+    check("nothing to hold: it says to hold it closer", "holding it closer" in looking([thing("person", .9)]).hear("what am I holding"))
+    check("without an object model it says what is missing", "object model" in looking(objects=FakeObjects(available=False)).hear("what am I holding"))
+    check("with faces but no object model it says so honestly", "no object model" in looking(objects=FakeObjects(available=False)).hear("what am I holding"))
+
+    check("privacy mode: it does not look, and says why", looking(eye_paused=True).hear("look around") == "I'm paused for privacy, so I'm not looking.")
+    check("no camera: said", "no camera I can open" in looking(grab=False).hear("look around"))
+    off = looking([thing("cup", .9)], )
+    off.cfg.enabled = False
+    check("switched off: nothing happens and no frame is taken", off.hear("look around") is None and off.eye.looks == 0)
+    check("an unrelated sentence takes no frame", looking([thing("cup", .9)]).hear("what time is it") is None)
+
+    # on the runtime
+    import tst_effects as te
+    from src.senses.base import Modality, SensorEvent
+    from src.vision.eye import Eye
+    from src.vision.memory import VisualMemory
+    eye = Eye(grab=lambda: frame(size=(480, 640)))
+    io = dict(eye=eye, faces=FakeFaces(), objects=FakeObjects([thing("cup", .8), thing("laptop", .7)]), memory=VisualMemory(None))
+    rt = te.rig(vision=True, vision_io=io, grammar=True)
+    rt.brain.user = "Khalid"
+    rt.say("look around")
+    check("by voice: answered by rule", rt.out[-1] == "I see a cup and a laptop.", rt.out[-1])
+    n = eye.looks
+    rt.say("what do you see")
+    check("bare 'what do you see?' does not open the camera", eye.looks == n, str(rt.out[-1:]))
+    rt.t[0] += 5
+    rt.submit(SensorEvent(source="microphone", modality=Modality.TEXT, text="look around", addressed=False, salience=0.4, meta={}))
+    rt._tick()
+    check("overheard speech never opens the camera", eye.looks == n)
+    rt.t[0] += 5
+    rt.submit(SensorEvent(source="microphone", modality=Modality.TEXT, text="look around", addressed=True, salience=0.9, urgency=0.6, meta={"guest": True}))
+    rt._tick()
+    check("a guest's voice is refused, and no frame is taken", rt.out[-1].startswith("Sorry, I only do that for Khalid") and eye.looks == n, rt.out[-1])
+    check("the status carries it", rt.status()["vision"]["enabled"] and rt.status()["vision"]["objects"] and rt.status()["vision"]["looks"] == 1)
+    from src.senses import address
+    check("without the name, 'look around' is at least 'probably for ASH' (a command a handler understands)",
+          address.score("look around").confidence >= address.LIKELY_AT, str(address.score("look around").reasons))
+    bare = te.rig()
+    check("with vision off a bare runtime has no eyes", bare.looking is None and bare.status()["vision"] is None)
+    bare.say("look around")
+    check("...and the sentence is left to the rest of ASH", "I see" not in bare.out[-1])
+
+
 if __name__ == "__main__":
     for fn in SECTIONS:
         fn()

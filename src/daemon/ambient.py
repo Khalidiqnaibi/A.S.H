@@ -80,6 +80,7 @@ from .scenes import Scenes
 from .arrival import Arrivals
 from . import clipboard as clipboard_mod
 from . import browsing as browsing_mod
+from . import looking as looking_mod
 from . import uxreport
 from . import modelpick
 from . import personas, rituals
@@ -242,6 +243,10 @@ class AmbientConfig:
     clipboard_io: Optional[tuple] = None      # (read, write) callables; tests pass fakes
     clipboard: bool = False         # read/summarize/copy the clipboard, on request only (clipboard.py)
     grammar: bool = False           # a command a handler understands counts as "probably for ASH" (grammar.py)
+    vision: bool = False            # the camera, asked: "look around", "what am I holding?", who and what it knows (looking.py)
+    vision_cfg: Optional[Dict[str, Any]] = None
+    vision_io: Optional[Dict[str, Any]] = None        # tests pass fakes: eye, faces, objects, embedder, memory
+    vision_path: Optional[str] = None                 # where what it has been shown is kept
     arrivals: bool = False          # "remind me when I get home" (arrival.py)
     arrivals_path: Optional[str] = None
     arrivals_home: str = ""
@@ -588,6 +593,12 @@ class AmbientRuntime:
         self.scenes = Scenes(self.cfg.scenes_cfg) if self.cfg.scenes else None
         self.arrivals = Arrivals(self.cfg.arrivals_path, home=self.cfg.arrivals_home) if self.cfg.arrivals else None
         self._arrival_at = 0.0
+        self.looking = None
+        if self.cfg.vision:
+            from .looking import build as build_looking
+            self.looking = build_looking(self.cfg.vision_cfg, self.cfg.vision_io,
+                                         lambda: getattr(getattr(self.periphery, "sensors", {}), "get", lambda *_: None)("camera"),
+                                         lambda: bool(self.privacy.paused), lambda: self.clock(), self.cfg.vision_path)
         if self.cfg.grammar:
             from .grammar import Grammar
             address.register_grammar(Grammar(self))
@@ -1366,6 +1377,7 @@ class AmbientRuntime:
                 or clipboard_mod.parse(t) is not None
                 or (browsing_mod.parse(t) is not None and self.browsing._on())
                 or uxreport.parse(t) is not None
+                or (self.looking is not None and looking_mod.parse(t) is not None)
                 or any(rx.match(t) for rx in (arrival_mod._WHEN, arrival_mod._WHEN_END, arrival_mod._SET, arrival_mod._FORGET,
                                               arrival_mod._LIST, arrival_mod._CANCEL))
                 or (self.scenes is not None and (self.scenes.parse(t) or (None,))[0] in ("start", "end"))
@@ -1692,6 +1704,25 @@ class AmbientRuntime:
             say = t.answer(str(getattr(ev, "text", "") or ""), self._recent_people(now), playing=self._playing)
         except Exception:
             logger.exception("Taste question failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
+    def _look_request(self, ev, now: float) -> bool:
+        """"Look around", "what am I holding?", "who's this?": the camera, asked, answered by rule. Not for a guest's
+        voice, and only on a line meant for ASH -- overheard speech never opens the camera."""
+        lk = self.looking
+        if lk is None or not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        if looking_mod.parse(text) is None:
+            return False
+        try:
+            say = lk.hear(text, now)
+        except Exception:
+            logger.exception("Looking failed")
             return False
         if not say:
             return False
@@ -2123,6 +2154,8 @@ class AmbientRuntime:
         if self._arrival_request(ev, now):
             return
         if self._clipboard_request(ev, now):
+            return
+        if self._look_request(ev, now):
             return
         if self._reminder_request(ev, now):
             return
@@ -3181,6 +3214,7 @@ class AmbientRuntime:
             "activity": self.activity.status() if self.activity else None,
             "taste": self.taste.status() if self.taste else None,
             "browsing": (lambda sn: sn.status() if sn is not None else None)(self.browsing._s()),
+            "vision": self.looking.status() if self.looking is not None else None,
             "free_moments": self.moments.status() if self.moments else None,
             "followups": self.followups.status() if self.followups else None,
             "routines": self.routines.status() if self.routines else None,

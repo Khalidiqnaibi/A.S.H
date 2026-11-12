@@ -122,6 +122,11 @@ def _checks(runtime: Any = None) -> List[Callable[[str], bool]]:
     except Exception:
         logger.debug("clipboard/arrival grammar unavailable", exc_info=True)
     try:
+        from . import looking
+        add(lambda t: looking.parse(t) is not None)
+    except Exception:
+        logger.debug("looking grammar unavailable", exc_info=True)
+    try:
         from . import voiceid
         add(lambda t: voiceid.is_request(t))
     except Exception:
