@@ -16,6 +16,7 @@ installed it says so instead of guessing.
 from __future__ import annotations
 
 import logging
+import threading
 import re
 import time
 from dataclasses import dataclass, field
@@ -193,6 +194,7 @@ class Looking:
         from src.vision.presence import Presence
         self.presence = Presence(self.cfg.away_after_s, self.cfg.stranger_hold_s)
         self.stats = {"looks": 0}
+        self._busy = threading.RLock()       # the models are not thread-safe, and presence reads on a worker thread
 
     # -- what can be done at all ----------------------------------------------------
     def can_see_things(self) -> bool:
@@ -231,9 +233,10 @@ class Looking:
             return ("I'm paused for privacy, so I'm not looking." if why == "privacy"
                     else "I couldn't get a picture -- there's no camera I can open.")
         self.stats["looks"] += 1
-        self._clear_faults()
-        answer = self._answer(kind, _d, frame, now)
-        fault = self._fault()
+        with self._busy:
+            self._clear_faults()
+            answer = self._answer(kind, _d, frame, now)
+            fault = self._fault()
         if fault:                                            # a model that broke is not "nobody there"
             self.stats["faults"] = self.stats.get("faults", 0) + 1
             return (f"I got a picture, but my {fault} stopped working, so I can't tell you what I see. "
@@ -650,9 +653,11 @@ class Looking:
         if not (self.cfg.enabled and self.cfg.presence) or not self.can_see_faces():
             return []
         now = self.clock() if now is None else now
-        self._clear_faults()
-        people = self._people(frame)
-        if self._fault():                                   # a broken model is not an empty room: leave who-is-here as it was
+        with self._busy:
+            self._clear_faults()
+            people = self._people(frame)
+            broke = self._fault()
+        if broke:                                           # a broken model is not an empty room: leave who-is-here as it was
             self.stats["faults"] = self.stats.get("faults", 0) + 1
             return []
         for who, _near, _f in people:

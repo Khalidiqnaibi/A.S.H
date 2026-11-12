@@ -1216,6 +1216,46 @@ def enrolment_refuses_a_bad_look():
     check("recognising is never blocked by it", "Omar" in lk.hear("who is this"), lk.hear("who is this"))
 
 
+@section
+def models_are_never_used_by_two_threads_at_once():
+    print("\n=== The presence worker and a spoken question never use the models at the same time ===")
+    import threading as th
+    import time as tm
+
+    class Probe(FakeFaces):
+        def __init__(self, *a, **k):
+            super().__init__(*a, **k)
+            self.inside, self.worst = 0, 0
+            self.guard = th.Lock()
+
+        def detect(self, img):
+            with self.guard:
+                self.inside += 1
+                self.worst = max(self.worst, self.inside)
+            tm.sleep(0.01)
+            with self.guard:
+                self.inside -= 1
+            return list(self.faces)
+    pf = Probe([face()], [vec(1)])
+    lk = looking(faces_backend=pf, presence=True)
+    errs = []
+
+    def work(fn):
+        try:
+            for _ in range(15):
+                fn()
+        except Exception as e:                       # noqa: BLE001
+            errs.append(repr(e))
+    ts = [th.Thread(target=work, args=(lambda: lk.watch(frame(size=(480, 640)), lk.t[0]),)),
+          th.Thread(target=work, args=(lambda: lk.hear("who is this"),))]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join(20)
+    check("never two detections at once", pf.worst == 1, f"worst={pf.worst}")
+    check("...and no errors from either side", not errs, str(errs))
+
+
 if __name__ == "__main__":
     for fn in SECTIONS:
         fn()
