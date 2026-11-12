@@ -202,6 +202,34 @@ class Ledger:
             self.db.commit()
         return len(rows)
 
+    # -- what is held, for the user to take --------------------------------------------
+    def export(self, path: str) -> int:
+        """Everything the ledger holds, as one JSON file the user can read or keep. Returns the number of rows."""
+        import json
+        with self._lock:
+            data = {
+                "exported": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.clock())),
+                "note": "Site and category only. No page addresses, no page text, no titles unless keep_titles was on.",
+                "retention_days": self.retention_days,
+                "episodes": self.episodes(0, self.clock() + 1, limit=10 ** 7),
+                "daily": [dict(zip(("day", "site", "category", "seconds", "episodes"), r)) for r in
+                          self.db.execute("SELECT day,site,category,seconds,episodes FROM daily_site ORDER BY day")],
+                "churn_by_day": [dict(zip(("day", "tabs_opened_and_closed_within_seconds"), r)) for r in
+                                 self.db.execute("SELECT day,churn FROM daily WHERE category='_churn' ORDER BY day")],
+                "sites": [dict(zip(("site", "category", "seconds", "visits", "last_day"), r)) for r in
+                          self.db.execute("SELECT site,category,seconds,visits,last_day FROM sites ORDER BY seconds DESC")],
+            }
+        os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=1)
+        return len(data["episodes"]) + len(data["daily"]) + len(data["sites"])
+
+    def span(self) -> Tuple[float, float]:
+        """(first, last) time anything is held for, raw episodes only; (0, 0) if there are none."""
+        with self._lock:
+            r = self.db.execute("SELECT MIN(start), MAX(end) FROM episodes").fetchone()
+        return (float(r[0] or 0), float(r[1] or 0))
+
     # -- forgetting ----------------------------------------------------------------
     def forget(self, site: str = "", category: str = "") -> int:
         """Delete everything about a site or a category. Returns rows removed."""

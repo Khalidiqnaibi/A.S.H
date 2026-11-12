@@ -409,6 +409,40 @@ def feature_never_track_a_site():
     check("a guest cannot change it", parse("never track youtube") is not None)         # gated like every browsing command
 
 
+@section
+def feature_show_and_export_everything():
+    print("\n=== FEATURE: 'show me everything you hold' and 'export my browsing data' ===")
+    import json
+    from src.daemon.browsing import Browsing, parse
+    s, led, now = _world()
+    folder = tempfile.mkdtemp()
+    b = Browsing(lambda: s, clock=lambda: now, export_dir=folder)
+    check("the ways people ask", all((parse(q) or (None,))[0] == k for q, k in (
+        ("show me everything you hold on me", "everything"), ("what exactly do you have on my browsing", "everything"),
+        ("export my browsing data", "export"), ("download my browsing history", "export"), ("save a copy of my browsing data to a file", "export"))))
+    check("ordinary talk is not", parse("export the report") is None and parse("show me everything") is None)
+    say = b.hear("show me everything you hold on me", now)
+    check("it says how much it holds and over which days", "recent stretches" in say and " from " in say and "to" in say, say)
+    check("...the sites with most time", "github.com (code" in say, say)
+    check("...and what it never keeps, and how to export or delete", "never keep page addresses" in say and "export my browsing data" in say, say)
+    s.cls.ignore("reddit.com")
+    s.cls.teach("acme.dev", "work")
+    say = b.hear("show me everything you hold on me", now)
+    check("...what you told it", "category of 1 site" in say and "reddit.com" in say, say)
+    say = b.hear("export my browsing data", now)
+    files = [f for f in os.listdir(folder) if f.startswith("browsing-") and f.endswith(".json")]
+    check("an export is written, and the answer names the file", len(files) == 1 and files[0] in say, f"{files} {say}")
+    data = json.load(open(os.path.join(folder, files[0]), encoding="utf-8"))
+    check("it is plain JSON with the stretches, the daily totals and the sites", data["episodes"] and "daily" in data and data["sites"] is not None
+          and set(data["episodes"][0]) >= {"start", "end", "site", "category"}, str(list(data)))
+    check("...and it says what it does not contain", "No page addresses" in data["note"])
+    text = json.dumps(data)
+    check("...no addresses, no titles", "http" not in text and all(e["title"] == "" for e in data["episodes"]))
+    check("the number of rows is reported", "rows saved" in say)
+    off = Browsing(lambda: None)
+    check("with tabs off it says so", "off" in off.hear("export my browsing data"))
+
+
 def time_str(ts):
     import time as _t
     return _t.strftime("%H:%M", _t.localtime(ts))

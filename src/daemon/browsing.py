@@ -24,6 +24,7 @@ Nothing here describes a person's mind -- it says when and where time went.
 
 from __future__ import annotations
 
+import os
 import re
 import time
 from collections import defaultdict
@@ -62,6 +63,9 @@ _RX: List[Tuple[str, "re.Pattern"]] = [(k, re.compile(p, re.I)) for k, p in (
                     r"(?:" + _SITE + r"|(?P<name>[a-z][a-z0-9]{2,20}))" + _Z),
     ("unignore_site", _A + r"(?:(?:start|resume|begin)\s+(?:tracking|recording|logging|watching)|include)\s+"
                       r"(?:" + _SITE + r"|(?P<name>[a-z][a-z0-9]{2,20}))(?:\s+again)?" + _Z),
+    ("export", _A + r"(?:export|download|save|dump)\s+(?:a\s+copy\s+of\s+)?(?:all\s+of\s+)?my\s+(?:browsing|tab|tabs|web)\s*(?:data|history|ledger|record|records)?(?:\s+to\s+a\s+file)?" + _Z),
+    ("everything", _A + r"(?:(?:show|tell|list)\s+me\s+everything\s+you\s+(?:hold|have|keep|know|store)\s+(?:on|about)\s+(?:me|my\s+browsing)"
+                        r"|what\s+exactly\s+(?:do\s+you\s+)?(?:hold|have|keep|store)\s+(?:on|about)\s+(?:me|my\s+browsing))" + _Z),
     ("ignored_list", _A + r"what\s+(?:sites\s+|websites\s+)?(?:am\s+i|are\s+you)\s+(?:ignoring|not\s+tracking|excluding)(?:\s+(?:from|in)\s+my\s+browsing)?" + _Z),
     ("forget_all", _A + r"(?:forget|delete|erase|clear|wipe)\s+(?:all\s+|everything\s+(?:about\s+)?)?(?:of\s+)?my\s+(?:browsing|tab|tabs|web|website)"
                    r"(?:\s+(?:history|data|record|records|ledger|habits))?" + _Z),
@@ -168,9 +172,10 @@ def _since(per: str, now: float) -> Tuple[float, str]:
 class Browsing:
     """Answers about the ledger, and the controls over it. `sensor()` returns the BrowserTabSensor or None."""
 
-    def __init__(self, sensor: Callable[[], Any], clock: Callable[[], float] = time.time):
+    def __init__(self, sensor: Callable[[], Any], clock: Callable[[], float] = time.time, export_dir: Optional[str] = None):
         self.sensor = sensor
         self.clock = clock
+        self.export_dir = export_dir
 
     # -- plumbing -----------------------------------------------------------------
     def _s(self):
@@ -361,6 +366,29 @@ class Browsing:
                     f"titles or anything from private windows, banks, mail or health sites. Right now that's {c['episodes']} "
                     f"stretches over {n_days} days, plus older totals; the detail expires after {int(led.retention_days)} days. "
                     f"Say \"forget my browsing\" to delete it.")
+        if kind == "export":
+            folder = self.export_dir or os.path.join(os.environ.get("ASH_STATE_DIR", os.path.join(os.getcwd(), "state")), "exports")
+            path = os.path.join(folder, time.strftime("browsing-%Y%m%d-%H%M%S.json", time.localtime(now)))
+            try:
+                n = led.export(path)
+            except Exception:
+                return "I couldn't write the export file."
+            return (f"Done -- {n} rows saved to {path}. It's plain JSON, site and category and time only, "
+                    f"so you can open it in any text editor.")
+        if kind == "everything":
+            first, last = led.span()
+            c = led.counts()
+            top = led.top_sites(5)
+            when = (f" from {time.strftime('%d %b', time.localtime(first))} to {time.strftime('%d %b', time.localtime(last))}"
+                    if first else "")
+            bits = [f"Here is all of it: {c['episodes']} recent stretches{when}, and totals for {c['sites']} sites over older days."]
+            if top:
+                bits.append("Most time: " + _lst([f"{site} ({cat}, {dur(sec)})" for site, cat, sec, _v in top]) + ".")
+            bits.append(f"You've told me the category of {s.cls.status()['tags']} site{'s' if s.cls.status()['tags'] != 1 else ''}"
+                        f"{'; I keep out ' + _lst(sorted(s.cls.ignored)) if s.cls.ignored else ''}.")
+            bits.append("I never keep page addresses, page text, titles, or anything from private windows or banks, mail, chat, "
+                        "health and similar sites. Say \"export my browsing data\" for a file, or \"forget my browsing\" to delete it.")
+            return " ".join(bits)
         if kind == "forget_all":
             n = led.forget_all()
             return f"Done -- I've deleted everything I kept about your browsing ({n} records)." if n else "I didn't have anything about your browsing."
