@@ -133,6 +133,38 @@ def fix_this_is_not_the_background_song():
     check("the runtime keeps when the track started", rt._playing and rt._playing.get("at") == 5000.0, str(rt._playing))
 
 
+@section
+def fix_never_record_list():
+    print("\n=== FIX: chat, mail, cloud files, adult and patient sites are never recorded ===")
+    from src.daemon import pagekind as pk
+    c = pk.Classifier()
+    chat = ["app.slack.com", "mycompany.slack.com", "teams.microsoft.com", "web.skype.com", "chat.google.com", "messenger.com",
+            "web.whatsapp.com", "discord.com", "app.element.io"]
+    check("chat apps (the desktop ones were already protected; the web ones were not)", all(pk.is_sensitive(h) for h in chat),
+          str([h for h in chat if not pk.is_sensitive(h)]))
+    mail = ["gmail.com", "outlook.com", "hotmail.com", "mail.proton.me", "mail.google.com", "mail.yahoo.com", "icloud.com"]
+    check("mail", all(pk.is_sensitive(h) for h in mail), str([h for h in mail if not pk.is_sensitive(h)]))
+    files = ["drive.google.com", "photos.google.com", "contacts.google.com", "keep.google.com", "onedrive.live.com", "takeout.google.com"]
+    check("your files, photos and notes (these were being called 'search')", all(pk.is_sensitive(h) for h in files),
+          str([h for h in files if not pk.is_sensitive(h)]))
+    adult = ["onlyfans.com", "fansly.com", "chaturbate.com", "xvideos.com", "somehentaisite.net", "nsfw-art.com", "escort-guide.com"]
+    check("adult sites, by name and by word", all(pk.is_sensitive(h) for h in adult), str([h for h in adult if not pk.is_sensitive(h)]))
+    health = ["mychart.org", "mychart.example.com", "mypatientportal.org"]
+    check("patient portals", all(pk.is_sensitive(h) for h in health), str([h for h in health if not pk.is_sensitive(h)]))
+    check("a dating site by word", pk.is_sensitive("mydatingsite.com"))
+    check("they are classified 'sensitive', never guessed", c.classify("app.slack.com") == ("unknown", "sensitive")
+          and c.classify("drive.google.com") == ("unknown", "sensitive"))
+    fine = ["github.com", "docs.google.com", "calendar.google.com", "maps.google.com", "colab.research.google.com", "history.com",
+            "stackoverflow.com", "notion.so", "youtube.com", "wikipedia.org", "localhost"]
+    check("ordinary sites are not swept up (docs, calendar, maps, colab are not Drive)", not any(pk.is_sensitive(h) for h in fine),
+          str([h for h in fine if pk.is_sensitive(h)]))
+    check("slack is no longer in the 'work' table", "slack.com" not in pk.TABLE)
+    from src.senses.browsertabs import BrowserTabSensor
+    s = BrowserTabSensor(enabled=True)
+    check("and the sensor drops them on arrival", all(s.sanitize({"id": i, "url": f"https://{h}/x", "title": "x", "active": True}) is None
+                                                      for i, h in enumerate(chat + mail + files)))
+
+
 if __name__ == "__main__":
     for fn in SECTIONS:
         fn()

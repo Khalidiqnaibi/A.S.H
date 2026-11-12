@@ -55,7 +55,7 @@ TABLE: Dict[str, str] = _grouped({
     "learning": "coursera.org udemy.com edx.org khanacademy.org udacity.com pluralsight.com skillshare.com "
                 "duolingo.com brilliant.org freecodecamp.org codecademy.com datacamp.com ocw.mit.edu "
                 "lynda.com masterclass.com",
-    "work": "slack.com asana.com trello.com atlassian.net jira.com linear.app monday.com figma.com miro.com "
+    "work": "asana.com trello.com atlassian.net jira.com linear.app monday.com figma.com miro.com "
             "zoom.us meet.google.com teams.microsoft.com calendar.google.com clickup.com basecamp.com "
             "salesforce.com hubspot.com zendesk.com intercom.com canva.com linkedin.com",
     "ai": "chatgpt.com openai.com claude.ai anthropic.com gemini.google.com perplexity.ai poe.com "
@@ -96,10 +96,18 @@ SENSITIVE_HOSTS = frozenset("""
     mychart.com zocdoc.com betterhelp.com talkspace.com
     accounts.google.com login.microsoftonline.com myaccount.google.com id.apple.com appleid.apple.com
     tinder.com bumble.com hinge.co grindr.com match.com okcupid.com
+    gmail.com outlook.com hotmail.com live.com aol.com mail.aol.com zoho.com mail.zoho.com
+    slack.com teams.microsoft.com teams.live.com skype.com chat.google.com hangouts.google.com messages.google.com
+    voice.google.com element.io matrix.org mattermost.com zulip.com web.whatsapp.com business.whatsapp.com
+    drive.google.com photos.google.com contacts.google.com keep.google.com myactivity.google.com takeout.google.com
+    onedrive.live.com icloud.com mychart.org
+    onlyfans.com fansly.com chaturbate.com xvideos.com xnxx.com redtube.com youporn.com stripchat.com livejasmin.com
+    xhamster.com brazzers.com bongacams.com cam4.com myfreecams.com
 """.split())
 SENSITIVE_WORDS = ("bank", "porn", "xxx", "sex", "adult", "casino", "betting", "gambl", "health", "clinic",
                    "medical", "therap", "pharma", "legal", "lawyer", "attorney", "vpn", "tor", "onion", "mail",
-                   "login", "signin", "auth", "account", "wallet", "invoice", "payroll", "tax", "insurance")
+                   "login", "signin", "auth", "account", "wallet", "invoice", "payroll", "tax", "insurance",
+                   "hentai", "nsfw", "escort", "erotic", "fetish", "camgirl", "mychart", "patientportal", "dating")
 # Short words match whole labels only ("tor" must not hide "history.com").
 _WORD_WHOLE = frozenset({"tor", "sex", "tax", "mail", "auth", "vpn", "legal"})
 SENSITIVE_TITLE = re.compile(
