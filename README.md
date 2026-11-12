@@ -31,6 +31,35 @@ prompt plus chain-of-thought can consume the entire token budget and return
 empty content. `tools/LLM.py` detects that case, warns, and falls back to the
 reasoning text -- but `mistral:latest` simply works.
 
+## Project layout
+
+| Path | What is there |
+|---|---|
+| `ashd.py`, `ashctl.py` | the daemon, and the command line that talks to it |
+| `app.py` | the older web app |
+| `src/brain/` | routing, the critic, planning -- deciding what to do with a sentence |
+| `src/daemon/` | the always-on runtime (`ambient.py`) and one module per feature: media, desktop, reminders, the camera (`looking.py`), saying commands loosely (`commands.py`), ... |
+| `src/senses/` | sensors and actuators: microphone, camera, screen, speech, address scoring |
+| `src/memory/` | core, entity and episodic memory (`paths.py` says where their files live) |
+| `src/vision/`, `src/face/`, `src/ui/`, `src/concepts/` | the camera's models, the animated face, the console, the concept graph |
+| `tools/` | the brain's tools (calculator, files, system stats, ...), the LLM client, the classifier; `tools/web/` the face editor and the decision explorer (open them in a browser) |
+| `tests/` | every test, and `run_all.py` to run them -- see `tests/README.md` |
+| `deploy/`, `offline/` | running as a service; the air-gapped install |
+| `documentation/` | notes, ideas and the roadmap |
+| `entities.json`, `episodic_memory.jsonl`, `core_memory.json` | ASH's memory, in the folder it runs from (or `ASH_MEMORY_DIR`) |
+| `state/`, `logs/`, `daemon.json` | what the daemon writes while it runs; personal, not committed |
+
+## Tests
+
+```bash
+python tests/run_all.py             # every test, one after another, with a summary
+python tests/tst_commands.py        # one of them
+```
+
+Test files named in this document (`tst_*.py`) live in `tests/`. A run never touches your own memory files, and no test
+acts on the machine: media keys, apps, the camera, mail and the network are all fakes. `tests/tst_e2e.py` is the end-to-end
+evaluation -- the real brain inside the real daemon, fed sentences the way the microphone would, and scored.
+
 ## Air-gapped install
 
 `offline/` builds a flash drive that installs ASH on a machine with no network
@@ -1296,6 +1325,39 @@ ASH, and nothing turns on while privacy mode is on. If the model's answer
 claims one of these ("I'm turning off now"), ASH says the truth instead and
 names the command.
 
+### Saying it any reasonable way (`src/daemon/commands.py`)
+
+A command does not have to be said exactly as written above. When no rule takes a line as it was said -- and only
+when it was said *to* ASH (by name, in a conversation with it, or typed) -- the same rules are tried again on:
+
+1. **the line cleaned up**: no wake word, no politeness or filler. "Ash, can you pause the music for me please"
+   is "pause the music".
+2. **the line spelled right**: a word that is not a word at all ("pasue the musci", "opne notepad", "go to slep") becomes
+   the command word it is a letter or two from. A real English word is never changed -- the local encoder's word list
+   says what is one -- so "what should I cook tonight" stays as it is.
+3. **the nearest known command**: "pause the music that's playing" is "pause the music", "start a focus session for 45
+   minutes" is "focus for 45 minutes". Sure: it is done. Close but not sure: ASH asks "Did you mean "turn the volume
+   up"?" and a yes does it.
+
+This takes well under a millisecond and never uses the model: a misspelled command is done in a couple of milliseconds
+instead of waiting 20-70 seconds for an answer. A question for the brain with a typo in it ("whats the tiem") is passed
+on spelled right, so it still gets the fast answer.
+
+It is never stretched further than that:
+
+- overheard speech (no name, no conversation) is never read loosely -- a video saying "play that again" presses nothing;
+- a negation ("don't pause the music") or a question about a command ("why did you pause the music?") is never run;
+- only the handlers that *do* things see a loosened line; "can you help me" does not become a command "help me".
+
+`runtime.loose_commands` (on by default) switches it off.
+
+An instruction said *without* ASH's name that no rule could do ("turn left at the next light") was almost always said to
+someone else: it is taken in, not answered. A question in the same band ("what time does the store close?") is still
+answered, as before.
+
+Weather, the calendar and the smart home, asked about before they are set up, say so and say where to set them up --
+the model is not given the question, because it would guess a forecast or say "Done!" and switch nothing.
+
 ### Commands act on the real thing
 
 A command is only done when the device has changed, not when a flag or the
@@ -1453,7 +1515,7 @@ watchdog restarts the ambient *loop* if it stalls; the supervisor restarts the
 *process* if it dies.
 
 ```bash
-python tst_daemon.py    # verifies attention, privacy, journal, ambient loop
+python tests/tst_daemon.py    # verifies attention, privacy, journal, ambient loop
 ```
 
 ---
@@ -1765,7 +1827,7 @@ and you'll have no idea which night it started.
 ```bash
 python -m src.py.ash        # then: 'concepts', or 'why' after any turn
 ASH_CONCEPTS=0 python ...   # disable; ASH falls back to classifier-only routing
-python tst_concepts.py
+python tests/tst_concepts.py
 ```
 
 `explain_last()` now carries a `concepts` block separating **matched** (what
@@ -1896,7 +1958,7 @@ Five mechanisms, all of which are what a baby has and an adult network doesn't:
   opposite
 
 ```bash
-python tst_neuro.py    # CLS, STDP, adaptation, ACh switch, downscaling, arbitration
+python tests/tst_neuro.py    # CLS, STDP, adaptation, ACh switch, downscaling, arbitration
 ```
 
 ---
@@ -1919,7 +1981,7 @@ python -m src.face list              # 27 builtins
 python -m src.face preview thinking  # ANSI preview, works over SSH
 python -m src.face gif happy         # render to happy.gif
 python -m src.face export            # dump builtins as JSON files
-python -m src.face edit              # author new ones (or: open face_editor.html)
+python -m src.face edit              # author new ones (or: open tools/web/face_editor.html)
 ```
 
 ## The editor
@@ -1928,7 +1990,7 @@ python -m src.face edit              # author new ones (or: open face_editor.htm
 python -m src.face edit              # editor + save-to-animations/ (opens your browser)
 ```
 
-`face_editor.html` is a single file with no dependencies. Opened with a double
+`tools/web/face_editor.html` is a single file with no dependencies. Opened with a double
 click it still works (Save downloads the JSON); run through `python -m src.face
 edit` it also reads and writes the `animations/` folder directly.
 
@@ -2015,7 +2077,7 @@ Animations are authored against 128×64 and scale to any panel.
 * `GifRecorder` — for documentation and debugging
 
 ```bash
-python tst_face.py    # interpolation, mirroring, blink layering, scheduling
+python tests/tst_face.py    # interpolation, mirroring, blink layering, scheduling
 python ashctl.py face happy    # trigger an animation on a running daemon
 ```
 
@@ -2111,11 +2173,11 @@ ASH currently supports:
 Verify the architecture end-to-end with no heavy dependencies:
 
 ```bash
-python tst_brain.py     # architecture: pathways, arbitration, vetoes, learning
-python tst_daemon.py    # always-on: attention, privacy, journal, ambient loop
-python tst_face.py      # face: interpolation, mirroring, blink, scheduling
-python tst_concepts.py  # associative: PMI, Oja, scaling, pruning, rollback
-python tst_neuro.py     # CLS: one-shot memory, replay, STDP, neuromodulation
+python tests/tst_brain.py     # architecture: pathways, arbitration, vetoes, learning
+python tests/tst_daemon.py    # always-on: attention, privacy, journal, ambient loop
+python tests/tst_face.py      # face: interpolation, mirroring, blink, scheduling
+python tests/tst_concepts.py  # associative: PMI, Oja, scaling, pruning, rollback
+python tests/tst_neuro.py     # CLS: one-shot memory, replay, STDP, neuromodulation
 ```
 
 ---
