@@ -43,6 +43,9 @@ _DIM = re.compile(r"^\s*(?:please\s+)?(?:dim|set|brighten)\s+(?:the\s+|my\s+)?(?
                   r"(?P<p>\d{1,3})\s*(?:%|percent)\s*[.!]?\s*$", re.I)
 _STATE = re.compile(r"^\s*(?:is|are)\s+(?:the\s+|my\s+)?(?P<t>[\w '\-]{2,40}?)\s+(?:still\s+)?(?:on|off)\s*\??\s*$",
                     re.I)
+# What a home device sounds like -- only these get "not connected" while no smart home is set up.
+_DEVICE = re.compile(r"\b(?:lights?|lamps?|bulbs?|fans?|heat(?:er|ing)?|thermostat|a/?c|air\s*con(?:ditioning|ditioner)?|"
+                     r"plugs?|sockets?|tv|television|blinds?|curtains?|kettle|purifier|humidifier)\b", re.I)
 
 
 def _norm(s: str) -> str:
@@ -98,6 +101,9 @@ class SmartHome:
         self._states_at = -1e18
         self.stats = {"done": 0, "refused": 0, "errors": 0}
 
+    NOT_SET_UP = ("I'm not connected to your smart home yet. Add your Home Assistant address and token in the console's "
+                  "settings (smarthome.url and smarthome.token), and I'll switch things for you.")
+
     @property
     def ready(self) -> bool:
         return self.cfg.enabled and bool(self.cfg.url) and bool(self.cfg.token)
@@ -143,10 +149,14 @@ class SmartHome:
 
     def hear(self, text: str) -> Optional[str]:
         """A device command or question: what to say back, or None."""
-        if not self.ready:
-            return None
         t = (text or "").strip()
-        if not t or len(t) > 80:
+        if not t or len(t) > 80 or not self.cfg.enabled:
+            return None
+        if not self.ready:
+            # Not connected: "turn on the lights" is answered plainly, not handed to a model that would say "Done!"
+            # and do nothing. Anything that is not about a home device is left alone.
+            if (_ON_OFF.match(t) or _DIM.match(t) or _STATE.match(t)) and _DEVICE.search(t):
+                return self.NOT_SET_UP
             return None
         m = _ON_OFF.match(t)
         d = _DIM.match(t)

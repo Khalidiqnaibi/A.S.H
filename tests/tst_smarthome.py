@@ -8,7 +8,7 @@ tst_smarthome.py -- lights, plugs and the like, through Home Assistant.
   H3  Never by voice: locks, doors, garages, alarms, heaters -- by domain or
       by name
   H4  The calls made, the token sent, and failures said plainly
-  H5  Not configured: nothing taken (the brain answers)
+  H5  Not configured: a device line is told so plainly; anything else is left alone
 
 Run:  PYTHONIOENCODING=utf-8 python tests/tst_smarthome.py
 """
@@ -129,7 +129,11 @@ def h4_calls():
 
 def h5_unconfigured():
     print("\n=== H5. Not configured ===")
-    check("no URL or token: nothing taken", SmartHome(SmartHomeConfig()).hear("turn on the kettle") is None)
+    bare = SmartHome(SmartHomeConfig())
+    check("no URL or token: a device line is told plainly it is not connected (not handed to a model that says 'Done!')",
+          bare.hear("turn on the kettle") == SmartHome.NOT_SET_UP and bare.hear("turn off the living room lights") == SmartHome.NOT_SET_UP)
+    check("...and a line that is not about a home device is still left alone",
+          bare.hear("turn on the radio show") is None and bare.hear("switch off the music") is None and bare.hear("what's up") is None)
     check("disabled: nothing taken", ha(enabled=False).hear("turn on the kettle") is None)
     check("status says so", SmartHome(SmartHomeConfig()).status()["configured"] is False)
 

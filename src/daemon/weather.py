@@ -168,8 +168,11 @@ class Weather:
             return None
         return ("Weather: " if kind != "evening" else "Weather tomorrow: ") + d + "."
 
+    NOT_SET_UP = ("I don't know where you are, so I can't check the weather yet. Put your town in the console's "
+                  "settings (weather.city) and I'll answer that straight away.")
+
     def hear(self, text: str, now: Optional[float] = None) -> Optional[str]:
-        if not self.configured:
+        if not self.cfg.enabled:
             return None
         t = (text or "").strip()
         m = _ASK.search(t) if len(t) <= 80 else None
@@ -177,6 +180,8 @@ class Weather:
             return None
         if re.search(r"\b(?:in|for|at|near)\s+(?!the\s+(?:morning|afternoon|evening)\b)(?:the\s+)?[A-Z][a-z]", t):
             return None                  # another place: the brain and its weather tool answer that
+        if not self.configured:
+            return self.NOT_SET_UP       # said plainly, not handed to a model that would guess a forecast
         self.refresh(now)
         when = (m.group("when") or m.group("when2") or m.group("when3") or "today").lower()
         d = self.describe(1 if when == "tomorrow" else 0)

@@ -318,12 +318,17 @@ class Calendar:
                       r"(?:\s+(?P<when>today|tomorrow))?\b|\bdo i have (?:anything|any meetings) "
                       r"(?P<when2>today|tomorrow)\b", re.I)
 
+    NOT_SET_UP = ("I'm not connected to a calendar yet. Add your calendar's .ics file or link in the console's "
+                  "settings (calendar.files or calendar.urls) and I'll read it out.")
+
     def hear(self, text: str, now: Optional[float] = None) -> Optional[str]:
-        if not self.cfg.enabled or not (self.cfg.files or self.cfg.urls):
+        if not self.cfg.enabled:
             return None
         m = self._ASK.search(text or "")
         if not m or len(text) > 100:
             return None
+        if not (self.cfg.files or self.cfg.urls):
+            return self.NOT_SET_UP       # said plainly, not handed to a model that would make up a schedule
         now = self.clock() if now is None else now
         self.refresh(now)
         when = (m.group("when") or m.group("when2") or "today").lower()

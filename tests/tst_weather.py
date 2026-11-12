@@ -1,7 +1,7 @@
 """
 tst_weather.py -- the weather, for the briefing and when asked.
 
-  W1  Not configured: nothing fetched, nothing answered
+  W1  Not configured: nothing fetched; asked, it says how to set it up (not a model guessing a forecast)
   W2  Fetching: a city is looked up once, the forecast at most hourly, only
       the place is sent, failures are quiet
   W3  Describing: today, tomorrow, rain and from when
@@ -61,7 +61,10 @@ def w1_unconfigured():
     w = wrig()
     w.refresh()
     check("nothing fetched", w.net.urls == [] and not w.configured)
-    check("nothing answered", w.hear("what's the weather like today") is None)
+    check("asked, it says it is not set up and how -- nothing fetched for it",
+          w.hear("what's the weather like today") == w.NOT_SET_UP and "weather.city" in w.NOT_SET_UP and w.net.urls == [])
+    check("...another place is still the brain's to answer", w.hear("what's the weather in Paris") is None)
+    check("...and a line that is not about the weather is left alone", w.hear("what's the time") is None)
     check("no briefing part", w.briefing_part("morning", T0) is None)
     check("disabled: nothing even with a city", wrig(city="Amman", enabled=False).configured is False)
 

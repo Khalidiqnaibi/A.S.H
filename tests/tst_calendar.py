@@ -163,8 +163,11 @@ def c4_uses():
                      background=False)
     check("nothing today: said so", empty.hear("what's on my calendar today") == "Nothing on your calendar today.")
     check("and no briefing part", empty.briefing_part("morning", T0) is None)
-    check("no sources: questions left to the brain",
-          Calendar(CalendarConfig()).hear("what's on my calendar today") is None)
+    none = Calendar(CalendarConfig())
+    check("no sources: asked, it says it is not connected and how to connect it (not a model making up a schedule)",
+          none.hear("what's on my calendar today") == Calendar.NOT_SET_UP and "calendar.files" in Calendar.NOT_SET_UP)
+    check("...and a line that is not about the calendar is still left alone", none.hear("what's the time") is None)
+    check("...switched off entirely, nothing is taken", Calendar(CalendarConfig(enabled=False)).hear("what's on my calendar today") is None)
     many = ics(*[f"DTSTART:20260310T{9 + i:02d}0000\nSUMMARY:M{i}" for i in range(9)])
     c = Calendar(CalendarConfig(urls=("https://x",)), fetch=lambda u, tt: many, clock=lambda: T0, background=False)
     check("a long day is cut short", c.hear("what's on my calendar today").endswith("and 3 more."))
