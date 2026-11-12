@@ -26,14 +26,14 @@ def main() -> int:
         port = int(args[args.index("--port") + 1]) if "--port" in args else 8765
         adir = args[args.index("--dir") + 1] if "--dir" in args else "animations"
         html = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                            "..", "..", "face_editor.html")
+                            "..", "..", "tools", "web", "face_editor.html")
         serve(html, adir, port=port, open_browser="--no-open" not in args)
         return 0
 
     if cmd == "export":
         n = export_builtins(arg or "animations/builtin")
         print(f"Exported {n} animations to {arg or 'animations/builtin'}/")
-        print("Import any of them in face_editor.html.")
+        print("Import any of them in tools/web/face_editor.html.")
         return 0
 
     if cmd == "gif":

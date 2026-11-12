@@ -27,7 +27,7 @@ def check(name, ok, detail=""):
         FAILS.append(name)
 
 
-HTML = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "face_editor.html")
+HTML = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "web", "face_editor.html")
 tmp = tempfile.mkdtemp()
 adir = os.path.join(tmp, "animations")
 srv = make_server(HTML, adir, port=0)

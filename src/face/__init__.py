@@ -8,7 +8,7 @@ ASH robot face: a keyframe animation system for two-eye OLED/TFT faces.
     drivers   output targets (terminal, window, OLED, TFT, GIF)
     bridge    when each animation plays, wired to the brain and the daemon
 
-    face_editor.html   author new animations; exports this module's JSON
+    tools/web/face_editor.html   author new animations; exports this module's JSON
 
 CLI:
     python -m src.face preview [name]   play an animation in the terminal

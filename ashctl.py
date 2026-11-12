@@ -15,7 +15,7 @@ ashctl.py -- talk to a running ASH daemon.
     python ashctl.py history               # last 50 decision traces (json)
     python ashctl.py history 200            # last N decision traces
     python ashctl.py history-export out.json  # write history to a file for
-                                               # decision_explorer.html
+                                               # tools/web/decision_explorer.html
     python ashctl.py wonders               # what ASH is wondering about
     python ashctl.py wonder off|on         # master switch
     python ashctl.py wonder dismiss <id>   # drop one question
@@ -72,7 +72,7 @@ follow up with `why` or `status` a moment later to see what happened.
 overwrites it. `history` returns the rolling buffer of recent cycles
 (bounded, oldest dropped) so a decision is still inspectable afterwards.
 `history-export` writes that buffer to a JSON file that
-decision_explorer.html (open it directly in a browser, no server needed)
+tools/web/decision_explorer.html (open it directly in a browser, no server needed)
 can load to show a timeline of decisions with a click-through board-vote
 breakdown per decision.
 """
