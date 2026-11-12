@@ -690,6 +690,56 @@ class Looking:
             return f"{names[0]} is here." if len(names) == 1 else f"I see {_list(names)}."
         return "I see someone I don't know."
 
+    # -- doctor ---------------------------------------------------------------------------
+    def doctor(self, now: Optional[float] = None) -> str:
+        """`ashctl vision doctor`: is it going to work here? Takes ONE picture (only because it was asked for), runs each
+        model on it, and says how long that took -- nothing is kept or learned."""
+        now = self.clock() if now is None else now
+        lines = [f"vision is {'on' if self.cfg.enabled else 'OFF (daemon.json: vision.enabled)'}"]
+        lines.append("face models: " + ("ready" if self.can_see_faces() else
+                                        "NOT usable -- run \"python ashctl.py vision install\" (it asks first), and OpenCV 4.5.4+ is needed"))
+        lines.append("object model: " + ("ready" if self.can_see_things() else
+                                         "not installed (optional) -- any YOLOv8 ONNX file at vision.objects_path, plus onnxruntime"))
+        lines.append("open questions (local vision model): " + ("ready" if self.can_open_questions() else
+                                                                 "off or not reachable (optional: vision.open_questions + a local Ollama model)"))
+        if not (self.can_see_faces() or self.can_see_things()):
+            return "\n".join(lines + ["Nothing to test: no model is installed."])
+        frame, why = self.eye.look(now)
+        if frame is None:
+            lines.append("camera: " + ("paused for privacy, so I did not look" if why == "privacy" else "could not open a camera"))
+            return "\n".join(lines)
+        h, w = frame.shape[:2]
+        lines.append(f"camera: ok, {w}x{h}")
+        self.eye.drop()                                       # a doctor's picture is not kept for "save that photo"
+        with self._busy:
+            self._clear_faults()
+            if self.can_see_faces():
+                t0 = time.time()
+                faces = self._faces(frame)
+                t1 = time.time()
+                emb = self.faces.embed(frame, faces[0]) if faces else None
+                t2 = time.time()
+                bad = self._fault()
+                lines.append("face detection: " + ("FAILED -- see the log" if bad else f"{len(faces)} face(s) in {int((t1 - t0) * 1000)} ms"))
+                if faces and not bad:
+                    lines.append(f"face description: {'ok' if emb is not None else 'FAILED'}, {int((t2 - t1) * 1000)} ms"
+                                 + (f" -- teaching would say: {face_hint}" if (face_hint := self._enrol_hint(frame, faces[0])) else ""))
+                if not faces and not bad:
+                    lines.append("(no face in this picture -- step in front of the camera and run it again to test recognition)")
+            self._clear_faults()
+            if self.can_see_things():
+                t0 = time.time()
+                things = self._things(frame)
+                lines.append("object detection: " + ("FAILED -- see the log" if self._fault() else
+                                                     f"{len(things)} object(s) in {int((time.time() - t0) * 1000)} ms"))
+            self._clear_faults()
+        lines.append(f"presence: {'on, every ' + str(int(self.cfg.presence_interval_s)) + ' s' if self.cfg.presence else 'off'}")
+        return "\n".join(lines)
+
+    def _enrol_hint(self, frame, face) -> str:
+        from src.vision.backends import face_quality
+        return face_quality(frame, face) if self.cfg.enrol_checks else ""
+
     def status(self) -> Dict[str, Any]:
         now = self.clock()
         return {"enabled": self.cfg.enabled, "faces": self.can_see_faces(), "objects": self.can_see_things(),

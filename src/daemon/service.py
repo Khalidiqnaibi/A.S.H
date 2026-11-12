@@ -640,6 +640,8 @@ class ControlServer:
             if lk is None:
                 return {"ok": False, "error": "vision is not enabled (daemon.json: vision.enabled)"}
             what = arg.strip()
+            if what == "doctor":
+                return {"ok": True, "report": lk.doctor(time.time())}
             if what.startswith("forget"):
                 name = what[len("forget"):].strip()
                 gone = lk.memory.forget(name) if name else lk.memory.forget()

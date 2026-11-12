@@ -1638,6 +1638,8 @@ two readings in a row) makes ASH hold back reading out the clipboard, mail, cale
 ("Someone I don't know is in view -- ask me again when it's just you"). Saying "Omar just came in" aloud is a separate switch
 (`announce_known`, `announce_strangers`), off, and never while muted, paused or quiet.
 
+**Will it work here?** `python ashctl.py vision doctor` (with the daemon running) takes one picture -- only because you asked -- runs each model on it, and says what is ready, what failed and how many milliseconds each step took. Nothing is kept or learned. Teaching a face refuses a bad look (too small, dim, washed out, blurry, cut off) and says what to change; `vision.enrol_checks` switches that off. A model that breaks is reported as broken, never as an empty room, and the presence reading runs on its own thread so a slow detector cannot stall the daemon.
+
 **Models.** `python ashctl.py vision install` shows what it would fetch -- the two face models from OpenCV's own model zoo
 (YuNet, 0.3 MB; SFace, 37 MB) -- and fetches nothing unless you add `--yes`. The object detector is not downloaded for you: any
 YOLOv8/YOLO11 ONNX file at `vision.objects_path` (`yolo export model=yolov8n.pt format=onnx` makes one). Without models it says

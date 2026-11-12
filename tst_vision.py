@@ -1256,6 +1256,34 @@ def models_are_never_used_by_two_threads_at_once():
     check("...and no errors from either side", not errs, str(errs))
 
 
+@section
+def doctor_says_whether_it_will_work():
+    print("\n=== `ashctl vision doctor`: one picture, each model tested, nothing kept ===")
+    lk = looking(things=[thing("cup", 0.9)], faces=[face((200, 100, 160, 200))], vectors=[vec(1)])
+    out = lk.doctor()
+    check("a healthy setup: camera, faces and objects each reported with timing", all(x in out for x in ("camera: ok, 640x480", "1 face(s) in", "face description: ok", "1 object(s) in")), out)
+    check("...and the doctor's picture is not kept for 'save that photo'", lk.eye.recent() is None)
+    check("...nothing was learned", lk.memory.list() == [])
+    check("it says what teaching would complain about", "teaching would say" not in out, out)       # checks are off in this helper
+    lk = looking(faces=[face((200, 100, 160, 200))], vectors=[vec(1)], enrol_checks=True)
+    check("with checks on, a flat grey test picture is flagged as blurry", "teaching would say: the picture is blurry" in lk.doctor(), lk.doctor())
+    out = looking(eye_paused=True, faces=[face()], vectors=[vec(1)]).doctor()
+    check("paused for privacy: it does not look", "paused for privacy" in out and "face detection" not in out, out)
+    out = looking(grab=False, faces=[face()], vectors=[vec(1)]).doctor()
+    check("no camera: says so", "could not open a camera" in out, out)
+    out = looking(faces_backend=FakeFaces(available=False), objects=FakeObjects([], available=False)).doctor()
+    check("no usable model: says how to get one, and takes no picture", "NOT usable" in out and "Nothing to test" in out and "camera:" not in out, out)
+
+    class Broken(FakeFaces):
+        def detect(self, img):
+            self.last_error = "face detection failed"
+            return []
+    out = looking(faces_backend=Broken([face()], [vec(1)])).doctor()
+    check("a model that errors is reported as FAILED", "face detection: FAILED" in out, out)
+    out = looking(faces_backend=FakeFaces([], [])).doctor()
+    check("an empty room: tells you to step in front of the camera", "no face in this picture" in out, out)
+
+
 if __name__ == "__main__":
     for fn in SECTIONS:
         fn()

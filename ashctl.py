@@ -25,6 +25,7 @@ ashctl.py -- talk to a running ASH daemon.
     python ashctl.py profile               # what you (and the people you mention) like and dislike
     python ashctl.py profile forget [name] # forget one person's tastes, or everyone's
     python ashctl.py vision                # who and what it can recognise, and what the camera features are doing
+    python ashctl.py vision doctor         # will it work here? takes one picture, tests each model, says how long it took
     python ashctl.py vision forget [name]  # forget one person or thing it was shown, or everyone and everything
     python ashctl.py vision install        # the face models it needs: says what would be downloaded; add --yes to do it
     python ashctl.py followups             # events it will ask how they went
