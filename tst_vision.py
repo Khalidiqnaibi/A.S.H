@@ -1378,6 +1378,28 @@ def counters_do_not_lose_counts_between_threads():
     check("8000 increments from 4 threads: all counted", lk.status()["faults"] == n * workers, str(lk.status().get("faults")))
 
 
+@section
+def one_unreadable_face_does_not_hide_the_rest():
+    print("\n=== One face that cannot be described does not throw away the answer about the others ===")
+
+    class HalfBroken(FakeFaces):
+        def embed(self, img, f):
+            v = super().embed(img, f)
+            if v is None:
+                self.last_error = "face embedding failed"
+            return v
+    a, b = face((50, 100, 150, 190)), face((400, 100, 100, 130))
+    hb = HalfBroken([a, b], [vec(1)])                     # no vector for the second face: its description fails
+    lk = looking(faces_backend=hb)
+    lk.memory.enroll("Omar", "person", vec(1))
+    out = lk.hear("who is here")
+    check("the readable face is still named", "Omar" in out and "stopped working" not in out, out)
+    check("...and the one that could not be read is mentioned", "couldn't read 1 face" in out, out)
+    check("...with no fault left over", lk.status()["fault"] == "", str(lk.status()))
+    out = looking(faces_backend=HalfBroken([a], [])).hear("who is this")
+    check("a lone face that cannot be described still says so, not 'nobody'", "don't see anyone" not in out, out)
+
+
 if __name__ == "__main__":
     for fn in SECTIONS:
         fn()

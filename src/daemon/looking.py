@@ -198,6 +198,7 @@ class Looking:
         self.presence = Presence(self.cfg.away_after_s, self.cfg.stranger_hold_s)
         self.stats = {"looks": 0}
         self._stat_lock = threading.Lock()
+        self._unreadable = 0                 # faces in the last picture that could not be described
         self._busy = threading.RLock()       # the models are not thread-safe, and presence reads on a worker thread
 
     # -- what can be done at all ----------------------------------------------------
@@ -242,12 +243,16 @@ class Looking:
                 self._bump("busy")
                 return "I'm still working through the last picture -- ask me again in a moment."
             self._clear_faults()
+            self._unreadable = 0
             answer = self._answer(kind, _d, frame, now)
             fault = self._fault()
+            unreadable = self._unreadable
         if fault:                                            # a model that broke is not "nobody there"
             self._bump("faults")
             return (f"I got a picture, but my {fault} stopped working, so I can't tell you what I see. "
                     "It is in the log -- \"python ashctl.py vision\" shows whether it keeps happening.")
+        if unreadable and kind in ("who", "around", "is_this", "where"):
+            answer += f" (I couldn't read {unreadable} face{'s' if unreadable != 1 else ''} properly.)"
         return answer
 
     @contextlib.contextmanager
@@ -324,8 +329,14 @@ class Looking:
         if not self.can_see_faces():
             return []
         out: List[Tuple[Optional[str], Optional[str], Any]] = []
-        for f in sorted(self._faces(frame), key=lambda f: -(f.box[2] * f.box[3]))[:5]:
+        found = self._faces(frame)
+        if self._fault():                                    # detection itself broke: nothing below can be trusted
+            return []
+        for f in sorted(found, key=lambda f: -(f.box[2] * f.box[3]))[:5]:
             vec = self.faces.embed(frame, f)
+            if vec is None and getattr(self.faces, "last_error", None):
+                self._unreadable += 1                        # this one face could not be described; the rest still can
+                self.faces.last_error = None
             who, near = None, None
             if vec is not None and self.memory is not None:
                 m = self.memory.match(vec, kind="person", threshold=self.cfg.face_threshold, margin=self.cfg.face_margin)
