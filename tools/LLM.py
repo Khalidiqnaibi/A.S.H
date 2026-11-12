@@ -252,7 +252,9 @@ class LLM(BaseChatModel):
         model = self._model_now()
         out = self._call_ollama_model(messages, model)
         if model != self._ollama_model and (not out or out.startswith("[LLM]")):
-            if out and ("404" in out or "not found" in out.lower() or "Error calling" in out):
+            # Switched off for good only when Ollama says the model is not there. A refused connection or a timeout
+            # is Ollama restarting: the main model gets this one, and the small one is tried again next time.
+            if out and ("Ollama API Error: 404" in out or "not found" in out.lower()):
                 print(f"[LLM] small model {model!r} is not usable -- using the main model from now on.")
                 self._light_model = ""
             return self._call_ollama_model(messages, self._ollama_model)
