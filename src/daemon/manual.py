@@ -158,6 +158,13 @@ ENTRIES: List[Tuple[str, int, str]] = [
      "I focus best?\", \"how many tabs do I have open?\", \"compare today with yesterday\", \"any suggestions?\". "
      "Control it: \"don't record the next hour\", \"never track youtube\", \"tag acme.dev as work\", \"keep social "
      "under 3 hours a week\", \"export my browsing data\", \"forget my browsing\". A guest is refused."),
+    ("camera", 4,
+     "ASH manual, the camera. Off until switched on (vision.enabled in daemon.json). Then, when asked: \"look around\", "
+     "\"what am I holding?\", \"remember this as my blue mug\", \"remember Omar's face\", \"who's this?\", \"is this my "
+     "mug?\", \"where are my keys?\", \"what have you saved?\", \"forget Omar's face\", \"save that photo\". It keeps "
+     "labels and numbers, not pictures, only on this computer, and never looks in privacy mode or for a guest. Things are "
+     "told apart by colour and shape and can be mixed up; faces need the face models (python ashctl.py vision install). "
+     "With presence on it knows who is here and holds private read-outs while a stranger is in view."),
     ("learning", 4,
      "ASH manual, what ASH learns about you. It learns likes and dislikes (what you say, and what you play), how you "
      "browse (if tabs are on), and how welcome its own remarks are, per kind and per what you're doing (coding, "

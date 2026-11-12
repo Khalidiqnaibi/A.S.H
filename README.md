@@ -1612,6 +1612,46 @@ guest's voice is refused all of it.
   holds right now -- tastes, what the ledger holds and in what form, interests,
   focus hours, reaction rate -- and how to delete each.
 
+## The camera: seeing, recognising, remembering (`tst_vision.py`)
+
+`src/vision/` (memory, backends, eye, presence, vlm) and `src/daemon/looking.py`. **Off until you turn it on**
+(`vision.enabled` in `daemon.json`). Nothing here uses a language model except the optional last step.
+
+What it keeps is **labels and numbers describing how a face or a thing looked -- never the picture**, unless you say "and
+save the photo" (then only a path is kept, and the file is yours). Frames are never stored: one is held in memory for a
+minute so "save that photo" can mean the photo just taken, and dropped when used, when old, and when privacy mode goes on.
+Nothing happens in privacy mode, for a guest's voice, or from overheard speech.
+
+| You say | What happens |
+|---|---|
+| "look around" / "what's in front of the camera?" / "can you see me?" | one frame; people (by name if taught), things you taught, and what the detector says, read out by rule. (Bare "what do you see?" is still the *screen*.) |
+| "what am I holding?" / "look at this" | the thing nearest the middle: a thing you taught first, else what the detector calls it, hedged when unsure |
+| "remember this as my blue mug" / "remember this person as Omar" / "remember my face" / "this is Omar, remember his face" | teaches it. Refuses when there is no face, when two faces are similar in size, and when the face already matches someone under another name. A second look improves it. "...and save the photo" keeps one |
+| "who's this?" / "is this my mug?" / "is this Omar?" / "where are my keys?" | matched against what it was taught, cautiously: a clear lead over the next label is needed, a close call is "might be", a stranger is "someone I don't know". "Where" says in view now, or when it was last seen -- ASH has no map of your room |
+| "what have you saved?" / "forget Omar's face" / "forget my blue mug" / "forget all the faces" / "save that photo" / "export the faces" | manage it. "Forget X" only counts when X was taught, so everything else still goes to the memory. A person's numbers go; what you *said* about them is separate |
+| "what does this label say?" / "describe what you see" / "look and tell me if the stove is on" | **opt-in**, needs `vision.open_questions` and `vision.vlm_model` (a *local* multimodal Ollama model you pulled): one downscaled JPEG to a loopback address, told never to identify a face, and the reply says it is the model's reading |
+
+**Presence** (`vision.presence`, off by default; needs `sensors.camera` on): every few seconds the camera sensor's *own* latest
+frame is read (never a new capture) and only names and times are kept: who arrived, who left, who has been in view.
+"Who's here?" is then answered without a new picture, and the console shows a card. **A stranger in view** (an unknown face on
+two readings in a row) makes ASH hold back reading out the clipboard, mail, calendar and the day's briefing for two minutes
+("Someone I don't know is in view -- ask me again when it's just you"). Saying "Omar just came in" aloud is a separate switch
+(`announce_known`, `announce_strangers`), off, and never while muted, paused or quiet.
+
+**Models.** `python ashctl.py vision install` shows what it would fetch -- the two face models from OpenCV's own model zoo
+(YuNet, 0.3 MB; SFace, 37 MB) -- and fetches nothing unless you add `--yes`. The object detector is not downloaded for you: any
+YOLOv8/YOLO11 ONNX file at `vision.objects_path` (`yolo export model=yolov8n.pt format=onnx` makes one). Without models it says
+so instead of guessing. `python ashctl.py vision` lists what it knows; `vision forget [name]` deletes.
+
+**Limits, plainly.** Things are told apart by colour and layout, not by a trained model: it separates a blue mug from a red one,
+and will confuse two mugs of the same colour -- a second look in another position helps. Faces use SFace and are far better, but
+dim light and odd angles lower it, which is why every answer has a confidence floor and an honest "not sure". Faces are
+biometric data: only the people you enrol, numbers only, on this computer, deletable by voice or by deleting `state/vision.json`.
+Tell someone you have taught ASH their face. **What was tested:** everything above against fake cameras and fake detectors (270+
+checks), the detector output parsing against a synthetic tensor with known geometry, and the OpenCV/ONNX backends' interfaces.
+**What was not:** a real camera, and the real YuNet/SFace/ONNX model files -- no model was downloaded in building this. Expect to
+tune `face_threshold` (0.40) and `thing_threshold` (0.88) on your own camera.
+
 ## Follow-ups to the browsing profile (`tst_followups.py`)
 
 Each of these is its own commit, with its own section in `tst_followups.py`.
