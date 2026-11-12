@@ -337,6 +337,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "pcdoctor": {"enabled": True},
     # One well-timed line from what ASH notices: a meeting soon while you're gaming, a low battery, a birthday.
     "situation": {"enabled": True},
+    # "Find the contract I was editing last week": these folders, indexed on this computer (names, dates, the start
+    # of the text), refreshed hourly in the background. Nothing leaves the machine.
+    "filesearch": {"enabled": True, "folders": ["~/Documents", "~/Desktop", "~/Downloads"]},
     # Media: "pause the music", "next song", "turn it up" (the media keys, any
     # player); a chime with reminders and alerts; "take a photo" (one webcam
     # frame to photo_dir, on request only, never while paused).

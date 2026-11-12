@@ -259,6 +259,11 @@ class AmbientConfig:
     # One well-timed line from what ASH already notices: a meeting soon while gaming, a low battery, a birthday
     # (situation.py). Offered through the attention gate like any remark.
     situation: bool = False
+    # "Find the contract I was editing last week": your own files, searched on this computer (filesearch.py).
+    filesearch: bool = False
+    filesearch_folders: Optional[List[str]] = None
+    filesearch_path: Optional[str] = None
+    filesearch_embed: Optional[Callable[[List[str]], Any]] = None
     situation_probe: Optional[Callable[[], Any]] = None      # () -> (battery (percent, plugged) | None, memory %); tests
     arrivals: bool = False          # "remind me when I get home" (arrival.py)
     arrivals_path: Optional[str] = None
@@ -607,6 +612,11 @@ class AmbientRuntime:
         self.arrivals = Arrivals(self.cfg.arrivals_path, home=self.cfg.arrivals_home) if self.cfg.arrivals else None
         self._arrival_at = 0.0
         self._dym = None                          # a "Did you mean ...?" waiting for yes or no: (phrase, when)
+        self.filesearch = None
+        if self.cfg.filesearch:
+            from .filesearch import FileSearch
+            self.filesearch = FileSearch(folders=self.cfg.filesearch_folders, index_path=self.cfg.filesearch_path,
+                                         embed=self.cfg.filesearch_embed)
         self.situation = None
         self._situation_at = 0.0
         if self.cfg.situation:
@@ -1016,6 +1026,11 @@ class AmbientRuntime:
             self._reminder_step(now)
             self._presence_step(now)
             self._situation_step(now, idle_s)
+            if self.filesearch is not None and not self.privacy.paused:
+                try:
+                    self.filesearch.refresh(now)            # in the background, at most once an hour
+                except Exception:
+                    logger.exception("File index refresh failed")
             if self.weather is not None:
                 try:
                     self.weather.refresh(now)
@@ -1726,6 +1741,33 @@ class AmbientRuntime:
         if undo is not None:
             self.undo.push(say.replace("Got it -- ", "").rstrip("."), undo, now)
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
+    def _filesearch_request(self, ev, now: float) -> bool:
+        """"Find the contract I was editing last week", "what did the lease say about pets?" -- and "open it" after.
+        Only a line meant for ASH, never a guest; opened through the desktop executor."""
+        fs = self.filesearch
+        if fs is None or not self._user_source(ev) or not self._meant_for_ash(ev)                 or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        ex = getattr(self.desktop, "ex", None) if self.desktop is not None else None
+        try:
+            say = fs.reply(text, open_fn=(ex.open if ex is not None else (lambda _p: False)), now=now)
+            if say is None:
+                p = fs.parse(text)
+                if p is None:
+                    return False
+                kind, d = p
+                say = fs.find(d["q"], now) if kind == "find" else fs.about(d["doc"], d["topic"], now)
+                if ex is None:
+                    say = say.replace(" Want me to open it?", "")
+                    fs.pending = None
+                say = self._maybe_hold(say, now)
+        except Exception:
+            logger.exception("File search failed")
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "asked", "query": text[:80]}
         return True
 
     def _situation_world(self, now: float, idle_s: Optional[float]):
@@ -2442,6 +2484,10 @@ class AmbientRuntime:
         # "Privacy mode", "turn off the mic", "smile", "what's your status":
         # done by rule, and said as done -- never handed to the model.
         if self._voice_command(ev, now):
+            return True
+
+        # "Find the contract I was editing last week" (and its "open it?"): before "open it" is read as the last thing named.
+        if self._filesearch_request(ev, now):
             return True
 
         # The camera, when it is on: before "who was that?" below (a present "who is this?" is the camera's), and
@@ -3588,6 +3634,7 @@ class AmbientRuntime:
             "notes": self.notes.status() if self.notes is not None else None,
             "pcdoctor": self.pcdoctor.status() if self.pcdoctor is not None else None,
             "situation": self.situation.status() if self.situation is not None else None,
+            "filesearch": self.filesearch.status() if self.filesearch is not None else None,
             "free_moments": self.moments.status() if self.moments else None,
             "followups": self.followups.status() if self.followups else None,
             "routines": self.routines.status() if self.routines else None,

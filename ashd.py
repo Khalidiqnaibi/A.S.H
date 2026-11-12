@@ -160,6 +160,17 @@ def build_response_sink(periphery, prefer_speech: bool = True, window_open=None)
     return sink
 
 
+def _file_embedder():
+    """The sentence encoder ASH already loads, for file search by meaning; None (words only) if it can't be had."""
+    try:
+        from tools.classification import EMBEDDING_MODEL_NAME
+        from tools.shared_model import load
+        model = load(EMBEDDING_MODEL_NAME)
+        return (lambda texts: model.encode(list(texts), show_progress_bar=False)) if model is not None else None
+    except Exception:
+        return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="ASH always-on daemon")
     ap.add_argument("--config", default=None, help="path to daemon.json")
@@ -310,6 +321,10 @@ def main() -> int:
                 notes_path=os.path.join(os.getcwd(), "state", "notes.json"),
                 pcdoctor=bool(cfg.get("pcdoctor", {}).get("enabled", True)),
                 situation=bool(cfg.get("situation", {}).get("enabled", True)),
+                filesearch=bool(cfg.get("filesearch", {}).get("enabled", True)),
+                filesearch_folders=list((cfg.get("filesearch") or {}).get("folders") or ["~/Documents", "~/Desktop", "~/Downloads"]),
+                filesearch_path=os.path.join(os.getcwd(), "state", "files.json"),
+                filesearch_embed=_file_embedder(),
                 wonder=bool(cfg.get("wondering", {}).get("enabled", True)),
                 wonder_cfg=cfg.get("wondering", {}),
                 lookup=bool((cfg.get("wondering", {}).get("lookup") or {}).get("enabled", True)),
