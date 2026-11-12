@@ -1071,6 +1071,70 @@ def step6_open_questions_opt_in():
     check("...and nothing is built unless it was switched on", nobody.vlm is None and not nobody.can_open_questions())
 
 
+@section
+def wiring_config_control_and_installer():
+    print("\n=== WIRING: off by default, the control command, and an installer that asks ===")
+    import subprocess
+    from src.daemon.service import DEFAULT_CONFIG
+    from src.vision import models
+    v = DEFAULT_CONFIG["vision"]
+    check("vision is off by default, and so is everything that watches or sends", v["enabled"] is False and v["presence"] is False
+          and v["announce_known"] is False and v["announce_strangers"] is False and v["open_questions"] is False and v["vlm_model"] == "")
+    check("...with the private-things hold on", v["hold_when_stranger"] is True)
+    src = open(os.path.join(HERE, "ashd.py"), encoding="utf-8").read()
+    check("the daemon builds it from the config", 'vision=bool((cfg.get("vision") or {}).get("enabled", False))' in src and "vision_cfg=cfg.get" in src)
+
+    # the installer's command line
+    out, folder, calls = [], tempfile.mkdtemp(), []
+
+    def fake(url, to):
+        calls.append(url)
+        os.makedirs(os.path.dirname(to), exist_ok=True)
+        open(to, "wb").write(b"x" * 4096)
+    rc = models.cli([], folder, fake, out.append)
+    text = "\n".join(out)
+    check("without --yes: it says what would come, from where and how big, and downloads nothing",
+          rc == 0 and calls == [] and "nothing has been" in text and "opencv_zoo" in text and "37 MB" in text and "--yes" in text, text)
+    check("...and that the object detector is yours to supply", "YOLOv8 ONNX" in text)
+    out.clear()
+    rc = models.cli(["--yes"], folder, fake, out.append)
+    check("with --yes it fetches both", rc == 0 and len(calls) == 2 and out == ["installed face_detector", "installed face_recognizer"], str(out))
+    out.clear()
+    check("when they are there it says so", models.cli([], folder, fake, out.append) == 0 and out == ["The face models are already installed."])
+    out.clear()
+
+    def boom(url, to):
+        raise OSError("no network")
+    check("a failure is reported and is a non-zero exit", models.cli(["--yes"], tempfile.mkdtemp(), boom, out.append) == 1 and any(l.startswith("FAILED") for l in out))
+
+    # the real command line, with nothing installed and no --yes: must not reach for the network
+    env = dict(os.environ, ASH_STATE_DIR=tempfile.mkdtemp(), PYTHONIOENCODING="utf-8")
+    r = subprocess.run([sys.executable, os.path.join(HERE, "ashctl.py"), "vision", "install"], cwd=HERE, env=env, capture_output=True, text=True, timeout=120)
+    check("`ashctl vision install` runs on its own, says what it would do, and exits 0", r.returncode == 0 and "nothing has been" in r.stdout, r.stdout[-300:] + r.stderr[-200:])
+
+    # the daemon's control command
+    import tst_effects as te
+    from src.daemon.service import ControlServer
+    from src.vision.eye import Eye
+    from src.vision.memory import VisualMemory
+    mem = VisualMemory(None)
+    mem.enroll("Omar", "person", vec(1))
+    mem.enroll("my blue mug", "thing", vec(3, dim=224))
+    rt = te.rig(vision=True, vision_io=dict(eye=Eye(grab=lambda: frame()), faces=FakeFaces(), objects=FakeObjects([]), memory=mem))
+    cs = ControlServer.__new__(ControlServer)
+    cs.runtime = rt
+    got = cs.dispatch("vision")
+    check("`ashctl vision` lists what it can recognise, with the status", got.get("ok") and "I know 1 person: Omar" in got["report"] and got["status"]["enabled"], str(got)[:200])
+    got = cs.dispatch("vision forget Omar")
+    check("...forgets one", got == {"ok": True, "report": "forgot 1 visual entry"} and mem.get("Omar") is None and mem.get("blue mug") is not None, str(got))
+    got = cs.dispatch("vision forget")
+    check("...or everything", got == {"ok": True, "report": "forgot 1 visual entry"} and mem.list() == [], str(got))
+    bare = te.rig()
+    cs.runtime = bare
+    got = cs.dispatch("vision")
+    check("...and says so when vision is off", got.get("ok") is False and "vision.enabled" in got.get("error", ""), str(got))
+
+
 if __name__ == "__main__":
     for fn in SECTIONS:
         fn()

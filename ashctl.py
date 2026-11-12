@@ -24,6 +24,9 @@ ashctl.py -- talk to a running ASH daemon.
     python ashctl.py activity forget       # clear it
     python ashctl.py profile               # what you (and the people you mention) like and dislike
     python ashctl.py profile forget [name] # forget one person's tastes, or everyone's
+    python ashctl.py vision                # who and what it can recognise, and what the camera features are doing
+    python ashctl.py vision forget [name]  # forget one person or thing it was shown, or everyone and everything
+    python ashctl.py vision install        # the face models it needs: says what would be downloaded; add --yes to do it
     python ashctl.py followups             # events it will ask how they went
     python ashctl.py followups dismiss <id>
     python ashctl.py corrections           # readings you corrected ("no, I meant ...")
@@ -122,6 +125,11 @@ def main() -> int:
             json.dump(reply.get("history", []), f, indent=2, default=str)
         _safe_print(f"Wrote {len(reply.get('history', []))} traces to {out_path}")
         return 0
+
+    if sys.argv[1:3] == ["vision", "install"]:
+        # Local, and the only thing here that touches the network -- never without --yes.
+        from src.vision import models as vision_models
+        return vision_models.cli(sys.argv[3:], out=_safe_print)
 
     cmd = " ".join(sys.argv[1:])
     try:

@@ -216,6 +216,27 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # answers "what do I like?" itself and gives the model the list only when
     # the question is about choosing something. Never learned from a guest's
     # voice.
+    # The camera, asked (and, if you switch presence on, watched): "look around", "remember this as my blue mug", "who's
+    # this?", "where are my keys?". OFF until you turn it on, and it still needs the camera sensor (sensors.camera) for
+    # presence. What it keeps are labels and numbers describing a face or a thing -- never pictures unless you ask for one.
+    # Models: `python ashctl.py vision install` fetches the two face models (it asks first); an object detector is any
+    # YOLOv8 ONNX file at objects_path. Open questions ("what does this label say?") need a LOCAL multimodal Ollama model.
+    "vision": {
+        "enabled": False,
+        "models_dir": "",                  # empty: state/models
+        "objects_path": "",                # empty: <models_dir>/objects.onnx
+        "photo_dir": "~/Pictures/ASH",     # where "save that photo" goes
+        "face_threshold": 0.40,
+        "thing_threshold": 0.88,
+        "presence": False,                 # who is here, from the camera sensor's frames every few seconds
+        "presence_interval_s": 8.0,
+        "away_after_s": 90.0,
+        "hold_when_stranger": True,        # an unknown face in view: private things are not read aloud
+        "announce_known": False,           # say "Omar just came in"
+        "announce_strangers": False,       # say "someone I don't know just came into view"
+        "open_questions": False,           # "what does this label say?" through a local vision model
+        "vlm_model": "",                   # e.g. "llava", pulled by you
+    },
     "taste": {
         "enabled": True,
         "learn_from_others": True,   # "Ali likes jazz", on the user's word
@@ -613,6 +634,17 @@ class ControlServer:
                 a.forget()
                 return {"ok": True, "report": "activity memory cleared"}
             return {"ok": True, "report": a.report(), "status": a.status()}
+        if cmd == "vision":
+            lk = getattr(rt, "looking", None)
+            if lk is None:
+                return {"ok": False, "error": "vision is not enabled (daemon.json: vision.enabled)"}
+            what = arg.strip()
+            if what.startswith("forget"):
+                name = what[len("forget"):].strip()
+                gone = lk.memory.forget(name) if name else lk.memory.forget()
+                lk.presence.clear()
+                return {"ok": True, "report": f"forgot {gone} visual entr{'y' if gone == 1 else 'ies'}"}
+            return {"ok": True, "report": lk.listing(time.time()), "status": lk.status()}
         if cmd == "profile":
             t = getattr(rt, "taste", None)
             if t is None:
@@ -627,7 +659,7 @@ class ControlServer:
             return {"ok": True, "stopping": True}
         return {"ok": False, "error": f"unknown command {cmd!r}",
                 "commands": ["status", "pause", "resume", "mute", "unmute", "say",
-                             "why", "history", "sleep", "rollup", "sensors", "face", "wonders", "wonder", "activity", "profile", "followups", "corrections", "routines", "briefing", "watches", "review",
+                             "why", "history", "sleep", "rollup", "sensors", "face", "wonders", "wonder", "activity", "profile", "vision", "followups", "corrections", "routines", "briefing", "watches", "review",
                              "enable", "disable", "simulate", "shutdown"]}
 
     # ------------------------------------------------------------------

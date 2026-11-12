@@ -56,6 +56,30 @@ def _fetch(url: str, to: str) -> None:
     os.replace(tmp, to)
 
 
+def cli(args: List[str], folder: Optional[str] = None, fetch: Callable[[str, str], None] = _fetch,
+        out: Callable[[str], None] = print) -> int:
+    """`python ashctl.py vision install [--yes]`: say what would be fetched; fetch it only with --yes. Returns an exit code."""
+    yes = "--yes" in args
+    r = install(folder, yes=yes, fetch=fetch)
+    if not r["plan"]:
+        out("The face models are already installed.")
+        return 0
+    if not yes:
+        out("These would be downloaded (nothing has been):")
+        for p in r["plan"]:
+            out(f"  {p['name']}: {p['what']}, about {p['approx_mb']:g} MB")
+            out(f"    from {p['url']}")
+            out(f"    to   {p['to']}")
+        out("Run again with --yes to download them. The object detector is not downloaded for you: any YOLOv8 ONNX file at "
+            "vision.objects_path (default <models_dir>/objects.onnx) is used.")
+        return 0
+    for name in r["done"]:
+        out(f"installed {name}")
+    for f in r["failed"]:
+        out(f"FAILED {f}")
+    return 1 if r["failed"] else 0
+
+
 def install(folder: Optional[str] = None, yes: bool = False, fetch: Callable[[str, str], None] = _fetch) -> Dict[str, Any]:
     """Fetch the missing face models -- but only with `yes=True`. Returns {"plan": [...], "done": [...], "failed": [...]}."""
     todo = plan(folder)
