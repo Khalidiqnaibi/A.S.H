@@ -205,6 +205,60 @@ def fix_forget_a_site_really_forgets():
     check("...and can still be forgotten", "video" not in led.by_category(10000))
 
 
+@section
+def fix_churn_means_a_tab_that_came_and_went():
+    print("\n=== FIX: churn is a tab opened and closed within seconds -- not a glance, not a switch ===")
+    from src.daemon.ledger import Ledger
+    from src.senses.browsertabs import BrowserTabSensor
+
+    def tab(i, url, title="", active=False):
+        return dict(id=i, url=url, title=title, active=active, audible=False, incognito=False)
+    t = [1000.0]
+    led = Ledger(clock=lambda: t[0])
+    s = BrowserTabSensor(enabled=True, ledger=led, clock=lambda: t[0])
+
+    def feed(tabs):
+        s.submit({"focused": True, "tabs": tabs})
+        return s.read()
+    feed([tab(1, "https://github.com", "a", True)])
+    t[0] = 1100
+    feed([tab(1, "https://github.com", "a", True)])
+    t[0] = 1101
+    feed([tab(1, "https://github.com", "a"), tab(2, "https://news.ycombinator.com", "hn", True)])      # open, glance...
+    t[0] = 1103
+    feed([tab(1, "https://github.com", "a", True)])                                                       # ...close
+    rows = led.db.execute("SELECT SUM(churn) FROM daily WHERE category='_churn'").fetchone()[0]
+    check("a tab opened, glanced at and closed within seconds is ONE (it was counted twice)", s.stats["churn"] == 1 and rows == 1,
+          f"{s.stats['churn']} {rows}")
+    check("...and the glance is not recorded as a visit", all(e["site"] != "ycombinator.com" for e in led.episodes()))
+
+    s2 = BrowserTabSensor(enabled=True, ledger=Ledger(clock=lambda: t[0]), clock=lambda: t[0])
+    t[0] = 2000
+    s2.submit({"focused": True, "tabs": [tab(1, "https://a.com", "a", True), tab(2, "https://b.com", "b")]})
+    s2.read()
+    for active in (2, 1, 2, 1):
+        t[0] += 1
+        s2.submit({"focused": True, "tabs": [tab(1, "https://a.com", "a", active == 1), tab(2, "https://b.com", "b", active == 2)]})
+        s2.read()
+    check("four quick switches between tabs that stay open are not churn (they were counted as 4)", s2.stats["churn"] == 0, str(s2.stats))
+
+    s3 = BrowserTabSensor(enabled=True, clock=lambda: t[0])
+    t[0] = 3000
+    s3.submit({"focused": True, "tabs": [tab(1, "https://a.com", "a", True)]})
+    s3.read()
+    t[0] = 3001
+    s3.submit({"focused": True, "tabs": [tab(1, "https://a.com", "a", True), tab(2, "https://b.com", "b")]})
+    s3.read()
+    t[0] = 3030
+    s3.submit({"focused": True, "tabs": [tab(1, "https://a.com", "a", True)]})
+    s3.read()
+    check("a tab that was open for 29 seconds is not churn either (the line is ten)", s3.stats["churn"] == 0, str(s3.stats))
+    from src.daemon.browsing import Browsing
+    src = open(os.path.join(HERE, "src", "daemon", "browsing.py"), encoding="utf-8").read()
+    check("and the answers say what is counted, not 'dropped tabs' or 'hopping between tabs'",
+          "dropped tabs" not in src and "hopping between" not in src)
+
+
 if __name__ == "__main__":
     for fn in SECTIONS:
         fn()

@@ -239,7 +239,7 @@ class Browsing:
             c1, c0 = led.churn_between(now - 7 * DAY, now), led.churn_between(now - 14 * DAY, now - 7 * DAY)
             r1, r0 = c1 / max(t_tot / 3600, 1e-9), c0 / max(p_tot / 3600, 1e-9)
             if r1 >= 15 and r1 >= 1.5 * r0:
-                out.append(f"You've been hopping between tabs more: about {int(round(r1))} dropped tabs an hour, "
+                out.append(f"You've been opening and closing tabs within seconds more: about {int(round(r1))} an hour, "
                            f"up from {int(round(r0))}.")
         late = 0.0
         for e in led.episodes(now - 7 * DAY, now + 1, limit=200000):
@@ -286,7 +286,7 @@ class Browsing:
                 f"({int(round(100 * parts[top] / total))}%).",
                 f"A typical stretch on one site is {dur(median)}."]
         if total >= 3600 and churn:
-            bits.append(f"You drop about {int(round(churn / (total / 3600)))} tabs an hour within seconds of opening them.")
+            bits.append(f"You open and close about {int(round(churn / (total / 3600)))} tabs an hour within seconds.")
         return " ".join(bits)
 
     # -- answering -----------------------------------------------------------------

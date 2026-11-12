@@ -278,15 +278,14 @@ class BrowserTabSensor(Sensor):
             return []
         secs = max(0.0, end - c["start"])
         done = {"site": c["site"], "category": c["category"], "secs": secs, "how": how}
+        # A glance shorter than min_s is simply not a visit. (It used to also be counted as churn, which counted a
+        # tab opened, glanced at and closed twice, and counted quick switches between tabs that were never closed.
+        # Churn is only a tab that came and went: _count_churn.)
         if secs >= self.min_s:
             self.stats["episodes"] += 1
             if self.ledger is not None:
                 self.ledger.record(c["start"], end, c["site"], c["category"], c["source"], c.get("title", ""),
                                    c.get("audible", False), self.tabs_n)
-        else:
-            self.stats["churn"] += 1
-            if self.ledger is not None:
-                self.ledger.churn(1, end)
         if how == "stopped":
             return [self._event("stopped", end, done)]
         self._finished = done                            # picked up by the event that follows

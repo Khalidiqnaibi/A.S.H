@@ -177,7 +177,7 @@ def t4_suggest():
     b = Browsing(lambda: s, clock=lambda: now)
     r = b.hear("any suggestions about my browsing?", now)
     check("what changed, with the numbers", r.startswith("Here's what stands out:") and "video is up: 15 hours this week against 3 hours last week" in r, r)
-    check("...tab hopping, against last week", "hopping between tabs more" in r, r)
+    check("...tabs opened and closed within seconds, against last week", "opening and closing tabs within seconds more" in r, r)
     check("...nights", "between midnight and 5" in r, r)
     check("...and when focus falls", "clusters between 10:00 and 12:00" in r, r)
     check("it observes; it does not scold", not any(w in r.lower() for w in ("you should", "you must", "stop ", "waste", "addict", "unhealthy")), r)
@@ -196,7 +196,7 @@ def t4_suggest():
 
     r = b.hear("what are my browsing habits?", now)
     check("habits: how much, when, how long a stretch", "Over 12 days you browse about" in r and "typical stretch" in r and "mostly in the" in r, r)
-    check("...and the tab hopping per hour", "tabs an hour" in r, r)
+    check("...and how many tabs an hour are opened and closed within seconds", "tabs an hour within seconds" in r, r)
     check("habits with too little data say what is needed", "enough yet" in Browsing(lambda: s3, clock=lambda: now2).hear("what are my browsing habits", now2))
     check("with tabs off, the general phrasings are left to the model", Browsing(lambda: None).hear("how can I use my time better?") is None
           and Browsing(lambda: None).hear("how do I browse") is None)
