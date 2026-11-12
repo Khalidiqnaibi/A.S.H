@@ -612,6 +612,7 @@ class AmbientRuntime:
         self.arrivals = Arrivals(self.cfg.arrivals_path, home=self.cfg.arrivals_home) if self.cfg.arrivals else None
         self._arrival_at = 0.0
         self._dym = None                          # a "Did you mean ...?" waiting for yes or no: (phrase, when)
+        self.hud_opener: Optional[Callable[[], str]] = None      # set by ashd once the console is up
         self.filesearch = None
         if self.cfg.filesearch:
             from .filesearch import FileSearch
@@ -1743,6 +1744,28 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
 
+    _HUD = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:please|can\s+you|could\s+you)[,\s]+)*"
+                      r"(?:show|open|bring\s+up|pop\s+up|put\s+up)\s+(?:me\s+)?(?:the\s+|your\s+|a\s+)?"
+                      r"(?:hud|heads[-\s]?up(?:\s+(?:display|panel|widget))?|widget|status\s+panel)\s*(?:please)?\s*[.!]?\s*$", re.I)
+
+    def _hud_request(self, ev, now: float) -> bool:
+        """"Show the heads-up display": the small always-on-top widget (src/ui/static/hud.html)."""
+        if not self._user_source(ev) or not self._meant_for_ash(ev) or not self._HUD.match(str(getattr(ev, "text", "") or "")):
+            return False
+        if self.hud_opener is None:
+            say = "The heads-up widget needs the console, and it isn't running (ui.enabled in daemon.json)."
+        else:
+            try:
+                how = self.hud_opener()
+            except Exception:
+                logger.exception("Opening the heads-up widget failed")
+                how = "none"
+            say = {"app": "Here's the heads-up display -- it stays on top.",
+                   "tab": "I opened the heads-up display in a browser tab (no app window available, so it won't stay on top)."
+                   }.get(how, "I couldn't open the heads-up display.")
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
     def _filesearch_request(self, ev, now: float) -> bool:
         """"Find the contract I was editing last week", "what did the lease say about pets?" -- and "open it" after.
         Only a line meant for ASH, never a guest; opened through the desktop executor."""
@@ -2556,6 +2579,8 @@ class AmbientRuntime:
         if self._media_request(ev, now):
             return True
         if self._pcdoctor_request(ev, now):
+            return True
+        if self._hud_request(ev, now):
             return True
         if self._desktop_request(ev, now):
             return True

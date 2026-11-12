@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en" data-theme="{{THEME}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASH HUD</title>
+<style>
+/* The console's themes, inserted by the server (src/ui/server.py: theme_css), so the widget always matches. */
+/*{{THEMES}}*/
+:root { color-scheme: dark; }
+[data-theme="paper"], [data-theme="blossom"] { color-scheme: light; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--panel-solid, #0d1527); color: var(--text, #d6f6ff);
+  font: 13px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif;
+  display: flex; flex-direction: column; gap: 10px; padding: 12px; overflow: hidden;
+}
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+#time { font-size: 30px; font-weight: 600; letter-spacing: .5px; font-variant-numeric: tabular-nums; }
+#date { color: var(--muted, #6f8aa6); font-size: 12px; text-align: right; }
+.dots { display: flex; gap: 6px; flex-wrap: wrap; }
+.dot { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 999px;
+       border: 1px solid var(--line, rgba(62,240,255,.18)); color: var(--muted, #6f8aa6); font-size: 11px; }
+.dot::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .5; }
+.dot.on { color: var(--ok, #4dffa6); } .dot.on::before { opacity: 1; }
+.dot.warn { color: var(--warn, #ffcf4d); } .dot.warn::before { opacity: 1; }
+section { min-width: 0; }
+h2 { margin: 0 0 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px;
+     color: var(--muted, #6f8aa6); }
+ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+li.card { display: flex; justify-content: space-between; gap: 8px; padding: 6px 8px; border-radius: 8px;
+          background: var(--ash-bg, rgba(62,240,255,.07)); border: 1px solid var(--line, rgba(62,240,255,.18)); }
+li.card b { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+li.card span { color: var(--accent, #3ef0ff); flex: 0 0 auto; }
+.line { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.empty { color: var(--muted, #6f8aa6); }
+#last { flex: 1 1 auto; min-height: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical;
+        color: var(--text, #d6f6ff); padding: 8px; border-radius: 8px; border-left: 3px solid var(--accent, #3ef0ff);
+        background: var(--ash-bg, rgba(62,240,255,.07)); }
+form { display: flex; gap: 6px; }
+input { flex: 1 1 auto; min-width: 0; padding: 7px 9px; border-radius: 8px; font: inherit;
+        border: 1px solid var(--line, rgba(62,240,255,.18)); background: transparent; color: inherit; }
+input:focus { outline: 2px solid var(--accent, #3ef0ff); outline-offset: 1px; }
+#conn { font-size: 11px; color: var(--bad, #ff5c7a); }
+#conn[hidden] { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <div id="time">--:--</div>
+  <div id="date"></div>
+</header>
+<div class="dots" id="dots" aria-label="What is on"></div>
+<p id="conn" hidden>Not connected to ASH</p>
+<section aria-labelledby="h-next"><h2 id="h-next">Coming up</h2><ul id="cards"><li class="empty">Nothing soon</li></ul></section>
+<section aria-labelledby="h-now"><h2 id="h-now">Now</h2>
+  <div class="line" id="playing"></div>
+  <div class="line" id="here"></div>
+</section>
+<section aria-labelledby="h-last" style="display:flex;flex-direction:column;min-height:0;flex:1 1 auto">
+  <h2 id="h-last">ASH said</h2><div id="last" class="empty">Nothing yet</div>
+</section>
+<form id="say" autocomplete="off"><input id="input" placeholder="Say something to ASH" aria-label="Say something to ASH"></form>
+<script>
+"use strict";
+let TOKEN = "{{TOKEN}}";
+const $ = (id) => document.getElementById(id);
+function tick() {
+  const d = new Date();
+  $("time").textContent = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  $("date").textContent = d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
+}
+tick(); setInterval(tick, 5000);
+function dot(label, cls) { const s = document.createElement("span"); s.className = "dot " + (cls || ""); s.textContent = label; return s; }
+function applyStatus(m) {
+  const box = $("dots"); box.textContent = "";
+  const on = {}; for (const s of m.sensors || []) on[s.name] = s.on;
+  if (m.paused) box.appendChild(dot("Privacy", "warn"));
+  else {
+    box.appendChild(dot("Mic", on.microphone ? "on" : ""));
+    box.appendChild(dot("Camera", on.camera ? "on" : ""));
+    box.appendChild(dot("Screen", on.screenshot ? "on" : ""));
+  }
+  if (m.muted) box.appendChild(dot("Quiet", "warn"));
+  const cards = $("cards"); cards.textContent = "";
+  for (const c of (m.headsup || []).slice(0, 4)) {
+    const li = document.createElement("li"); li.className = "card";
+    const b = document.createElement("b"); b.textContent = c.title || ""; b.title = c.sub || c.title || "";
+    const s = document.createElement("span"); s.textContent = c.in || "";
+    li.append(b, s); cards.appendChild(li);
+  }
+  if (!cards.children.length) { const li = document.createElement("li"); li.className = "empty"; li.textContent = "Nothing soon"; cards.appendChild(li); }
+  const h = m.hud || {};
+  $("playing").textContent = h.playing ? "♪ " + h.playing : "";
+  $("here").textContent = (h.here && h.here.length) ? "Here: " + h.here.join(", ") : "";
+}
+function onMessage(m) {
+  if (m.kind === "hello") { if (m.token) TOKEN = m.token; if (m.theme) document.documentElement.dataset.theme = m.theme; return; }
+  if (m.kind === "status") return applyStatus(m);
+  if (m.kind === "theme" && m.theme) { document.documentElement.dataset.theme = m.theme; return; }
+  if (m.kind === "ash" && m.text) { const l = $("last"); l.classList.remove("empty"); l.textContent = m.text; }
+}
+function connect() {
+  const es = new EventSource("/events");
+  es.onopen = () => { $("conn").hidden = true; };
+  es.onerror = () => { $("conn").hidden = false; };
+  es.onmessage = (e) => { try { onMessage(JSON.parse(e.data)); } catch (err) { console.error(err); } };
+}
+connect();
+$("say").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const text = $("input").value.trim(); if (!text) return;
+  $("input").value = "";
+  try {
+    const r = await fetch("/api/say", { method: "POST", headers: { "Content-Type": "application/json", "X-ASH-Token": TOKEN },
+                                        body: JSON.stringify({ text }) });
+    if (!r.ok) $("input").value = text;
+  } catch (err) { $("input").value = text; }
+});
+</script>
+</body>
+</html>

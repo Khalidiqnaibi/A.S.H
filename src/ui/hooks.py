@@ -401,7 +401,26 @@ def _status(runtime) -> Dict[str, Any]:
         "busy": round(float(getattr(runtime, "_user_busy", 0.0) or 0.0), 2),
         "waiting": waiting,          # what the next thing you say would answer
         "up_to": up_to,              # what ASH is keeping track of
+        "hud": _hud(runtime),        # the heads-up widget's extra lines
     }
+
+
+def _hud(runtime) -> Dict[str, Any]:
+    """What only the heads-up widget shows: what is playing and who is in view (names only)."""
+    out: Dict[str, Any] = {"playing": "", "here": []}
+    try:
+        p = getattr(runtime, "_playing", None) or {}
+        title, artist = str(p.get("title") or ""), str(p.get("artist") or "")
+        out["playing"] = (f"{title} -- {artist}" if title and artist else title)[:80]
+    except Exception:
+        logger.debug("hud playing failed", exc_info=True)
+    try:
+        lk = getattr(runtime, "looking", None)
+        if lk is not None and lk.cfg.presence:
+            out["here"] = list(lk.presence.here(time.time()))[:4]
+    except Exception:
+        logger.debug("hud presence failed", exc_info=True)
+    return out
 
 
 def _start_status(runtime, bus, every: float):

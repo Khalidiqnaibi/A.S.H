@@ -46,6 +46,41 @@ def find_browser() -> Optional[str]:
     return None
 
 
+def make_topmost(title: str, timeout_s: float = 15.0, user32=None, sleep=None) -> bool:
+    """Keep the window called `title` above the others (Windows only): found by its title once the browser has
+    drawn it, then pinned. False if there is no such window in time, or not on Windows."""
+    import time as _time
+    sleep = sleep or _time.sleep
+    if user32 is None:
+        if not sys.platform.startswith("win"):
+            return False
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+        except Exception:
+            return False
+    waited = 0.0
+    while waited <= timeout_s:
+        hwnd = user32.FindWindowW(None, title)
+        if hwnd:
+            # HWND_TOPMOST = -1; SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
+            return bool(user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010))
+        sleep(0.5)
+        waited += 0.5
+    return False
+
+
+def open_hud(base_url: str, profile_dir: Optional[str] = None, title: str = "ASH HUD", opener=None,
+             pin=None) -> str:
+    """The heads-up widget in its own small window, kept on top. Returns how it was opened."""
+    url = base_url.rstrip("/") + "/hud"
+    how = (opener or open_window)(url, profile_dir=profile_dir, size=(340, 470))
+    if how == "app":
+        import threading as _th
+        _th.Thread(target=(pin or make_topmost), args=(title,), daemon=True, name="ash-hud-pin").start()
+    return how
+
+
 def open_window(url: str, profile_dir: Optional[str] = None,
                 size=(460, 800)) -> str:
     """Open the console. Returns how: 'app', 'tab' or 'none'."""

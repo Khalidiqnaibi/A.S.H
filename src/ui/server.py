@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import queue
 import secrets
 import threading
@@ -133,6 +134,25 @@ class ConsoleServer:
         return (html.replace("{{TOKEN}}", self.token)
                     .replace("{{THEME}}", self.theme)).encode("utf-8")
 
+    def hud(self) -> bytes:
+        """The heads-up widget: a small always-on-top panel. Same themes as the console (taken from it, one source)."""
+        with open(os.path.join(STATIC, "hud.html"), encoding="utf-8") as f:
+            html = f.read()
+        return (html.replace("/*{{THEMES}}*/", theme_css())
+                    .replace("{{TOKEN}}", self.token)
+                    .replace("{{THEME}}", self.theme)).encode("utf-8")
+
+
+def theme_css() -> str:
+    """The console's colour themes (every --token for every theme), so the widget looks like the console."""
+    try:
+        with open(os.path.join(STATIC, "console.html"), encoding="utf-8") as f:
+            html = f.read()
+        m = re.search(r':root, \[data-theme="nebula"\] \{.*?\[data-theme="forest"\] \{.*?\n\}', html, re.S)
+        return m.group(0) if m else ""
+    except OSError:
+        return ""
+
 
 class _Handler(BaseHTTPRequestHandler):
     srv: ConsoleServer = None   # set per server by subclassing
@@ -164,6 +184,8 @@ class _Handler(BaseHTTPRequestHandler):
         path = self.path.split("?", 1)[0]
         if path in ("/", "/index.html"):
             return self._send(200, self.srv.page(), "text/html; charset=utf-8")
+        if path == "/hud":
+            return self._send(200, self.srv.hud(), "text/html; charset=utf-8")
         if path == "/events":
             return self._events()
         if path == "/api/state":

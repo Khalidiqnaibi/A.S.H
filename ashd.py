@@ -479,6 +479,9 @@ def main() -> int:
                     config_path=args.config or CONFIG_FILE)
                 if not console.start():
                     console = None
+                else:
+                    from src.ui.window import open_hud  # noqa: E402
+                    runtime.hud_opener = lambda: open_hud(console.url, profile_dir=profile)  # noqa: E731
             except Exception:
                 logger.exception("Console failed to start -- continuing without it")
                 console = None

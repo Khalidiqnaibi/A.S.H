@@ -647,6 +647,11 @@ class ControlServer:
                 a.forget()
                 return {"ok": True, "report": "activity memory cleared"}
             return {"ok": True, "report": a.report(), "status": a.status()}
+        if cmd == "hud":
+            opener = getattr(rt, "hud_opener", None)
+            if opener is None:
+                return {"ok": False, "error": "the console isn't running (ui.enabled), so there is no heads-up widget"}
+            return {"ok": True, "opened": opener()}
         if cmd == "vision":
             lk = getattr(rt, "looking", None)
             if lk is None:
@@ -674,7 +679,7 @@ class ControlServer:
             return {"ok": True, "stopping": True}
         return {"ok": False, "error": f"unknown command {cmd!r}",
                 "commands": ["status", "pause", "resume", "mute", "unmute", "say",
-                             "why", "history", "sleep", "rollup", "sensors", "face", "wonders", "wonder", "activity", "profile", "vision", "followups", "corrections", "routines", "briefing", "watches", "review",
+                             "why", "history", "sleep", "rollup", "sensors", "hud", "face", "wonders", "wonder", "activity", "profile", "vision", "followups", "corrections", "routines", "briefing", "watches", "review",
                              "enable", "disable", "simulate", "shutdown"]}
 
     # ------------------------------------------------------------------
