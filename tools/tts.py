@@ -102,6 +102,30 @@ def segment(text: str, limit: int = MAX_SEGMENT_CHARS):
     return spans
 
 
+def sentence_chunks(text: str, min_chars: int = 40, max_chars: int = 240):
+    """Split a reply where a listener would hear a pause, keeping short sentences together ("Sure. It's 3 PM." is one
+    chunk) so each chunk is worth synthesizing on its own, and very long sentences at commas."""
+    import re as _re
+    sents = [s.strip() for s in _re.split(r"(?<=[.!?;:])\s+", (text or "").strip()) if s.strip()]
+    out, cur = [], ""
+    for s in sents:
+        while len(s) > max_chars:
+            cut = s.rfind(", ", 0, max_chars)
+            cut = cut + 1 if cut > min_chars else max_chars
+            out.append((cur + " " + s[:cut]).strip() if cur else s[:cut].strip())
+            cur, s = "", s[cut:].strip()
+        cur = (cur + " " + s).strip() if cur else s
+        if len(cur) >= min_chars:
+            out.append(cur)
+            cur = ""
+    if cur:
+        if out and len(cur) < min_chars // 2:
+            out[-1] = out[-1] + " " + cur
+        else:
+            out.append(cur)
+    return out or ([text] if text else [])
+
+
 class TTSEngine:
     """Always-on Kokoro TTS engine."""
     # Defaults match what README setup downloads and what app.py passes; the
@@ -158,13 +182,12 @@ class TTSEngine:
                      len(text or ""), len(spans), len(audio) / float(rate or 1))
         return wav_io.getvalue()
 
-    def stream_audio(self, text: str, voice: str = "af_heart", speed: float = 1.0):
-        """One chunk: the entire reply.
-
-        Kept as a generator because app.py and the speech actuator both
-        iterate it, and because a future streaming mode would slot in here
-        without touching either of them.
+    def stream_audio(self, text: str, voice: str = "af_heart", speed: float = 1.0, by_sentence: bool = True):
+        """The reply as WAV chunks, a sentence or two at a time, so the first words can play while the rest is still
+        being made (the speech actuator plays one chunk while the next is synthesized). by_sentence=False: one chunk.
         """
-        wav = self.synthesize(text, voice=voice, speed=speed)
-        if wav:
-            yield wav
+        parts = sentence_chunks(text) if by_sentence else [text]
+        for part in parts:
+            wav = self.synthesize(part, voice=voice, speed=speed)
+            if wav:
+                yield wav

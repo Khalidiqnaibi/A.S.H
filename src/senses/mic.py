@@ -146,13 +146,31 @@ class MicrophoneSensor(Sensor):
     )
     default_interval = 0.5      # how often the ambient loop drains the queue
     modality = Modality.TEXT
+    # Live voice, off unless __init__ says otherwise (and present on any instance, however it was made).
+    speculative = False
+    barge = None
+    wake = None
+    on_barge_in = None
 
     def __init__(self, interval: Optional[float] = None, enabled: bool = False,
                  device: Optional[int] = None,
                  silence_ms: int = 700, min_speech_ms: int = 400,
                  max_utterance_s: float = 20.0,
-                 transcriber=None, keep_audio: bool = False, voiceprint: bool = False):
+                 transcriber=None, keep_audio: bool = False, voiceprint: bool = False,
+                 speculative: bool = True, early_ms: int = 300, barge=None, wake=None):
         self.device = device
+        # Live voice (livevoice.py). speculative: start transcribing `early_ms` into the end-of-turn silence, so the
+        # words are ready when the silence is long enough (a word after that throws the guess away). barge: a
+        # BargeIn -- the user talking over ASH stops it at once (on_barge_in), from the level alone. wake: a WakeGate
+        # -- with a wake word, only utterances it heard (or an open conversation) are transcribed.
+        self.speculative = speculative
+        self.early_frames = max(1, early_ms // FRAME_MS)
+        self.barge = barge
+        self.wake = wake
+        self.speaking_fn = lambda: False          # set by the daemon: is ASH talking right now?
+        self.on_barge_in = None                   # set by the daemon: stop ASH talking
+        self._last_rms = 0.0
+        self.live_stats = {"barge_ins": 0, "early_hits": 0, "early_wasted": 0}
         # A rough voiceprint per utterance (src/senses/voiceprint.py), kept in
         # memory with the event and never written out; off unless the
         # daemon's voice match is on.
@@ -257,6 +275,7 @@ class MicrophoneSensor(Sensor):
         import numpy as np
 
         rms = float(np.sqrt(np.mean((frame.astype(np.float32) / 32768.0) ** 2)) + 1e-9)
+        self._last_rms = rms
 
         # Track the noise floor from quiet frames only, so a long conversation
         # doesn't drag the threshold up until nothing registers as speech.
@@ -284,10 +303,12 @@ class MicrophoneSensor(Sensor):
         buf: List = []
         silence = 0
         speaking = False
+        early = None                  # (thread, holder) of a speculative transcription for the current utterance
 
         try:
             for frame in self._frames():
                 speech = self._is_speech(frame)
+                self._live(frame)
 
                 if not speaking:
                     preroll.append(frame)
@@ -298,23 +319,78 @@ class MicrophoneSensor(Sensor):
                     continue
 
                 buf.append(frame)
+                if speech and early is not None:
+                    early = None              # they went on talking: the early guess is for a shorter sentence
+                    self.live_stats["early_wasted"] += 1
                 silence = 0 if speech else silence + 1
+
+                if (self.speculative and early is None and silence == self.early_frames
+                        and len(buf) - silence >= self.min_speech_frames):
+                    early = self._start_early(np.concatenate(buf))
 
                 too_long = len(buf) >= self.max_frames
                 if silence >= self.silence_frames or too_long:
                     speaking = False
                     if len(buf) >= self.min_speech_frames:
-                        self._finish(np.concatenate(buf))
+                        audio = np.concatenate(buf)
+                        text = self._early_result(early) if early is not None else None
+                        self._finish(audio, text=text)
+                    early = None
                     buf, preroll = [], collections.deque(maxlen=int(400 // FRAME_MS))
         except Exception:
             logger.exception("Microphone loop died")
             self.state = self.state.__class__.ERROR
 
+    def _live(self, frame):
+        """Per frame: the wake word, and the user talking over ASH."""
+        if self.wake is not None:
+            self.wake.feed(frame)
+        if self.barge is not None:
+            try:
+                talking = bool(self.speaking_fn())
+            except Exception:
+                talking = False
+            if self.barge.feed(self._last_rms, talking) and self.on_barge_in is not None:
+                self.live_stats["barge_ins"] += 1
+                logger.info("Mic: talked over ASH -- stopping it")
+                try:
+                    self.on_barge_in()
+                except Exception:
+                    logger.exception("Barge-in stop failed")
+
+    def _start_early(self, audio):
+        """Transcribe now, on the side, as if the turn had ended. Returns (thread, holder)."""
+        if self.wake is not None and not self.wake.allows(len(audio) / SAMPLE_RATE):
+            return None
+        holder: Dict[str, Any] = {}
+
+        def run():
+            try:
+                holder["text"] = self.transcribe(audio)
+            except Exception:
+                holder["text"] = None
+        t = threading.Thread(target=run, daemon=True, name="ash-mic-early")
+        t.start()
+        return (t, holder)
+
+    def _early_result(self, early) -> Optional[str]:
+        t, holder = early
+        t.join(timeout=30.0)
+        text = holder.get("text")
+        if text is not None:
+            self.live_stats["early_hits"] += 1
+        return text
+
     # ------------------------------------------------------------------
-    def _finish(self, audio):
-        """One complete utterance: transcribe and queue it."""
+    def _finish(self, audio, text: Optional[str] = None):
+        """One complete utterance: transcribe (unless the early transcription already did) and queue it."""
         duration = len(audio) / SAMPLE_RATE
-        text = fix_name(self.transcribe(audio))
+        if text is None:
+            if self.wake is not None and not self.wake.allows(duration):
+                logger.debug("Mic: %.2fs clip without the wake word (not transcribed)", duration)
+                return
+            text = self.transcribe(audio)
+        text = fix_name(text)
         if not text:
             # Very frequent with the energy-VAD fallback (no webrtcvad) --
             # noise/room tone clears the level gate but transcribes to
@@ -428,5 +504,6 @@ class MicrophoneSensor(Sensor):
             "utterances": self._speech_seen,
             "noise_floor": round(self._noise_floor, 5),
             "queued": len(self._out),
+            "wake_word": self.wake is not None, "barge_in": self.barge is not None, **self.live_stats,
         })
         return d

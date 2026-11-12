@@ -9,6 +9,7 @@ returns the registry, wiring cross-references (screenshot needs the window
 sensor for its blocklist, the input actuator needs it for the same reason).
 """
 
+import time
 import os
 
 from .base import (
@@ -111,10 +112,21 @@ def build_periphery(config: dict, tts_engine=None, registry=None) -> PeripheryRe
 
     mic_cfg = s.get("microphone", {})
     from .mic import MicrophoneSensor
+    from .livevoice import BargeIn, WakeGate, openwakeword_detector
+    wake = None
+    if mic_cfg.get("wake_word_model"):
+        det = openwakeword_detector(str(mic_cfg["wake_word_model"]))
+        if det is not None:
+            from . import address as _address
+            wake = WakeGate(det, threshold=float(mic_cfg.get("wake_threshold", 0.5)),
+                            conversation_open=lambda: _address.conversation.openness(time.time()) > 0.02)
     mic = MicrophoneSensor(
         enabled=mic_cfg.get("enabled", False),
         device=mic_cfg.get("device"),
         keep_audio=mic_cfg.get("keep_audio", False),
+        speculative=bool(mic_cfg.get("speculative", True)),
+        barge=(BargeIn() if mic_cfg.get("barge_in", True) else None),
+        wake=wake,
     )
     reg.add_sensor(mic)
 
@@ -145,7 +157,11 @@ def build_periphery(config: dict, tts_engine=None, registry=None) -> PeripheryRe
     reg.add_actuator(NotifyActuator(**base))
 
     base, _ = _cfg("speak")
-    reg.add_actuator(SpeakActuator(tts_engine=tts_engine, **base))
+    speaker = SpeakActuator(tts_engine=tts_engine, **base)
+    reg.add_actuator(speaker)
+    # Talking over ASH stops it (livevoice.BargeIn), heard by the microphone while the speaker is busy.
+    mic.speaking_fn = lambda: bool(speaker.speaking)
+    mic.on_barge_in = speaker.stop
 
     base, _ = _cfg("clipboard")
     reg.add_actuator(ClipboardActuator(**base))

@@ -178,26 +178,54 @@ class SpeakActuator(Actuator):
         # It plays asynchronously and waits on an event, so "stop" can cut it
         # off mid-sentence (speech.py); a blocking SND_MEMORY play could not
         # be interrupted at all.
-        def _play():
-            n = 0
+        # Sentence by sentence (tools/tts.py): one thread makes the next chunk while this one plays the current
+        # one, so the first words come out after one sentence is synthesized, not the whole reply.
+        import queue as _queue
+        chunks_q: "_queue.Queue" = _queue.Queue(maxsize=2)
+        DONE = object()
+
+        def _make():
             try:
-                chunks = None
+                made = 0
                 if voice:
                     try:
-                        chunks = list(self.tts.stream_audio(text, voice=voice))
+                        for wav in self.tts.stream_audio(text, voice=voice):
+                            if stop.is_set():
+                                return
+                            chunks_q.put(wav)
+                            made += 1
                     except Exception:
                         logger.warning("Voice %r failed; using the usual one", voice)
-                        chunks = None
-                for wav_bytes in (chunks if chunks else self.tts.stream_audio(text)):
-                    n += 1
-                    if stop.is_set():
+                if not made:
+                    for wav in self.tts.stream_audio(text):
+                        if stop.is_set():
+                            return
+                        chunks_q.put(wav)
+            except Exception:
+                logger.exception("TTS synthesis failed")
+            finally:
+                chunks_q.put(DONE)
+
+        def _play():
+            n = 0
+            threading.Thread(target=_make, daemon=True, name="ash-tts-make").start()
+            try:
+                while True:
+                    try:
+                        wav_bytes = chunks_q.get(timeout=0.25)
+                    except _queue.Empty:
+                        if stop.is_set():
+                            break
+                        continue
+                    if wav_bytes is DONE or stop.is_set():
                         break
+                    n += 1
                     try:
                         self.player(wav_bytes, stop)
                     except Exception:
                         logger.exception("TTS playback failed for chunk %d", n)
             except Exception:
-                logger.exception("TTS synthesis failed")
+                logger.exception("TTS playback failed")
             finally:
                 with self._lock:
                     if self._gen == gen:           # not replaced by a newer line
