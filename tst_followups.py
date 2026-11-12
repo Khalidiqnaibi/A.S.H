@@ -165,6 +165,46 @@ def fix_never_record_list():
                                                       for i, h in enumerate(chat + mail + files)))
 
 
+@section
+def fix_forget_a_site_really_forgets():
+    print("\n=== FIX: forgetting a site removes its time from the totals too ===")
+    import sqlite3
+    from src.daemon.ledger import Ledger, DAY
+    now = 100 * DAY
+    led = Ledger(clock=lambda: now, retention_days=30)
+    led.record(now - 40 * DAY, now - 40 * DAY + 3600, "secret-hobby.com", "social", "user")
+    led.record(now - 41 * DAY, now - 41 * DAY + 1800, "github.com", "code", "table")
+    led.rollup(now)
+    check("rolled up, the hour is in the social total", led.by_category(60).get("social") == 3600.0, str(led.by_category(60)))
+    led.forget(site="secret-hobby.com")
+    check("after 'forget everything about it', nothing of it is left in the totals", "social" not in led.by_category(60), str(led.by_category(60)))
+    check("...nor in the per-site table", all(r[0] != "secret-hobby.com" for r in led.top_sites(20)))
+    check("...nor in the daily rows", led.db.execute("SELECT COUNT(*) FROM daily_site WHERE site = 'secret-hobby.com'").fetchone()[0] == 0)
+    check("other sites are untouched", led.by_category(60).get("code") == 1800.0, str(led.by_category(60)))
+    led.forget(category="code")
+    check("forgetting a category clears the daily rows too", led.by_category(60) == {}, str(led.by_category(60)))
+    led.record(now - 50 * DAY, now - 50 * DAY + 600, "a.com", "news", "table")
+    led.rollup(now)
+    led.churn(3, now)
+    led.forget_all()
+    check("forget all leaves nothing, churn included", led.counts() == {"episodes": 0, "daily": 0, "sites": 0}, str(led.counts()))
+
+    # a ledger written before daily_site existed: its totals keep, as "(older)"
+    p = os.path.join(tempfile.mkdtemp(), "old.sqlite3")
+    old = sqlite3.connect(p)
+    old.executescript("CREATE TABLE daily (day TEXT NOT NULL, category TEXT NOT NULL, seconds REAL NOT NULL DEFAULT 0,"
+                      " episodes INTEGER NOT NULL DEFAULT 0, churn INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, category));"
+                      "INSERT INTO daily VALUES ('2026-01-05', 'video', 7200, 3, 0);"
+                      "INSERT INTO daily VALUES ('2026-01-05', '_churn', 0, 0, 9);")
+    old.commit()
+    old.close()
+    led = Ledger(p, clock=lambda: 1_800_000_000.0)
+    check("an older ledger is migrated: its totals are kept as '(older)'", led.by_category(10000).get("video") == 7200.0, str(led.by_category(10000)))
+    check("...and its churn is kept", led.churn_between(0, 1_800_000_000.0) == 9)
+    led.forget(category="video")
+    check("...and can still be forgotten", "video" not in led.by_category(10000))
+
+
 if __name__ == "__main__":
     for fn in SECTIONS:
         fn()

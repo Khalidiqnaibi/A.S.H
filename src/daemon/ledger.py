@@ -50,6 +50,13 @@ CREATE TABLE IF NOT EXISTS sites (
     seconds REAL NOT NULL DEFAULT 0, visits INTEGER NOT NULL DEFAULT 0, last_day TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (site, category)
 );
+-- Per day, site and category. `daily` keeps only the churn signal (it has no site); the time lives here, so
+-- forgetting a site really removes its time from the totals too.
+CREATE TABLE IF NOT EXISTS daily_site (
+    day TEXT NOT NULL, site TEXT NOT NULL, category TEXT NOT NULL,
+    seconds REAL NOT NULL DEFAULT 0, episodes INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (day, site, category)
+);
 """
 
 
@@ -69,6 +76,10 @@ class Ledger:
             os.makedirs(os.path.dirname(os.path.abspath(self.path)) or ".", exist_ok=True)
         self.db = sqlite3.connect(self.path, check_same_thread=False)
         self.db.executescript(_SCHEMA)
+        # A ledger from before daily_site existed: its per-category totals have no site; keep them as "(older)".
+        self.db.execute("INSERT OR IGNORE INTO daily_site(day,site,category,seconds,episodes) "
+                        "SELECT day, '(older)', category, seconds, episodes FROM daily WHERE category != '_churn'")
+        self.db.execute("DELETE FROM daily WHERE category != '_churn'")
         self.db.commit()
 
     def close(self):
@@ -118,7 +129,7 @@ class Ledger:
         first = day_of(now - days * DAY)
         out: Dict[str, float] = {}
         with self._lock:
-            for cat, secs in self.db.execute("SELECT category, SUM(seconds) FROM daily WHERE day >= ? AND category != '_churn' "
+            for cat, secs in self.db.execute("SELECT category, SUM(seconds) FROM daily_site WHERE day >= ? "
                                               "GROUP BY category", (first,)):
                 out[cat] = out.get(cat, 0.0) + float(secs or 0)
             for cat, secs in self.db.execute("SELECT category, SUM(end-start) FROM episodes WHERE start >= ? GROUP BY category",
@@ -166,7 +177,8 @@ class Ledger:
     def counts(self) -> Dict[str, int]:
         with self._lock:
             e = self.db.execute("SELECT COUNT(*) FROM episodes").fetchone()[0]
-            d = self.db.execute("SELECT COUNT(*) FROM daily").fetchone()[0]
+            d = (self.db.execute("SELECT COUNT(*) FROM daily").fetchone()[0]
+                 + self.db.execute("SELECT COUNT(*) FROM daily_site").fetchone()[0])
             s = self.db.execute("SELECT COUNT(*) FROM sites").fetchone()[0]
         return {"episodes": e, "daily": d, "sites": s}
 
@@ -179,9 +191,9 @@ class Ledger:
             rows = self.db.execute("SELECT start,end,site,category FROM episodes WHERE start < ?", (cut,)).fetchall()
             for start, end, site, cat in rows:
                 d = day_of(start)
-                self.db.execute("INSERT INTO daily(day,category,seconds,episodes,churn) VALUES (?,?,?,1,0) "
-                                "ON CONFLICT(day,category) DO UPDATE SET seconds = seconds + excluded.seconds, "
-                                "episodes = episodes + 1", (d, cat, end - start))
+                self.db.execute("INSERT INTO daily_site(day,site,category,seconds,episodes) VALUES (?,?,?,?,1) "
+                                "ON CONFLICT(day,site,category) DO UPDATE SET seconds = seconds + excluded.seconds, "
+                                "episodes = episodes + 1", (d, site, cat, end - start))
                 self.db.execute("INSERT INTO sites(site,category,seconds,visits,last_day) VALUES (?,?,?,1,?) "
                                 "ON CONFLICT(site,category) DO UPDATE SET seconds = seconds + excluded.seconds, "
                                 "visits = visits + 1, last_day = MAX(last_day, excluded.last_day)",
@@ -196,17 +208,18 @@ class Ledger:
         n = 0
         with self._lock:
             if site:
-                for t in ("episodes", "sites"):
+                for t in ("episodes", "sites", "daily_site"):
                     n += self.db.execute(f"DELETE FROM {t} WHERE site = ?", (site,)).rowcount
             if category:
-                for t in ("episodes", "sites", "daily"):
+                for t in ("episodes", "sites", "daily_site"):
                     n += self.db.execute(f"DELETE FROM {t} WHERE category = ?", (category,)).rowcount
             self.db.commit()
         return n
 
     def forget_all(self) -> int:
+        """All browsing data."""
         with self._lock:
-            n = sum(self.db.execute(f"DELETE FROM {t}").rowcount for t in ("episodes", "daily", "sites"))
+            n = sum(self.db.execute(f"DELETE FROM {t}").rowcount for t in ("episodes", "daily", "daily_site", "sites"))
             self.db.commit()
             try:
                 self.db.execute("VACUUM")
