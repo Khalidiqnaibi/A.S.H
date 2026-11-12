@@ -357,6 +357,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # "Kids mode on (for 30 minutes)": grown-up features refused, the model told it's talking with a child, a word
     # filter on everything said, a time limit. passphrase: needed to turn it off ("" = none).
     "kids": {"enabled": True, "passphrase": "", "minutes": 60},
+    # "Take a silly photo": a countdown, one frame, a filter (cartoon, sketch, mirror, retro, comic, BMO frame), saved to
+    # dir. Only when asked, never in privacy mode, never for a guest.
+    "photobooth": {"enabled": True, "dir": "~/Pictures/ASH"},
     # "Find the contract I was editing last week": these folders, indexed on this computer (names, dates, the start
     # of the text), refreshed hourly in the background. Nothing leaves the machine.
     "filesearch": {"enabled": True, "folders": ["~/Documents", "~/Desktop", "~/Downloads"]},

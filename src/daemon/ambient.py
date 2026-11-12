@@ -279,6 +279,11 @@ class AmbientConfig:
     # Kids mode: grown-up things refused, the model told it's a child, a word filter, a time limit (kids.py).
     kids: bool = False
     kids_cfg: Optional[Dict[str, Any]] = None
+    # The fun camera: a photo booth with a countdown and silly filters (photobooth.py).
+    photobooth: bool = False
+    photobooth_dir: str = "~/Pictures/ASH"
+    photobooth_delay_s: float = 2.5
+    photobooth_grab: Optional[Callable[[], Any]] = None       # tests pass a fake frame source
     situation_probe: Optional[Callable[[], Any]] = None      # () -> (battery (percent, plugged) | None, memory %); tests
     arrivals: bool = False          # "remind me when I get home" (arrival.py)
     arrivals_path: Optional[str] = None
@@ -645,6 +650,11 @@ class AmbientRuntime:
         if self.cfg.phone:
             from .phone import Phone, PhoneConfig
             self.phone = Phone(PhoneConfig.from_dict(self.cfg.phone_cfg), **(self.cfg.phone_io or {}))
+        self.booth = None
+        if self.cfg.photobooth:
+            from .photobooth import PhotoBooth
+            self.booth = PhotoBooth(grab=self.cfg.photobooth_grab or self._booth_grab, folder=self.cfg.photobooth_dir,
+                                    clock=lambda: self.clock())
         self.kids = None
         if self.cfg.kids:
             from .kids import KidsMode
@@ -1817,6 +1827,51 @@ class AmbientRuntime:
                       r"(?:show|open|bring\s+up|pop\s+up|put\s+up)\s+(?:me\s+)?(?:the\s+|your\s+|a\s+)?"
                       r"(?:hud|heads[-\s]?up(?:\s+(?:display|panel|widget))?|widget|status\s+panel)\s*(?:please)?\s*[.!]?\s*$", re.I)
 
+    def _booth_grab(self):
+        """One frame for the photo booth: the camera ASH already uses, or opened for a moment -- never in privacy mode."""
+        lk = getattr(self, "looking", None)
+        if lk is not None:
+            return lk.eye.look()[0]
+        from src.vision.eye import Eye
+        eye = Eye(sensor=lambda: getattr(self.periphery, "sensors", {}).get("camera"), paused=lambda: self.privacy.paused)
+        return eye.look()[0]
+
+    def _booth_request(self, ev, now: float) -> bool:
+        """"Take a silly photo": "three, two, one, cheese!", then one frame, a filter, saved. Not in privacy mode, not
+        for a guest, only for a line said to ASH."""
+        b = self.booth
+        if b is None or not self._user_source(ev) or not self._meant_for_ash(ev):
+            return False
+        from .photobooth import filter_of
+        f = filter_of(str(getattr(ev, "text", "") or ""))
+        if f is None:
+            return False
+        if bool((getattr(ev, "meta", None) or {}).get("guest")):
+            say = "Sorry, I only take photos for the person I live with."
+        elif self.privacy.paused:
+            say = "I'm paused for privacy, so no photos right now."
+        else:
+            name = b.pick(f)
+            say = b.countdown(name)
+
+            def shoot():
+                time.sleep(max(0.0, self.cfg.photobooth_delay_s))
+                if self.privacy.paused:
+                    return                                    # privacy went on during the countdown: no picture
+                line = b.take(name)
+                try:
+                    self.response_sink(line, {"addressed": False, "source": "photobooth", "attention": None,
+                                              "pathway": "wonder", "outcome": "photobooth"})
+                except Exception:
+                    logger.exception("Photo booth line failed")
+            if self.cfg.photobooth_delay_s <= 0:
+                self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
+                shoot()
+                return True
+            threading.Thread(target=shoot, daemon=True, name="ash-photobooth").start()
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
+        return True
+
     def _kids_request(self, ev, now: float) -> bool:
         """Kids mode on/off (a passphrase if one is set; never by a guest), and while on: grown-up requests refused."""
         k = getattr(self, "kids", None)
@@ -1959,10 +2014,13 @@ class AmbientRuntime:
         ph = self.phone
         if ph is None or not self._user_source(ev) or not self._meant_for_ash(ev)                 or bool((getattr(ev, "meta", None) or {}).get("guest")):
             return False
-        last = None
+        last, last_t = None, -1e18
         fs = self.filesearch
         if fs is not None and fs.last_path is not None and now - fs.last_path[1] <= 600:
-            last = fs.last_path[0]
+            last, last_t = fs.last_path
+        bo = getattr(self, "booth", None)
+        if bo is not None and bo.last_path and now - bo.last_at <= 600 and bo.last_at > last_t:
+            last = bo.last_path                               # the photo just taken is newer than the file found
         try:
             say = ph.hear(str(getattr(ev, "text", "") or ""), last_thing=last, now=now)
         except Exception:
@@ -2850,6 +2908,8 @@ class AmbientRuntime:
         if self._clipboard_request(ev, now):
             return True
         if self._reminder_request(ev, now):
+            return True
+        if self._booth_request(ev, now):
             return True
         if self._media_request(ev, now):
             return True
@@ -3949,6 +4009,7 @@ class AmbientRuntime:
             "feelings": self.feelings.status() if self.feelings is not None else None,
             "fun": self.fun.status() if self.fun is not None else None,
             "kids": self.kids.status() if self.kids is not None else None,
+            "photobooth": self.booth.status() if self.booth is not None else None,
             "free_moments": self.moments.status() if self.moments else None,
             "followups": self.followups.status() if self.followups else None,
             "routines": self.routines.status() if self.routines else None,

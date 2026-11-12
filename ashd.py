@@ -330,6 +330,8 @@ def main() -> int:
                 fun_path=os.path.join(os.getcwd(), "state", "fun.json"),
                 kids=bool(cfg.get("kids", {}).get("enabled", True)),
                 kids_cfg=cfg.get("kids", {}),
+                photobooth=bool(cfg.get("photobooth", {}).get("enabled", True)),
+                photobooth_dir=str((cfg.get("photobooth") or {}).get("dir") or "~/Pictures/ASH"),
                 filesearch=bool(cfg.get("filesearch", {}).get("enabled", True)),
                 filesearch_folders=list((cfg.get("filesearch") or {}).get("folders") or ["~/Documents", "~/Desktop", "~/Downloads"]),
                 filesearch_path=os.path.join(os.getcwd(), "state", "files.json"),
