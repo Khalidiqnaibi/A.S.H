@@ -153,12 +153,18 @@ ul, ol { list-style: none; margin: 0; padding: 0; }
 
 .app {
   position: relative; z-index: 1;
-  display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto;
+  /* A column, not a grid with a fixed list of rows: the heads-up cards and the "what I'm learning" panel come and go
+     (hidden ones take no space), and a row template written for four children squeezed the transcript to nothing
+     when two more were added. The transcript takes whatever is left. */
+  display: flex; flex-direction: column; gap: var(--s4);
   height: 100vh; height: 100dvh;
   width: 100%; max-width: 720px; margin: 0 auto;
   padding: var(--gutter) var(--gutter) 0;
-  row-gap: var(--s4);
 }
+.app > * { flex: 0 0 auto; min-width: 0; }
+.app > .transcript { flex: 1 1 0; min-height: 140px; }     /* the conversation always keeps room */
+.app > .learning { flex: 0 1 auto; min-height: 44px; }      /* ...and the open panel is the one thing that gives way */
+@media (max-height: 720px) { .app > .face { height: clamp(110px, 18vh, 200px); } }   /* a short window: a smaller face, not a squeezed chat */
 
 /* ---- header: the face ------------------------------------------------- */
 .face {
@@ -428,11 +434,17 @@ textarea::placeholder { color: var(--muted); }
 .headsup[hidden] { display: none; }
 .hu { display: flex; align-items: baseline; gap: 8px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line);
   background: var(--ash-bg); font-size: .85rem; max-width: 100%; }
-.hu b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hu span { opacity: .7; white-space: nowrap; }
+#headsup { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }      /* one row that scrolls, not a tall stack */
+#headsup::-webkit-scrollbar { display: none; }
+#headsup .hu { flex: 0 0 auto; max-width: 88%; }
+.hu { min-width: 0; }
+.hu b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 0 1 auto; }
+.hu span { opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
 .hu.soon { border-color: var(--accent); }
 .learning { font-size: .85rem; border: 1px solid var(--line); border-radius: 12px; padding: 6px 12px; background: var(--ash-bg); }
 .learning[hidden] { display: none; }
+.learning[open] { max-height: 38vh; overflow-y: auto; }       /* open, it scrolls instead of pushing the conversation away */
+.learning li { overflow-wrap: anywhere; }
 .learning summary { cursor: pointer; font-weight: 600; }
 .learning ul { margin: 8px 0 4px; padding-left: 18px; }
 .learning li { margin: 3px 0; }

@@ -477,6 +477,30 @@ def u7_page():
     check("a hidden pill stays hidden", "[hidden] { display: none !important; }" in html)
 
 
+def u8_layout():
+    """The console's layout holds when things above the conversation come and go. It once did not: .app was a grid with
+    exactly four row tracks (face, toolbar, transcript, composer), and the heads-up cards and the learning panel,
+    added as two more children, pushed the transcript out of its flexible row and squeezed it to ~74 px -- and a hidden
+    child leaves the grid, so which row got what changed with what was showing."""
+    import re
+    print("\nU8  The layout")
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src", "ui", "static", "console.html")
+    css = open(path, encoding="utf-8").read().split("<style>", 1)[1].split("</style>", 1)[0]
+
+    def rule(sel: str) -> str:
+        return " ".join(m.group(1) for m in re.finditer(r"(?:^|\n)" + re.escape(sel) + r"\s*\{([^}]*)\}", css))
+    app = rule(".app")
+    check("the app is a flex column, not a grid with a fixed list of rows", "display: flex" in app and "flex-direction: column" in app
+          and "grid-template-rows" not in app, app[:160])
+    check("the conversation takes what is left and always keeps room", "flex: 1 1 0" in rule(".app > .transcript") and "min-height: 140px" in rule(".app > .transcript"))
+    check("the open learning panel is the one thing that gives way, and scrolls", "flex: 0 1 auto" in rule(".app > .learning")
+          and "overflow-y: auto" in rule(".learning[open]") and "max-height" in rule(".learning[open]"))
+    check("the cards are one row that scrolls (not a tall stack)", "flex-wrap: nowrap" in rule("#headsup") and "overflow-x: auto" in rule("#headsup"))
+    check("a long card shrinks with an ellipsis instead of pushing the page sideways", "min-width: 0" in rule(".hu") and "text-overflow: ellipsis" in rule(".hu span")
+          and "min-width: 0" in rule(".hu span") and "min-width: 0" in rule(".hu b"))
+    check("a short window gets a smaller face, not a squeezed chat", re.search(r"@media \(max-height: \d+px\) \{ \.app > \.face \{ height: clamp", css) is not None)
+
+
 def main():
     print("tst_ui.py -- the console window")
     u1_bus()
@@ -486,6 +510,7 @@ def main():
     u5_actions()
     u6_sink()
     u7_page()
+    u8_layout()
     print("\nALL CHECKS PASSED" if OK else "\nSOME CHECKS FAILED")
     return 0 if OK else 1
 
