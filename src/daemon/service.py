@@ -354,6 +354,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "feelings": {"enabled": True},
     # Jokes (original, none repeated until all are told), made-up songs, inside jokes from what made you laugh.
     "fun": {"enabled": True},
+    # "Kids mode on (for 30 minutes)": grown-up features refused, the model told it's talking with a child, a word
+    # filter on everything said, a time limit. passphrase: needed to turn it off ("" = none).
+    "kids": {"enabled": True, "passphrase": "", "minutes": 60},
     # "Find the contract I was editing last week": these folders, indexed on this computer (names, dates, the start
     # of the text), refreshed hourly in the background. Nothing leaves the machine.
     "filesearch": {"enabled": True, "folders": ["~/Documents", "~/Desktop", "~/Downloads"]},

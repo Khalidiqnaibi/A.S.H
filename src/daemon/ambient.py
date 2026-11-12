@@ -276,6 +276,9 @@ class AmbientConfig:
     # BMO-style play: jokes, made-up songs, inside jokes remembered from what made you laugh (fun.py).
     fun: bool = False
     fun_path: Optional[str] = None
+    # Kids mode: grown-up things refused, the model told it's a child, a word filter, a time limit (kids.py).
+    kids: bool = False
+    kids_cfg: Optional[Dict[str, Any]] = None
     situation_probe: Optional[Callable[[], Any]] = None      # () -> (battery (percent, plugged) | None, memory %); tests
     arrivals: bool = False          # "remind me when I get home" (arrival.py)
     arrivals_path: Optional[str] = None
@@ -642,6 +645,12 @@ class AmbientRuntime:
         if self.cfg.phone:
             from .phone import Phone, PhoneConfig
             self.phone = Phone(PhoneConfig.from_dict(self.cfg.phone_cfg), **(self.cfg.phone_io or {}))
+        self.kids = None
+        if self.cfg.kids:
+            from .kids import KidsMode
+            kc = dict(self.cfg.kids_cfg or {})
+            self.kids = KidsMode(passphrase=str(kc.get("passphrase", "") or ""),
+                                 default_minutes=float(kc.get("minutes", 60) or 60), clock=lambda: self.clock())
         self.fun = None
         self._last_out_at = 0.0
         self._joke_at = -1e9
@@ -764,6 +773,9 @@ class AmbientRuntime:
             self.stats["cancelled"] = self.stats.get("cancelled", 0) + 1
             logger.info("Dropped an answer the user cancelled: %r", text[:80])
             return None
+        kids = getattr(self, "kids", None)
+        if text and kids is not None and kids.active:
+            text = kids.filter(text)                 # nothing grown-up said to a child, whoever wrote it
         if text and meta.get("outcome") != "thinking_cue" and meta.get("source") != "reminder":
             self._last_out = text
             self._last_out_at = self.clock()
@@ -1077,6 +1089,13 @@ class AmbientRuntime:
             self._situation_step(now, idle_s)
             self._guard_step(now)
             self._feelings_step(now)
+            if self.kids is not None and self.kids.time_up(now):
+                try:
+                    self.response_sink("Kids mode time is up! Time for a break -- go and find a grown-up.",
+                                       {"addressed": False, "source": "kids", "attention": None, "pathway": "wonder",
+                                        "outcome": "kids"})
+                except Exception:
+                    logger.exception("Kids mode time-up line failed")
             if self.filesearch is not None and not self.privacy.paused:
                 try:
                     self.filesearch.refresh(now)            # in the background, at most once an hour
@@ -1797,6 +1816,27 @@ class AmbientRuntime:
     _HUD = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:please|can\s+you|could\s+you)[,\s]+)*"
                       r"(?:show|open|bring\s+up|pop\s+up|put\s+up)\s+(?:me\s+)?(?:the\s+|your\s+|a\s+)?"
                       r"(?:hud|heads[-\s]?up(?:\s+(?:display|panel|widget))?|widget|status\s+panel)\s*(?:please)?\s*[.!]?\s*$", re.I)
+
+    def _kids_request(self, ev, now: float) -> bool:
+        """Kids mode on/off (a passphrase if one is set; never by a guest), and while on: grown-up requests refused."""
+        k = getattr(self, "kids", None)
+        if k is None or not self._user_source(ev):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        guest = bool((getattr(ev, "meta", None) or {}).get("guest"))
+        say = k.passphrase_heard(text, guest)
+        if say is None:
+            kind = k.parse(text)
+            if kind == "on" and self._meant_for_ash(ev):
+                say = k.start(text, now)
+            elif kind == "off" and self._meant_for_ash(ev):
+                say = k.stop_asked(guest)
+            elif k.active:
+                say = k.refuse(text)
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
+        return True
 
     def _fun_request(self, ev, now: float) -> bool:
         """"Tell me a joke", "sing me a song about my cat", "what are our inside jokes?" -- by rule (fun.py)."""
@@ -2731,6 +2771,10 @@ class AmbientRuntime:
         "can you help me" must not become a command "help me"."""
         guest = bool((getattr(ev, "meta", None) or {}).get("guest"))
         loose = bool((getattr(ev, "meta", None) or {}).get("read_as"))
+        # Kids mode first: a grown-up request never reaches the feature, and "kids mode off" is checked here.
+        if self._kids_request(ev, now):
+            return True
+
         # "Privacy mode", "turn off the mic", "smile", "what's your status":
         # done by rule, and said as done -- never handed to the model.
         if self._voice_command(ev, now):
@@ -3104,6 +3148,9 @@ class AmbientRuntime:
                         pc = self._persona_context(self.clock())
                         if pc:
                             context = (context + "\n" + pc).strip()
+                    if to_ash and getattr(self, "kids", None) is not None and self.kids.active:
+                        from .kids import CONTEXT as _KIDS
+                        context = (context + "\n" + _KIDS).strip()
                     if to_ash and self._clip_ask is not None:
                         cc = self._clipboard_context(self.clock())
                         if cc:
@@ -3901,6 +3948,7 @@ class AmbientRuntime:
             "guard": self.guard.status() if self.guard is not None else None,
             "feelings": self.feelings.status() if self.feelings is not None else None,
             "fun": self.fun.status() if self.fun is not None else None,
+            "kids": self.kids.status() if self.kids is not None else None,
             "free_moments": self.moments.status() if self.moments else None,
             "followups": self.followups.status() if self.followups else None,
             "routines": self.routines.status() if self.routines else None,
