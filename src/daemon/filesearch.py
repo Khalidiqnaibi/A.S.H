@@ -166,6 +166,7 @@ class FileSearch:
         self._lock = threading.RLock()
         self._building = False
         self.pending: Optional[Tuple[str, float]] = None          # a path offered to open
+        self.last_path: Optional[Tuple[str, float]] = None        # the last file found, for "send it to my phone"
         self.stats = {"searches": 0, "found": 0, "opened": 0, "files": 0}
         self._load()
 
@@ -353,6 +354,7 @@ class FileSearch:
         self.stats["found"] += 1
         top = hits[0].entry
         self.pending = (top.path, now)
+        self.last_path = (top.path, now)
         line = f"I found {top.name} in {self._where(top.path)}, changed {self._say_when(top.mtime, now)}."
         others = [h.entry.name for h in hits[1:] if h.score >= 0.6 * hits[0].score]
         if others:
@@ -376,6 +378,7 @@ class FileSearch:
             if k > best_n:
                 best, best_n = s, k
         self.pending = (e.path, now)
+        self.last_path = (e.path, now)
         if not best:
             return f"{e.name} doesn't seem to say anything about {topic.strip()} -- at least not in the part I read. Want me to open it?"
         return f"In {e.name}: “{best}” Want me to open it?"

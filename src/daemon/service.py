@@ -340,6 +340,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "pcdoctor": {"enabled": True},
     # One well-timed line from what ASH notices: a meeting soon while you're gaming, a low battery, a birthday.
     "situation": {"enabled": True},
+    # The phone, through KDE Connect (install it on this computer and the phone, pair them): "find my phone", "send it to
+    # my phone", "text Omar saying ..." (read back; sent on "send it"). contacts: {"Omar": "+962..."}. ntfy_url: alerts only.
+    "phone": {"enabled": True, "device": "", "contacts": {}, "ntfy_url": "", "allow_sms": True},
     # "Find the contract I was editing last week": these folders, indexed on this computer (names, dates, the start
     # of the text), refreshed hourly in the background. Nothing leaves the machine.
     "filesearch": {"enabled": True, "folders": ["~/Documents", "~/Desktop", "~/Downloads"]},

@@ -264,6 +264,10 @@ class AmbientConfig:
     filesearch_folders: Optional[List[str]] = None
     filesearch_path: Optional[str] = None
     filesearch_embed: Optional[Callable[[List[str]], Any]] = None
+    # The phone through KDE Connect: ring it, send it a note or a file, texts read back first (phone.py).
+    phone: bool = False
+    phone_cfg: Optional[Dict[str, Any]] = None
+    phone_io: Optional[Dict[str, Any]] = None                 # tests: {"cli": path or None, "runner": fake, "poster": fake}
     situation_probe: Optional[Callable[[], Any]] = None      # () -> (battery (percent, plugged) | None, memory %); tests
     arrivals: bool = False          # "remind me when I get home" (arrival.py)
     arrivals_path: Optional[str] = None
@@ -626,6 +630,10 @@ class AmbientRuntime:
         self._arrival_at = 0.0
         self._dym = None                          # a "Did you mean ...?" waiting for yes or no: (phrase, when)
         self.hud_opener: Optional[Callable[[], str]] = None      # set by ashd once the console is up
+        self.phone = None
+        if self.cfg.phone:
+            from .phone import Phone, PhoneConfig
+            self.phone = Phone(PhoneConfig.from_dict(self.cfg.phone_cfg), **(self.cfg.phone_io or {}))
         self.filesearch = None
         if self.cfg.filesearch:
             from .filesearch import FileSearch
@@ -1761,6 +1769,28 @@ class AmbientRuntime:
                       r"(?:show|open|bring\s+up|pop\s+up|put\s+up)\s+(?:me\s+)?(?:the\s+|your\s+|a\s+)?"
                       r"(?:hud|heads[-\s]?up(?:\s+(?:display|panel|widget))?|widget|status\s+panel)\s*(?:please)?\s*[.!]?\s*$", re.I)
 
+    def _phone_request(self, ev, now: float) -> bool:
+        """"Find my phone", "send it to my phone", "text Omar saying I'm late" (read back, sent on "send it")."""
+        ph = self.phone
+        if ph is None or not self._user_source(ev) or not self._meant_for_ash(ev)                 or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        last = None
+        fs = self.filesearch
+        if fs is not None and fs.last_path is not None and now - fs.last_path[1] <= 600:
+            last = fs.last_path[0]
+        try:
+            say = ph.hear(str(getattr(ev, "text", "") or ""), last_thing=last, now=now)
+        except Exception:
+            logger.exception("Phone request failed")
+            return False
+        if not say:
+            return False
+        if say.startswith("Text to "):
+            say = self._maybe_hold(say, now)
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "asked", "query": str(getattr(ev, "text", ""))[:80]}
+        return True
+
     def _hud_request(self, ev, now: float) -> bool:
         """"Show the heads-up display": the small always-on-top widget (src/ui/static/hud.html)."""
         if not self._user_source(ev) or not self._meant_for_ash(ev) or not self._HUD.match(str(getattr(ev, "text", "") or "")):
@@ -2623,6 +2653,8 @@ class AmbientRuntime:
         if self._pcdoctor_request(ev, now):
             return True
         if self._hud_request(ev, now):
+            return True
+        if self._phone_request(ev, now):
             return True
         if self._desktop_request(ev, now):
             return True
@@ -3704,6 +3736,7 @@ class AmbientRuntime:
             "pcdoctor": self.pcdoctor.status() if self.pcdoctor is not None else None,
             "situation": self.situation.status() if self.situation is not None else None,
             "filesearch": self.filesearch.status() if self.filesearch is not None else None,
+            "phone": self.phone.status() if self.phone is not None else None,
             "free_moments": self.moments.status() if self.moments else None,
             "followups": self.followups.status() if self.followups else None,
             "routines": self.routines.status() if self.routines else None,

@@ -321,6 +321,8 @@ def main() -> int:
                 notes_path=os.path.join(os.getcwd(), "state", "notes.json"),
                 pcdoctor=bool(cfg.get("pcdoctor", {}).get("enabled", True)),
                 situation=bool(cfg.get("situation", {}).get("enabled", True)),
+                phone=bool(cfg.get("phone", {}).get("enabled", True)),
+                phone_cfg=cfg.get("phone", {}),
                 filesearch=bool(cfg.get("filesearch", {}).get("enabled", True)),
                 filesearch_folders=list((cfg.get("filesearch") or {}).get("folders") or ["~/Documents", "~/Desktop", "~/Downloads"]),
                 filesearch_path=os.path.join(os.getcwd(), "state", "files.json"),
