@@ -114,6 +114,8 @@ _RX: List[Tuple[str, "re.Pattern"]] = [(k, re.compile(p, re.I)) for k, p in (
     ("top", _A + r"(?:what|which)\s+(?:sites|websites|pages)\s+do\s+i\s+(?:visit|use|open|go\s+to|spend\s+(?:the\s+)?(?:most\s+)?time\s+on)"
                r"(?:\s+(?:the\s+)?most)?(?:\s+(?:today|this\s+week|this\s+month|lately|recently))?"
                r"|" + _A + r"(?:what\s+(?:are\s+)?)?my\s+(?:most\s+visited|top)\s+(?:sites|websites)(?:\s+(?:today|this\s+week|this\s+month))?" + _Z),
+    ("time_on", _A + r"how\s+(?:much|long)\s+(?:time\s+)?(?:did|have)\s+i\s+(?:listen(?:ed)?|been\s+listening)\s+to\s+(?P<cat>music)"
+                    r"(?:\s+(?P<per>today|this\s+week|this\s+month|lately|recently))?" + _Z),
     ("time_on", _A + r"how\s+(?:much|long)\s+(?:time\s+)?(?:did|have)\s+i\s+(?:spend|spent|been)\s+(?:on|in|at)\s+(?:the\s+)?"
                 r"(?:(?P<site>[a-z0-9][a-z0-9\-]*(?:\.[a-z0-9\-]+)*\.[a-z]{2,})|(?P<cat>" + _CATS + r")(?:\s+(?:sites|stuff|things))?|(?P<name>[a-z][a-z0-9]{2,20}))"
                 r"(?:\s+(?P<per>today|this\s+week|this\s+month|lately|recently))?" + _Z),

@@ -98,7 +98,7 @@ class BrowserTabSensor(Sensor):
                  clock: Callable[[], float] = time.time, port: int = 0, token: str = "",
                  min_s: float = 3.0, grace_s: float = 15.0, stale_s: float = 90.0, churn_s: float = 10.0,
                  idle_s: Optional[Callable[[], float]] = None, idle_after_s: float = 180.0,
-                 idle_audible_max_s: float = 4 * 3600.0, idle_tab_s: float = 6 * 3600.0,
+                 idle_audible_max_s: float = 4 * 3600.0, idle_tab_s: float = 6 * 3600.0, bg_min_s: float = 10.0,
                  scrub: Optional[Callable[[str], str]] = None, listen: bool = False):
         from src.daemon.pagekind import Classifier   # lazy: senses must not import the daemon at load time
         self.cls = classifier if classifier is not None else Classifier()
@@ -111,6 +111,7 @@ class BrowserTabSensor(Sensor):
         # A video or a lecture with sound is not "away": the cutoff for idle input is lifted while the tab in
         # front is audible, up to this long (a film left playing overnight is still not an evening of watching).
         self.idle_audible_max_s = float(idle_audible_max_s)
+        self.bg_min_s = float(bg_min_s)                  # sound from a background tab shorter than this is not a listen
         self.idle_tab_s = float(idle_tab_s)              # a tab nobody has had in front for this long is "left alone"
         self.scrub = scrub
         self.listen = bool(listen)
@@ -118,7 +119,8 @@ class BrowserTabSensor(Sensor):
         self.resume_at: Optional[float] = None           # a timed pause ("don't record for an hour") ends here
         self.dropped: Dict[str, int] = {"private": 0, "sensitive": 0, "scheme": 0, "ignored": 0}
         self.tabs_n = 0
-        self.stats = {"reports": 0, "episodes": 0, "churn": 0, "rejected": 0}
+        self.stats = {"reports": 0, "episodes": 0, "churn": 0, "rejected": 0, "background": 0}
+        self._bg: Dict[str, Dict[str, Any]] = {}         # sites making sound in a tab that is not in front
         self._lock = threading.RLock()
         self._pending: deque = deque(maxlen=64)
         self._cur: Optional[Dict[str, Any]] = None       # the open episode
@@ -225,6 +227,7 @@ class BrowserTabSensor(Sensor):
             if active_raw.get("id") is not None:
                 self._last_active[active_raw["id"]] = now            # which tabs get used: ids and times, never pages
         self._last_active = {i: t for i, t in self._last_active.items() if i in self._born}
+        self._background(now, [] if self._idle_over() else clean, cand)
         out: List[SensorEvent] = []
         if cand is None:
             if self._cur is not None and self._lost is None:
@@ -246,6 +249,35 @@ class BrowserTabSensor(Sensor):
                      "source": cand["source"], "start": now, "last": now, "audible": cand["audible"]}
         out.append(self._event("changed" if cur is not None else "started", now, None))
         return out
+
+    def _background(self, now: float, clean: List[Dict[str, Any]], front: Optional[Dict[str, Any]]):
+        """Sound from a tab that is not in front -- music or a lecture on while working. Kept as its own stretches
+        (source "background") so listening time is not lost, and never counted twice with the tab in front."""
+        here = {c["site"]: c for c in clean if c["audible"] and not (front is not None and c["site"] == front["site"])}
+        for site, c in here.items():
+            b = self._bg.get(site)
+            if b is None:
+                self._bg[site] = {"start": now, "last": now, "category": c["category"]}
+            else:
+                b["last"], b["category"] = now, c["category"]
+        for site in [s for s in self._bg if s not in here]:
+            self._close_bg(site, now)
+
+    def _close_bg(self, site: str, end: float):
+        b = self._bg.pop(site, None)
+        if b is None or end - b["start"] < self.bg_min_s or self.ledger is None:
+            return
+        self.stats["background"] += 1
+        self.ledger.record(b["start"], end, site, b["category"], "background", "", True, self.tabs_n)
+
+    def _idle_over(self) -> bool:
+        """Idle for longer than a film could plausibly be watched: sound that is still going is left running, not heard."""
+        if self.idle_s is None:
+            return False
+        try:
+            return float(self.idle_s()) >= self.idle_audible_max_s
+        except Exception:
+            return False
 
     def _idle(self, audible: bool = False) -> bool:
         """No keyboard or mouse for a while. Not while the tab in front is playing sound (a film, a lecture), until
@@ -282,6 +314,9 @@ class BrowserTabSensor(Sensor):
         out: List[SensorEvent] = []
         if self.paused and self.resume_at is not None and now >= self.resume_at:
             self.resume()                                # a timed pause has run out
+        if self._bg and now - self._last_report >= self.stale_s:
+            for site in list(self._bg):                  # the extension went quiet: the sound stopped when it last spoke
+                self._close_bg(site, self._last_report)
         c = self._cur
         if c is not None:
             if self._lost is not None and now - self._lost >= self.grace_s:
@@ -338,6 +373,8 @@ class BrowserTabSensor(Sensor):
             self.resume_at = (now + float(seconds)) if seconds else None
             self._pending.clear()
         self._finish(now, "stopped")
+        for site in list(self._bg):
+            self._close_bg(site, now)
         self._lost = None
 
     def resume(self):

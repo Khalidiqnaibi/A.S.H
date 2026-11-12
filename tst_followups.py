@@ -627,6 +627,102 @@ def feature_tab_hoarding():
     check("ordinary talk is not taken for it", parse("open the tabs") is None and parse("close all my tabs") is None)
 
 
+@section
+def feature_background_listening():
+    print("\n=== FEATURE: music or a lecture in a background tab counts as listening ===")
+    from src.daemon.browsing import Browsing
+    from src.daemon.ledger import Ledger
+    from src.senses.browsertabs import BrowserTabSensor
+    t = [1000.0]
+
+    def tab(i, url, active=False, audible=False):
+        return dict(id=i, url=url, title="x", active=active, audible=audible, incognito=False)
+
+    def make():
+        led = Ledger(clock=lambda: t[0])
+        return BrowserTabSensor(enabled=True, ledger=led, clock=lambda: t[0]), led
+
+    def feed(s, tabs, focused=True):
+        s.submit({"focused": focused, "tabs": tabs})
+        s.read()
+    gh, mu = "https://github.com/x", "https://music.youtube.com/watch?v=1"
+    s, led = make()
+    t[0] = 1000
+    feed(s, [tab(1, gh, True), tab(2, mu, audible=True)])
+    t[0] = 1100
+    feed(s, [tab(1, gh, True), tab(2, mu, audible=True)])
+    t[0] = 1300
+    feed(s, [tab(1, gh, True), tab(2, mu, audible=False)])
+    bg = [e for e in led.episodes() if e["source"] == "background"]
+    check("sound from a tab behind the one in front is recorded when it stops: 300 seconds of music",
+          len(bg) == 1 and bg[0]["category"] == "music" and bg[0]["end"] - bg[0]["start"] == 300 and bg[0]["site"] == "music.youtube.com", str(bg))
+    check("...with no title and nothing but the site", bg[0]["title"] == "")
+    s.pause()
+    fg = [e for e in led.episodes() if e["source"] != "background"]
+    by = {c: sec for c, sec, _n in led.totals(0, 1e9)}
+    check("the page in front is its own episode, and the two do not overlap in category (code vs music)",
+          len(fg) == 1 and fg[0]["category"] == "code" and by.get("music") == 300.0 and by.get("code") == 300.0, str(by))
+
+    s, led = make()
+    t[0] = 2000
+    feed(s, [tab(1, gh, True), tab(2, mu, audible=True)])
+    t[0] = 2060
+    feed(s, [tab(1, gh), tab(2, mu, True, True)])                  # the music tab comes to the front
+    t[0] = 2200
+    feed(s, [tab(1, gh, True), tab(2, mu, audible=True)])          # ...and back behind
+    s.pause()
+    eps = sorted(led.episodes(), key=lambda e: e["start"])
+    music = [(e["source"], e["start"], e["end"]) for e in eps if e["category"] == "music"]
+    check("behind, then in front: one stretch each, none counted twice (60 + 140 = 200 seconds, not 340)",
+          music == [("background", 2000.0, 2060.0), ("table", 2060.0, 2200.0)], str(music))
+
+    s, led = make()
+    t[0] = 3000
+    feed(s, [tab(1, gh, True), tab(2, mu, audible=True)])
+    t[0] = 3005
+    feed(s, [tab(1, gh, True), tab(2, mu, audible=False)])
+    check("five seconds of sound is not a listen", [e for e in led.episodes() if e["source"] == "background"] == [])
+
+    s, led = make()
+    t[0] = 4000
+    feed(s, [tab(1, gh, True), tab(2, mu, audible=True)])
+    t[0] = 4200
+    s.pause()
+    bg = [e for e in led.episodes() if e["source"] == "background"]
+    check("pausing closes it at once, and reading stops", len(bg) == 1 and bg[0]["end"] == 4200 and not s._bg)
+
+    s, led = make()
+    t[0] = 5000
+    feed(s, [tab(1, gh, True), tab(2, mu, audible=True)])
+    t[0] = 5030
+    feed(s, [tab(1, gh, True), tab(2, mu, audible=True)])
+    t[0] = 5200
+    s.read()
+    bg = [e for e in led.episodes() if e["source"] == "background"]
+    check("the extension going quiet ends it at the last report, not now", len(bg) == 1 and bg[0]["end"] == 5030, str(bg))
+
+    s, led = make()
+    t[0] = 6000
+    feed(s, [tab(1, mu, True, True)], focused=True)
+    t[0] = 6100
+    feed(s, [tab(1, mu, True, True)], focused=False)               # the browser lost focus; the music plays on
+    t[0] = 6400
+    feed(s, [tab(1, mu, True, False)], focused=False)
+    s.pause()
+    music = sum(e["end"] - e["start"] for e in led.episodes() if e["category"] == "music")
+    check("a browser you walked away from, still playing, is still listening (100 in front + 300 behind)", 395 <= music <= 405, str(music))
+
+    s, led = make()
+    t[0] = 1_800_000_000.0
+    feed(s, [tab(1, gh, True), tab(2, mu, audible=True)])
+    t[0] += 1800
+    feed(s, [tab(1, gh, True), tab(2, mu, audible=False)])
+    b = Browsing(lambda: s, clock=lambda: t[0])
+    say = b.hear("how long did I listen to music this week", t[0])
+    check("'how long did I listen to music' answers from it", say == "This week you spent 30 minutes on music sites.", say)
+    check("the sensor counts them", s.stats["background"] == 1 and s.status()["background"] == 1)
+
+
 def time_str(ts):
     import time as _t
     return _t.strftime("%H:%M", _t.localtime(ts))
