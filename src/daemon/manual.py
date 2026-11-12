@@ -153,11 +153,11 @@ ENTRIES: List[Tuple[str, int, str]] = [
      "title; a guest's music counts as yours. sensors.now_playing turns it off."),
     ("browsing", 4,
      "ASH manual, browser tabs. Off until switched on (sensors.browser_tabs in daemon.json, plus the ash-tabs "
-     "extension). Then ASH keeps a local ledger of how long each site was in front: site and category only, no model. "
-     "Never private windows, banks, mail, chat, health or password pages, nor page text or addresses. Ask \"what have I "
-     "been browsing this week?\", \"how much time on youtube?\", \"when do I focus best?\", \"what am I into lately?\", "
-     "\"any suggestions about my browsing?\", \"what are my browsing habits?\". \"Tag this site as work\" teaches it; "
-     "\"stop watching my tabs\" pauses; \"forget my browsing\" deletes. A guest is refused."),
+     "extension). Then a local ledger of time per site and category, no model; never private windows, banks, mail, "
+     "chat, health or adult pages, nor page text or addresses. Ask \"what have I been browsing this week?\", \"when do "
+     "I focus best?\", \"how many tabs do I have open?\", \"compare today with yesterday\", \"any suggestions?\". "
+     "Control it: \"don't record the next hour\", \"never track youtube\", \"tag acme.dev as work\", \"keep social "
+     "under 3 hours a week\", \"export my browsing data\", \"forget my browsing\". A guest is refused."),
     ("learning", 4,
      "ASH manual, what ASH learns about you. It learns likes and dislikes (what you say, and what you play), how you "
      "browse (if tabs are on), and how welcome its own remarks are, per kind and per what you're doing (coding, "

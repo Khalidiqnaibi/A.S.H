@@ -1612,6 +1612,53 @@ guest's voice is refused all of it.
   holds right now -- tastes, what the ledger holds and in what form, interests,
   focus hours, reaction rate -- and how to delete each.
 
+## Follow-ups to the browsing profile (`tst_followups.py`)
+
+Each of these is its own commit, with its own section in `tst_followups.py`.
+
+**Fixes** (each was confirmed by a probe before it was changed):
+
+* A film with no keyboard input is not "idle": the idle cutoff is lifted while the tab in front is audible, up to four
+  hours (six minutes of Netflix used to be kept as three).
+* Churn means a tab opened and closed within ten seconds -- not a glance (it was counted twice) and not a quick
+  switch between tabs that stay open (it counted each one). The answers say "opening and closing tabs within seconds".
+* Forgetting a site removes its time from the totals too: the daily totals carry the site now (`daily_site`); older
+  ledgers are migrated, their totals kept as "(older)".
+* The never-record list covers web chat (Slack, Teams, Skype...), more mail, Drive/Photos/Keep, adult sites by name
+  and by word, and patient portals.
+* A bare "I hate this" is the playing song only if the track has just started (45 s); "this song" always is; "it's"
+  is never kept as something liked or hated.
+* The social learner's exploration bonus in a finer activity context is never larger than in the situation it came
+  from (a new activity used to make ASH five times keener to speak up).
+* One Ollama hiccup no longer switches the small model off for the session; only "model not found" does.
+
+**Controls**
+
+| You say | What happens |
+|---|---|
+| "don't record the next hour" / "go private for 30 minutes" | a timed pause that ends by itself ("resume watching my tabs" ends it early) |
+| "never track youtube" / "start tracking youtube again" / "what sites are you ignoring?" | keeps a site out, deletes what was held, and says so |
+| "show me everything you hold on me" | what is held, over which days, the top sites, what you told it |
+| "export my browsing data" | one plain JSON file in `state/exports/` (sites, categories, time; no addresses or titles) |
+
+**Profile and insight**
+
+| You say | What happens |
+|---|---|
+| "what sites can't you place?" / "tag acme.dev as work" | lists the biggest unplaced sites; tagging also re-labels what was already recorded as unknown |
+| "keep social under 3 hours a week" / "how am I doing on my goals?" / "remove my social goal" | a goal (per day or rolling week), progress by rule; an exceeded goal is first in the suggestions, a card in the console, and a line in the weekly review. Goals are settings, so "forget my browsing" keeps them |
+| "how many tabs do I have open?" | the count, and how many have not been in front for six hours (ids and times only) |
+| "how was today compared to yesterday?" / "...this week vs last week" | like for like (the same hours of yesterday), and where the time moved |
+| "how long did I listen to music this week?" | sound from a background tab counts as listening, in its own stretches, never counted twice |
+| "why did you say that?" (after something ASH volunteered) | adds how such remarks have landed in that situation, and what that did to how readily it spoke up |
+
+The console also shows a card when focus mode is on and a video, social, games, shopping or news page has been in front
+for ten minutes. Cards are never spoken.
+
+Not built (and why): an encrypted ledger (needs key management the daemon does not have), pausing during screen sharing
+(needs OS-level detection), learning the *style* of a nudge (a larger change to the social learner), and a
+"stuck on an error, then drifts to social" pattern (too easy to say something wrong about a person).
+
 ## How ASH tells what a sentence is (`tst_intents.py`)
 
 Three layers decide what happens to a sentence, and each had its own way of being wrong. A measurement of 267
