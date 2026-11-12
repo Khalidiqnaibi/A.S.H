@@ -335,6 +335,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "notes": {"enabled": True},
     # "Why is my computer slow?", "what's using my memory?": answered from the real numbers; closes a program only on yes.
     "pcdoctor": {"enabled": True},
+    # One well-timed line from what ASH notices: a meeting soon while you're gaming, a low battery, a birthday.
+    "situation": {"enabled": True},
     # Media: "pause the music", "next song", "turn it up" (the media keys, any
     # player); a chime with reminders and alerts; "take a photo" (one webcam
     # frame to photo_dir, on request only, never while paused).

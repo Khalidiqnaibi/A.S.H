@@ -256,6 +256,10 @@ class AmbientConfig:
     # "Why is my computer slow?" / "what's using my memory?": the real numbers, by rule (pcdoctor.py).
     pcdoctor: bool = False
     pcdoctor_reader: Optional[Callable[[], Any]] = None      # tests pass a fake snapshot reader
+    # One well-timed line from what ASH already notices: a meeting soon while gaming, a low battery, a birthday
+    # (situation.py). Offered through the attention gate like any remark.
+    situation: bool = False
+    situation_probe: Optional[Callable[[], Any]] = None      # () -> (battery (percent, plugged) | None, memory %); tests
     arrivals: bool = False          # "remind me when I get home" (arrival.py)
     arrivals_path: Optional[str] = None
     arrivals_home: str = ""
@@ -603,6 +607,11 @@ class AmbientRuntime:
         self.arrivals = Arrivals(self.cfg.arrivals_path, home=self.cfg.arrivals_home) if self.cfg.arrivals else None
         self._arrival_at = 0.0
         self._dym = None                          # a "Did you mean ...?" waiting for yes or no: (phrase, when)
+        self.situation = None
+        self._situation_at = 0.0
+        if self.cfg.situation:
+            from .situation import Situation
+            self.situation = Situation()
         self.pcdoctor = None
         if self.cfg.pcdoctor:
             from .pcdoctor import PCDoctor
@@ -1006,6 +1015,7 @@ class AmbientRuntime:
             self._watch_step(now)
             self._reminder_step(now)
             self._presence_step(now)
+            self._situation_step(now, idle_s)
             if self.weather is not None:
                 try:
                     self.weather.refresh(now)
@@ -1717,6 +1727,53 @@ class AmbientRuntime:
             self.undo.push(say.replace("Got it -- ", "").rstrip("."), undo, now)
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
+
+    def _situation_world(self, now: float, idle_s: Optional[float]):
+        from datetime import datetime, timedelta
+        from .situation import World, birthdays_from
+        w = World(now=now, idle_s=idle_s, activity=self.occasion.now())
+        cal = self.calendar
+        if cal is not None and cal.cfg.enabled and (cal.cfg.files or cal.cfg.urls):
+            try:
+                d = datetime.fromtimestamp(now).date()
+                for day in (d, d + timedelta(days=1)):
+                    for e in cal.events_on(day):
+                        if not e.allday:
+                            w.events.append((e.start.timestamp(), e.summary))
+            except Exception:
+                logger.exception("Situation: reading the calendar failed")
+        try:
+            if self.cfg.situation_probe is not None:
+                w.battery, w.mem_percent = self.cfg.situation_probe()
+            else:
+                import psutil
+                b = psutil.sensors_battery()
+                w.battery = (float(b.percent), bool(b.power_plugged)) if b is not None else None
+                w.mem_percent = float(psutil.virtual_memory().percent)
+        except Exception:
+            pass
+        if self.notes is not None:
+            w.birthdays = birthdays_from(self.notes.items)
+        return w
+
+    def _situation_step(self, now: float, idle_s: Optional[float]):
+        """Every half minute: the one thing worth saying from everything ASH notices, if there is one -- offered
+        through the gate, so muted, paused, quiet hours, focus and the hourly budget still decide."""
+        s = self.situation
+        if s is None or now - self._situation_at < 30.0 or self.privacy.paused or self.gate.muted:
+            return
+        self._situation_at = now
+        try:
+            n = s.tick(self._situation_world(now, idle_s))
+        except Exception:
+            logger.exception("Situation step failed")
+            return
+        if n is None:
+            return
+        self.submit(SensorEvent(source="flow", modality=Modality.TEXT, text=n.say, salience=0.6, urgency=n.urgency,
+                                ts=now, persistable=False,
+                                meta={"offer": "situation", "offer_strength": n.strength, "say": n.say,
+                                      "topic": "situation", "situation": n.key}))
 
     def _pcdoctor_request(self, ev, now: float) -> bool:
         """"Why is my computer slow?": from the real numbers. Its "want me to close Chrome?" is done only on a yes,
@@ -2687,7 +2744,7 @@ class AmbientRuntime:
         elif offer == "stuck_help" and meta.get("say"):
             say = str(meta["say"])
             prompt = ""
-        elif offer in ("wonder", "moment", "briefing") and meta.get("say"):
+        elif offer in ("wonder", "moment", "briefing", "situation") and meta.get("say"):
             say = str(meta["say"])
             prompt = ""
         elif offer == "free_moment" and not self.cfg.check_in_with_model:
@@ -3530,6 +3587,7 @@ class AmbientRuntime:
             "vision": ({**self.looking.status(), "presence_stuck": self.presence_stuck} if self.looking is not None else None),
             "notes": self.notes.status() if self.notes is not None else None,
             "pcdoctor": self.pcdoctor.status() if self.pcdoctor is not None else None,
+            "situation": self.situation.status() if self.situation is not None else None,
             "free_moments": self.moments.status() if self.moments else None,
             "followups": self.followups.status() if self.followups else None,
             "routines": self.routines.status() if self.routines else None,
