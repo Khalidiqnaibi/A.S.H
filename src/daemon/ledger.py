@@ -57,6 +57,10 @@ CREATE TABLE IF NOT EXISTS daily_site (
     seconds REAL NOT NULL DEFAULT 0, episodes INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (day, site, category)
 );
+-- A limit the user set: "keep social under 3 hours a week".
+CREATE TABLE IF NOT EXISTS goals (
+    category TEXT PRIMARY KEY, limit_s REAL NOT NULL, per TEXT NOT NULL
+);
 """
 
 
@@ -201,6 +205,26 @@ class Ledger:
             self.db.execute("DELETE FROM episodes WHERE start < ?", (cut,))
             self.db.commit()
         return len(rows)
+
+    # -- goals ----------------------------------------------------------------------
+    def set_goal(self, category: str, limit_s: float, per: str) -> None:
+        """"Keep social under 3 hours a week": per is "day" or "week"."""
+        with self._lock:
+            self.db.execute("INSERT INTO goals(category,limit_s,per) VALUES (?,?,?) "
+                            "ON CONFLICT(category) DO UPDATE SET limit_s = excluded.limit_s, per = excluded.per",
+                            (category, float(limit_s), per))
+            self.db.commit()
+
+    def clear_goal(self, category: str = "") -> int:
+        with self._lock:
+            n = self.db.execute("DELETE FROM goals" + (" WHERE category = ?" if category else ""),
+                                (category,) if category else ()).rowcount
+            self.db.commit()
+        return n
+
+    def goals(self) -> List[Tuple[str, float, str]]:
+        with self._lock:
+            return [(c, float(l), p) for c, l, p in self.db.execute("SELECT category,limit_s,per FROM goals ORDER BY category")]
 
     # -- sites ASH could not place ------------------------------------------------------
     def unknown_sites(self, limit: int = 5) -> List[Tuple[str, float, int]]:

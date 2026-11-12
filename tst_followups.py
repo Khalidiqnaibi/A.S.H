@@ -493,6 +493,52 @@ def feature_unknown_sites_and_tag_by_name():
           b.hear("what sites can't you place", now) == "I've been able to place every site I've seen.", b.hear("what sites can't you place", now))
 
 
+@section
+def feature_goals():
+    print("\n=== FEATURE: 'keep social under 3 hours a week' -- a goal, and how it is going ===")
+    from src.daemon.browsing import Browsing, parse
+    ok = {"keep social under 3 hours a week": ("social", 10800, "week"), "limit video to two hours a day": ("video", 7200, "day"),
+          "no more than 30 minutes of news a day": ("news", 1800, "day"), "set a goal: games under an hour a day": ("games", 3600, "day"),
+          "cap my shopping at 90 minutes a week": ("shopping", 5400, "week"), "hold my social browsing to 5 hours per week": ("social", 18000, "week")}
+    bad = {}
+    for q, (cat, secs, per) in ok.items():
+        got = parse(q)
+        if got is None or got[0] != "set_goal" or got[1] != {"cat": cat, "secs": str(secs), "per": per}:
+            bad[q] = got
+    check("the ways people set one", not bad, str(bad))
+    check("an absurd amount is refused", parse("keep social under 30 hours a day") is None and parse("keep social under 1 minute a day") is None)
+    check("so is something that is not a category", parse("keep my keys under an hour a day") is None)
+
+    s, led, now = _world()                                        # six days of 40 minutes of video, and 30 today of code
+    b = Browsing(lambda: s, clock=lambda: now, export_dir=tempfile.mkdtemp())
+    check("no goals yet: it says how to set one", "keep social under 3 hours a week" in b.hear("how am I doing on my goals", now))
+    say = b.hear("limit video to two hours a week", now)
+    check("setting one says what it set", say.startswith("Okay: video under 2 hours a week"), say)
+    say = b.hear("how am I doing on my goals", now)
+    check("progress: used of limit, with the percentage (six days of 40 minutes = 4 hours: over)", "video: 4 hours of 2 hours this week -- over by 2 hours" in say, say)
+    b.hear("keep news under 3 hours a week", now)
+    say = b.hear("what are my goals", now)
+    check("several goals are listed together, alphabetically", "news: 1 hour of 3 hours this week (33%)" in say and "video:" in say and say.index("news") < say.index("video"), say)
+    b.hear("limit video to 1 hour a day", now)
+    check("a goal can be changed by setting it again", len(led.goals()) == 2 and ("video", 3600.0, "day") in led.goals())
+    check("a day goal counts from midnight (today there are 0 minutes of video)", "video: under a minute of 1 hour today (0%)" in b.hear("how am I doing on my goals", now))
+    led.set_goal("video", 7200, "week")
+    sug = b.hear("any suggestions about my browsing", now)
+    check("...as the first thing, with the numbers", sug.startswith("Here's what stands out: You're over your video goal -- 4 hours of 2 hours this week"), sug)
+    check("clearing one", "removed your video goal" in b.hear("remove my video goal", now) and len(led.goals()) == 1)
+    check("clearing a goal that is not there says so", b.hear("remove my video goal", now) == "You don't have a video goal.")
+    check("clearing all", "all your goals" in b.hear("clear my goals", now) and led.goals() == [])
+    led.set_goal("social", 3600, "day")
+    led.forget_all()
+    check("forgetting your browsing does not delete the goals you set (they are settings, not data)", led.goals() == [("social", 3600.0, "day")])
+    p = os.path.join(tempfile.mkdtemp(), "g.sqlite3")
+    from src.daemon.ledger import Ledger
+    a = Ledger(p)
+    a.set_goal("news", 1800, "day")
+    a.close()
+    check("they survive a restart", Ledger(p).goals() == [("news", 1800.0, "day")])
+
+
 def time_str(ts):
     import time as _t
     return _t.strftime("%H:%M", _t.localtime(ts))

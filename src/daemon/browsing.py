@@ -49,6 +49,9 @@ _SITE = r"(?P<site>[a-z0-9][a-z0-9\-]*(?:\.[a-z0-9\-]+)*\.[a-z]{2,})"
 _FOR_HOW_LONG = (r"(?:\s+for\s+(?:the\s+next\s+)?|\s+the\s+next\s+)(?:(?:(?:an?|one)\s+)?(?P<unit1>hour|minute|min)\b|(?P<n>\d+(?:\.\d+)?)\s*"
                  r"(?P<unit>hours?|hrs?|minutes?|mins?))")
 
+_AMOUNT = (r"(?:(?:an?|one)\s+(?P<g_unit1>hour|minute)|(?P<g_n>\d+(?:\.\d+)?)\s*(?P<g_u>hours?|hrs?|minutes?|mins?))")
+_PER = r"\s*(?:a|per|each|every|/)\s*(?P<g_per>day|week)"
+
 _RX: List[Tuple[str, "re.Pattern"]] = [(k, re.compile(p, re.I)) for k, p in (
     # "don't record the next hour": a pause that ends by itself. Before "pause", whose pattern would take it as a stop.
     ("pause_for", _A + r"(?:go\s+private|don'?t\s+(?:record|track|watch|log)(?:\s+(?:my\s+)?(?:tabs|browsing|browser|websites?))?|"
@@ -82,6 +85,14 @@ _RX: List[Tuple[str, "re.Pattern"]] = [(k, re.compile(p, re.I)) for k, p in (
                 r"|how\s+am\s+i\s+doing\s+(?:with|on)\s+my\s+(?:time|browsing|focus|week))" + _Z),
     ("habits", _A + r"(?:what\s+are\s+my\s+(?:browsing|web|online)\s+habits|tell\s+me\s+about\s+my\s+(?:browsing|online)\s+habits"
                r"|how\s+do\s+i\s+(?:browse|use\s+(?:the\s+)?(?:browser|web|internet))|what(?:'s|\s+is)\s+my\s+(?:browsing|online)\s+routine)" + _Z),
+    # Goals: "keep social under 3 hours a week", "no more than 2 hours of video a day"; "how am I doing on my goals"
+    ("set_goal", _A + r"(?:(?:keep|limit|cap|hold)\s+(?:my\s+)?|set\s+(?:a\s+)?goal[:,]?\s+(?:for\s+)?)(?P<cat>" + _CATS + r")"
+                      r"(?:\s+(?:browsing|sites|time|use))?\s+(?:to|under|below|at|within|of)\s+" + _AMOUNT + _PER + _Z),
+    ("set_goal", _A + r"(?:no\s+more\s+than|at\s+most|a\s+maximum\s+of|max(?:imum)?(?:\s+of)?)\s+" + _AMOUNT + r"\s+of\s+(?P<cat>" + _CATS + r")"
+                      r"(?:\s+(?:browsing|sites|time))?" + _PER + _Z),
+    ("goal_status", _A + r"(?:how\s+(?:am\s+i|are\s+my\s+goals)\s+(?:doing\s+)?(?:on|with|going)?\s*(?:my\s+)?(?:browsing\s+)?goals?"
+                         r"|what\s+are\s+my\s+(?:browsing\s+)?goals|how\s+are\s+my\s+goals\s+going)" + _Z),
+    ("clear_goal", _A + r"(?:clear|remove|drop|delete|forget)\s+(?:all\s+)?(?:my\s+)?(?:(?P<cat>" + _CATS + r")\s+)?(?:browsing\s+)?goals?" + _Z),
     # "tag acme.dev as work" / "acme.dev is a work site": teach a site by name (the one in front is "tag this site as ...")
     ("tag_site", _A + r"(?:(?:tag|mark|set|file|call)\s+(?:" + _SITE + r"|(?!(?:this|that|the|my|current)\b)(?P<name>[a-z][a-z0-9]{2,20}))\s+as\s+"
                       r"(?:a\s+|being\s+)?(?:for\s+)?(?P<cat>" + _CATS + r")(?:\s+site)?"
@@ -124,6 +135,14 @@ def parse(text: str) -> Optional[Tuple[str, Dict[str, str]]]:
         m = rx.match(t)
         if m:
             d = {k: v for k, v in m.groupdict().items() if v}
+            if kind == "set_goal":
+                secs = (3600.0 if (d.get("g_unit1") or "").lower() == "hour" else 60.0) if d.get("g_unit1") else \
+                    float(d["g_n"]) * (3600.0 if d["g_u"].lower().startswith("h") else 60.0)
+                per = d["g_per"].lower()
+                cat_ = _SYN.get(d["cat"].lower(), d["cat"].lower())
+                if not 300.0 <= secs <= (24 * 3600.0 if per == "day" else 7 * 24 * 3600.0):
+                    return None
+                return kind, {"cat": cat_, "secs": str(int(secs)), "per": per}
             if kind == "pause_for":
                 mins = 60.0 if (d.get("unit1") or "").lower() == "hour" else 1.0 if d.get("unit1") else \
                     float(d["n"]) * (60.0 if d["unit"].lower().startswith("h") else 1.0)
@@ -254,6 +273,23 @@ class Browsing:
     def _totals(self, a: float, b: float) -> Dict[str, float]:
         return {c: sec for c, sec, _n in self.sensor().ledger.totals(a, b) if c != "unknown"}
 
+    def goal_progress(self, now: float) -> List[Dict[str, Any]]:
+        """Each goal with what has been used: a day goal counts from midnight, a week goal over the last seven days."""
+        led = self.sensor().ledger
+        out = []
+        for cat, limit, per in led.goals():
+            since = _midnight(now) if per == "day" else now - 7 * DAY
+            used = sum(sec for _c, sec, _n in led.totals(since, now + 1, category=cat))
+            out.append({"category": cat, "limit": limit, "per": per, "used": used, "over": used >= limit})
+        return out
+
+    @staticmethod
+    def goal_line(g: Dict[str, Any]) -> str:
+        label = "today" if g["per"] == "day" else "this week"
+        pct = int(round(100 * g["used"] / g["limit"])) if g["limit"] else 0
+        tail = f" -- over by {dur(g['used'] - g['limit'])}" if g["over"] else f" ({pct}%)"
+        return f"{g['category']}: {dur(g['used'])} of {dur(g['limit'])} {label}{tail}"
+
     def suggest(self, now: float) -> str:
         """Observations about this week against last, each with its numbers; nothing if nothing stands out.
         Rules only. It says what changed and when focus tends to fall -- it does not tell anyone what to do."""
@@ -294,6 +330,8 @@ class Browsing:
         if f and f.get("enough"):
             out.append(f"Your focused browsing clusters between {f['from']:02d}:00 and {f['to']:02d}:00 "
                        f"({f['days']} days of it) -- that's the stretch worth keeping free.")
+        over = [g for g in self.goal_progress(now) if g["over"]]
+        out = [f"You're over your {g['category']} goal -- {self.goal_line(g).split(': ', 1)[1]}." for g in over] + out
         if not out:
             return "Nothing stands out -- this week looks much like the last."
         return "Here's what stands out: " + " ".join(out[:4])
@@ -422,6 +460,20 @@ class Browsing:
             if site:
                 return f"Okay, {site} is {cat} from now on."
             return "I don't see a page in front right now to tag." if s.current() is None else "I can't tag that one."
+        if kind == "set_goal":
+            led.set_goal(d["cat"], float(d["secs"]), d["per"])
+            return (f"Okay: {d['cat']} under {dur(float(d['secs']))} a {d['per']}. Ask \"how am I doing on my goals\" any time; "
+                    f"if you go over, a card shows on the console.")
+        if kind == "goal_status":
+            rows = self.goal_progress(now)
+            if not rows:
+                return "You haven't set any goals. Try \"keep social under 3 hours a week\"."
+            return "Your goals: " + "; ".join(self.goal_line(g) for g in rows) + "."
+        if kind == "clear_goal":
+            n = led.clear_goal(d.get("cat", ""))
+            if not n:
+                return "You don't have " + (f"a {d['cat']} goal." if d.get("cat") else "any goals.")
+            return f"Okay, I've removed {'your ' + d['cat'] + ' goal' if d.get('cat') else 'all your goals'}."
         if kind == "tag_site":
             from .pagekind import host_of, site_of
             site = site_of(host_of(d["site"]))
