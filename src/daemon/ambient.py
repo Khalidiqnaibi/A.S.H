@@ -2324,6 +2324,11 @@ class AmbientRuntime:
         if self._voice_command(ev, now):
             return True
 
+        # The camera, when it is on: before "who was that?" below (a present "who is this?" is the camera's), and
+        # before the memory's own "forget X" / "remember X" ("forget Omar's face" is the camera's).
+        if self._look_request(ev, now):
+            return True
+
         # "Open it", "remind me about that later": rewritten into the full
         # request, then handled as usual; "who was that?" answered here.
         if not loose and self.context is not None and self._context_step(ev, now):
@@ -2348,8 +2353,6 @@ class AmbientRuntime:
             return True
         if self._focus_request(ev, now):
             return True
-        if self._look_request(ev, now):
-            return True          # before the memory's own "forget X" / "remember X": "forget Omar's face" is the camera's
         if self._browsing_request(ev, now):
             return True
         if self._ux_request(ev, now):
