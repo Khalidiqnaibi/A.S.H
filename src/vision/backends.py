@@ -70,6 +70,37 @@ class Thing:
 # ======================================================================================================================
 # Faces
 # ======================================================================================================================
+def face_quality(img: Any, face: Face, min_width_frac: float = 0.12, min_score: float = 0.85,
+                 dark: float = 55.0, bright: float = 215.0, sharp: float = 2.0) -> str:
+    """Whether a face is good enough to LEARN from: "" if so, else a short hint about what to change. Only used when
+    teaching (a bad look kept would quietly hurt every later match); recognising is never blocked by it. The numbers are
+    starting points, not measurements from a real camera."""
+    bgr = as_bgr(img)
+    if bgr is None:
+        return "the picture was not readable"
+    h, w = bgr.shape[:2]
+    x, y, fw, fh = face.box
+    if fw < max(48, min_width_frac * w):
+        return "the face is too small in the picture -- move closer"
+    if x < 0 or y < 0 or x + fw > w or y + fh > h:
+        return "the face is cut off at the edge -- move to the middle"
+    if face.score < min_score:
+        return "it isn't a clear view of the face -- look straight at the camera"
+    crop = bgr[y:y + fh, x:x + fw].astype(np.float32).mean(axis=2)
+    mean = float(crop.mean())
+    if mean < dark:
+        return "the light is too dim on the face"
+    if mean > bright:
+        return "the face is washed out by too much light"
+    rows = np.linspace(0, crop.shape[0] - 1, 64).astype(int)
+    cols = np.linspace(0, crop.shape[1] - 1, 64).astype(int)
+    small = crop[np.ix_(rows, cols)]
+    grad = float(np.abs(np.diff(small, axis=0)).mean() + np.abs(np.diff(small, axis=1)).mean()) / 2.0
+    if grad < sharp:
+        return "the picture is blurry -- hold still"
+    return ""
+
+
 class FaceBackend:
     """detect(img) -> [Face]; embed(img, face) -> a unit vector. `available()` says whether it can work at all."""
 

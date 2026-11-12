@@ -348,6 +348,7 @@ def looking(things=(), faces=(), vectors=(), eye_paused=False, grab=True, frames
     fcs = kw.pop("faces_backend", FakeFaces(faces, vectors))
     mem = kw.pop("memory", VisualMemory(None, clock=lambda: t[0]))
     user = kw.pop("user", lambda: "")
+    kw.setdefault("enrol_checks", False)          # the synthetic frames are flat grey; the quality checks have their own tests
     lk = Looking(eye, fcs, objs, ThingEmbedder(), mem, LookingConfig(enabled=True, **kw), clock=lambda: t[0], user=user)
     lk.t = t
     return lk
@@ -404,7 +405,7 @@ def step1_look_around_and_what_am_i_holding():
     from src.vision.memory import VisualMemory
     eye = Eye(grab=lambda: frame(size=(480, 640)))
     io = dict(eye=eye, faces=FakeFaces(), objects=FakeObjects([thing("cup", .8), thing("laptop", .7)]), memory=VisualMemory(None))
-    rt = te.rig(vision=True, vision_io=io, grammar=True)
+    rt = te.rig(vision=True, vision_io=io, grammar=True, vision_cfg=dict(enrol_checks=False))
     rt.brain.user = "Khalid"
     rt.say("look around")
     check("by voice: answered by rule", rt.out[-1] == "I see a cup and a laptop.", rt.out[-1])
@@ -521,7 +522,7 @@ def step2_teach_by_showing():
     from src.vision.memory import VisualMemory
     mem = VisualMemory(None)
     io = dict(eye=Eye(grab=lambda: blue), faces=FakeFaces([face()], [omar]), objects=FakeObjects([thing("cup", .8, (220, 140, 200, 200))]), memory=mem)
-    rt = te.rig(vision=True, vision_io=io)
+    rt = te.rig(vision=True, vision_io=io, vision_cfg=dict(enrol_checks=False))
     rt.brain.user = "Khalid"
     rt.say("remember this as my blue mug")
     check("by voice: taught", rt.out[-1].startswith("Okay, I'll recognise my blue mug") and mem.get("blue mug") is not None, rt.out[-1])
@@ -661,7 +662,7 @@ def step3_recognise_who_and_what():
     mem = VisualMemory(None)
     mem.enroll("Omar", "person", omar)
     eye = Eye(grab=lambda: frame(size=(480, 640)))
-    rt = te.rig(vision=True, vision_io=dict(eye=eye, faces=FakeFaces([face()], [omar]), objects=FakeObjects([]), memory=mem), grammar=True)
+    rt = te.rig(vision=True, vision_io=dict(eye=eye, faces=FakeFaces([face()], [omar]), objects=FakeObjects([]), memory=mem), grammar=True, vision_cfg=dict(enrol_checks=False))
     rt.brain.user = "Khalid"
     rt.say("who's this")
     check("by voice", rt.out[-1] == "That's Omar.", rt.out[-1])
@@ -1183,6 +1184,36 @@ def broken_model_is_not_an_empty_room():
     got = pl.watch(frame(size=(480, 640)), pl.t[0])
     check("a broken reading leaves who-is-here as it was, instead of reporting everyone gone",
           got == [] and pl.presence.here(pl.t[0]) == ["Omar"], str(pl.presence.here(pl.t[0])))
+
+
+@section
+def enrolment_refuses_a_bad_look():
+    print("\n=== Learning a face needs a good look: small, dim, blurry or cut-off ones are refused ===")
+    from src.vision.backends import Face, face_quality
+    sharp = frame(color=(120, 120, 120), noise=40, size=(480, 640))
+    big = face((200, 100, 160, 200))
+
+    check("a big, lit, detailed, centred face is fine", face_quality(sharp, big) == "", face_quality(sharp, big))
+    check("a small face: move closer", "move closer" in face_quality(sharp, face((300, 200, 40, 50))))
+    check("a face cut by the edge: move to the middle", "cut off" in face_quality(sharp, face((560, 100, 160, 200))))
+    check("a low detector score: not a clear view", "clear view" in face_quality(sharp, Face(box=(200, 100, 160, 200), score=0.5, row=np.zeros(15, np.float32))))
+    check("a dim face", "dim" in face_quality(frame(color=(20, 20, 20), noise=15), big))
+    check("a washed-out face", "washed out" in face_quality(frame(color=(245, 245, 245), noise=8), big))
+    check("a blurry (flat) face", "blurry" in face_quality(frame(color=(120, 120, 120)), big))
+    check("an unreadable picture", "not readable" in face_quality(None, big))
+
+    lk = looking(faces=[big], vectors=[vec(1)], enrol_checks=True, frames=[frame(color=(120, 120, 120))])
+    out = lk.hear("remember this person as Omar")
+    check("teaching from a blurry look is refused, with what to change", "blurry" in out and "bad look" in out and lk.memory.get("Omar") is None, out)
+    lk = looking(faces=[big], vectors=[vec(1)], enrol_checks=True, frames=[sharp])
+    out = lk.hear("remember this person as Omar")
+    check("a good look is learned", lk.memory.get("Omar") is not None, out)
+    lk = looking(faces=[big], vectors=[vec(1)], enrol_checks=False, frames=[frame(color=(120, 120, 120))])
+    lk.hear("remember this person as Omar")
+    check("...and the check can be switched off", lk.memory.get("Omar") is not None)
+    lk = looking(faces=[big], vectors=[vec(1)], enrol_checks=True, frames=[frame(color=(120, 120, 120))])
+    lk.memory.enroll("Omar", "person", vec(1))
+    check("recognising is never blocked by it", "Omar" in lk.hear("who is this"), lk.hear("who is this"))
 
 
 if __name__ == "__main__":

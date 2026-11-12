@@ -228,6 +228,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "photo_dir": "~/Pictures/ASH",     # where "save that photo" goes
         "face_threshold": 0.40,
         "thing_threshold": 0.88,
+        "enrol_checks": True,              # refuse to learn a face from a small, dim, blurry or cut-off look
         "presence": False,                 # who is here, from the camera sensor's frames every few seconds
         "presence_interval_s": 8.0,
         "away_after_s": 90.0,

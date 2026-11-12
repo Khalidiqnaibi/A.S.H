@@ -114,6 +114,7 @@ class LookingConfig:
     # Who is here, from the camera sensor's own frames every few seconds (presence.py). Off until switched on.
     presence: bool = False
     presence_interval_s: float = 8.0
+    enrol_checks: bool = True          # refuse to learn a face from a bad look (small, dim, blurry, cut off)
     presence_background: bool = True   # read the frame on a worker thread so a slow detector never stalls the loop
     away_after_s: float = 90.0            # not seen for this long: gone
     stranger_hold_s: float = 120.0        # after an unknown face, private things are not read aloud for this long
@@ -521,6 +522,11 @@ class Looking:
             return "I can't see a face. Face the camera and say it again."
         if len(faces) > 1 and faces[0].box[2] * faces[0].box[3] < 1.5 * faces[1].box[2] * faces[1].box[3]:
             return "I can see more than one face -- I need just one person in view to learn it."
+        if self.cfg.enrol_checks:
+            from src.vision.backends import face_quality
+            hint = face_quality(frame, faces[0])
+            if hint:
+                return f"I can see a face, but {hint}. Then say it again -- I don't want to learn from a bad look."
         vec = self.faces.embed(frame, faces[0])
         if vec is None:
             return "I couldn't read that face -- try again with the face lit and straight on."
