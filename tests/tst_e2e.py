@@ -334,7 +334,8 @@ def build():
                         privacy=PrivacyPolicy(),
                         config=AmbientConfig(tick_seconds=0.02, sleep_after_idle_s=10 ** 9, vision=True, vision_io=vio,
                                              vision_cfg=dict(enrol_checks=False),
-                                             vision_path=os.path.join(STATE, "vision.json"), **feats),
+                                             vision_path=os.path.join(STATE, "vision.json"),
+                                             notes=True, notes_path=os.path.join(STATE, "notes.json"), **feats),
                         response_sink=lambda t, m: out.append((t, dict(m or {}))))
     rt.clock = lambda: clock[0]
     from src.face.bridge import FaceBridge
