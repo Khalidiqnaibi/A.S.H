@@ -168,8 +168,8 @@ ENTRIES: List[Tuple[str, int, str]] = [
      "ASH manual, the screen. With screen capture on, ASH knows which window is focused and what it is called (the file "
      "or page, the project, the app). \"What do you see?\" or \"what's on my screen?\" makes it look at that window, say "
      "what kind of screen it is and read out the gist of the words. It never looks at its own window or terminal, at "
-     "windows on its blocked list, or at chats and mail (those protections are switched off for you in daemon.json "
-     "under privacy, not for others). It cannot click or type in what it sees."),
+     "windows on its blocked list (passwords, banking, calls). Chats and mail on screen it may read: protection for those "
+     "is off by default, and privacy.protect_private_content in daemon.json turns it on. It cannot click or type."),
     ("activity", 4,
      "ASH manual, what you do. ASH keeps one short sentence for each real stretch of work (\"spent 12 minutes on brain.py "
      "in A.S.H\"), keeps topics that connect to something it already knows, and at a free moment may ask what one of "

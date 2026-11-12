@@ -118,15 +118,19 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "require_local_asr": True,
         # Your own entries, added to the built-in ones below.
         "blocked_apps": [],
-        # The general protections, on because ASH is meant to be run by people
-        # other than its author. Everything here is local, so someone who does
-        # not mind ASH reading their own screen can turn either off:
+        # Two general protections. Everything here is local.
         #   use_default_blocklist     passwords, banking, calls... : no capture,
-        #                             and the title is redacted everywhere
+        #                             and the title is redacted everywhere.
+        #                             ON by default.
         #   protect_private_content   chat and mail apps: no capture, no OCR,
-        #                             and no file/subject taken from the title
+        #                             and no file/subject taken from the title.
+        #                             OFF by default (a deliberate choice: ASH may
+        #                             read your own chats and mail on screen);
+        #                             set it to true to withhold them. Separately,
+        #                             the browser-tab ledger never records chat,
+        #                             mail, banking or health sites whatever this says.
         "use_default_blocklist": True,
-        "protect_private_content": True,
+        "protect_private_content": False,
     },
     "runtime": {
         "tick_seconds": 1.0,

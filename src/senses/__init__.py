@@ -48,7 +48,7 @@ def build_periphery(config: dict, tts_engine=None, registry=None) -> PeripheryRe
 
     priv = config.get("privacy", {})
     from .screen import set_private_content_protection
-    set_private_content_protection(priv.get("protect_private_content", True))
+    set_private_content_protection(priv.get("protect_private_content", False))
 
     win_cfg = s.get("active_window", {})
     window = ActiveWindowSensor(

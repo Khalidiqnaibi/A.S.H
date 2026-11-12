@@ -621,11 +621,13 @@ def main():
           ActiveWindowSensor(enabled=False, blocklist=["my crm"],
                              use_default_blocklist=False).is_blocked("My CRM"))
 
-    # The module's own starting value is off (a deliberate choice); the daemon turns it on from its config, which
-    # is what "by default" means for a running ASH.
-    set_private_content_protection(False)
+    # Off by default, deliberately: in the module and in the daemon's config. It is a switch, and turning it on
+    # withholds chat and mail.
+    set_private_content_protection(True)
     build_periphery({"privacy": dict(DEFAULT_CONFIG["privacy"])}, registry=PeripheryRegistry())
-    check("the daemon's default config turns the chat/mail protection on", is_private_content("x - Discord", "Discord.exe"))
+    check("the daemon's default config leaves the chat/mail protection off", not is_private_content("x - Discord", "Discord.exe"))
+    build_periphery({"privacy": {"protect_private_content": True}}, registry=PeripheryRegistry())
+    check("...and 'protect_private_content': true turns it on", is_private_content("x - Discord", "Discord.exe"))
     set_private_content_protection(False)
     check("...and off when asked: contents may be read",
           not is_private_content("x - Discord", "Discord.exe")
@@ -635,8 +637,8 @@ def main():
     set_private_content_protection(True)
 
     cfg = DEFAULT_CONFIG["privacy"]
-    check("both protections default to on in the config",
-          cfg["use_default_blocklist"] is True and cfg["protect_private_content"] is True)
+    check("the blocklist defaults to on in the config, the chat/mail protection to off (a deliberate choice)",
+          cfg["use_default_blocklist"] is True and cfg["protect_private_content"] is False)
     reg = build_periphery({"privacy": {"use_default_blocklist": False,
                                        "protect_private_content": False}},
                           registry=PeripheryRegistry())
