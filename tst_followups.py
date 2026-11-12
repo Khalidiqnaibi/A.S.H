@@ -259,6 +259,49 @@ def fix_churn_means_a_tab_that_came_and_went():
           "dropped tabs" not in src and "hopping between" not in src)
 
 
+@section
+def fix_a_film_is_not_idle():
+    print("\n=== FIX: watching a video with no keyboard input is still watching ===")
+    from src.daemon.ledger import Ledger
+    from src.senses.browsertabs import BrowserTabSensor
+    t = [3000.0]
+    idle = [0.0]
+
+    def make(**kw):
+        led = Ledger(clock=lambda: t[0])
+        return BrowserTabSensor(enabled=True, ledger=led, clock=lambda: t[0], idle_s=lambda: idle[0], **kw), led
+
+    def watch(s, audible, minutes):
+        t[0], idle[0] = 3000.0, 0.0
+        tab = dict(id=1, url="https://www.netflix.com/watch/1", title="Show", active=True, audible=audible, incognito=False)
+        s.submit({"focused": True, "tabs": [tab]})
+        s.read()
+        for _ in range(minutes * 2):                                  # a heartbeat every 30 seconds, hands off
+            t[0] += 30
+            idle[0] += 30
+            s.submit({"focused": True, "tabs": [tab]})
+            s.read()
+        t[0] += 1
+        s.read()
+    s, led = make()
+    watch(s, True, 6)
+    still_open = s.current() is not None
+    s.pause()                                                         # closes what is open, as stopping would
+    secs = sum(e["end"] - e["start"] for e in led.episodes(0, 1e12))
+    check("six minutes of an audible tab with no input: all six are kept (it was 180 seconds)", secs >= 350 and still_open,
+          f"{secs} open={still_open}")
+    s, led = make()
+    watch(s, False, 6)
+    secs = sum(e["end"] - e["start"] for e in led.episodes(0, 1e12))
+    check("a silent tab with no input still ends at the idle line (three minutes)", 150 <= secs <= 200 and s.current() is None, f"{secs}")
+    s, led = make(idle_audible_max_s=600)
+    watch(s, True, 20)
+    s.pause()
+    secs = sum(e["end"] - e["start"] for e in led.episodes(0, 1e12))
+    check("...and a video left running past the limit is plainly left running: it stops counting", secs < 700, f"{secs}")
+    check("the default limit is hours, not minutes", BrowserTabSensor(enabled=True).idle_audible_max_s >= 3 * 3600)
+
+
 if __name__ == "__main__":
     for fn in SECTIONS:
         fn()

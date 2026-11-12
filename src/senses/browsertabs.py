@@ -98,6 +98,7 @@ class BrowserTabSensor(Sensor):
                  clock: Callable[[], float] = time.time, port: int = 0, token: str = "",
                  min_s: float = 3.0, grace_s: float = 15.0, stale_s: float = 90.0, churn_s: float = 10.0,
                  idle_s: Optional[Callable[[], float]] = None, idle_after_s: float = 180.0,
+                 idle_audible_max_s: float = 4 * 3600.0,
                  scrub: Optional[Callable[[str], str]] = None, listen: bool = False):
         from src.daemon.pagekind import Classifier   # lazy: senses must not import the daemon at load time
         self.cls = classifier if classifier is not None else Classifier()
@@ -107,6 +108,9 @@ class BrowserTabSensor(Sensor):
         self.token = token
         self.min_s, self.grace_s, self.stale_s, self.churn_s = float(min_s), float(grace_s), float(stale_s), float(churn_s)
         self.idle_s, self.idle_after_s = idle_s, float(idle_after_s)
+        # A video or a lecture with sound is not "away": the cutoff for idle input is lifted while the tab in
+        # front is audible, up to this long (a film left playing overnight is still not an evening of watching).
+        self.idle_audible_max_s = float(idle_audible_max_s)
         self.scrub = scrub
         self.listen = bool(listen)
         self.paused = False
@@ -204,7 +208,8 @@ class BrowserTabSensor(Sensor):
         self._count_churn(now, raw)
         clean = [c for c in (self.sanitize(t) for t in raw) if c]
         active_raw = next((t for t in raw if t.get("active")), None)
-        focused = bool(rep.get("focused", True)) and not self._idle()
+        audible_front = bool(active_raw and active_raw.get("audible"))
+        focused = bool(rep.get("focused", True)) and not self._idle(audible_front)
         cand = None
         if focused and active_raw is not None:
             cand = next((c for c in clean if c["active"]), None)     # None if the active tab was dropped
@@ -230,13 +235,18 @@ class BrowserTabSensor(Sensor):
         out.append(self._event("changed" if cur is not None else "started", now, None))
         return out
 
-    def _idle(self) -> bool:
+    def _idle(self, audible: bool = False) -> bool:
+        """No keyboard or mouse for a while. Not while the tab in front is playing sound (a film, a lecture), until
+        it has been that long that it is plainly left running."""
         if self.idle_s is None:
             return False
         try:
-            return float(self.idle_s()) >= self.idle_after_s
+            idle = float(self.idle_s())
         except Exception:
             return False
+        if idle < self.idle_after_s:
+            return False
+        return not (audible and idle < self.idle_audible_max_s)
 
     def _count_churn(self, now: float, raw: List[Dict[str, Any]]):
         ids = {t.get("id") for t in raw if t.get("id") is not None}
