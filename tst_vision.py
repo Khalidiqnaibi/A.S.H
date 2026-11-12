@@ -97,6 +97,109 @@ def step0_visual_memory():
     check("a kept photo is the user's file: forgetting removes the pointer, not the file", os.path.exists(photo))
 
 
+def frame(color=(200, 200, 200), square=None, size=(480, 640), noise=0, seed=0):
+    """A BGR test frame: a grey background and, if given, a filled square of `square=(bgr, (x, y, w, h))`."""
+    f = np.full((size[0], size[1], 3), color, dtype=np.uint8)
+    if square:
+        c, (x, y, w, h) = square
+        f[y:y + h, x:x + w] = c
+    if noise:
+        f = np.clip(f.astype(int) + np.random.RandomState(seed).randint(-noise, noise + 1, f.shape), 0, 255).astype(np.uint8)
+    return f
+
+
+@section
+def step0_backends_and_installer():
+    print("\n=== STEP 0: the models behind their interfaces, and an installer that asks first ===")
+    from PIL import Image
+    from src.vision import backends as bk, models
+
+    red_rgb = Image.new("RGB", (4, 4), (255, 0, 0))
+    check("a PIL image (RGB) becomes BGR", tuple(bk.as_bgr(red_rgb)[0, 0]) == (0, 0, 255))
+    check("an array is taken to be BGR already; grey and float frames are handled", bk.as_bgr(np.zeros((4, 4), np.uint8)).shape == (4, 4, 3)
+          and bk.as_bgr(np.ones((4, 4, 3), np.float32)).max() == 255 and bk.as_bgr(frame()).shape == (480, 640, 3))
+    check("anything else is None, not a crash", bk.as_bgr(None) is None and bk.as_bgr("x") is None and bk.as_bgr(np.zeros((3,))) is None)
+
+    # an object detector's raw output, with a known geometry: a 1280x720 frame is letterboxed to 640 (ratio 0.5, pad 0,140)
+    canvas, ratio, pad = bk.letterbox(np.zeros((720, 1280, 3), np.uint8), 640)
+    check("letterbox keeps the aspect ratio and says how to undo it", canvas.shape == (640, 640, 3) and ratio == 0.5 and pad == (0, 140))
+    out = np.zeros((1, 84, 6), np.float32)
+
+    def put(i, cx, cy, w, h, cls, score):
+        out[0, 0:4, i] = (cx, cy, w, h)
+        out[0, 4 + cls, i] = score
+    put(0, 320, 320, 100, 100, 41, 0.90)         # a cup
+    put(1, 322, 322, 100, 100, 41, 0.60)         # the same cup, found twice
+    put(2, 100, 300, 80, 160, 0, 0.80)           # a person
+    put(3, 500, 500, 50, 50, 63, 0.20)           # a laptop it is not sure of
+    things = bk.parse_yolov8(out, ratio, pad, (720, 1280))
+    check("duplicates are merged and the unsure one is dropped: a cup and a person, best first",
+          [t.label for t in things] == ["cup", "person"] and abs(things[0].score - 0.9) < 1e-5, str(things))
+    check("boxes are mapped back to the original frame (x, y, w, h)", things[0].box == (540, 260, 200, 200), str(things[0].box))
+    check("the detector's [1, anchors, 4+classes] layout works too", [t.label for t in bk.parse_yolov8(out.transpose(0, 2, 1), ratio, pad, (720, 1280))] == ["cup", "person"])
+    check("nothing over the threshold is nothing", bk.parse_yolov8(np.zeros((1, 84, 6), np.float32), ratio, pad, (720, 1280)) == [])
+    check("a box off the edge is clipped to the frame", all(0 <= t.box[0] and t.box[0] + t.box[2] <= 1280 for t in bk.parse_yolov8(out, ratio, pad, (720, 1280))))
+    check("80 class names, with spaces", len(bk.COCO_LABELS) == 80 and "cell phone" in bk.COCO_LABELS and "dining table" in bk.COCO_LABELS)
+
+    # things: the light embedder tells colour and shape apart
+    emb = bk.ThingEmbedder()
+    blue = frame(square=((200, 80, 20), (220, 140, 200, 200)))
+    blue2 = frame(square=((205, 85, 25), (225, 150, 190, 190)), noise=6, seed=3)
+    red = frame(square=((30, 30, 210), (220, 140, 200, 200)))
+    e1, e2, e3 = emb.embed(blue), emb.embed(blue2), emb.embed(red)
+    check("it makes a unit vector of the documented size", e1.shape == (bk.ThingEmbedder.DIM,) and abs(float(np.linalg.norm(e1)) - 1) < 1e-5)
+    check("the same blue thing, a little moved, resized and noisy, is close (0.97)", float(np.dot(e1, e2)) > 0.9, str(float(np.dot(e1, e2))))
+    green = frame(square=((40, 200, 60), (220, 140, 200, 200)))
+    black, white = frame(square=((20, 20, 20), (220, 140, 200, 200))), frame(square=((245, 245, 245), (220, 140, 200, 200)))
+    check("a red thing is not (0.26 against blue)", float(np.dot(e1, e3)) < 0.5, str(float(np.dot(e1, e3))))
+    check("...nor a green one, and red and green are apart", float(np.dot(e1, emb.embed(green))) < 0.5 and float(np.dot(e3, emb.embed(green))) < 0.5)
+    check("a black thing and a white one are apart too (colour without a hue still counts)", float(np.dot(emb.embed(black), emb.embed(white))) < 0.5)
+    boxed = emb.embed(red, (220, 140, 200, 200))
+    check("a box picks the crop: a tight crop of the red thing is nearer red than blue",
+          boxed is not None and float(np.dot(boxed, e3)) > float(np.dot(boxed, e1)) + 0.3)
+    check("an empty or tiny crop is None", emb.embed(red, (0, 0, 3, 3)) is None and emb.embed(None) is None)
+
+    # faces: the interface is there; without model files it says so and does nothing
+    import cv2
+    check("this OpenCV has the face detector and recogniser", hasattr(cv2, "FaceDetectorYN") and hasattr(cv2, "FaceRecognizerSF"))
+    none = bk.OpenCVFaces("/no/such/yunet.onnx", "/no/such/sface.onnx")
+    check("without model files: not available, and detect/embed are empty, not errors",
+          not none.available() and none.detect(frame()) == [] and none.embed(frame(), bk.Face((0, 0, 1, 1), 1.0)) is None)
+    check("the base classes are inert", not bk.FaceBackend().available() and not bk.ObjectBackend().available()
+          and not bk.ONNXObjects("/no/such.onnx").available() and bk.ONNXObjects("/no/such.onnx").detect(frame()) == [])
+
+    # the installer: a plan unless told to, and only what is missing
+    folder = tempfile.mkdtemp()
+    calls = []
+    plan = models.plan(folder)
+    check("the plan names what and from where, with sizes", [p["name"] for p in plan] == ["face_detector", "face_recognizer"]
+          and all(p["url"].startswith("https://github.com/opencv/opencv_zoo/") for p in plan) and plan[1]["approx_mb"] > 30)
+
+    def fake(url, to):
+        calls.append(url)
+        os.makedirs(os.path.dirname(to), exist_ok=True)
+        open(to, "wb").write(b"x" * 4096)
+    r = models.install(folder, fetch=fake)
+    check("without a yes, NOTHING is fetched", calls == [] and r["done"] == [] and len(r["plan"]) == 2)
+    r = models.install(folder, yes=True, fetch=fake)
+    check("with a yes, both are fetched", len(calls) == 2 and r["done"] == ["face_detector", "face_recognizer"] and models.missing(folder) == [])
+    calls.clear()
+    check("and a second time there is nothing left to fetch", models.install(folder, yes=True, fetch=fake)["plan"] == [] and calls == [])
+    folder2 = tempfile.mkdtemp()
+
+    def boom(url, to):
+        raise OSError("no network")
+    r = models.install(folder2, yes=True, fetch=boom)
+    check("a failed download is reported and leaves nothing half-written", len(r["failed"]) == 2 and models.missing(folder2) == list(models.MODELS)
+          and not any(f.endswith(".part") for f in os.listdir(folder2) if os.path.isdir(folder2)))
+
+    def tiny(url, to):
+        os.makedirs(os.path.dirname(to), exist_ok=True)
+        open(to, "wb").write(b"<html>")
+    r = models.install(tempfile.mkdtemp(), yes=True, fetch=tiny)
+    check("a file that is obviously not a model (an error page) is refused and removed", len(r["failed"]) == 2 and r["done"] == [])
+
+
 if __name__ == "__main__":
     for fn in SECTIONS:
         fn()
