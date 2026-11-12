@@ -99,6 +99,11 @@ _RX: List[Tuple[str, "re.Pattern"]] = [(k, re.compile(p, re.I)) for k, p in (
                       r"|" + _SITE.replace("(?P<site>", "(?P<site2>") + r"\s+is\s+(?:a\s+|for\s+)?(?P<cat2>" + _CATS + r")(?:\s+site)?)" + _Z),
     ("unknown_sites", _A + r"(?:what|which)\s+(?:sites|websites)\s+(?:can'?t\s+you\s+place|don'?t\s+you\s+know|are\s+(?:unknown|unplaced|uncategori[sz]ed)|do\s+you\s+not\s+know)"
                            r"(?:\s+(?:yet|so\s+far))?" + _Z + r"|" + _A + r"which\s+sites\s+(?:are\s+you\s+unsure\s+about|need\s+(?:a\s+)?tag(?:s|ging)?)" + _Z),
+    ("compare_day", _A + r"(?:how\s+(?:was|is|did)\s+(?:today|my\s+day)\s+(?:compare[d]?\s+(?:to|with)|vs\.?|versus|against)\s+yesterday"
+                         r"|compare\s+(?:today|my\s+day)\s+(?:to|with|and|against)\s+yesterday|how\s+does\s+today\s+compare\s+(?:to|with)\s+yesterday)" + _Z),
+    ("compare_week", _A + r"(?:compare\s+this\s+week\s+(?:to|with|and|against)\s+last\s+week"
+                          r"|how\s+(?:was|is)\s+this\s+week\s+(?:compare[d]?\s+(?:to|with)|vs\.?|versus|against)\s+last\s+week"
+                          r"|how\s+does\s+this\s+week\s+compare\s+(?:to|with)\s+last\s+week)" + _Z),
     ("tabs", _A + r"(?:how\s+many\s+tabs\s+(?:do\s+i\s+have|are)\s+(?:open|there)?|do\s+i\s+have\s+too\s+many\s+tabs|how\s+many\s+tabs\s+do\s+i\s+have\s+open"
                   r"|(?:am\s+i|have\s+i\s+been)\s+(?:a\s+)?tab\s+hoard(?:er|ing)|what\s+about\s+my\s+open\s+tabs)" + _Z),
     ("status", _A + r"(?:what\s+do\s+you\s+(?:know|keep|remember)\s+about\s+my\s+(?:browsing|tabs|web\s+(?:use|habits)|websites)"
@@ -277,6 +282,28 @@ class Browsing:
     def _totals(self, a: float, b: float) -> Dict[str, float]:
         return {c: sec for c, sec, _n in self.sensor().ledger.totals(a, b) if c != "unknown"}
 
+    def compare(self, now: float, span: str) -> str:
+        """Today so far against the same stretch of yesterday, or this week against last. Where the time moved to."""
+        if span == "day":
+            a0, a1 = _midnight(now), now + 1
+            b0, b1 = a0 - DAY, now - DAY + 1                           # the same hours of yesterday: a fair comparison
+            now_l, then_l = "so far today", "by this time yesterday"
+        else:
+            a0, a1, b0, b1 = now - 7 * DAY, now + 1, now - 14 * DAY, now - 7 * DAY
+            now_l, then_l = "this week", "last week"
+        a, b = self._totals(a0, a1), self._totals(b0, b1)
+        ta, tb = sum(a.values()), sum(b.values())
+        if ta < 300 and tb < 300:
+            return f"I don't have enough browsing for {now_l} or {then_l} to compare."
+        moves = sorted(((c, a.get(c, 0.0) - b.get(c, 0.0)) for c in set(a) | set(b)), key=lambda m: (-abs(m[1]), m[0]))
+        moves = [m for m in moves if abs(m[1]) >= 600][:3]
+        say = f"{now_l.capitalize()} you've spent {dur(ta)} in the browser; {then_l} it was {dur(tb)}."
+        if moves:
+            say += " The biggest changes: " + _lst([f"{c} {'+' if d > 0 else '-'}{dur(abs(d))}" for c, d in moves]) + "."
+        else:
+            say += " Nothing moved by more than ten minutes."
+        return say
+
     def goal_progress(self, now: float) -> List[Dict[str, Any]]:
         """Each goal with what has been used: a day goal counts from midnight, a week goal over the last seven days."""
         led = self.sensor().ledger
@@ -420,6 +447,8 @@ class Browsing:
                     f"titles or anything from private windows, banks, mail or health sites. Right now that's {c['episodes']} "
                     f"stretches over {n_days} days, plus older totals; the detail expires after {int(led.retention_days)} days. "
                     f"Say \"forget my browsing\" to delete it.")
+        if kind in ("compare_day", "compare_week"):
+            return self.compare(now, "day" if kind == "compare_day" else "week")
         if kind == "tabs":
             r = s.tab_report(now)
             if not r["open"]:

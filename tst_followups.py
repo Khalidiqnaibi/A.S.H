@@ -723,6 +723,39 @@ def feature_background_listening():
     check("the sensor counts them", s.stats["background"] == 1 and s.status()["background"] == 1)
 
 
+@section
+def feature_compare_days_and_weeks():
+    print("\n=== FEATURE: 'how was today compared to yesterday?' ===")
+    from src.daemon.browsing import Browsing, parse
+    ok = {"how was today compared to yesterday": "compare_day", "compare today with yesterday": "compare_day",
+          "how does today compare to yesterday": "compare_day", "compare this week with last week": "compare_week",
+          "how is this week vs last week": "compare_week"}
+    check("the ways people ask", all((parse(q) or (None,))[0] == k for q, k in ok.items()))
+    check("ordinary talk is not taken for it", parse("compare these two files") is None and parse("compare my day") is None)
+    s, led, now = _world()                                         # today 09:00-09:30 code; each past day 2h20 (10:00-20:40)
+    b = Browsing(lambda: s, clock=lambda: now)
+    say = b.hear("how was today compared to yesterday", now)
+    check("today so far against the same hours of yesterday (not the whole of it)",
+          say.startswith("So far today you've spent 30 minutes in the browser; by this time yesterday it was 1 hour 40 minutes."), say)
+    check("...and where the time moved, biggest first, at most three",
+          "The biggest changes: code -30 minutes, docs -30 minutes and news -10 minutes." in say, say)
+    check("the evening video of yesterday is not held against a day that is not over", "video" not in say, say)
+    say = b.hear("compare this week with last week", now)
+    check("a week against the one before: this week 14 hours 30, last week nothing", say.startswith("This week you've spent 14 hours 30 minutes")
+          and "last week it was under a minute" in say and "code +" in say, say)
+    from src.daemon.ledger import Ledger
+    from src.senses.browsertabs import BrowserTabSensor
+    led2 = Ledger(clock=lambda: now)
+    for k in (0, 1):
+        led2.record(now - k * 86400 - 7200, now - k * 86400 - 3600, "github.com", "code", "table")
+    s2 = BrowserTabSensor(enabled=True, ledger=led2, clock=lambda: now)
+    say = Browsing(lambda: s2, clock=lambda: now).hear("compare today with yesterday", now)
+    check("when nothing moved by ten minutes it says so", "Nothing moved by more than ten minutes." in say, say)
+    s3 = BrowserTabSensor(enabled=True, ledger=Ledger(clock=lambda: now), clock=lambda: now)
+    check("with no data it says there is not enough", "enough browsing" in Browsing(lambda: s3, clock=lambda: now).hear("compare today with yesterday", now))
+    check("with tabs off it says so", "off" in Browsing(lambda: None).hear("compare today with yesterday"))
+
+
 def time_str(ts):
     import time as _t
     return _t.strftime("%H:%M", _t.localtime(ts))
