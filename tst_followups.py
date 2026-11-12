@@ -443,6 +443,56 @@ def feature_show_and_export_everything():
     check("with tabs off it says so", "off" in off.hear("export my browsing data"))
 
 
+@section
+def feature_unknown_sites_and_tag_by_name():
+    print("\n=== FEATURE: 'what sites can't you place?' and 'tag acme.dev as work' ===")
+    from src.daemon.browsing import Browsing, parse
+    from src.daemon.ledger import Ledger, DAY
+    from src.senses.browsertabs import BrowserTabSensor
+    ok = {"what sites can't you place": ("unknown_sites", None), "which sites are unknown": ("unknown_sites", None),
+          "tag acme.dev as work": ("tag_site", "acme.dev"), "acme.dev is a work site": ("tag_site", "acme.dev"),
+          "mark reddit.com as social": ("tag_site", "reddit.com"), "tag youtube as learning": ("tag_site", "youtube.com")}
+    bad = {}
+    for q, (kind, site) in ok.items():
+        got = parse(q)
+        if got is None or got[0] != kind or (site and got[1].get("site") != site):
+            bad[q] = got
+    check("the ways people say it", not bad, str(bad))
+    check("'tag this site as work' is still about the page in front", parse("tag this site as work")[0] == "tag"
+          and parse("tag that page as learning")[0] == "tag")
+    check("a word that is not a site it can name is left alone", parse("tag homework as work") is None)
+    check("a category that does not exist is not taken", parse("tag acme.dev as feelings") is None)
+
+    now = 100 * DAY
+    led = Ledger(clock=lambda: now, retention_days=30)
+    led.record(now - 3 * DAY, now - 3 * DAY + 4 * 3600, "acme.dev", "unknown", "unknown")
+    led.record(now - 2 * DAY, now - 2 * DAY + 3600, "foo.io", "unknown", "unknown")
+    led.record(now - 60 * DAY, now - 60 * DAY + 7200, "acme.dev", "unknown", "unknown")     # older, rolled up
+    led.record(now - 1 * DAY, now - 1 * DAY + 1800, "github.com", "code", "table")
+    led.rollup(now)
+    s = BrowserTabSensor(enabled=True, ledger=led, clock=lambda: now)
+    b = Browsing(lambda: s, clock=lambda: now)
+    say = b.hear("what sites can't you place", now)
+    check("it lists what it can't place, biggest first, with the time", say.startswith("I can't place acme.dev (6 hours)") and "foo.io (1 hour)" in say
+          and "github.com" not in say, say)
+    check("...and says how to tell it", 'tag acme.dev as work' in say, say)
+    say = b.hear("tag acme.dev as work", now)
+    check("tagging by name says what it did, and how many records it moved", say.startswith("Okay, acme.dev is work") and "updated the" in say, say)
+    check("the time moved from 'unknown' to 'work', raw and rolled up", led.totals(0, now + 1, category="work") != []
+          and led.by_category(90).get("work") == 6 * 3600.0 and led.by_category(90).get("unknown") == 3600.0, str(led.by_category(90)))
+    check("...and the older rolled-up hours too", any(r[0] == "acme.dev" and r[1] == "work" for r in led.top_sites(10)) and
+          all(not (r[0] == "acme.dev" and r[1] == "unknown") for r in led.top_sites(10)), str(led.top_sites(10)))
+    check("it is remembered for new visits", s.cls.classify("acme.dev") == ("work", "user"))
+    check("what is left to place is shorter", "acme.dev" not in b.hear("what sites can't you place", now))
+    b.hear("tag foo.io as learning", now)
+    check("when nothing is left it says so", b.hear("what sites can't you place", now) == "I've been able to place every site I've seen.")
+    check("a site it never records cannot be tagged", "never record" in b.hear("tag chase.com as work", now))
+    s.cls.ignore("secret.com")
+    led.record(now - 3600, now - 1800, "secret.com", "unknown", "unknown")
+    check("a site you keep out is never asked about, even if something about it is still held",
+          b.hear("what sites can't you place", now) == "I've been able to place every site I've seen.", b.hear("what sites can't you place", now))
+
+
 def time_str(ts):
     import time as _t
     return _t.strftime("%H:%M", _t.localtime(ts))

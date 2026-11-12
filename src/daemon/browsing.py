@@ -82,6 +82,12 @@ _RX: List[Tuple[str, "re.Pattern"]] = [(k, re.compile(p, re.I)) for k, p in (
                 r"|how\s+am\s+i\s+doing\s+(?:with|on)\s+my\s+(?:time|browsing|focus|week))" + _Z),
     ("habits", _A + r"(?:what\s+are\s+my\s+(?:browsing|web|online)\s+habits|tell\s+me\s+about\s+my\s+(?:browsing|online)\s+habits"
                r"|how\s+do\s+i\s+(?:browse|use\s+(?:the\s+)?(?:browser|web|internet))|what(?:'s|\s+is)\s+my\s+(?:browsing|online)\s+routine)" + _Z),
+    # "tag acme.dev as work" / "acme.dev is a work site": teach a site by name (the one in front is "tag this site as ...")
+    ("tag_site", _A + r"(?:(?:tag|mark|set|file|call)\s+(?:" + _SITE + r"|(?!(?:this|that|the|my|current)\b)(?P<name>[a-z][a-z0-9]{2,20}))\s+as\s+"
+                      r"(?:a\s+|being\s+)?(?:for\s+)?(?P<cat>" + _CATS + r")(?:\s+site)?"
+                      r"|" + _SITE.replace("(?P<site>", "(?P<site2>") + r"\s+is\s+(?:a\s+|for\s+)?(?P<cat2>" + _CATS + r")(?:\s+site)?)" + _Z),
+    ("unknown_sites", _A + r"(?:what|which)\s+(?:sites|websites)\s+(?:can'?t\s+you\s+place|don'?t\s+you\s+know|are\s+(?:unknown|unplaced|uncategori[sz]ed)|do\s+you\s+not\s+know)"
+                           r"(?:\s+(?:yet|so\s+far))?" + _Z + r"|" + _A + r"which\s+sites\s+(?:are\s+you\s+unsure\s+about|need\s+(?:a\s+)?tag(?:s|ging)?)" + _Z),
     ("status", _A + r"(?:what\s+do\s+you\s+(?:know|keep|remember)\s+about\s+my\s+(?:browsing|tabs|web\s+(?:use|habits)|websites)"
                r"|are\s+you\s+(?:watching|tracking|recording)\s+(?:my\s+)?(?:tabs|browsing|browser)"
                r"|is\s+(?:tab|browser|browsing)\s+(?:tracking|watching)\s+on)" + _Z),
@@ -131,9 +137,15 @@ def parse(text: str) -> Optional[Tuple[str, Dict[str, str]]]:
             if per:
                 d["per"] = re.sub(r"\s+", " ", per.lower())
             name = d.pop("name", "")
-            if kind in ("time_on", "ignore_site", "unignore_site") and name and not d.get("site") and not d.get("cat"):
+            if d.get("site2") and not d.get("site"):
+                d["site"] = d.pop("site2")
+            if kind in ("time_on", "ignore_site", "unignore_site", "tag_site") and name and not d.get("site") and not d.get("cat"):
                 if name.lower() not in _NAMES:
                     return None                  # "how long did I spend on homework": not a site we can name
+                d["site"] = _NAMES[name.lower()]
+            elif kind == "tag_site" and name and not d.get("site"):
+                if name.lower() not in _NAMES:
+                    return None
                 d["site"] = _NAMES[name.lower()]
             return kind, d
     return None
@@ -410,6 +422,20 @@ class Browsing:
             if site:
                 return f"Okay, {site} is {cat} from now on."
             return "I don't see a page in front right now to tag." if s.current() is None else "I can't tag that one."
+        if kind == "tag_site":
+            from .pagekind import host_of, site_of
+            site = site_of(host_of(d["site"]))
+            if not s.cls.teach(site, d["cat"]):
+                return f"I never record {site}, so there is nothing to tag."
+            n = led.recategorize(site, d["cat"])
+            moved = f" I've also updated the {n} records I'd kept as unknown." if n else ""
+            return f"Okay, {site} is {d['cat']} from now on.{moved}"
+        if kind == "unknown_sites":
+            rows = [r for r in led.unknown_sites(50) if not s.cls.is_ignored(r[0])][:5]       # never ask about a site kept out
+            if not rows:
+                return "I've been able to place every site I've seen."
+            return ("I can't place " + _lst([f"{site} ({dur(sec)})" for site, sec, _v in rows])
+                    + f". Tell me what they are -- for example \"tag {rows[0][0]} as work\".")
         if s.paused:
             return "I'm not watching your tabs at the moment, so I can't say. Say \"resume watching my tabs\" to start again."
         if kind == "summary":

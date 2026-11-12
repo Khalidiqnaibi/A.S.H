@@ -202,6 +202,35 @@ class Ledger:
             self.db.commit()
         return len(rows)
 
+    # -- sites ASH could not place ------------------------------------------------------
+    def unknown_sites(self, limit: int = 5) -> List[Tuple[str, float, int]]:
+        """Sites ASH could not place, by time: (site, seconds, visits). Sites it was told to keep out never appear."""
+        return [(s, secs, v) for s, c, secs, v in self.top_sites(500, "unknown")][:limit]
+
+    def recategorize(self, site: str, category: str) -> int:
+        """The user said what an unknown site is: what was kept under 'unknown' moves to the category. Returns rows."""
+        n = 0
+        with self._lock:
+            n += self.db.execute("UPDATE episodes SET category = ?, source = 'user' WHERE site = ? AND category = 'unknown'",
+                                 (category, site)).rowcount
+            for day, secs, eps in self.db.execute("SELECT day, seconds, episodes FROM daily_site WHERE site = ? AND category = 'unknown'",
+                                                  (site,)).fetchall():
+                self.db.execute("INSERT INTO daily_site(day,site,category,seconds,episodes) VALUES (?,?,?,?,?) "
+                                "ON CONFLICT(day,site,category) DO UPDATE SET seconds = seconds + excluded.seconds, "
+                                "episodes = episodes + excluded.episodes", (day, site, category, secs, eps))
+                n += 1
+            self.db.execute("DELETE FROM daily_site WHERE site = ? AND category = 'unknown'", (site,))
+            for secs, visits, last in self.db.execute("SELECT seconds, visits, last_day FROM sites WHERE site = ? AND category = 'unknown'",
+                                                      (site,)).fetchall():
+                self.db.execute("INSERT INTO sites(site,category,seconds,visits,last_day) VALUES (?,?,?,?,?) "
+                                "ON CONFLICT(site,category) DO UPDATE SET seconds = seconds + excluded.seconds, "
+                                "visits = visits + excluded.visits, last_day = MAX(last_day, excluded.last_day)",
+                                (site, category, secs, visits, last))
+                n += 1
+            self.db.execute("DELETE FROM sites WHERE site = ? AND category = 'unknown'", (site,))
+            self.db.commit()
+        return n
+
     # -- what is held, for the user to take --------------------------------------------
     def export(self, path: str) -> int:
         """Everything the ledger holds, as one JSON file the user can read or keep. Returns the number of rows."""
