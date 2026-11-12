@@ -158,6 +158,7 @@ CATALOG: Sequence[Tuple[str, str]] = (
     ("go to privacy mode", "rule"), ("privacy off", "rule"), ("go to sleep", "rule"), ("wake up", "rule"),
     ("what's your status", "rule"), ("what faces can you make", "rule"),
     # time-keeping
+    ("why is my computer slow", "rule"), ("what's using my memory", "rule"),
     ("what are my reminders", "rule"), ("focus for 25 minutes", "rule"), ("start focus mode", "rule"),
     ("stop focus mode", "rule"),
     # the camera

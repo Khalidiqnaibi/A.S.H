@@ -89,11 +89,26 @@ def c4_catalog_is_real():
             check(f"{phrase!r} is taken by the camera", rt.looking.stats["looks"] == 1 and len(rt.ash.calls) == n0,
                   f"{rt.looking.stats} {rt.out[-1:]}")
             continue
+        if phrase in OWN_RUNTIME:                    # a feature the standard test runtime does not switch on
+            rt = OWN_RUNTIME[phrase]()
+            n0 = len(rt.ash.calls)
+            rt.say(phrase)
+            check(f"{phrase!r} is taken by its feature, no model", len(rt.ash.calls) == n0 and rt.out, f"{rt.out[-1:]}")
+            continue
         rt = ti.fresh()                              # each on its own: "go to sleep" must not colour the next one
         rt.cfg.loose_commands = False                # as written, with no help from this module
         rt._commands = None
         who, brain, _v = ti.hear(rt, phrase, force=True)
         check(f"{phrase!r} is taken by a rule ({who})", who is not None and not brain, f"claimed={who} brain={brain}")
+
+
+def pcdoctor_runtime():
+    import tst_effects as te
+    import tst_pcdoctor as tp
+    return te.rig(pcdoctor=True, pcdoctor_reader=lambda: tp.snap(), loose_commands=False)
+
+
+OWN_RUNTIME = {"why is my computer slow": pcdoctor_runtime, "what's using my memory": pcdoctor_runtime}
 
 
 def camera_runtime():

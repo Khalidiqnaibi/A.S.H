@@ -253,6 +253,9 @@ class AmbientConfig:
     # "Remember that I parked on level 3" ... "where did I park?": kept and found by rule (notes.py).
     notes: bool = False
     notes_path: Optional[str] = None
+    # "Why is my computer slow?" / "what's using my memory?": the real numbers, by rule (pcdoctor.py).
+    pcdoctor: bool = False
+    pcdoctor_reader: Optional[Callable[[], Any]] = None      # tests pass a fake snapshot reader
     arrivals: bool = False          # "remind me when I get home" (arrival.py)
     arrivals_path: Optional[str] = None
     arrivals_home: str = ""
@@ -600,6 +603,10 @@ class AmbientRuntime:
         self.arrivals = Arrivals(self.cfg.arrivals_path, home=self.cfg.arrivals_home) if self.cfg.arrivals else None
         self._arrival_at = 0.0
         self._dym = None                          # a "Did you mean ...?" waiting for yes or no: (phrase, when)
+        self.pcdoctor = None
+        if self.cfg.pcdoctor:
+            from .pcdoctor import PCDoctor
+            self.pcdoctor = PCDoctor(reader=self.cfg.pcdoctor_reader)
         self.notes = None
         if self.cfg.notes:
             from .notes import Notes
@@ -1711,6 +1718,31 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
 
+    def _pcdoctor_request(self, ev, now: float) -> bool:
+        """"Why is my computer slow?": from the real numbers. Its "want me to close Chrome?" is done only on a yes,
+        through the desktop executor -- never on a line that was not meant for ASH."""
+        d = self.pcdoctor
+        if d is None or not self._user_source(ev) or not self._meant_for_ash(ev)                 or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        ex = getattr(self.desktop, "ex", None) if self.desktop is not None else None
+        try:
+            say = d.reply(text, close=(ex.close if ex is not None else (lambda _p: False)), now=now)
+            if say is None:
+                kind = d.parse(text)
+                if kind is None:
+                    return False
+                say = d.answer(kind, now)
+                if ex is None and d.pending is not None:
+                    d.pending = None
+                    say = say.split(" Want me to close")[0]          # nothing could close it: don't offer
+        except Exception:
+            logger.exception("PC doctor failed")
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "asked", "query": text[:80]}
+        return True
+
     def _notes_request(self, ev, now: float) -> bool:
         """"Remember that I parked on level 3" kept; "where did I park?" answered from it -- by rule, never the model.
         Only for a line meant for ASH, never for a guest; an answer waits while a stranger is in view."""
@@ -2419,6 +2451,8 @@ class AmbientRuntime:
         if self._reminder_request(ev, now):
             return True
         if self._media_request(ev, now):
+            return True
+        if self._pcdoctor_request(ev, now):
             return True
         if self._desktop_request(ev, now):
             return True
@@ -3495,6 +3529,7 @@ class AmbientRuntime:
             "browsing": (lambda sn: sn.status() if sn is not None else None)(self.browsing._s()),
             "vision": ({**self.looking.status(), "presence_stuck": self.presence_stuck} if self.looking is not None else None),
             "notes": self.notes.status() if self.notes is not None else None,
+            "pcdoctor": self.pcdoctor.status() if self.pcdoctor is not None else None,
             "free_moments": self.moments.status() if self.moments else None,
             "followups": self.followups.status() if self.followups else None,
             "routines": self.routines.status() if self.routines else None,

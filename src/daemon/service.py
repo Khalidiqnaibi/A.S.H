@@ -333,6 +333,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "weather": {"enabled": True, "city": "", "lat": None, "lon": None},
     # "Remember that I parked on level 3" ... "where did I park?": kept in state/notes.json and found by rule.
     "notes": {"enabled": True},
+    # "Why is my computer slow?", "what's using my memory?": answered from the real numbers; closes a program only on yes.
+    "pcdoctor": {"enabled": True},
     # Media: "pause the music", "next song", "turn it up" (the media keys, any
     # player); a chime with reminders and alerts; "take a photo" (one webcam
     # frame to photo_dir, on request only, never while paused).
