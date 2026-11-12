@@ -1321,6 +1321,45 @@ def stopping_does_not_wait_on_a_stuck_detector():
     release.set()
 
 
+@section
+def a_stuck_reading_is_abandoned_and_flagged():
+    print("\n=== A reading that never finishes is abandoned, flagged, and does not end presence for good ===")
+    import threading as th
+    import time as tm
+    release = th.Event()
+    mode = {"stuck": True}
+    f = FakeFaces([face()], [vec(1)])
+    real = f.detect
+    f.detect = lambda fr: (release.wait(10), real(fr))[1] if mode["stuck"] else real(fr)
+    rt = bg_runtime(f, presence_timeout_s=0.3, busy_wait_s=0.2)
+    rt.looking.memory.enroll("Omar", "person", vec(1))
+    rt.t[0] += 5
+    rt.cam.last_frame_ts = tm.time()
+    rt._tick()
+    tm.sleep(0.5)
+    check("a question meanwhile is told to ask again, not left hanging", "still working" in (rt.looking.hear("who is this") or ""))
+    rt.t[0] += 5
+    rt.cam.last_frame_ts = tm.time()
+    rt._tick()
+    check("past the timeout the reading is abandoned and counted", rt.presence_stuck == 1 and rt.status()["vision"]["presence_stuck"] == 1, str(rt.status()["vision"]))
+    mode["stuck"] = False
+    release.set()
+    for _ in range(40):
+        rt.t[0] += 5
+        rt.cam.last_frame_ts = tm.time()
+        rt._tick()
+        if rt._presence_job is not None:
+            try:
+                rt._presence_job.result(3)
+            except Exception:
+                pass
+        if rt.looking.presence.here(rt.t[0]):
+            break
+        tm.sleep(0.1)
+    check("once it frees up, presence works again", rt.looking.presence.here(rt.t[0]) == ["Omar"], str(rt.status()["vision"]))
+    rt.stop(timeout=1.0)
+
+
 if __name__ == "__main__":
     for fn in SECTIONS:
         fn()

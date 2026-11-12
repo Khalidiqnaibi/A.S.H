@@ -15,6 +15,7 @@ installed it says so instead of guessing.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
 import re
@@ -115,6 +116,8 @@ class LookingConfig:
     # Who is here, from the camera sensor's own frames every few seconds (presence.py). Off until switched on.
     presence: bool = False
     presence_interval_s: float = 8.0
+    busy_wait_s: float = 10.0          # how long a spoken question waits for a reading in progress before saying so
+    presence_timeout_s: float = 30.0   # a reading that takes longer than this is abandoned and flagged as stuck
     enrol_checks: bool = True          # refuse to learn a face from a bad look (small, dim, blurry, cut off)
     presence_background: bool = True   # read the frame on a worker thread so a slow detector never stalls the loop
     away_after_s: float = 90.0            # not seen for this long: gone
@@ -233,7 +236,10 @@ class Looking:
             return ("I'm paused for privacy, so I'm not looking." if why == "privacy"
                     else "I couldn't get a picture -- there's no camera I can open.")
         self.stats["looks"] += 1
-        with self._busy:
+        with self._hold(self.cfg.busy_wait_s) as got:
+            if not got:
+                self.stats["busy"] = self.stats.get("busy", 0) + 1
+                return "I'm still working through the last picture -- ask me again in a moment."
             self._clear_faults()
             answer = self._answer(kind, _d, frame, now)
             fault = self._fault()
@@ -242,6 +248,17 @@ class Looking:
             return (f"I got a picture, but my {fault} stopped working, so I can't tell you what I see. "
                     "It is in the log -- \"python ashctl.py vision\" shows whether it keeps happening.")
         return answer
+
+    @contextlib.contextmanager
+    def _hold(self, timeout: float):
+        """The models, for at most `timeout` seconds: yields True if they were got, False if something else (a reading that
+        is stuck, say) is still holding them."""
+        got = self._busy.acquire(timeout=timeout)
+        try:
+            yield got
+        finally:
+            if got:
+                self._busy.release()
 
     def _clear_faults(self):
         for b in (self.faces, self.objects):
@@ -653,7 +670,10 @@ class Looking:
         if not (self.cfg.enabled and self.cfg.presence) or not self.can_see_faces():
             return []
         now = self.clock() if now is None else now
-        with self._busy:
+        with self._hold(5.0) as got:
+            if not got:                                      # the models are tied up: no reading this time, nothing assumed
+                self.stats["busy"] = self.stats.get("busy", 0) + 1
+                return []
             self._clear_faults()
             people = self._people(frame)
             broke = self._fault()

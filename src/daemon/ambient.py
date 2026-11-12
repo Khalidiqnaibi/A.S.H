@@ -596,6 +596,8 @@ class AmbientRuntime:
         self.looking = None
         self._presence_job = None
         self._presence_exec = None
+        self._presence_job_at = 0.0
+        self.presence_stuck = 0              # how many readings were abandoned for taking too long
         if self.cfg.vision:
             from .looking import build as build_looking
             self.looking = build_looking(self.cfg.vision_cfg, self.cfg.vision_io,
@@ -1758,12 +1760,22 @@ class AmbientRuntime:
             # The detector can take a good part of a second on a CPU: never on the loop. One reading at a time; the
             # frame is copied (the camera thread keeps writing); its answer is picked up on a later step.
             if self._presence_job is not None:
-                return
+                if time.time() - self._presence_job_at > lk.cfg.presence_timeout_s:
+                    # Stuck. Never wait on it: let go of that thread, count it, and start afresh on a new one.
+                    logger.error("Presence reading took over %.0f s; abandoning it", lk.cfg.presence_timeout_s)
+                    self.presence_stuck += 1
+                    self._presence_job = None
+                    old, self._presence_exec = self._presence_exec, None
+                    if old is not None:
+                        old.shutdown(wait=False, cancel_futures=True)
+                else:
+                    return
             try:
                 snap = frame.copy()
             except Exception:
                 return
             self._presence_job = self._presence_pool().submit(lk.watch, snap, now)
+            self._presence_job_at = time.time()
             return
         try:
             events = lk.watch(frame, now)
@@ -3310,7 +3322,7 @@ class AmbientRuntime:
             "activity": self.activity.status() if self.activity else None,
             "taste": self.taste.status() if self.taste else None,
             "browsing": (lambda sn: sn.status() if sn is not None else None)(self.browsing._s()),
-            "vision": self.looking.status() if self.looking is not None else None,
+            "vision": ({**self.looking.status(), "presence_stuck": self.presence_stuck} if self.looking is not None else None),
             "free_moments": self.moments.status() if self.moments else None,
             "followups": self.followups.status() if self.followups else None,
             "routines": self.routines.status() if self.routines else None,
