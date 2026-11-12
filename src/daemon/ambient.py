@@ -268,6 +268,8 @@ class AmbientConfig:
     phone: bool = False
     phone_cfg: Optional[Dict[str, Any]] = None
     phone_io: Optional[Dict[str, Any]] = None                 # tests: {"cli": path or None, "runner": fake, "poster": fake}
+    # Guard mode: while you're away the camera watches; strangers and movement go to your phone (guard.py).
+    guard: bool = False
     situation_probe: Optional[Callable[[], Any]] = None      # () -> (battery (percent, plugged) | None, memory %); tests
     arrivals: bool = False          # "remind me when I get home" (arrival.py)
     arrivals_path: Optional[str] = None
@@ -634,6 +636,12 @@ class AmbientRuntime:
         if self.cfg.phone:
             from .phone import Phone, PhoneConfig
             self.phone = Phone(PhoneConfig.from_dict(self.cfg.phone_cfg), **(self.cfg.phone_io or {}))
+        self.guard = None
+        if self.cfg.guard:
+            from .guard import Guard
+            ph = self.phone
+            self.guard = Guard(notify=(lambda text: ph.notify(text, alert=True)) if ph is not None else (lambda text: False),
+                               can_alert=(ph.can_alert if ph is not None else (lambda: False)), clock=lambda: self.clock())
         self.filesearch = None
         if self.cfg.filesearch:
             from .filesearch import FileSearch
@@ -1048,6 +1056,7 @@ class AmbientRuntime:
             self._reminder_step(now)
             self._presence_step(now)
             self._situation_step(now, idle_s)
+            self._guard_step(now)
             if self.filesearch is not None and not self.privacy.paused:
                 try:
                     self.filesearch.refresh(now)            # in the background, at most once an hour
@@ -1768,6 +1777,77 @@ class AmbientRuntime:
     _HUD = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:please|can\s+you|could\s+you)[,\s]+)*"
                       r"(?:show|open|bring\s+up|pop\s+up|put\s+up)\s+(?:me\s+)?(?:the\s+|your\s+|a\s+)?"
                       r"(?:hud|heads[-\s]?up(?:\s+(?:display|panel|widget))?|widget|status\s+panel)\s*(?:please)?\s*[.!]?\s*$", re.I)
+
+    def _guard_request(self, ev, now: float) -> bool:
+        """"Guard mode on" / "I'm back": the camera watches while you're away (guard.py)."""
+        g = self.guard
+        if g is None or not self._user_source(ev) or not self._meant_for_ash(ev)                 or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        kind = g.parse(str(getattr(ev, "text", "") or ""))
+        if kind is None or (kind == "off" and not g.active):
+            return False                        # "I'm back" with no guard on is just conversation
+        cam = getattr(self.periphery, "sensors", {}).get("camera")
+        if kind == "on":
+            if self.privacy.paused:
+                say = "I can't watch while privacy mode is on."
+            elif cam is None:
+                say = "There's no camera for me to watch with."
+            else:
+                on = getattr(getattr(cam, "state", None), "value", "") == "active"
+                g.camera_was_on = on
+                if not on:
+                    try:
+                        cam.enable()
+                    except Exception:
+                        logger.exception("Guard: turning the camera on failed")
+                say = g.start(now)
+        else:
+            say = self._guard_end(now, welcome=False)
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
+    def _guard_end(self, now: float, welcome: bool) -> str:
+        g = self.guard
+        say = g.stop(now, welcome=welcome)
+        cam = getattr(self.periphery, "sensors", {}).get("camera")
+        if cam is not None and g.camera_was_on is False:
+            try:
+                cam.disable()                    # back to how it was
+            except Exception:
+                logger.exception("Guard: turning the camera back off failed")
+        g.camera_was_on = None
+        return say
+
+    def _guard_step(self, now: float):
+        """While guarding: one look at the camera sensor's latest frame every couple of seconds (never a new capture,
+        never kept). The user's own face coming back ends it with a summary."""
+        g = self.guard
+        if g is None or not g.active or self.privacy.paused:
+            return
+        cam = getattr(self.periphery, "sensors", {}).get("camera")
+        frame = None
+        if cam is not None and getattr(getattr(cam, "state", None), "value", "") == "active":
+            ts = float(getattr(cam, "last_frame_ts", 0.0) or 0.0)
+            if time.time() - ts <= 10.0:
+                frame = getattr(cam, "last_frame", None)
+        stranger = user_here = False
+        lk = self.looking
+        if lk is not None and lk.cfg.presence:
+            stranger = lk.presence.stranger(now)
+            user = str(getattr(self.brain, "user", "") or "").lower()
+            user_here = bool(user) and user in [h.lower() for h in lk.presence.here(now)]
+        try:
+            got = g.look(frame, now, stranger=stranger, user_here=user_here)
+        except Exception:
+            logger.exception("Guard look failed")
+            return
+        if got == "welcome":
+            line = self._guard_end(now, welcome=True)
+            try:
+                self.response_sink(line, {"addressed": False, "source": "guard", "attention": None,
+                                          "pathway": "wonder", "outcome": "guard"})
+            except Exception:
+                logger.exception("Guard welcome failed")
 
     def _phone_request(self, ev, now: float) -> bool:
         """"Find my phone", "send it to my phone", "text Omar saying I'm late" (read back, sent on "send it")."""
@@ -2655,6 +2735,8 @@ class AmbientRuntime:
         if self._hud_request(ev, now):
             return True
         if self._phone_request(ev, now):
+            return True
+        if self._guard_request(ev, now):
             return True
         if self._desktop_request(ev, now):
             return True
@@ -3737,6 +3819,7 @@ class AmbientRuntime:
             "situation": self.situation.status() if self.situation is not None else None,
             "filesearch": self.filesearch.status() if self.filesearch is not None else None,
             "phone": self.phone.status() if self.phone is not None else None,
+            "guard": self.guard.status() if self.guard is not None else None,
             "free_moments": self.moments.status() if self.moments else None,
             "followups": self.followups.status() if self.followups else None,
             "routines": self.routines.status() if self.routines else None,

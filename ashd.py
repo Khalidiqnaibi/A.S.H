@@ -323,6 +323,7 @@ def main() -> int:
                 situation=bool(cfg.get("situation", {}).get("enabled", True)),
                 phone=bool(cfg.get("phone", {}).get("enabled", True)),
                 phone_cfg=cfg.get("phone", {}),
+                guard=bool(cfg.get("guard", {}).get("enabled", True)),
                 filesearch=bool(cfg.get("filesearch", {}).get("enabled", True)),
                 filesearch_folders=list((cfg.get("filesearch") or {}).get("folders") or ["~/Documents", "~/Desktop", "~/Downloads"]),
                 filesearch_path=os.path.join(os.getcwd(), "state", "files.json"),
