@@ -581,6 +581,52 @@ def feature_goal_and_focus_cards():
     check("the cards are limited to five, whatever is queued", len(headsup.cards(rt, now)) <= 5)
 
 
+@section
+def feature_tab_hoarding():
+    print("\n=== FEATURE: 'how many tabs do I have open?' -- and how many have been left alone ===")
+    from src.daemon.browsing import Browsing, parse
+    from src.daemon.ledger import Ledger
+    from src.senses.browsertabs import BrowserTabSensor
+    t = [10_000.0]
+    s = BrowserTabSensor(enabled=True, ledger=Ledger(clock=lambda: t[0]), clock=lambda: t[0])
+    b = Browsing(lambda: s, clock=lambda: t[0])
+
+    def tabs(n_open, active):
+        return [dict(id=i, url=f"https://site{i}.example/x", title="x", active=(i == active), audible=False, incognito=False)
+                for i in range(1, n_open + 1)]
+    check("nothing seen yet: it says so", b.hear("how many tabs do I have open", t[0]) == "I haven't seen your tabs yet.")
+    s.submit({"focused": True, "tabs": tabs(20, 1)})
+    s.read()
+    say = b.hear("how many tabs do I have open", t[0])
+    check("it counts them", say.startswith("You have 20 tabs open."), say)
+    check("...and is honest that it cannot say which are left alone until it has watched for six hours", "only been watching for" in say and "6 hours" in say, say)
+    t[0] += 3600
+    s.submit({"focused": True, "tabs": tabs(20, 2)})
+    s.read()
+    check("still too soon at an hour", "only been watching for 1 hour" in b.hear("do I have too many tabs", t[0]), b.hear("do I have too many tabs", t[0]))
+    for hour in range(1, 8):                                       # seven hours: tabs 1 to 5 are used now and then
+        t[0] += 3600
+        s.submit({"focused": True, "tabs": tabs(20, 1 + hour % 5)})
+        s.read()
+    r = s.tab_report(t[0])
+    check("seven hours on: 15 of the 20 were never in front since it started watching", r["open"] == 20 and r["untouched"] == 15, str(r))
+    say = b.hear("how many tabs do I have open", t[0])
+    check("it says so, with how long it has watched", say.startswith("You have 20 tabs open. 15 of them haven't been in front for 6 hours or more")
+          and "watching for 8 hours" in say, say)
+    t[0] += 60
+    s.submit({"focused": True, "tabs": tabs(21, 21)})              # a new tab, in front
+    s.read()
+    r2 = s.tab_report(t[0])
+    check("a tab opened just now is not left alone", r2["open"] == 21 and r2["untouched"] == 15, str(r2))
+    t[0] += 3600
+    s.submit({"focused": True, "tabs": tabs(5, 3)})                # the rest were closed
+    s.read()
+    check("closed tabs stop counting", s.tab_report(t[0])["open"] == 5 and s.tab_report(t[0])["untouched"] <= 5)
+    check("only ids and times are kept: no page or title is held about a tab", all(isinstance(k, int) for k in s._last_active)
+          and not any("example" in str(v) for v in s._last_active.values()))
+    check("ordinary talk is not taken for it", parse("open the tabs") is None and parse("close all my tabs") is None)
+
+
 def time_str(ts):
     import time as _t
     return _t.strftime("%H:%M", _t.localtime(ts))

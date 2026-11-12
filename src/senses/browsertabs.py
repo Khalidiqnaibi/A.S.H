@@ -98,7 +98,7 @@ class BrowserTabSensor(Sensor):
                  clock: Callable[[], float] = time.time, port: int = 0, token: str = "",
                  min_s: float = 3.0, grace_s: float = 15.0, stale_s: float = 90.0, churn_s: float = 10.0,
                  idle_s: Optional[Callable[[], float]] = None, idle_after_s: float = 180.0,
-                 idle_audible_max_s: float = 4 * 3600.0,
+                 idle_audible_max_s: float = 4 * 3600.0, idle_tab_s: float = 6 * 3600.0,
                  scrub: Optional[Callable[[str], str]] = None, listen: bool = False):
         from src.daemon.pagekind import Classifier   # lazy: senses must not import the daemon at load time
         self.cls = classifier if classifier is not None else Classifier()
@@ -111,6 +111,7 @@ class BrowserTabSensor(Sensor):
         # A video or a lecture with sound is not "away": the cutoff for idle input is lifted while the tab in
         # front is audible, up to this long (a film left playing overnight is still not an evening of watching).
         self.idle_audible_max_s = float(idle_audible_max_s)
+        self.idle_tab_s = float(idle_tab_s)              # a tab nobody has had in front for this long is "left alone"
         self.scrub = scrub
         self.listen = bool(listen)
         self.paused = False
@@ -124,6 +125,8 @@ class BrowserTabSensor(Sensor):
         self._lost: Optional[float] = None               # when the active tab was lost, if it was
         self._last_report = 0.0
         self._born: Dict[Any, float] = {}                # tab id -> first seen (ids only, no pages)
+        self._last_active: Dict[Any, float] = {}         # tab id -> when it was last in front (ids and times only)
+        self._since = 0.0                                # when the first report arrived: "left alone" is measured from here
         self._first = True
         self._server: Optional[ThreadingHTTPServer] = None
         self._last_rollup = 0.0
@@ -207,6 +210,8 @@ class BrowserTabSensor(Sensor):
     def _ingest(self, now: float, rep: Dict[str, Any]) -> List[SensorEvent]:
         self.stats["reports"] += 1
         self._last_report = now
+        if not self._since:
+            self._since = now
         raw = [t for t in rep["tabs"][:300] if isinstance(t, dict)]
         self.tabs_n = len(raw)
         self._count_churn(now, raw)
@@ -217,6 +222,9 @@ class BrowserTabSensor(Sensor):
         cand = None
         if focused and active_raw is not None:
             cand = next((c for c in clean if c["active"]), None)     # None if the active tab was dropped
+            if active_raw.get("id") is not None:
+                self._last_active[active_raw["id"]] = now            # which tabs get used: ids and times, never pages
+        self._last_active = {i: t for i, t in self._last_active.items() if i in self._born}
         out: List[SensorEvent] = []
         if cand is None:
             if self._cur is not None and self._lost is None:
@@ -335,6 +343,19 @@ class BrowserTabSensor(Sensor):
     def resume(self):
         self.paused = False
         self.resume_at = None
+
+    def tab_report(self, now: Optional[float] = None) -> Dict[str, Any]:
+        """How many tabs are open and how many nobody has touched. Counts only. A tab that was already open when ASH
+        started counts as left alone only once ASH has watched for that long."""
+        now = self.clock() if now is None else now
+        watched = (now - self._since) if self._since else 0.0
+        untouched = 0
+        if watched >= self.idle_tab_s:
+            for i, born in self._born.items():
+                last = max(self._last_active.get(i, 0.0), born if born > self._since else 0.0, self._since)
+                if now - last >= self.idle_tab_s:
+                    untouched += 1
+        return {"open": self.tabs_n, "untouched": untouched, "watched_s": watched, "threshold_s": self.idle_tab_s}
 
     def status(self) -> Dict[str, Any]:
         return {"paused": self.paused, "resume_at": self.resume_at, "listening": self._server is not None, "port": self.port,

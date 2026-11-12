@@ -99,6 +99,8 @@ _RX: List[Tuple[str, "re.Pattern"]] = [(k, re.compile(p, re.I)) for k, p in (
                       r"|" + _SITE.replace("(?P<site>", "(?P<site2>") + r"\s+is\s+(?:a\s+|for\s+)?(?P<cat2>" + _CATS + r")(?:\s+site)?)" + _Z),
     ("unknown_sites", _A + r"(?:what|which)\s+(?:sites|websites)\s+(?:can'?t\s+you\s+place|don'?t\s+you\s+know|are\s+(?:unknown|unplaced|uncategori[sz]ed)|do\s+you\s+not\s+know)"
                            r"(?:\s+(?:yet|so\s+far))?" + _Z + r"|" + _A + r"which\s+sites\s+(?:are\s+you\s+unsure\s+about|need\s+(?:a\s+)?tag(?:s|ging)?)" + _Z),
+    ("tabs", _A + r"(?:how\s+many\s+tabs\s+(?:do\s+i\s+have|are)\s+(?:open|there)?|do\s+i\s+have\s+too\s+many\s+tabs|how\s+many\s+tabs\s+do\s+i\s+have\s+open"
+                  r"|(?:am\s+i|have\s+i\s+been)\s+(?:a\s+)?tab\s+hoard(?:er|ing)|what\s+about\s+my\s+open\s+tabs)" + _Z),
     ("status", _A + r"(?:what\s+do\s+you\s+(?:know|keep|remember)\s+about\s+my\s+(?:browsing|tabs|web\s+(?:use|habits)|websites)"
                r"|are\s+you\s+(?:watching|tracking|recording)\s+(?:my\s+)?(?:tabs|browsing|browser)"
                r"|is\s+(?:tab|browser|browsing)\s+(?:tracking|watching)\s+on)" + _Z),
@@ -416,6 +418,19 @@ class Browsing:
                     f"titles or anything from private windows, banks, mail or health sites. Right now that's {c['episodes']} "
                     f"stretches over {n_days} days, plus older totals; the detail expires after {int(led.retention_days)} days. "
                     f"Say \"forget my browsing\" to delete it.")
+        if kind == "tabs":
+            r = s.tab_report(now)
+            if not r["open"]:
+                return "I haven't seen your tabs yet."
+            say = f"You have {r['open']} tab{'s' if r['open'] != 1 else ''} open."
+            hrs = int(round(r["threshold_s"] / 3600))
+            if r["watched_s"] < r["threshold_s"]:
+                return (say + f" I've only been watching for {dur(r['watched_s'])}, so I can't say yet which ones you've left alone "
+                              f"-- I count a tab as left alone after {hrs} hours.")
+            if r["untouched"]:
+                return (say + f" {r['untouched']} of them haven't been in front for {hrs} hours or more "
+                              f"(I've been watching for {dur(r['watched_s'])}).")
+            return say + f" You've had each of them in front within the last {hrs} hours."
         if kind == "export":
             folder = self.export_dir or os.path.join(os.environ.get("ASH_STATE_DIR", os.path.join(os.getcwd(), "state")), "exports")
             path = os.path.join(folder, time.strftime("browsing-%Y%m%d-%H%M%S.json", time.localtime(now)))
