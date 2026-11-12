@@ -1284,6 +1284,43 @@ def doctor_says_whether_it_will_work():
     check("an empty room: tells you to step in front of the camera", "no face in this picture" in out, out)
 
 
+def bg_runtime(faces, **vcfg):
+    """A runtime whose presence reading runs on the worker thread, with a camera sensor stub holding a fresh frame."""
+    import tst_effects as te
+    from src.senses.base import State
+    from src.vision.eye import Eye
+    from src.vision.memory import VisualMemory
+    import time as _t
+    io = dict(eye=Eye(grab=lambda: frame()), faces=faces, objects=FakeObjects([]), memory=VisualMemory(None))
+    rt = te.rig(vision=True, vision_io=io, vision_cfg=dict({"presence": True, "presence_interval_s": 1.0, "enrol_checks": False}, **vcfg))
+    cam = type("Cam", (), {"due": lambda self, now: False, "name": "camera", "close": lambda self: None,
+                           "status": lambda self: {}, "disable": lambda self: None, "enable": lambda self: None})()
+    cam.state, cam.last_frame, cam.last_frame_ts = State.ACTIVE, frame(), _t.time()
+    rt.periphery.sensors["camera"] = cam
+    rt.cam = cam
+    return rt
+
+
+@section
+def stopping_does_not_wait_on_a_stuck_detector():
+    print("\n=== Stopping the daemon never waits on a detector that is stuck ===")
+    import threading as th
+    import time as tm
+    release = th.Event()
+    stuck = FakeFaces([face()], [vec(1)])
+    stuck.detect = lambda fr: (release.wait(10), [])[1]
+    rt = bg_runtime(stuck)
+    rt.t[0] += 5
+    rt.cam.last_frame_ts = tm.time()
+    rt._tick()
+    tm.sleep(0.2)
+    check("a reading is in flight and stuck", rt._presence_job is not None and not rt._presence_job.done())
+    t0 = tm.time()
+    rt.stop(timeout=1.0)
+    check("stop() returns promptly and lets go of the worker", tm.time() - t0 < 3.0 and rt._presence_exec is None, f"{tm.time() - t0:.2f}s")
+    release.set()
+
+
 if __name__ == "__main__":
     for fn in SECTIONS:
         fn()

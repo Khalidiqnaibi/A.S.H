@@ -769,6 +769,12 @@ class AmbientRuntime:
         self._stop.set()
         if self._thread:
             self._thread.join(timeout=timeout)
+        if self._presence_exec is not None:                  # never wait on a detector that may be stuck
+            try:
+                self._presence_exec.shutdown(wait=False, cancel_futures=True)
+            except Exception:
+                logger.exception("Presence worker shutdown failed")
+            self._presence_exec = None
         self.journal.flush()
         if self.crashwatch is not None:
             try:
