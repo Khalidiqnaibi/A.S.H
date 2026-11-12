@@ -11,6 +11,7 @@ tst_commands.py -- a command said loosely still runs by rule, fast, and never by
   C8  a typo in a question for the brain is passed on spelled right; a real word is left alone
   C9  fast: well under a few milliseconds a line; and the switch turns it off
   C10 weather / calendar / smart home not set up: said plainly, not handed to the model
+  C11 an instruction without the name that no rule took is taken in, not answered (a question still is)
 
 Run:  PYTHONIOENCODING=utf-8 python tests/tst_commands.py
 """
@@ -240,9 +241,28 @@ def c10_not_set_up():
     check("another place still goes to the brain's weather tool", r["brain"], str(r))
 
 
+def c11_overheard_instructions():
+    print("\n=== C11. An instruction without ASH's name that no rule took is taken in, not answered ===")
+    for text in ("turn left at the next light", "play that again", "put it on the table"):
+        rt = runtime()
+        r = say(rt, text)
+        check(f"{text!r}: not answered, nothing pressed", not r["brain"] and not r["keys"] and not rt.out,
+              f"{r} {rt.out}")
+    rt = runtime()
+    check("counted", say(rt, "turn left at the next light") and rt.stats.get("instructions_overheard") == 1, str(rt.stats))
+    for text in ("what time does the store close", "what time is it"):
+        r = say(runtime(), text)
+        check(f"a question in the same band is still answered: {text!r}", r["brain"], str(r))
+    r = say(runtime(), "Ash, turn left at the next light")
+    check("with the name it is answered", r["brain"], str(r))
+    rt = runtime()
+    r = say(rt, "pause the music")
+    check("an instruction a rule does take still works without the name", "play_pause" in r["keys"], str(r))
+
+
 if __name__ == "__main__":
     for fn in (c1_clean, c2_spelling, c3_nearest, c4_catalog_is_real, c5_runtime, c6_did_you_mean, c7_never_overheard,
-               c8_brain_spelling, c9_fast_and_switch, c10_not_set_up):
+               c8_brain_spelling, c9_fast_and_switch, c10_not_set_up, c11_overheard_instructions):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

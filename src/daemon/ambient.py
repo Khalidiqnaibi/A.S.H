@@ -2225,6 +2225,8 @@ class AmbientRuntime:
         if self._loose_command(ev, now):
             return
 
+        self._unclaimed_instruction(ev)
+
         novelty = 0.5
         try:
             drives = self.brain.homeostasis.drives
@@ -2489,6 +2491,21 @@ class AmbientRuntime:
             ev.text = fixed
             self.stats["loose_spelled"] = self.stats.get("loose_spelled", 0) + 1
         return False
+
+    def _unclaimed_instruction(self, ev):
+        """An instruction said without ASH's name ("turn left at the next light", "play that again") is only "probably"
+        for ASH -- and by the time it gets here every rule has already had its chance and none took it. Something ASH
+        cannot do, said without its name, was almost always said to someone else: it is taken in, not answered. A
+        question in the same band ("what time does the store close?") is still answered, as before."""
+        meta = getattr(ev, "meta", None) or {}
+        addr = meta.get("address") or {}
+        if getattr(ev, "addressed", False) or not addr.get("likely") or meta.get("offer"):
+            return
+        reasons = set(addr.get("reasons") or ())
+        if "an instruction" in reasons and "a question" not in reasons:
+            ev.meta = dict(meta)
+            ev.meta["address"] = dict(addr, likely=False, reasons=list(addr.get("reasons") or ()) + ["no rule took it"])
+            self.stats["instructions_overheard"] = self.stats.get("instructions_overheard", 0) + 1
 
     def _did_you_mean_step(self, ev, now: float) -> bool:
         """The answer to "Did you mean ...?": yes runs it, no drops it; anything else is a new line."""
