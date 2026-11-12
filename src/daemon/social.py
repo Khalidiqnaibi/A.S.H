@@ -275,9 +275,19 @@ class SocialLearner:
 
     def exploration(self, kind: str, ctx: str = "", urgency: float = 0.0,
                     now: Optional[float] = None) -> float:
-        """Bonus to the score while there is little evidence either way."""
-        return (self.explore / math.sqrt(1.0 + self.evidence(kind, ctx, now))
-                * (1.0 - max(0.0, min(1.0, urgency))))
+        """Bonus to the score while there is little evidence either way.
+
+        With an activity in the context ("idle/evening/coding") the cell is finer than before and starts empty, so
+        measured on its own it would make ASH keener to speak up in every new activity than it ever was in the
+        situation as a whole. The evidence is the most that is known at any level that contains it -- the same
+        situation without the activity, and the kind while doing that activity -- so a finer context is never
+        explored harder than the coarser one it came from."""
+        ev = self.evidence(kind, ctx, now)
+        act = _activity_of(ctx)
+        if act:
+            coarse = "/".join(ctx.split("/")[:2])
+            ev = max(ev, self.evidence(kind, coarse, now), self.evidence(kind, "@" + act, now))
+        return (self.explore / math.sqrt(1.0 + ev) * (1.0 - max(0.0, min(1.0, urgency))))
 
     # -- learning ----------------------------------------------------------
     def update(self, kind: str, ctx: str, reward: float, weight: float = 1.0,

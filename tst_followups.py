@@ -76,6 +76,29 @@ def fix_small_model_outage():
     check("...and not tried again", calls == ["big:7b"] and not on, str(calls))
 
 
+@section
+def fix_exploration_in_new_activities():
+    print("\n=== FIX: a new activity context is not explored harder than the situation it came from ===")
+    from src.daemon.social import SocialLearner
+    now = 1_800_000_000.0
+    lr = SocialLearner(clock=lambda: now)
+    for _ in range(30):
+        lr.update("moment", "idle/evening", 1.0, 1.0, now)
+    coarse = lr.exploration("moment", "idle/evening", 0.0, now)
+    fine = lr.exploration("moment", "idle/evening/coding", 0.0, now)
+    check("with 30 reactions in 'idle/evening', 'idle/evening/coding' is no keener to speak (it was 0.10 vs 0.02)",
+          fine <= coarse + 1e-9, f"coarse {coarse:.3f} fine {fine:.3f}")
+    fresh = SocialLearner(clock=lambda: now)
+    check("a kind it has never seen at all is still explored, as before",
+          abs(fresh.exploration("joke", "idle/evening/coding", 0.0, now) - fresh.explore) < 1e-9)
+    for _ in range(20):
+        lr.update("joke", "away/night/gaming", 1.0, 1.0, now)          # lots known about jokes while gaming
+    check("what is known about the kind during that activity counts too",
+          lr.exploration("joke", "idle/evening/gaming", 0.0, now) < 0.03, str(lr.exploration("joke", "idle/evening/gaming", 0.0, now)))
+    check("without an activity nothing changed", abs(lr.exploration("moment", "idle/evening", 0.0, now) - coarse) < 1e-12)
+    check("urgency still scales it down", lr.exploration("joke", "idle/evening/coding", 1.0, now) == 0.0)
+
+
 if __name__ == "__main__":
     for fn in SECTIONS:
         fn()
