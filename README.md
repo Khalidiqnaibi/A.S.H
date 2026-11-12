@@ -499,6 +499,32 @@ python ashctl.py status                  # talk to a running daemon
 Config is `daemon.json`, written with defaults on first run. Everything
 invasive is **off** by default and every actuator is **dry-run** by default.
 
+## Closer to Jarvis and BMO
+
+Each of these is its own module in `src/daemon/` (or `src/senses/`), on by default in `daemon.json` unless it says
+otherwise, and has its own test in `tests/`. All of them work by rule -- the language model is used only where it
+says so.
+
+| Say | What happens | Module, setting |
+|---|---|---|
+| (nothing -- it notices) | One well-timed line from what ASH already knows: "Heads up: Standup starts in 10 minutes -- and you're still gaming", a low battery, memory nearly full, a birthday from your notes, "it's past 1 -- the coding can wait". Offered through the attention gate, so muting, quiet hours, focus and the hourly budget still apply. | `situation.py`, `situation.enabled` |
+| "Why is my computer slow?", "what's using my memory / cpu?", "am I running out of space?" | The real numbers, programs grouped (40 Chrome processes are one Chrome). Under real pressure it offers to close the biggest program, and does it only on "yes" -- never ASH, its model server or Windows itself. | `pcdoctor.py`, `pcdoctor.enabled` |
+| "Find the contract I was editing last week", "what did the lease say about pets?", "open it" | Your Documents, Desktop and Downloads, indexed on this computer in the background (names, dates, the start of the text; by meaning too, with the encoder ASH already loads). The sentence about pets is read back from the file. | `filesearch.py`, `filesearch.folders` |
+| "Show the heads-up display" / `ashctl hud` | A small always-on-top panel: the clock, what's coming up, what's on, what's playing, who's here, ASH's last line, a box to type in. Same themes as the console. | `src/ui/static/hud.html` |
+| "Reply to Omar saying I'll be late", "make it more formal", "send it" | A draft from your words, threaded under Omar's email, read back in full. Sent only on "send it", and only with `email.allow_send` switched on (it is off). Rewording is the one step that uses the model. | `drafts.py`, `email.allow_send` |
+| "Find my phone", "send it to my phone", "text Omar saying I'm late" | Through KDE Connect (install it on this computer and the phone, pair them). Texts are read back and sent on "send it". On Windows it can't hear incoming calls -- KDE Connect's tool only sends. | `phone.py`, `phone.contacts`, `phone.ntfy_url` |
+| "Guard mode on" ... "I'm back" | While you're away the camera watches; someone unknown or movement is sent to your phone as words (no pictures). Your own face coming back ends it, with what happened. | `guard.py`, `guard.enabled` |
+| (talk over ASH) | It stops at once -- from the sound level, above its own echo, before a word is transcribed. Transcription starts as you go quiet, so the words are ready about 0.3 s sooner, and speech is made and played a sentence at a time. An on-device wake word is optional (`sensors.microphone.wake_word_model`, an openWakeWord model; not installed by default). | `src/senses/livevoice.py`, `sensors.microphone.barge_in` |
+| "How are you feeling?" | From feelings that last: thanks and laughs lift them, being told off lowers them, hours alone bore it, late nights make it sleepy. They fade over hours, survive a restart, and show on the face. | `feelings.py`, `feelings.enabled` |
+| "Tell me a joke", "sing a song about my cat", "what are our inside jokes?" | Original jokes, none repeated until all are told; made-up songs; a line you laughed at is remembered and comes back now and then. | `fun.py`, `fun.enabled` |
+| "Kids mode for 30 minutes" | Grown-up things refused kindly (email, texts, files, notes, apps, smart home, buying...), the model told it's talking with a child, a not-for-kids word filter on everything said, a time limit. Only a grown-up turns it off (`kids.passphrase` optional). | `kids.py`, `kids.minutes` |
+| "Take a silly photo", "take a photo with the cartoon filter" | "Three, two, one -- cheese!", one frame, a filter (cartoon, sketch, mirror, retro, comic, BMO frame), saved to `~/Pictures/ASH`. Never in privacy mode, never for a guest. | `photobooth.py`, `photobooth.dir` |
+
+What has **not** been tried on real hardware: the microphone and speaker changes (tested with synthetic audio and a fake
+player), KDE Connect (tested with a fake tool; it isn't installed here), and guard mode and the photo booth on a real
+camera (tested with synthetic frames). The thresholds -- how loud counts as talking over ASH, how much change counts as
+movement -- are starting points to tune.
+
 ## Attention: when ASH speaks
 
 Every ambient event gets one of three dispositions, and ~99% of a day's
