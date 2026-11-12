@@ -1734,7 +1734,8 @@ class AmbientRuntime:
             self._playing = None
         elif m.get("item"):
             self._playing = {"item": str(m["item"]), "title": str(m.get("title") or ""), "artist": str(m.get("artist") or ""),
-                             "kind": str(m.get("kind") or ""), "player": str(m.get("player") or "")}
+                             "kind": str(m.get("kind") or ""), "player": str(m.get("player") or ""),
+                             "at": float(getattr(ev, "ts", 0) or 0) or self.clock()}
 
     _WHATS_PLAYING = re.compile(
         r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:so\s+)?(?:what(?:'s|\s+is|\s+song\s+is|\s+track\s+is)?\s+(?:this\s+)?(?:song|track|tune|"

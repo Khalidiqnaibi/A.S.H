@@ -185,6 +185,7 @@ _THIS = re.compile(r"\bthis(?:\s+(?:song|track|tune|one|album|show|video|episode
                    r"playlist|stream|music))?(?=\s*(?:[.!?,;]|$)|\s+(?:so|a|because|but|when|while|too|right|much|lot|"
                    r"really|and|is|was)\b)", re.I)
 _SENTINEL = "Zqthisitem"
+BIND_RECENT_S = 45.0           # a bare "this" is the song only if it started this recently
 
 
 def _title_item(item: str) -> str:
@@ -235,7 +236,9 @@ def _clean_item(raw: str) -> str:
         return ""
     first = t.lower().split()[0]
     if t.lower() in _NOT_ITEM or first in {"when", "how", "what", "why", "who", "where", "which", "that", "if", "i",
-                                           "i'm", "im", "i've", "ive", "it", "you", "being", "having", "waking"}:
+                                           "i'm", "im", "i've", "ive", "it", "you", "being", "having", "waking",
+                                           "it's", "that's", "there's", "he's", "she's", "they're", "we're", "you're",
+                                           "what's", "who's", "here's"}:
         return ""
     if re.search(r"\b(?:i|i'm|i've|you|we|he|she|they)\s+(?:am|are|is|was|were|have|had|do|did|can|will|would)\b",
                  t, re.I):
@@ -513,7 +516,11 @@ class Taste:
             # "remember that I like coffee" / "note that Ali hates cilantro": the same statement, asked to be kept.
             sent = re.sub(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:remember|note|keep\s+in\s+mind|don'?t\s+forget)\s+that\s+",
                           "", sent, flags=re.I)
-            bound =bool(playing and playing.get("item") and _THIS.search(sent))
+            # "this song" always means the song that is on. A bare "I hate this" only does if the track has only just
+            # started: with music going in the background, frustration at a bug is not a verdict on the song.
+            mt = _THIS.search(sent) if (playing and playing.get("item")) else None
+            bound = bool(mt and (len(mt.group(0).split()) > 1
+                                 or now - float(playing.get("at") or 0.0) <= BIND_RECENT_S))
             for f in read(_THIS.sub(_SENTINEL, sent, count=1) if bound else sent):
                 if bound and f.item.lower() == _SENTINEL.lower():
                     f.item = str(playing["item"])
