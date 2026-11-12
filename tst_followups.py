@@ -836,6 +836,26 @@ def feature_why_did_you_speak_with_numbers():
     check("...nor a remark with no record of what it was weighed with", "landed well" not in rt.out[-1] and "I said that because" in rt.out[-1])
 
 
+@section
+def feature_panel_lists_goals_and_kept_out_sites():
+    print("\n=== FEATURE: 'What I'm learning about you' lists your goals and the sites you keep out ===")
+    import tst_effects as te
+    from src.daemon import learning
+    s, led, now = _world()
+    rt = te.rig()
+    rt.periphery.sensors["browser_tabs"] = s
+    rt.t[0] = now
+    learning._CACHE.clear()
+    lines = learning.snapshot(rt, now).get("lines", [])
+    check("with no goals and nothing kept out, neither line is there", not any(l.startswith(("Goals:", "Keeping out:")) for l in lines), str(lines))
+    led.set_goal("video", 7200, "week")
+    s.cls.ignore("reddit.com")
+    learning._CACHE.clear()
+    lines = learning.snapshot(rt, now).get("lines", [])
+    check("a goal is listed with its progress", any(l == "Goals: video: 4 hours of 2 hours this week -- over by 2 hours" for l in lines), str(lines))
+    check("a site you keep out is listed, with what is always kept out", any(l.startswith("Keeping out: reddit.com (plus banks, mail, chat") for l in lines), str(lines))
+
+
 def time_str(ts):
     import time as _t
     return _t.strftime("%H:%M", _t.localtime(ts))

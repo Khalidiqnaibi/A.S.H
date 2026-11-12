@@ -46,6 +46,15 @@ def _lines(rt, now: float) -> List[str]:
             out.append(f"Browser tabs: {state}; holding {c['episodes']} recent stretches and {c['sites']} older site totals "
                        f"(site and category only; {int(led.retention_days)} days of detail).")
             try:
+                goals = b.goal_progress(now)
+                if goals:
+                    out.append("Goals: " + "; ".join(b.goal_line(g) for g in goals))
+                ignored = sorted(getattr(sensor.cls, "ignored", ()) or ())
+                if ignored:
+                    out.append("Keeping out: " + ", ".join(ignored) + " (plus banks, mail, chat, health and similar, always)")
+            except Exception:
+                pass
+            try:
                 ints = b.interests(now, 4)
                 if ints:
                     out.append("Interests: " + ", ".join(f"{s} ({cat})" for s, cat, _w, _d in ints))
