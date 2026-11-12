@@ -960,6 +960,117 @@ def step5_manage_what_it_knows():
     check("by voice: forgotten", mem.get("Omar") is None and "numbers I recognised them by" in rt.out[-1], rt.out[-1])
 
 
+class FakeReply:
+    def __init__(self, text="", status=200):
+        self.status_code, self._text = status, text
+
+    def json(self):
+        return {"message": {"content": self._text}}
+
+
+@section
+def step6_open_questions_opt_in():
+    print("\n=== STEP 6: 'what does this label say?' -- a local vision model, only if switched on ===")
+    import base64
+    import cv2
+    from src.daemon.looking import parse
+    from src.vision.vlm import OllamaVision, is_local, jpeg_b64, INSTRUCTION
+    ok = {"what does this label say": "read", "what's written on this": "read", "read this label": "read", "describe what you see": "describe",
+          "describe this in detail": "describe", "look and tell me if the stove is on": "ask", "use the camera to check whether the door is open": "ask"}
+    check("the ways people ask", all((parse(q) or (None,))[0] == k for q, k in ok.items()))
+    check("ordinary talk is not taken for it", all(parse(q) is None for q in ("read this file", "what does this mean", "describe the problem", "what does this say about me")))
+    check("the question is passed on as asked", parse("look and tell me if the stove is on")[1] == {"q": "if the stove is on"})
+
+    check("only this machine: loopback addresses", is_local("http://127.0.0.1:11434/api/chat") and is_local("http://localhost:11434/x")
+          and not is_local("http://192.168.1.5:11434/api/chat") and not is_local("https://api.example.com/v1") and not is_local("nonsense"))
+    big = frame(size=(1080, 1920), square=((30, 30, 210), (800, 400, 300, 300)))
+    b64 = jpeg_b64(big)
+    img = cv2.imdecode(np.frombuffer(base64.b64decode(b64), np.uint8), cv2.IMREAD_COLOR)
+    check("a picture goes as one JPEG, downscaled (longest edge 768)", img is not None and max(img.shape[:2]) == 768 and img.shape[:2] == (432, 768), str(None if img is None else img.shape))
+    check("...and a bad frame is None, not a crash", jpeg_b64(None) is None)
+
+    sent = []
+
+    def post(url, json=None, timeout=None):
+        sent.append((url, json, timeout))
+        return FakeReply("It says: Best before 12 March 2027.")
+    v = OllamaVision("llava", "http://127.0.0.1:11434/api/chat", post=post)
+    check("available with a model and a local address", v.available() and not OllamaVision("").available()
+          and not OllamaVision("llava", "http://10.0.0.9:11434/api/chat").available())
+    ans = v.ask(frame(size=(240, 320)), "What does it say?")
+    p = sent[0][1]
+    check("the answer comes back", ans == "It says: Best before 12 March 2027.")
+    check("one message, one image, not streamed, low temperature, a short answer", p["model"] == "llava" and p["stream"] is False and len(p["messages"]) == 1
+          and len(p["messages"][0]["images"]) == 1 and p["options"]["temperature"] <= 0.3 and p["options"]["num_predict"] <= 256)
+    check("the model is told to stay with what is visible, say when it cannot tell, and never identify a person by their face",
+          INSTRUCTION in p["messages"][0]["content"] and "Do not identify any person by their face" in INSTRUCTION and "What does it say?" in p["messages"][0]["content"])
+    remote = OllamaVision("llava", "https://api.example.com/chat", post=post)
+    n = len(sent)
+    check("a remote address is refused, and nothing is sent", remote.ask(frame(), "x") is None and len(sent) == n)
+    check("errors, empty answers and a bad status are None", OllamaVision("llava", post=lambda *a, **k: (_ for _ in ()).throw(OSError("down"))).ask(frame(), "x") is None
+          and OllamaVision("llava", post=lambda *a, **k: FakeReply("")).ask(frame(), "x") is None
+          and OllamaVision("llava", post=lambda *a, **k: FakeReply("x", 500)).ask(frame(), "x") is None)
+    check("no frame is None", v.ask(None, "x") is None)
+
+    # through Looking
+    def with_vlm(reply="A white box with a blue label.", **kw):
+        vl = OllamaVision("llava", post=lambda *a, **k: FakeReply(reply))
+        lk = looking(**kw)
+        lk.vlm = vl
+        lk.cfg.open_questions = True
+        return lk
+    off = looking()
+    say = off.hear("what's written on this", 1000.0)
+    check("off by default: it says what is missing, and takes NO picture", "needs a vision model" in say and "vision.vlm_model" in say and off.eye.looks == 0, say)
+    flag_only = looking()
+    flag_only.cfg.open_questions = True
+    check("switched on but no model named: the same", "needs a vision model" in flag_only.hear("describe what you see") and flag_only.eye.looks == 0)
+    lk = with_vlm()
+    say = lk.hear("describe what you see", 1000.0)
+    check("on: the model's words, and that they are the model's reading", say == "A white box with a blue label. That's the vision model's reading, so check it if it matters.", say)
+    check("...from one picture, kept for a minute in memory only", lk.eye.looks == 1 and lk.vlm.calls == 1 and lk.eye.recent() is not None)
+    check("read", with_vlm("Best before 12 March 2027").hear("what does this label say").startswith("Best before 12 March 2027. That's the vision model's reading"))
+    check("a long answer is cut", len(with_vlm("word " * 400).hear("describe what you see")) < 520)
+    sent.clear()
+    q = looking()
+    q.vlm = OllamaVision("llava", post=post)
+    q.cfg.open_questions = True
+    q.hear("look and tell me if the stove is on")
+    check("a free question reaches the model as asked", "if the stove is on" in sent[0][1]["messages"][0]["content"])
+    check("no answer from the model: said", "couldn't get an answer" in with_vlm("").hear("describe what you see"))
+    pr = with_vlm(eye_paused=True)
+    check("in privacy mode nothing is looked at and nothing is sent", pr.hear("describe what you see") == "I'm paused for privacy, so I'm not looking." and pr.vlm.calls == 0)
+    check("no camera: said", "no camera I can open" in with_vlm(grab=False).hear("describe what you see"))
+
+    # the runtime
+    import tst_effects as te
+    from src.senses.base import Modality, SensorEvent
+    from src.vision.eye import Eye
+    from src.vision.memory import VisualMemory
+    vl = OllamaVision("llava", post=lambda *a, **k: FakeReply("A cup on a desk."))
+    eye = Eye(grab=lambda: frame())
+    rt = te.rig(vision=True, vision_cfg=dict(open_questions=True, vlm_model="llava"),
+                vision_io=dict(eye=eye, faces=FakeFaces(), objects=FakeObjects([]), memory=VisualMemory(None), vlm=vl))
+    rt.brain.user = "Khalid"
+    rt.say("describe what you see")
+    check("by voice", rt.out[-1].startswith("A cup on a desk."), rt.out[-1])
+    n = eye.looks
+    rt.t[0] += 5
+    rt.submit(SensorEvent(source="microphone", modality=Modality.TEXT, text="describe what you see", addressed=True, salience=0.9, urgency=0.6, meta={"guest": True}))
+    rt._tick()
+    check("a guest's voice is refused: no picture, no model", rt.out[-1].startswith("Sorry, I only do that for Khalid") and eye.looks == n and vl.calls == 1, rt.out[-1])
+    rt.t[0] += 5
+    rt.submit(SensorEvent(source="microphone", modality=Modality.TEXT, text="describe what you see", addressed=False, salience=0.4, meta={}))
+    rt._tick()
+    check("overheard speech neither", eye.looks == n and vl.calls == 1)
+    from src.daemon.looking import build
+    lk = build(dict(open_questions=True, vlm_model="llava"), dict(eye=eye, faces=FakeFaces(), objects=FakeObjects([])), lambda: None, lambda: False, lambda: 1.0, None,
+               ollama_url="http://127.0.0.1:4444/api/chat")
+    check("built from the config: it uses the language model's own Ollama address", lk.vlm is not None and lk.vlm.url == "http://127.0.0.1:4444/api/chat" and lk.vlm.model == "llava")
+    nobody = build(dict(open_questions=False, vlm_model="llava"), dict(eye=eye, faces=FakeFaces(), objects=FakeObjects([])), lambda: None, lambda: False, lambda: 1.0)
+    check("...and nothing is built unless it was switched on", nobody.vlm is None and not nobody.can_open_questions())
+
+
 if __name__ == "__main__":
     for fn in SECTIONS:
         fn()

@@ -42,6 +42,12 @@ _RX: List[Tuple[str, "re.Pattern"]] = [(k, re.compile(p, re.I)) for k, p in (
                           + r"|this\s+(?:person\s+)?is\s+" + _L("3") + r",?\s*(?:please\s+)?(?:remember|learn)\s+(?:his|her|their)\s+face" + _P("3") + r")" + _Z),
     ("teach_thing", _A + r"(?:(?:remember|learn)\s+this\s+(?:thing\s+|object\s+)?(?:as|is)\s+" + _L() + _P()
                          + r"|this\s+is\s+" + _L("2") + r",?\s*(?:please\s+)?(?:remember|learn)\s+(?:it|that|this)" + _P("2") + r")" + _Z),
+    # Open questions, for a vision model -- only if switched on (vision.open_questions + vision.vlm_model).
+    ("read", _A + r"(?:what\s+does\s+(?:this|that)\s+(?:(?:label|sign|box|page)\s+)?(?:say|read)|what(?:'s|\s+is)\s+written\s+(?:on|here)(?:\s+(?:this|that|it))?"
+                  r"|read\s+(?:this|that|the)\s+(?:label|sign|text|box|page|packaging)(?:\s+out)?|read\s+(?:this|that)\s+out)" + _Z),
+    ("describe", _A + r"(?:describe\s+(?:what\s+you\s+see|this|the\s+scene|the\s+room)(?:\s+in\s+detail)?"
+                      r"|tell\s+me\s+(?:in\s+detail\s+)?what\s+you\s+see\s+(?:through|on|with)\s+the\s+camera)" + _Z),
+    ("ask", r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:look\s+and\s+tell\s+me|use\s+the\s+camera\s+to\s+(?:tell\s+me|check|see))\s+(?P<q>[^.?!]{4,120})\s*[.?!]*\s*$"),
     # Managing what it knows. "forget X" only counts when X is something it was taught (Looking.wants).
     ("list", _A + r"(?:what\s+(?:faces|people|things)\s+do\s+you\s+(?:know|recogni[sz]e)|who\s+(?:do\s+you\s+know\s+by\s+sight|have\s+you\s+(?:learned|been\s+(?:taught|shown)))"
                   r"|what\s+(?:have\s+you\s+(?:saved|learned\s+to\s+recogni[sz]e)|have\s+i\s+(?:shown|taught)\s+you)|what\s+do\s+you\s+(?:remember\s+seeing|recogni[sz]e)"
@@ -85,6 +91,8 @@ def parse(text: str) -> Optional[Tuple[str, Dict[str, str]]]:
                 out["photo"] = "1"
             if "kind" in g:
                 out["kind"] = g["kind"].lower()
+            if "q" in g:
+                out["q"] = re.sub(r"\s+", " ", g["q"]).strip()
             return kind, out
     return None
 
@@ -99,6 +107,10 @@ class LookingConfig:
     object_conf: float = 0.35
     sure_conf: float = 0.60               # above this a label is stated; between this and object_conf it is hedged
     photo_dir: str = "~/Pictures/ASH"
+    # Open questions ("what does this label say?"): a LOCAL multimodal Ollama model, switched on and named by you.
+    open_questions: bool = False
+    vlm_model: str = ""
+    vlm_url: str = ""                     # empty: the language model's own Ollama address
     # Who is here, from the camera sensor's own frames every few seconds (presence.py). Off until switched on.
     presence: bool = False
     presence_interval_s: float = 8.0
@@ -121,7 +133,8 @@ class LookingConfig:
 
 
 def build(cfg: Optional[Dict[str, Any]], io: Optional[Dict[str, Any]], sensor: Callable[[], Any], paused: Callable[[], bool],
-          clock: Callable[[], float], memory_path: Optional[str] = None, user: Callable[[], str] = lambda: "") -> "Looking":
+          clock: Callable[[], float], memory_path: Optional[str] = None, user: Callable[[], str] = lambda: "",
+          ollama_url: str = "") -> "Looking":
     """The production wiring: the real eye and models from the config -- or whatever `io` supplies instead (tests pass
     fakes for any of eye, faces, objects, embedder, memory). Models that are not on disk are simply unavailable."""
     import os
@@ -138,7 +151,11 @@ def build(cfg: Optional[Dict[str, Any]], io: Optional[Dict[str, Any]], sensor: C
     objects = io["objects"] if "objects" in io else ONNXObjects(os.path.expanduser(str(c.get("objects_path") or os.path.join(folder, "objects.onnx"))),
                                                                   conf=lc.object_conf)
     memory = io["memory"] if "memory" in io else VisualMemory(memory_path, clock=clock)
-    return Looking(eye, faces, objects, io.get("embedder") or ThingEmbedder(), memory, lc, clock=clock, user=user)
+    vlm = io.get("vlm")
+    if vlm is None and lc.open_questions and lc.vlm_model:
+        from src.vision.vlm import OllamaVision
+        vlm = OllamaVision(lc.vlm_model, lc.vlm_url or ollama_url or "http://127.0.0.1:11434/api/chat")
+    return Looking(eye, faces, objects, io.get("embedder") or ThingEmbedder(), memory, lc, clock=clock, user=user, vlm=vlm)
 
 
 _PLURAL = {"person": "people", "sheep": "sheep"}
@@ -161,8 +178,9 @@ class Looking:
     """The camera, asked. `eye`, `faces`, `objects` and `embedder` are injected so tests never touch hardware."""
 
     def __init__(self, eye, faces, objects, embedder, memory=None, cfg: Optional[LookingConfig] = None,
-                 clock: Callable[[], float] = time.time, user: Callable[[], str] = lambda: ""):
+                 clock: Callable[[], float] = time.time, user: Callable[[], str] = lambda: "", vlm=None):
         self.user = user
+        self.vlm = vlm
         self.eye = eye
         self.faces = faces
         self.objects = objects
@@ -200,6 +218,8 @@ class Looking:
             return None
         kind, _d = parse(text)
         now = self.clock() if now is None else now
+        if kind in ("read", "describe", "ask") and not self.can_open_questions():
+            return self._no_vlm()                            # before any frame is taken
         if kind in ("list", "export", "save_photo", "forget", "forget_kind"):
             return self.manage(kind, _d, now)                # no new picture for any of these
         if kind == "who" and self.cfg.presence and self.presence.fresh(now, 3 * self.cfg.presence_interval_s):
@@ -211,6 +231,8 @@ class Looking:
         self.stats["looks"] += 1
         if kind in ("teach_me", "teach_person", "teach_thing"):
             return self.teach(kind, _d, frame, now)
+        if kind in ("read", "describe", "ask"):
+            return self.open_question(kind, _d, frame)
         if kind == "who":
             return self.who(frame, now)
         if kind == "is_this":
@@ -512,6 +534,23 @@ class Looking:
             seen = f" (it looks like {_a(note)})" if note else ""
             return f"Okay, I'll recognise {label}{seen}. Show it to me again in a different position and I'll be surer."
         return f"Got another look at {label} ({len(v.embeds)} now)."
+
+    # -- open questions ---------------------------------------------------------------------
+    def can_open_questions(self) -> bool:
+        return bool(self.cfg.open_questions and self.vlm is not None and self.vlm.available())
+
+    def _no_vlm(self) -> str:
+        return ("I can name things and tell people apart, but reading a label or describing a scene needs a vision model, and that "
+                "isn't set up. Set vision.open_questions and vision.vlm_model (a local Ollama model such as llava) in daemon.json.")
+
+    def open_question(self, kind: str, d: Dict[str, str], frame) -> str:
+        question = {"read": "Read out the text in the picture, exactly as written. If there is none, say so.",
+                    "describe": "Describe what you see: the objects, the setting, and anything that looks written or labelled."}.get(kind) or d.get("q", "")
+        text = self.vlm.ask(frame, question)
+        if not text:
+            return "I couldn't get an answer from the vision model."
+        text = re.sub(r"\s+", " ", text)[:420].rstrip()
+        return text + (" " if text.endswith((".", "!", "?")) else ". ") + "That's the vision model's reading, so check it if it matters."
 
     # -- managing what it knows -----------------------------------------------------------
     def manage(self, kind: str, d: Dict[str, str], now: float) -> str:

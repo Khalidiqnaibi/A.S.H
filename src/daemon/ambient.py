@@ -599,7 +599,8 @@ class AmbientRuntime:
             self.looking = build_looking(self.cfg.vision_cfg, self.cfg.vision_io,
                                          lambda: getattr(getattr(self.periphery, "sensors", {}), "get", lambda *_: None)("camera"),
                                          lambda: bool(self.privacy.paused), lambda: self.clock(), self.cfg.vision_path,
-                                         user=lambda: str(getattr(self.brain, "user", "") or ""))
+                                         user=lambda: str(getattr(self.brain, "user", "") or ""),
+                                         ollama_url=str(getattr(getattr(self.ash, "llm", None), "_ollama_url", "") or ""))
         if self.cfg.grammar:
             from .grammar import Grammar
             address.register_grammar(Grammar(self))
