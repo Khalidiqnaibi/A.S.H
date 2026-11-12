@@ -247,6 +247,9 @@ class AmbientConfig:
     vision_cfg: Optional[Dict[str, Any]] = None
     vision_io: Optional[Dict[str, Any]] = None        # tests pass fakes: eye, faces, objects, embedder, memory
     vision_path: Optional[str] = None                 # where what it has been shown is kept
+    # A command said loosely -- "Ash, can you pause the music for me", "pasue the musci", "pause the music that's
+    # playing" -- still runs by rule instead of going to the model (commands.py). Only for lines meant for ASH.
+    loose_commands: bool = True
     arrivals: bool = False          # "remind me when I get home" (arrival.py)
     arrivals_path: Optional[str] = None
     arrivals_home: str = ""
@@ -593,6 +596,14 @@ class AmbientRuntime:
         self.scenes = Scenes(self.cfg.scenes_cfg) if self.cfg.scenes else None
         self.arrivals = Arrivals(self.cfg.arrivals_path, home=self.cfg.arrivals_home) if self.cfg.arrivals else None
         self._arrival_at = 0.0
+        self._dym = None                          # a "Did you mean ...?" waiting for yes or no: (phrase, when)
+        self._commands = None
+        if self.cfg.loose_commands:
+            try:
+                from .commands import Commands
+                self._commands = Commands()
+            except Exception:
+                logger.exception("Loose command matching unavailable; commands must be said as written")
         self.looking = None
         self._presence_job = None
         self._presence_exec = None
@@ -2204,114 +2215,15 @@ class AmbientRuntime:
         if self.speech is not None and self._speech_step(ev, now):
             return
 
-        # "Privacy mode", "turn off the mic", "smile", "what's your status":
-        # done by rule, and said as done -- never handed to the model.
-        if self._voice_command(ev, now):
+        # The rules, on the line as it was said. If none takes it and it was meant for ASH, the same rules again on
+        # the line cleaned up, spelled right, or as the command it is closest to -- in well under a millisecond, and
+        # never by the model. See src/daemon/commands.py.
+        if self._did_you_mean_step(ev, now):
             return
-
-        # "Open it", "remind me about that later": rewritten into the full
-        # request, then handled as usual; "who was that?" answered here.
-        if self.context is not None and self._context_step(ev, now):
+        if self._rules(ev, now):
             return
-
-        # A reply to a question ASH asked, or a request about the questions
-        # ("not now", "stop asking"), is spent here and not run as a new query.
-        if self.play is not None and self._play_step(ev, now):
+        if self._loose_command(ev, now):
             return
-
-        if self.wonder is not None and not guest:
-            rep = self._wonder_hear(ev, now)
-            if rep is not None and rep.consumed:
-                self.stats["wonders_answered"] = self.stats.get("wonders_answered", 0) + 1
-                if rep.say:
-                    self._wonder_say(ev, rep)
-                return
-
-        # "No, I meant ..." right after a reply is a correction of how ASH read
-        # the last request, not a new one about nothing.
-        if guest and self._guest_action(ev):
-            return
-        if self._focus_request(ev, now):
-            return
-        if self._look_request(ev, now):
-            return          # before the memory's own "forget X" / "remember X": "forget Omar's face" is the camera's
-        if self._browsing_request(ev, now):
-            return
-        if self._ux_request(ev, now):
-            return
-        if self._forget_request(ev, now):
-            return
-        if self._remember_request(ev, now):
-            return
-        if self._identity_request(ev, now):
-            return
-        if self._playing_request(ev, now):
-            return
-        if self._taste_request(ev, now):
-            return
-        if self._explain_request(ev, now):
-            return
-        if self.cfg.corrections and self._correction_step(ev, now):
-            return
-        if self._briefing_request(ev, now):
-            return
-        if self._task_request(ev, now):
-            return
-        if self._watch_request(ev, now):
-            return
-        if self._storage_request(ev, now):
-            return
-        if self._arrival_request(ev, now):
-            return
-        if self._clipboard_request(ev, now):
-            return
-        if self._reminder_request(ev, now):
-            return
-        if self._media_request(ev, now):
-            return
-        if self._desktop_request(ev, now):
-            return
-        if self._scene_request(ev, now):
-            return
-        if self._persona_request(ev, now):
-            return
-        if self._ritual_request(ev, now):
-            return
-        if self._smarthome_request(ev, now):
-            return
-        if self._research_request(ev, now):
-            return
-        if self._calendar_request(ev, now):
-            return
-        if self._weather_request(ev, now):
-            return
-        if self._email_request(ev, now):
-            return
-        if self._weekly_request(ev, now):
-            return
-        if self._crash_request(ev, now):
-            return
-        if self._facts_request(ev, now):
-            return
-        if self._honest_request(ev, now):
-            return
-        if self._cheer_request(ev, now):
-            return
-        if self.care is not None and self._user_source(ev):
-            said = self.care.hear(str(getattr(ev, "text", "") or ""), now)
-            if said:
-                self._wonder_say(ev, type("R", (), {"say": said, "outcome": "moment"})())
-                return
-
-        # An answer to a free-moment remark (how are you?) is spent the same way.
-        if self.moments is not None and getattr(ev, "source", "") != "flow":
-            try:
-                said = self.moments.hear(getattr(ev, "text", "") or "", now)
-            except Exception:
-                said = None
-            if said:
-                self._wonder_say(ev, type("R", (), {"say": said, "outcome": "moment"})())
-                return
 
         novelty = 0.5
         try:
@@ -2395,6 +2307,210 @@ class AmbientRuntime:
                 self._moment_inflight = None
             elif (ev.meta or {}).get("offer") == "briefing":
                 self._briefing_inflight = None
+
+    def _rules(self, ev, now: float) -> bool:
+        """Every rule-handled request, in order: True when one of them took the line.
+
+        A line read loosely (cleaned, spelled right, or matched to the nearest command -- see _loose_command) is only
+        offered to the handlers that DO things. Conversation-shaped ones -- answers to ASH's questions, corrections,
+        what it remembers or forgets, facts and research, honesty lines, cheer -- see only what was really said:
+        "can you help me" must not become a command "help me"."""
+        guest = bool((getattr(ev, "meta", None) or {}).get("guest"))
+        loose = bool((getattr(ev, "meta", None) or {}).get("read_as"))
+        # "Privacy mode", "turn off the mic", "smile", "what's your status":
+        # done by rule, and said as done -- never handed to the model.
+        if self._voice_command(ev, now):
+            return True
+
+        # "Open it", "remind me about that later": rewritten into the full
+        # request, then handled as usual; "who was that?" answered here.
+        if not loose and self.context is not None and self._context_step(ev, now):
+            return True
+
+        # A reply to a question ASH asked, or a request about the questions
+        # ("not now", "stop asking"), is spent here and not run as a new query.
+        if not loose and self.play is not None and self._play_step(ev, now):
+            return True
+
+        if self.wonder is not None and not guest and not loose:
+            rep = self._wonder_hear(ev, now)
+            if rep is not None and rep.consumed:
+                self.stats["wonders_answered"] = self.stats.get("wonders_answered", 0) + 1
+                if rep.say:
+                    self._wonder_say(ev, rep)
+                return True
+
+        # "No, I meant ..." right after a reply is a correction of how ASH read
+        # the last request, not a new one about nothing.
+        if guest and self._guest_action(ev):
+            return True
+        if self._focus_request(ev, now):
+            return True
+        if self._look_request(ev, now):
+            return True          # before the memory's own "forget X" / "remember X": "forget Omar's face" is the camera's
+        if self._browsing_request(ev, now):
+            return True
+        if self._ux_request(ev, now):
+            return True
+        if not loose and self._forget_request(ev, now):
+            return True
+        if not loose and self._remember_request(ev, now):
+            return True
+        if not loose and self._identity_request(ev, now):
+            return True
+        if self._playing_request(ev, now):
+            return True
+        if not loose and self._taste_request(ev, now):
+            return True
+        if self._explain_request(ev, now):
+            return True
+        if not loose and self.cfg.corrections and self._correction_step(ev, now):
+            return True
+        if self._briefing_request(ev, now):
+            return True
+        if self._task_request(ev, now):
+            return True
+        if self._watch_request(ev, now):
+            return True
+        if self._storage_request(ev, now):
+            return True
+        if self._arrival_request(ev, now):
+            return True
+        if self._clipboard_request(ev, now):
+            return True
+        if self._reminder_request(ev, now):
+            return True
+        if self._media_request(ev, now):
+            return True
+        if self._desktop_request(ev, now):
+            return True
+        if self._scene_request(ev, now):
+            return True
+        if self._persona_request(ev, now):
+            return True
+        if self._ritual_request(ev, now):
+            return True
+        if self._smarthome_request(ev, now):
+            return True
+        if not loose and self._research_request(ev, now):
+            return True
+        if self._calendar_request(ev, now):
+            return True
+        if self._weather_request(ev, now):
+            return True
+        if self._email_request(ev, now):
+            return True
+        if self._weekly_request(ev, now):
+            return True
+        if self._crash_request(ev, now):
+            return True
+        if not loose and self._facts_request(ev, now):
+            return True
+        if not loose and self._honest_request(ev, now):
+            return True
+        if not loose and self._cheer_request(ev, now):
+            return True
+        if not loose and self.care is not None and self._user_source(ev):
+            said = self.care.hear(str(getattr(ev, "text", "") or ""), now)
+            if said:
+                self._wonder_say(ev, type("R", (), {"say": said, "outcome": "moment"})())
+                return True
+
+        # An answer to a free-moment remark (how are you?) is spent the same way.
+        if not loose and self.moments is not None and getattr(ev, "source", "") != "flow":
+            try:
+                said = self.moments.hear(getattr(ev, "text", "") or "", now)
+            except Exception:
+                said = None
+            if said:
+                self._wonder_say(ev, type("R", (), {"say": said, "outcome": "moment"})())
+                return True
+        return False
+
+    # -- saying a command loosely ----------------------------------------------------------------------------------
+    DYM_SECONDS = 30.0
+
+    def _as_said(self, ev, text: str, how: str):
+        """The same event, with the line as it is to be read now; what was really heard stays in meta."""
+        import copy as _copy
+        e = _copy.copy(ev)
+        e.text = text
+        e.meta = dict(getattr(ev, "meta", None) or {})
+        e.meta.setdefault("heard_as", str(getattr(ev, "text", "") or ""))
+        e.meta["read_as"] = how
+        return e
+
+    def _loose_ok(self, ev) -> bool:
+        """Only a line said TO ASH (by name, in a conversation with it, or typed), from the user, not a guest.
+        "Probably for ASH" is not enough here: overheard speech is never stretched into a command."""
+        text = str(getattr(ev, "text", "") or "")
+        src = str(getattr(ev, "source", "") or "").lower().removeprefix("sim:")
+        said_to_ash = src == "console" or bool(getattr(ev, "addressed", False))
+        return bool(self._commands is not None and text and len(text) <= 160 and self._user_source(ev)
+                    and said_to_ash and not (getattr(ev, "meta", None) or {}).get("guest") and src != "flow")
+
+    def _loose_command(self, ev, now: float) -> bool:
+        """No rule took the line as said. Cleaned ("Ash, can you pause the music for me" -> "pause the music"), then
+        spelled right ("pasue the musci"), then the nearest known command ("pause the music that's playing"): run when
+        sure, asked about when close ("Did you mean ...?"). A line for the brain is passed on spelled right, so a typo
+        in "what time is it" is still a fast answer, not a model call."""
+        if not self._loose_ok(ev):
+            return False
+        cm = self._commands
+        text = str(ev.text)
+        try:
+            variants = cm.variants(text)
+            for alt, how in variants:
+                if self._rules(self._as_said(ev, alt, how), now):
+                    self.stats["loose_" + how] = self.stats.get("loose_" + how, 0) + 1
+                    return True
+            near = cm.nearest(text)
+        except Exception:
+            logger.exception("Loose command matching failed")
+            return False
+        fixed = cm.spelled(text)
+        fixed = fixed if fixed != text else None
+        if near is not None and near.kind == "rule":
+            if near.sure:
+                if self._rules(self._as_said(ev, near.phrase, "nearest"), now):
+                    self.stats["loose_nearest"] = self.stats.get("loose_nearest", 0) + 1
+                    return True
+            else:
+                self._dym = (near.phrase, now)
+                self.stats["loose_asked"] = self.stats.get("loose_asked", 0) + 1
+                self._wonder_say(ev, type("R", (), {"say": f"Did you mean “{near.phrase}”?",
+                                                    "outcome": "desktop"})())
+                return True
+        if fixed is not None:
+            # For the brain: the words that were not words, put right. Only non-words are ever changed.
+            ev.meta = dict(getattr(ev, "meta", None) or {})
+            ev.meta.setdefault("heard_as", text)
+            ev.meta["read_as"] = "corrected"
+            ev.text = fixed
+            self.stats["loose_spelled"] = self.stats.get("loose_spelled", 0) + 1
+        return False
+
+    def _did_you_mean_step(self, ev, now: float) -> bool:
+        """The answer to "Did you mean ...?": yes runs it, no drops it; anything else is a new line."""
+        pending = getattr(self, "_dym", None)
+        if pending is None or not self._user_source(ev):
+            return False
+        phrase, at = pending
+        self._dym = None
+        if now - at > self.DYM_SECONDS:
+            return False
+        from .commands import Commands, clean
+        said = clean(str(getattr(ev, "text", "") or ""))
+        if Commands.YES.match(said):
+            if self._rules(self._as_said(ev, phrase, "confirmed"), now):
+                self.stats["loose_confirmed"] = self.stats.get("loose_confirmed", 0) + 1
+                return True
+            self._wonder_say(ev, type("R", (), {"say": "I couldn't do that one after all.", "outcome": "desktop"})())
+            return True
+        if Commands.NO.match(said):
+            self._wonder_say(ev, type("R", (), {"say": "Okay, never mind.", "outcome": "desktop"})())
+            return True
+        return False
 
     def _user_source(self, ev) -> bool:
         s = str(getattr(ev, "source", "") or "").lower()

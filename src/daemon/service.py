@@ -135,6 +135,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "runtime": {
         "tick_seconds": 1.0,
         "sleep_after_idle_s": 1500,
+        # A command said loosely ("Ash, can you pause the music for me", "pasue the musci", "pause the music that's
+        # playing") still done by rule, in a millisecond, instead of going to the model (src/daemon/commands.py).
+        "loose_commands": True,
         # Say the unprompted things out loud, not just on screen. This was an
         # undocumented key defaulting to off, which meant the free-moment
         # question and the offer of help -- the two features whose whole point
