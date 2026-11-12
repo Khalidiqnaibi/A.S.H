@@ -197,6 +197,7 @@ class Looking:
         from src.vision.presence import Presence
         self.presence = Presence(self.cfg.away_after_s, self.cfg.stranger_hold_s)
         self.stats = {"looks": 0}
+        self._stat_lock = threading.Lock()
         self._busy = threading.RLock()       # the models are not thread-safe, and presence reads on a worker thread
 
     # -- what can be done at all ----------------------------------------------------
@@ -235,16 +236,16 @@ class Looking:
         if frame is None:
             return ("I'm paused for privacy, so I'm not looking." if why == "privacy"
                     else "I couldn't get a picture -- there's no camera I can open.")
-        self.stats["looks"] += 1
+        self._bump("looks")
         with self._hold(self.cfg.busy_wait_s) as got:
             if not got:
-                self.stats["busy"] = self.stats.get("busy", 0) + 1
+                self._bump("busy")
                 return "I'm still working through the last picture -- ask me again in a moment."
             self._clear_faults()
             answer = self._answer(kind, _d, frame, now)
             fault = self._fault()
         if fault:                                            # a model that broke is not "nobody there"
-            self.stats["faults"] = self.stats.get("faults", 0) + 1
+            self._bump("faults")
             return (f"I got a picture, but my {fault} stopped working, so I can't tell you what I see. "
                     "It is in the log -- \"python ashctl.py vision\" shows whether it keeps happening.")
         return answer
@@ -259,6 +260,11 @@ class Looking:
         finally:
             if got:
                 self._busy.release()
+
+    def _bump(self, key: str):
+        """A counter, safe from both the loop and the presence thread."""
+        with self._stat_lock:
+            self.stats[key] = self.stats.get(key, 0) + 1
 
     def _clear_faults(self):
         for b in (self.faces, self.objects):
@@ -672,13 +678,13 @@ class Looking:
         now = self.clock() if now is None else now
         with self._hold(5.0) as got:
             if not got:                                      # the models are tied up: no reading this time, nothing assumed
-                self.stats["busy"] = self.stats.get("busy", 0) + 1
+                self._bump("busy")
                 return []
             self._clear_faults()
             people = self._people(frame)
             broke = self._fault()
         if broke:                                           # a broken model is not an empty room: leave who-is-here as it was
-            self.stats["faults"] = self.stats.get("faults", 0) + 1
+            self._bump("faults")
             return []
         for who, _near, _f in people:
             if who and self.memory is not None:
@@ -760,9 +766,13 @@ class Looking:
         from src.vision.backends import face_quality
         return face_quality(frame, face) if self.cfg.enrol_checks else ""
 
+    def _stats_copy(self) -> Dict[str, Any]:
+        with self._stat_lock:
+            return dict(self.stats)
+
     def status(self) -> Dict[str, Any]:
         now = self.clock()
         return {"enabled": self.cfg.enabled, "faces": self.can_see_faces(), "objects": self.can_see_things(),
                 "presence": bool(self.cfg.presence), "here": self.presence.here(now) if self.cfg.presence else [],
                 "stranger": self.presence.stranger(now) if self.cfg.presence else False,
-                "fault": self._fault(), **self.stats}
+                "fault": self._fault(), **self._stats_copy()}

@@ -1360,6 +1360,24 @@ def a_stuck_reading_is_abandoned_and_flagged():
     rt.stop(timeout=1.0)
 
 
+@section
+def counters_do_not_lose_counts_between_threads():
+    print("\n=== Counters from the loop and the presence thread add up ===")
+    import threading as th
+    lk = looking()
+    n, workers = 2000, 4
+
+    def bump():
+        for _ in range(n):
+            lk._bump("faults")
+    ts = [th.Thread(target=bump) for _ in range(workers)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join(20)
+    check("8000 increments from 4 threads: all counted", lk.status()["faults"] == n * workers, str(lk.status().get("faults")))
+
+
 if __name__ == "__main__":
     for fn in SECTIONS:
         fn()
