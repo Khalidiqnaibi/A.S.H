@@ -796,6 +796,46 @@ def feature_weekly_review_includes_browsing():
     check("on the runtime: asked by voice, it is in the answer", "In the browser:" in rt.out[-1], rt.out[-1])
 
 
+@section
+def feature_why_did_you_speak_with_numbers():
+    print("\n=== FEATURE: 'why did you say that?' says how such remarks have landed, for the ones ASH volunteered ===")
+    import tst_effects as te
+    from src.daemon import uxreport
+    from src.daemon.social import SocialLearner
+    now = 1_800_000_000.0
+    lr = SocialLearner(clock=lambda: now)
+    check("no learner: nothing added", uxreport.about(None, "moment", "idle/evening", now) == "")
+    first = uxreport.about(lr, "moment", "idle/evening/coding", now)
+    check("a kind it has no record of is said to be a first try", "I don't have much on how free-moment remarks land in this situation "
+          "(idle evening while coding) yet, so I tried one" in first, first)
+    for _ in range(8):
+        lr.update("moment", "idle/evening/coding", 0.0, 2.0, now)
+    bad = uxreport.about(lr, "moment", "idle/evening/coding", now)
+    check("after rejections: the rate and the number of reactions it rests on",
+          "In this situation (idle evening while coding), about " in bad and "% of free-moment remarks have landed well (from " in bad
+          and " reactions)" in bad, bad)
+    check("...and that it therefore holds off more here", "hold off on them more here" in bad, bad)
+    for _ in range(12):
+        lr.update("joke", "idle/evening/leisure", 1.0, 1.0, now)
+    good = uxreport.about(lr, "joke", "idle/evening/leisure", now)
+    check("after welcomes it says it is quicker to speak up", "quicker to speak up here" in good and "jokes" in good, good)
+    check("the situation is said in words, not as a key", "idle/evening" not in good and "idle evening" in good, good)
+
+    rt = te.rig()
+    for _ in range(8):
+        rt.learner.update("moment", "idle/evening/coding", 0.0, 2.0, rt.t[0])
+    rt._last_why = {"kind": "moment", "moment": "free", "learn": {"kind": "moment", "ctx": "idle/evening/coding"}}
+    rt.say("why did you say that?")
+    check("on the runtime the answer is the reason plus the numbers", "I said that because" in rt.out[-1] and "have landed well" in rt.out[-1]
+          and "hold off on them more here" in rt.out[-1], rt.out[-1])
+    rt._last_why = {"kind": "answer", "query": "x", "intent": "", "pathway": "slow"}
+    rt.say("why did you say that?")
+    check("something you asked for gets no learner talk (it was not volunteered)", "landed well" not in rt.out[-1], rt.out[-1])
+    rt._last_why = {"kind": "moment", "moment": "free"}
+    rt.say("why did you say that?")
+    check("...nor a remark with no record of what it was weighed with", "landed well" not in rt.out[-1] and "I said that because" in rt.out[-1])
+
+
 def time_str(ts):
     import time as _t
     return _t.strftime("%H:%M", _t.localtime(ts))

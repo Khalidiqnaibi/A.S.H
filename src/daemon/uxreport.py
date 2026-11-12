@@ -97,6 +97,26 @@ def describe(learner: Any, now: Optional[float] = None) -> str:
     return " ".join(out)
 
 
+def about(learner: Any, kind: str, ctx: str, now: Optional[float] = None) -> str:
+    """"Why did you say that?" for something volunteered: how remarks of that kind have landed in that situation,
+    and what that did to how readily ASH spoke up. Empty when there is no learner or nothing to say."""
+    if learner is None or not kind:
+        return ""
+    now = learner._now(now)
+    n = learner.evidence(kind, ctx, now)
+    parts = (ctx or "").split("/")
+    where = " ".join(p for p in ((parts[0] + " " + parts[1]) if len(parts) >= 2 else "", ("while " + _act(parts[2])) if len(parts) >= 3 else "") if p).strip()
+    where = f" ({where})" if where else ""
+    if n < _MIN_N:
+        return (f"I don't have much on how {_name(kind)} land in this situation{where} yet, so I tried one -- "
+                f"your reaction will teach me.")
+    p = learner.p(kind, ctx, now)
+    shift = learner.bar_shift(kind, ctx, 0.0, now)
+    lean = ("so I hold off on them more here" if shift > 0.02 else
+            "so I'm quicker to speak up here" if shift < -0.02 else "so I treat it like any other moment")
+    return f"In this situation{where}, about {_pct(p)} of {_name(kind)} have landed well (from {int(round(n))} reactions), {lean}."
+
+
 def _act(a: str) -> str:
     return {"leisure": "relaxing online", "gaming": "gaming", "coding": "coding", "writing": "writing", "working": "working",
             "reading": "reading", "designing": "designing", "studying": "studying"}.get(a, a)

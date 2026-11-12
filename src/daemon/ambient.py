@@ -2454,6 +2454,9 @@ class AmbientRuntime:
 
         if not to_ash:
             self._last_why = self._why_volunteered(ev, decision, offer, meta)
+            if decision is not None and getattr(decision, "kind", ""):
+                # what the learner knew when it decided: "why did you say that?" can say how such remarks have landed
+                self._last_why["learn"] = {"kind": str(decision.kind), "ctx": str(getattr(decision, "ctx", "") or "")}
         if offer == "wonder":
             self._wonder_inflight = None
             if self.wonder is not None:
@@ -2982,6 +2985,10 @@ class AmbientRuntime:
             return False
         try:
             say = explain(self._last_why) if asked_why(text) else source_reply(self._last_why)
+            lw = (self._last_why or {}).get("learn")
+            if lw and asked_why(text):
+                more = uxreport.about(self.learner, lw["kind"], lw["ctx"], now)
+                say = f"{say} {more}" if more else say
             self.response_sink(say, {"addressed": True, "source": "explain",
                                                          "attention": None, "pathway": "explain"})
             address.conversation.note_ash_spoke(self.clock(), asked=False)
