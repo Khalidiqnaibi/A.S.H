@@ -29,6 +29,8 @@ import time
 from collections import defaultdict
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from .numwords import digits
+
 DAY = 86400.0
 FOCUS = frozenset({"code", "docs", "learning", "work", "reading"})
 LEISURE = ("video", "social", "games", "shopping", "news")
@@ -43,8 +45,15 @@ _CATS = ("work|code|coding|docs|learning|studying|study|ai|search|video|videos|m
 _SYN = {"coding": "code", "studying": "learning", "study": "learning", "videos": "video", "gaming": "games"}
 _SITE = r"(?P<site>[a-z0-9][a-z0-9\-]*(?:\.[a-z0-9\-]+)*\.[a-z]{2,})"
 
+_FOR_HOW_LONG = (r"(?:\s+for\s+(?:the\s+next\s+)?|\s+the\s+next\s+)(?:(?:(?:an?|one)\s+)?(?P<unit1>hour|minute|min)\b|(?P<n>\d+(?:\.\d+)?)\s*"
+                 r"(?P<unit>hours?|hrs?|minutes?|mins?))")
+
 _RX: List[Tuple[str, "re.Pattern"]] = [(k, re.compile(p, re.I)) for k, p in (
-    ("pause", _A + r"(?:stop|quit|pause)\s+(?:watching|tracking|recording|logging|reading)\s+(?:my\s+)?(?:tabs?|browser|browsing|websites?)"
+    # "don't record the next hour": a pause that ends by itself. Before "pause", whose pattern would take it as a stop.
+    ("pause_for", _A + r"(?:go\s+private|don'?t\s+(?:record|track|watch|log)(?:\s+(?:my\s+)?(?:tabs|browsing|browser|websites?))?|"
+                  r"stop\s+(?:recording|tracking|watching|logging)(?:\s+(?:my\s+)?(?:tabs|browsing|browser|websites?))?|"
+                  r"pause\s+(?:the\s+)?(?:tab|browser|browsing)\s+(?:tracking|watching))" + _FOR_HOW_LONG + _Z),
+    ("pause", _A +r"(?:stop|quit|pause)\s+(?:watching|tracking|recording|logging|reading)\s+(?:my\s+)?(?:tabs?|browser|browsing|websites?)"
               r"|" + _A + r"pause\s+(?:the\s+)?(?:tab|browser|browsing)\s+(?:tracking|watching|ledger)" + _Z),
     ("resume", _A + r"(?:resume|start|continue|restart|begin)\s+(?:watching|tracking|recording|logging)\s+(?:my\s+)?(?:tabs?|browser|browsing|websites?)"
                r"|" + _A + r"resume\s+(?:the\s+)?(?:tab|browser|browsing)\s+(?:tracking|watching)" + _Z),
@@ -92,13 +101,19 @@ _NAMES = {"youtube": "youtube.com", "github": "github.com", "reddit": "reddit.co
 
 def parse(text: str) -> Optional[Tuple[str, Dict[str, str]]]:
     """(kind, details) if this is about browsing, else None. Used for answering and for gating a guest."""
-    t = (text or "").strip()
+    t = digits((text or "").strip())            # "thirty minutes" -> "30 minutes"
     if not t or len(t) > 140:
         return None
     for kind, rx in _RX:
         m = rx.match(t)
         if m:
             d = {k: v for k, v in m.groupdict().items() if v}
+            if kind == "pause_for":
+                mins = 60.0 if (d.get("unit1") or "").lower() == "hour" else 1.0 if d.get("unit1") else \
+                    float(d["n"]) * (60.0 if d["unit"].lower().startswith("h") else 1.0)
+                if not 1.0 <= mins <= 24 * 60:
+                    return None
+                return kind, {"secs": str(int(mins * 60))}
             cat = d.pop("cat", "") or d.pop("cat2", "") or d.pop("cat3", "")
             if cat:
                 d["cat"] = _SYN.get(cat.lower(), cat.lower())
@@ -306,6 +321,11 @@ class Browsing:
             return ("I'm not keeping track of your browsing -- it's off. Turn on sensors.browser_tabs in daemon.json "
                     "and load the ash-tabs extension if you want that.")
         led = s.ledger
+        if kind == "pause_for":
+            secs = float(d["secs"])
+            s.pause(secs)
+            return (f"Okay, I won't record your tabs for {dur(secs)} -- I'll start again at "
+                    f"{time.strftime('%H:%M', time.localtime(now + secs))}. Say \"resume watching my tabs\" to start sooner.")
         if kind == "pause":
             s.pause()
             return "Okay, I've stopped watching your tabs. Say \"resume watching my tabs\" when you want me to start again."

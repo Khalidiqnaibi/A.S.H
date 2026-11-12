@@ -114,6 +114,7 @@ class BrowserTabSensor(Sensor):
         self.scrub = scrub
         self.listen = bool(listen)
         self.paused = False
+        self.resume_at: Optional[float] = None           # a timed pause ("don't record for an hour") ends here
         self.dropped: Dict[str, int] = {"private": 0, "sensitive": 0, "scheme": 0}
         self.tabs_n = 0
         self.stats = {"reports": 0, "episodes": 0, "churn": 0, "rejected": 0}
@@ -268,6 +269,8 @@ class BrowserTabSensor(Sensor):
 
     def _tick(self, now: float) -> List[SensorEvent]:
         out: List[SensorEvent] = []
+        if self.paused and self.resume_at is not None and now >= self.resume_at:
+            self.resume()                                # a timed pause has run out
         c = self._cur
         if c is not None:
             if self._lost is not None and now - self._lost >= self.grace_s:
@@ -315,19 +318,23 @@ class BrowserTabSensor(Sensor):
                            persistable=False, meta=meta)
 
     # -- control ---------------------------------------------------------------------
-    def pause(self):
-        """Stop watching. Anything in progress is closed; nothing more is read until resume()."""
+    def pause(self, seconds: Optional[float] = None):
+        """Stop watching. Anything in progress is closed; nothing more is read until resume(), or until `seconds`
+        have passed ("don't record the next hour")."""
+        now = self.clock()
         with self._lock:
             self.paused = True
+            self.resume_at = (now + float(seconds)) if seconds else None
             self._pending.clear()
-        self._finish(self.clock(), "stopped")
+        self._finish(now, "stopped")
         self._lost = None
 
     def resume(self):
         self.paused = False
+        self.resume_at = None
 
     def status(self) -> Dict[str, Any]:
-        return {"paused": self.paused, "listening": self._server is not None, "port": self.port,
+        return {"paused": self.paused, "resume_at": self.resume_at, "listening": self._server is not None, "port": self.port,
                 "site": self.now_site, "tabs": self.tabs_n, "dropped": dict(self.dropped), **self.stats}
 
     # -- the loopback listener ----------------------------------------------------------

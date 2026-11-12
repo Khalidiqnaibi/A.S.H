@@ -302,6 +302,68 @@ def fix_a_film_is_not_idle():
     check("the default limit is hours, not minutes", BrowserTabSensor(enabled=True).idle_audible_max_s >= 3 * 3600)
 
 
+# =====================================================================================================================
+# FEATURES
+# =====================================================================================================================
+def _world(fill=True):
+    """A sensor and ledger holding six days of a plausible life, plus 'now' (15:00 today)."""
+    import tst_browsing as tb
+    return tb.world(fill)
+
+
+@section
+def feature_timed_private_mode():
+    print("\n=== FEATURE: 'don't record the next hour' -- a pause that ends by itself ===")
+    from src.daemon.browsing import Browsing, parse
+    from src.daemon.ledger import Ledger
+    from src.senses.browsertabs import BrowserTabSensor
+    ok = {"don't record the next hour": 3600, "don't record my browsing for an hour": 3600, "go private for 30 minutes": 1800,
+          "stop tracking my tabs for forty five minutes": 2700, "don't watch my tabs for the next two hours": 7200,
+          "pause tab tracking for 20 minutes": 1200, "stop recording for an hour": 3600}
+    got = {q: (parse(q) or (None, {}))[1].get("secs") for q in ok}
+    bad = {q: got[q] for q in ok if got[q] != str(ok[q])}
+    check("the ways people say it", not bad, str(bad))
+    check("and it is its own kind, not the open-ended pause", parse("don't record the next hour")[0] == "pause_for"
+          and parse("stop watching my tabs")[0] == "pause")
+    check("a day-plus or a nonsense length is refused", parse("go private for 3000 hours") is None and parse("go private for 0 minutes") is None)
+    check("ordinary talk is not taken for it", all(parse(q) is None for q in ("don't record the game for me", "stop recording for the weekend",
+                                                                             "I need an hour")))
+
+    t = [1000.0]
+    led = Ledger(clock=lambda: t[0])
+    s = BrowserTabSensor(enabled=True, ledger=led, clock=lambda: t[0])
+
+    def tab(url="https://github.com"):
+        return dict(id=1, url=url, title="x", active=True, audible=False, incognito=False)
+    s.submit({"focused": True, "tabs": [tab()]})
+    s.read()
+    b = Browsing(lambda: s, clock=lambda: t[0])
+    t[0] = 1100
+    say = b.hear("don't record the next hour", t[0])
+    check("it says for how long and when it starts again", "for 1 hour" in say and time_str(t[0] + 3600) in say, say)
+    check("what was open is closed and kept (100 seconds)", s.current() is None and len(led.episodes()) == 1)
+    check("nothing is read while it lasts", s.submit({"tabs": [tab()]}) is False and s.paused and s.status()["resume_at"] == t[0] + 3600)
+    t[0] += 1800
+    s.read()
+    check("half way, still off", s.paused)
+    t[0] += 1801
+    s.read()
+    check("when the hour is up it starts again by itself", not s.paused and s.status()["resume_at"] is None)
+    check("...and reads again", s.submit({"tabs": [tab()]}) is True)
+    s.pause(3600)
+    b.hear("resume watching my tabs", t[0])
+    check("'resume' ends it early, and clears the timer", not s.paused and s.resume_at is None)
+    s.pause()
+    t[0] += 10 ** 6
+    s.read()
+    check("an ordinary pause has no timer and never ends by itself", s.paused)
+
+
+def time_str(ts):
+    import time as _t
+    return _t.strftime("%H:%M", _t.localtime(ts))
+
+
 if __name__ == "__main__":
     for fn in SECTIONS:
         fn()
