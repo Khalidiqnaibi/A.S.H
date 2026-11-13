@@ -248,7 +248,8 @@ _NO = re.compile(r"^\s*(?:no|nope|nah|not quite|not really|not exactly|wrong|inc
                  r"(?:it'?s|it is|it means|that'?s|that is|actually)?[\s,]*(?P<rest>.*)$", re.I)
 # The user asking for the questions: answered there and then, one after another.
 _ASK_ME = re.compile(
-    r"\b(?:what (?:are|were) you (?:wondering|curious) about|(?:do you have|got|have you got) "
+    r"\b(?:what (?:are|were) you (?:wondering|curious) about|what (?:questions?|things?) (?:do you have|did you have|have you got)|"
+    r"(?:do you have|got|have you got) "
     r"(?:any )?questions(?: for me)?|any questions(?: for me)?|ask (?:me )?(?:your|the|those|any|some) questions|"
     r"what do you want to (?:know|ask)|what are you wondering)\b", re.I)
 _BATCH_END = re.compile(r"^\s*(?:that'?s (?:all|enough|it)|enough(?: for now)?|done|stop|let'?s stop|"

@@ -330,17 +330,22 @@ class Asks:
         return out
 
     # -- the reply ------------------------------------------------------------------------------------------
-    def hear(self, text: str, now: Optional[float] = None, addressed: bool = True, guest: bool = False) -> Optional[Settled]:
-        """Read a line from the user against what is open. None when nothing was asked, or the line was not for ASH."""
+    def hear(self, text: str, now: Optional[float] = None, addressed: bool = True, guest: bool = False,
+             exchange_open: bool = False) -> Optional[Settled]:
+        """Read a line from the user against what is open. None when nothing was asked, or the line was not for ASH.
+        `exchange_open`: ASH has just spoken and is waiting, so an answer need not name it -- except to a standing
+        "I have a question for you", which only a line plainly meant for ASH takes up."""
         now = self.clock() if now is None else now
         t = str(text or "").strip()
-        if not t or not addressed:
+        if not t or not (addressed or exchange_open):
             return None
         with self._lock:
             self.expire(now)
             if not self.open:
                 return None
             a = self.open[-1]
+            if not addressed and a.expects == "permission":
+                return None
             verdict = classify_reply(t)
             if a.expects == "permission":
                 if _GO.match(t) or verdict == "accepted":

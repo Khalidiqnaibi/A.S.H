@@ -273,6 +273,10 @@ class AmbientConfig:
     phone_spawn: Optional[Callable[[Callable[[], None]], None]] = None   # tests: run the job on the spot
     # Guard mode: while you're away the camera watches; strangers and movement go to your phone (guard.py).
     guard: bool = False
+    # What ASH asked and what the user said back, and when asking is welcome (asks.py). The ledger is in state/asks/.
+    asks: bool = False
+    asks_dir: Optional[str] = None
+    asks_keep_replies: bool = True
     # BMO's moods: feelings that last (cheer, energy), from what happened; "how are you feeling?" (feelings.py).
     feelings: bool = False
     feelings_path: Optional[str] = None
@@ -672,6 +676,18 @@ class AmbientRuntime:
         if self.cfg.fun:
             from .fun import Fun
             self.fun = Fun(self.cfg.fun_path, clock=lambda: self.clock())
+        self.asks = None
+        self._ask_res = None
+        self._idle_now: Optional[float] = None
+        if self.cfg.asks:
+            from .asks import Asks
+            self.asks = Asks(self.cfg.asks_dir, clock=lambda: self.clock(),
+                             episodic=getattr(self.ash, "episodic_memory", None),
+                             user=str(getattr(self.brain, "user", "") or ""), scrub=self.privacy.scrub,
+                             keep_replies=self.cfg.asks_keep_replies)
+            if self.moments is not None:
+                # What the answers have taught about timing multiplies into every free-moment candidate.
+                self.moments.add_fit(lambda c, env: self.asks.timing.fit(self._ask_ctx(self.clock(), env.idle_s)))
         self.feelings = None
         self._feeling_shown = ("", 0.0)
         self._feelings_at = 0.0
@@ -1091,6 +1107,7 @@ class AmbientRuntime:
                 self.reactions.expire(now)
             if idle_s is None:
                 idle_s = self._idle_seconds()
+            self._idle_now = idle_s
             self.occasion.tick(now, idle_s)
             if self.activity is not None:
                 try:
@@ -2062,6 +2079,72 @@ class AmbientRuntime:
         self._last_why = {"kind": "asked", "query": str(getattr(ev, "text", ""))[:80]}
         return True
 
+    def _ask_ctx(self, now: float, idle_s: Optional[float] = None) -> Dict[str, Any]:
+        """The situation an ask is made in, for the ledger and the timing model."""
+        from .asks import context_of
+        flow = self.flow
+        process = getattr(flow, "process", "") if flow is not None else ""
+        subject = getattr(flow, "subject", "") if flow is not None else ""
+        since = getattr(flow, "since", 0.0) if flow is not None else 0.0
+        mood = None
+        try:
+            mood = self.moments.mood(now) if self.moments is not None else None
+        except Exception:
+            mood = None
+        return context_of(now, process, subject, idle_s if idle_s is not None else self._idle_now,
+                          dwell_min=max(0.0, (now - since) / 60.0) if since else 0.0, mood=mood)
+
+    def _note_ask(self, text: str, offer: str, meta: Dict[str, Any], now: float):
+        """ASH just said something that waits for an answer: write it down."""
+        a = self.asks
+        if a is None or not offer:
+            return
+        t = str(text or "").strip()
+        q = "question for you" in t.lower() or "questions for you" in t.lower()
+        if not (t.endswith("?") or q):
+            return
+        expects = "permission" if q else ("answer" if offer in ("wonder", "moment", "free_moment") else "yes_no")
+        try:
+            a.asked(offer, t, now, topic=str(meta.get("topic", "")), expects=expects, ctx=self._ask_ctx(now),
+                    data={"wonder_id": meta.get("wonder_id", "")})
+        except Exception:
+            logger.exception("Writing down an ask failed")
+
+    def _ask_followthrough(self, ev, now: float) -> bool:
+        """"Go ahead" / "what questions do you have?" after "I have a question for you when you have a minute": the
+        question is asked then and there. "Not now" puts it off, "no" drops it."""
+        r = self._ask_res
+        if r is None or r.ask.expects != "permission":
+            return False
+        if r.outcome == "accepted":
+            rep = self.wonder.hear("ask me your questions", now, addressed=True) if self.wonder is not None else None
+            say = rep.say if (rep is not None and rep.consumed and rep.say) else "I've forgotten what it was -- I'll ask again when it comes back to me."
+        elif r.outcome == "later":
+            say = "Okay, I'll ask later."
+        else:
+            say = "Okay, I won't ask just now."
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
+        return True
+
+    _ASKS_Q = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:what|which)\s+(?:questions?\s+)?(?:have|did)\s+you\s+(?:asked|ask)(?:\s+me)?"
+                         r"(?:\s+(?:lately|today|so\s+far))?\W*$|^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:when|what\s+time)\s+(?:do|should|would)\s+(?:i|you)\s+"
+                         r"(?:like|want|mind)?\s*(?:to\s+be\s+asked|you\s+(?:to\s+)?ask\s+me|being\s+asked|ask\s+me)(?:\s+(?:things|questions|stuff))?\W*$|"
+                         r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:when\s+is\s+a\s+good\s+time\s+to\s+ask\s+me(?:\s+things|\s+questions)?|"
+                         r"how\s+(?:have\s+i|did\s+i)\s+(?:been\s+)?answer(?:ed|ing)?(?:\s+your\s+questions)?)\W*$", re.I)
+
+    def _asks_request(self, ev, now: float) -> bool:
+        """"What have you asked me?" / "when do I like to be asked things?": the ledger and the timing, in words."""
+        a = self.asks
+        if a is None or not self._user_source(ev) or not self._meant_for_ash(ev):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        if len(text) > 100 or not self._ASKS_Q.match(text):
+            return False
+        say = a.report()
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "asked", "query": text[:80]}
+        return True
+
     @staticmethod
     def _spawn_job(job: Callable[[], None]) -> None:
         threading.Thread(target=job, name="ash-job", daemon=True).start()
@@ -2760,6 +2843,16 @@ class AmbientRuntime:
                 self._reaction = self.reactions.on_user_event(ev, now)
             except Exception:
                 logger.exception("Reading the reaction failed")
+        self._ask_res = None
+        if self.asks is not None and self._user_source(ev) and getattr(ev, "text", "") and getattr(ev, "source", "") != "flow":
+            try:
+                from src.senses.mic import MicrophoneSensor
+                # Said to ASH, or said while the exchange ASH just opened with its question is still open.
+                self._ask_res = self.asks.hear(MicrophoneSensor.strip_address(str(ev.text)), now,
+                                               addressed=self._meant_for_ash(ev), guest=guest,
+                                               exchange_open=address.conversation.openness(now) > 0.3)
+            except Exception:
+                logger.exception("Settling an ask failed")
 
         # "Stop" / "shh" while ASH is talking: cut it off, say nothing back.
         # Before the game, the music and the questions: while ASH is talking,
@@ -2899,6 +2992,11 @@ class AmbientRuntime:
         # A reply to a question ASH asked, or a request about the questions
         # ("not now", "stop asking"), is spent here and not run as a new query.
         if not loose and self.play is not None and self._play_step(ev, now):
+            return True
+
+        if self._ask_followthrough(ev, now):
+            return True
+        if not loose and self._asks_request(ev, now):
             return True
 
         if self.wonder is not None and not guest and not loose:
@@ -3197,6 +3295,11 @@ class AmbientRuntime:
             elif react is not None and react.offer.accept_context:
                 context = (f"{context}\n[{react.offer.accept_context} "
                            f"The user's message is their answer to that.]").strip()
+            elif self._ask_res is not None and self._ask_res.outcome != "moved_on":
+                said = {"answered": "their answer", "accepted": "their yes", "declined": "their no",
+                        "later": "them putting it off"}.get(self._ask_res.outcome, "their reply")
+                context = (f"{context}\n[You had asked the user: \"{self._ask_res.ask.text}\" "
+                           f"Their message is {said}.]").strip()
         elif offer == "stuck_help" and meta.get("say"):
             say = str(meta["say"])
             prompt = ""
@@ -3338,6 +3441,7 @@ class AmbientRuntime:
             # half of it, with no need to say the name again.
             address.conversation.note_ash_spoke(self.clock(), asked=text.rstrip().endswith("?"))
         elif self.reactions is not None:
+            self._note_ask(text, offer, meta, self.clock())
             # Something was volunteered: watch what the user does with it.
             # And if it asked something, the next "yeah" is an answer to it
             # rather than a noise made to show someone is listening.
@@ -4046,6 +4150,7 @@ class AmbientRuntime:
             "vision": ({**self.looking.status(), "presence_stuck": self.presence_stuck} if self.looking is not None else None),
             "notes": self.notes.status() if self.notes is not None else None,
             "pcdoctor": self.pcdoctor.status() if self.pcdoctor is not None else None,
+            "asks": self.asks.status() if self.asks is not None else None,
             "situation": self.situation.status() if self.situation is not None else None,
             "filesearch": self.filesearch.status() if self.filesearch is not None else None,
             "phone": self.phone.status() if self.phone is not None else None,

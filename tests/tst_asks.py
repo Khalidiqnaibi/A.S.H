@@ -24,6 +24,10 @@ import tst_wondering as tw  # noqa: E402
 from src.daemon.asks import Asks, TimingModel, context_of, keys_of  # noqa: E402
 
 check = tw.check
+def at(day, hour, minute=0):
+    return time.mktime((2026, 3, 10 + day, hour, minute, 0, 0, 0, -1))
+
+
 T0 = 1_800_000_000.0                      # a Thursday morning, local time does not matter for these
 
 
@@ -195,8 +199,154 @@ def a6_context_and_report():
     check("history is oldest to newest and has the reply", [r["text"] for r in h] == ["How are you holding up today?", "Q2?"] and h[0]["reply"] == "fine")
 
 
+def rig(briefings=False, **extra):
+    from src.daemon import AmbientConfig, AmbientRuntime, AttentionGate, Journal, PrivacyPolicy
+    from src.senses.base import Modality, PeripheryRegistry, SensorEvent
+    clock = [at(0, 19) if briefings else T0]
+    out = []
+    ash = tw.Ash()
+    epi = Epi()
+    ash.episodic_memory = epi
+    per = PeripheryRegistry()
+    idle = tw.FakeIdle()
+    per.sensors["idle"] = idle
+    d = tempfile.mkdtemp()
+    cfg = dict(wonder=True, wonder_cfg={"min_gap_s": 0}, wonder_path=os.path.join(d, "w.json"),
+               knowledge_path=os.path.join(d, "k.json"), asks=True, asks_dir=os.path.join(d, "asks"))
+    if briefings:
+        cfg.update(briefings=True, briefings_cfg={}, briefings_path=os.path.join(d, "b.json"))
+    cfg.update(extra)
+    rt = AmbientRuntime(ash=ash, periphery=per, journal=Journal(tempfile.mkdtemp()), gate=AttentionGate(max_offers_per_hour=20, quiet_hours=None),
+                        privacy=PrivacyPolicy(), config=AmbientConfig(tick_seconds=0.02, sleep_after_idle_s=10 ** 9, flow_min_burst_s=120.0, **cfg),
+                        response_sink=lambda t, m: out.append((t, m)))
+    rt.clock = lambda: clock[0]
+
+    class H:
+        pass
+    h = H()
+    h.rt, h.ash, h.out, h.idle, h.clock, h.epi, h.dir = rt, ash, out, idle, clock, epi, d
+
+    def step(dt, idle_s, ticks=2):
+        clock[0] += dt
+        idle.value = idle_s
+        for _ in range(ticks):
+            rt._tick()
+
+    def say(text, source="console", addressed=True):
+        rt.submit(SensorEvent(source=source, modality=Modality.TEXT, text=text, addressed=addressed, salience=0.9, urgency=0.6))
+        rt._tick()
+
+    def work(seconds, every=10):
+        for _ in range(int(seconds / every)):
+            step(every, 0.0, ticks=1)
+
+    def free():
+        work(150)
+        step(15, 25.0)
+    h.step, h.say, h.work, h.free = step, say, work, free
+    h.said = lambda: [o[0] for o in out]
+    return h
+
+
+def a7_runtime():
+    print("\n=== A7. In the runtime ===")
+    h = rig()
+    h.say("I told Omar something about work")
+    h.step(60, 40.0)
+    h.free()
+    asked = [o for o in h.out if o[0] == "Who is Omar to you?"]
+    check("a question was asked in a free moment", len(asked) == 1, str(h.said()))
+    check("and it was written down, with the situation", h.rt.asks.open and h.rt.asks.open[-1].text == "Who is Omar to you?"
+          and h.rt.asks.open[-1].ctx.get("part"), str(h.rt.asks.open))
+    n = len(h.ash.calls)
+    h.step(5, 5.0)
+    h.say("my cousin", source="microphone", addressed=False)
+    check("the answer was spent on the question (no model)", h.said()[-1] == "Got it -- Omar is your cousin." and len(h.ash.calls) == n, h.said()[-1])
+    led = [json.loads(x) for x in open(os.path.join(h.dir, "asks", "asks.jsonl"), encoding="utf-8")]
+    check("the ledger has the ask and the answer", [r["event"] for r in led] == ["asked", "settled"] and led[1]["status"] == "answered" and led[1]["reply"] == "my cousin", str(led))
+    check("the pair is in episodic memory", any("Who is Omar to you?" in e[0] and "my cousin" in e[0] for e in h.epi.rows), str(h.epi.rows))
+    h.say("what have you asked me?")
+    check("'what have you asked me?' is answered from the ledger, no model", "I've asked 1 thing" in h.said()[-1] and len(h.ash.calls) == n, h.said()[-1])
+
+    # not now: remembered as a no for that situation
+    h = rig()
+    h.say("I told Omar something")
+    h.free()
+    h.say("not now")
+    st = h.rt.asks.recent[-1]
+    check("'not now' is written down as later, in this situation", st.status == "later" and st.ctx.get("app") is not None, str(st))
+    check("and teaches the timing model", h.rt.asks.timing.updates == 1)
+    check("it is in episodic memory too", any("said later" in e[0] for e in h.epi.rows), str(h.epi.rows))
+
+
+def a8_the_briefing_question():
+    print("\n=== A8. 'I have a question for you when you have a minute' ===")
+    h = rig(briefings=True)
+    h.say("I told Omar something about work")
+    h.clock[0] = at(1, 8)
+    h.step(1, 600.0)
+    h.step(1, 1.0)
+    h.step(20, 20.0)
+    brief = [s for s in h.said() if "question for you" in s]
+    check("(precondition) the briefing said it has a question", len(brief) == 1, str(h.said()))
+    st = h.rt.asks.standing(h.clock[0])
+    check("it is standing, waiting to be taken up", st is not None and st.expects == "permission", str(h.rt.asks.open))
+    h.step(2.5 * 3600, 30.0)
+    check("still standing hours later", h.rt.asks.standing(h.clock[0]) is not None)
+    n = len(h.ash.calls)
+    h.say("What questions do you have")
+    check("'what questions do you have' gets the question, not 'what did you mean'", h.said()[-1].endswith("Who is Omar to you?") and len(h.ash.calls) == n, h.said()[-1])
+    check("the permission is settled as taken up", h.rt.asks.stats["accepted"] == 1, str(h.rt.asks.stats))
+
+    h2 = rig(briefings=True)
+    h2.say("I told Omar something about work")
+    h2.clock[0] = at(1, 8)
+    h2.step(1, 600.0)
+    h2.step(1, 1.0)
+    h2.step(20, 20.0)
+    n = len(h2.ash.calls)
+    h2.say("yes")
+    check("a bare yes takes it up too", h2.said()[-1].endswith("Who is Omar to you?") and len(h2.ash.calls) == n, h2.said()[-1])
+    h3 = rig(briefings=True)
+    h3.say("I told Omar something about work")
+    h3.clock[0] = at(1, 8)
+    h3.step(1, 600.0)
+    h3.step(1, 1.0)
+    h3.step(20, 20.0)
+    h3.say("not now")
+    check("'not now' puts it off, politely", h3.said()[-1] == "Okay, I'll ask later." and h3.rt.asks.standing(h3.clock[0]) is None, h3.said()[-1])
+    h4 = rig(briefings=True)
+    h4.say("I told Omar something about work")
+    h4.clock[0] = at(1, 8)
+    h4.step(1, 600.0)
+    h4.step(1, 1.0)
+    h4.step(20, 20.0)
+    h4.say("what time is it")
+    check("something else entirely leaves it standing", h4.rt.asks.standing(h4.clock[0]) is not None)
+    h4.say("yes", addressed=False, source="microphone")
+    check("a 'yes' that was not said to ASH does not take it up", h4.rt.asks.standing(h4.clock[0]) is not None)
+
+
+def a9_the_model_knows():
+    print("\n=== A9. The model is told what it asked ===")
+    h = rig(briefings=True)
+    seen = {}
+    real = h.ash.think
+
+    def think(query, image=None, context=""):
+        seen["context"] = context
+        return real(query, image=image, context=context)
+    h.ash.think = think
+    h.rt.asks.asked("moment", "How are you holding up today?", h.clock[0], expects="answer")
+    h.say("honestly a bit tired, the deadline is close")
+    check("the line the model is given says what it had asked", "How are you holding up today?" in seen.get("context", "")
+          and "their answer" in seen.get("context", ""), seen.get("context", "")[:200])
+    h.say("what is the capital of France")
+    check("and nothing about it afterwards", "holding up" not in seen.get("context", ""))
+
+
 if __name__ == "__main__":
-    for fn in (a1_settling, a2_standing, a3_ledger, a4_episodic, a5_timing, a6_context_and_report):
+    for fn in (a1_settling, a2_standing, a3_ledger, a4_episodic, a5_timing, a6_context_and_report, a7_runtime, a8_the_briefing_question, a9_the_model_knows):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

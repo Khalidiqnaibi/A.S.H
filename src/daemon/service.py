@@ -352,6 +352,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # BMO's moods: feelings that last (thanks and laughs lift them, being told off lowers them, hours alone bore it,
     # late nights make it sleepy), shown on the face; "how are you feeling?" answered from them. state/feelings.json.
     "feelings": {"enabled": True},
+    # What ASH asked and what you said back: kept in state/asks/ (one line per ask, with the situation and the reply), written to
+    # episodic memory, and the answers teach it when asking is welcome ("what have you asked me?", "when do I like to be asked things?").
+    "asks": {"enabled": True, "keep_replies": True},
     # Jokes (original, none repeated until all are told), made-up songs, inside jokes from what made you laugh.
     "fun": {"enabled": True},
     # "Kids mode on (for 30 minutes)": grown-up features refused, the model told it's talking with a child, a word
@@ -675,6 +678,12 @@ class ControlServer:
             if opener is None:
                 return {"ok": False, "error": "the console isn't running (ui.enabled), so there is no heads-up widget"}
             return {"ok": True, "opened": opener()}
+        if cmd == "asks":
+            a = getattr(rt, "asks", None)
+            if a is None:
+                return {"ok": False, "error": "asks are not enabled (daemon.json: asks.enabled)"}
+            return {"ok": True, "report": a.report(), "history": a.history(30), "status": a.status(),
+                    "timing": a.timing.describe(), "open": [x.text for x in a.open]}
         if cmd == "vision":
             lk = getattr(rt, "looking", None)
             if lk is None:
@@ -702,7 +711,7 @@ class ControlServer:
             return {"ok": True, "stopping": True}
         return {"ok": False, "error": f"unknown command {cmd!r}",
                 "commands": ["status", "pause", "resume", "mute", "unmute", "say",
-                             "why", "history", "sleep", "rollup", "sensors", "hud", "face", "wonders", "wonder", "activity", "profile", "vision", "followups", "corrections", "routines", "briefing", "watches", "review",
+                             "why", "history", "sleep", "rollup", "sensors", "hud", "face", "wonders", "wonder", "activity", "profile", "vision", "asks", "followups", "corrections", "routines", "briefing", "watches", "review",
                              "enable", "disable", "simulate", "shutdown"]}
 
     # ------------------------------------------------------------------
