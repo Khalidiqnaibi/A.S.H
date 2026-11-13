@@ -3020,6 +3020,12 @@ class AmbientRuntime:
         finally:
             self._thinking -= 1
             self._think_started = 0.0
+            if self._cancelled:
+                try:
+                    from tools.LLM import resume
+                    resume()                                  # the next question may use the model again
+                except Exception:
+                    logger.debug("could not resume the model", exc_info=True)
             self._cancelled = False
             if (ev.meta or {}).get("offer") == "wonder":
                 self._wonder_inflight = None
@@ -3909,10 +3915,7 @@ class AmbientRuntime:
             self._last_why = {"kind": "stopped"}
             return True                      # nothing said back: the point was quiet
         if self._thinking and wants_cancel(text):
-            self._cancelled = True
-            if sp is not None and hasattr(sp, "stop"):
-                sp.stop()
-            self._speech_say("Okay -- dropped it.", "cancel")
+            self.cancel_thinking()
             return True
         if wants_short(text):
             if sp is not None and hasattr(sp, "stop"):
@@ -3926,6 +3929,28 @@ class AmbientRuntime:
             self._speech_say("Okay, I'll keep it short." if b else "Okay, full answers again.", "brief")
             return True
         return False
+
+    def cancel_thinking(self) -> bool:
+        """"Never mind" (said, or the button): the answer being worked out is abandoned NOW -- the request to the model is
+        cut loose so the loop is free at once, nothing is said when it ends, and saying it twice says nothing twice."""
+        if not self._thinking:
+            return False
+        if self._cancelled:
+            return True                                   # already dropped: no second "dropped it"
+        self._cancelled = True
+        sp = self.periphery.actuators.get("speak")
+        if sp is not None and hasattr(sp, "stop"):
+            try:
+                sp.stop()
+            except Exception:
+                logger.debug("stopping speech failed", exc_info=True)
+        try:
+            from tools.LLM import cancel_inflight
+            cancel_inflight()
+        except Exception:
+            logger.debug("could not cut the model request loose", exc_info=True)
+        self._speech_say("Okay -- dropped it.", "cancel")
+        return True
 
     def _speech_say(self, say: str, outcome: str, short_version: bool = False):
         self._last_why = {"kind": "answered"}

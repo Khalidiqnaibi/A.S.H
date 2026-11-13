@@ -184,6 +184,8 @@ def attach_ui(runtime, bus, opener: Optional[Callable[[], Any]] = None,
             bus.publish("undone", uid=uid, ok=True)
             bus.publish("system", text=said)
             return {"ok": True}
+        if cmd == "never_mind":
+            return {"ok": True, "dropped": bool(runtime.cancel_thinking())}
         if cmd == "dismiss":
             from src.senses.base import Modality, SensorEvent
             runtime.submit(SensorEvent(source="console", modality=Modality.TEXT,

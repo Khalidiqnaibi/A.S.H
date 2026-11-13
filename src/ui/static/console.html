@@ -851,7 +851,9 @@ function applyWaiting(w) {
   const r = $("waitReplies"); r.textContent = ""; r.classList.remove("used");
   for (const t of w.replies || []) {
     const b = el("button", "reply", t); b.type = "button";
-    b.onclick = () => { r.classList.add("used"); b.classList.add("picked"); say(t); };
+    // "Never mind" while thinking is not a sentence to be heard: it cuts the request loose right now.
+    b.onclick = () => { r.classList.add("used"); b.classList.add("picked");
+                        if (w.kind === "thinking") post("/api/control", { cmd: "never_mind" }); else say(t); };
     r.appendChild(b);
   }
 }

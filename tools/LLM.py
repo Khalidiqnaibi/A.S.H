@@ -31,6 +31,52 @@ _REASONING = re.compile(
     r"i need to (?:figure|think|understand|determine))\b", re.IGNORECASE)
 
 
+
+# ---- cancelling a request that is in flight --------------------------------------------------------------------
+# A model answer takes seconds to a minute, and `requests.post` cannot be interrupted. "Never mind" used to drop the answer
+# when it finally arrived but left the loop waiting for it. `_post` runs the request on its own thread and waits in short
+# steps, so `cancel_inflight()` frees the caller at once (the server may finish its answer; nobody is listening). Until
+# `resume()` every further call fails fast, so a brain that makes several calls for one question stops asking.
+class LLMCancelled(Exception):
+    pass
+
+
+_GEN = [0]
+_BLOCKED = [False]
+
+
+def cancel_inflight() -> None:
+    _GEN[0] += 1
+    _BLOCKED[0] = True
+
+
+def resume() -> None:
+    _BLOCKED[0] = False
+
+
+def _post(url, **kw):
+    if _BLOCKED[0]:
+        raise LLMCancelled("cancelled")
+    gen = _GEN[0]
+    box = {}
+    done = threading.Event()
+
+    def run():
+        try:
+            box["r"] = requests.post(url, **kw)
+        except BaseException as e:          # noqa: BLE001 -- handed back to the caller below
+            box["e"] = e
+        finally:
+            done.set()
+    threading.Thread(target=run, name="llm-post", daemon=True).start()
+    while not done.wait(0.1):
+        if _GEN[0] != gen:
+            raise LLMCancelled("cancelled")
+    if "e" in box:
+        raise box["e"]
+    return box["r"]
+
+
 def _strip_think(text: str) -> str:
     """Drop inline <think>...</think> blocks emitted by reasoning models --
     including one that was never closed, or never opened."""
@@ -160,7 +206,7 @@ class LLM(BaseChatModel):
             },
         }
         try:
-            r = requests.post(url, headers=headers, json=payload, timeout=self._timeout)
+            r = _post(url, headers=headers, json=payload, timeout=self._timeout)
             if r.status_code != 200:
                 print(f"[LLM ERROR] HF API returned status {r.status_code}: {r.text}")
                 print(f"[LLM] request shape: requests.post({url}, headers={headers}, json={payload}, timeout={self._timeout})")
@@ -186,7 +232,7 @@ class LLM(BaseChatModel):
             "temperature": float(self._temperature),
         }
         try:
-            r = requests.post(DEFAULT_OPENROUTER_URL, headers=headers, json=payload, timeout=self._timeout)
+            r = _post(DEFAULT_OPENROUTER_URL, headers=headers, json=payload, timeout=self._timeout)
             
             if r.status_code != 200:
                 print(f"[LLM ERROR] OpenRouter returned status {r.status_code}: {r.text}")
@@ -212,7 +258,7 @@ class LLM(BaseChatModel):
             "temperature": float(self._temperature),
         }
         try:
-            r = requests.post(self._local_url, json=payload, timeout=self._timeout)
+            r = _post(self._local_url, json=payload, timeout=self._timeout)
             
             if r.status_code != 200:
                 print(f"[LLM ERROR] Local API returned status {r.status_code}: {r.text}")
@@ -290,10 +336,10 @@ class LLM(BaseChatModel):
             # such option says so and the request is sent again without it.
             if os.environ.get("ASH_OLLAMA_THINK", "").strip().lower() not in ("1", "true", "yes", "on"):
                 payload["think"] = False
-            r = requests.post(self._ollama_url, json=payload, timeout=self._timeout)
+            r = _post(self._ollama_url, json=payload, timeout=self._timeout)
             if r.status_code == 400 and "think" in payload and "think" in (r.text or "").lower():
                 payload.pop("think", None)
-                r = requests.post(self._ollama_url, json=payload, timeout=self._timeout)
+                r = _post(self._ollama_url, json=payload, timeout=self._timeout)
 
             if r.status_code != 200:
                 print(f"[LLM ERROR] Ollama API returned status {r.status_code}: {r.text}")
@@ -353,7 +399,7 @@ class LLM(BaseChatModel):
         if n_gpu.lstrip("-").isdigit():
             payload["options"]["num_gpu"] = int(n_gpu)
         try:
-            r = requests.post(self._ollama_url, json=payload, timeout=max(self._timeout, 120))
+            r = _post(self._ollama_url, json=payload, timeout=max(self._timeout, 120))
             if r.status_code == 400 and "think" in (r.text or "").lower():
                 return False
             return r.status_code == 200

@@ -279,6 +279,77 @@ def l9_never_mind():
     th3.join(10)
 
 
+def l10_real_cancel():
+    print("\n=== L10. 'Never mind' cuts the request loose, once, and the next one works ===")
+    import threading
+    import time as _t
+    import importlib
+    llm = importlib.import_module("tools.LLM")
+    gate = threading.Event()
+    calls = []
+
+    class Slow:
+        def post(self, url, **kw):
+            calls.append(url)
+            gate.wait(10)
+            raise RuntimeError("late")
+    real = llm.requests
+    llm.requests = Slow()
+    try:
+        res = {}
+
+        def work():
+            t0 = _t.time()
+            try:
+                llm._post("http://localhost:1/x", json={})
+            except Exception as e:
+                res["e"] = e
+            res["s"] = _t.time() - t0
+        th = threading.Thread(target=work)
+        th.start()
+        _t.sleep(0.3)
+        llm.cancel_inflight()
+        th.join(5)
+        check("a request stuck for ten seconds is released at once", not th.is_alive() and res.get("s", 99) < 2.0
+              and isinstance(res.get("e"), llm.LLMCancelled), str(res))
+        try:
+            llm._post("http://localhost:1/y")
+            ok2 = False
+        except llm.LLMCancelled:
+            ok2 = True
+        check("until resumed, further calls fail at once (a brain that makes several calls stops asking)", ok2 and len(calls) == 1)
+        llm.resume()
+        gate.set()
+        llm.requests = type("R", (), {"post": staticmethod(lambda url, **kw: "fine")})()
+        check("resumed: calls go through again", llm._post("http://x") == "fine")
+    finally:
+        llm.requests = real
+        llm.resume()
+        gate.set()
+
+    rt = rig()
+    th, ok = busy(rt)
+    rt.submit(rt.ev("never mind"))
+    rt._lane_step()
+    n = len([o for o in rt.out if "dropped it" in o])
+    rt.submit(rt.ev("never mind"))
+    rt._lane_step()
+    rt.submit(rt.ev("forget it"))
+    rt._lane_step()
+    check("said three times, 'dropped it' is said once", n == 1 and len([o for o in rt.out if "dropped it" in o]) == 1, str(rt.out))
+    check("the button does the same without being said", rt.cancel_thinking() is True)
+    rt.ash_.go.set()
+    th.join(10)
+    rt2 = rig()
+    check("the button with nothing to cancel does nothing", rt2.cancel_thinking() is False and not rt2.out)
+    rt3 = rig()
+    th3, ok3 = busy(rt3)
+    check("the button cancels at once", rt3.cancel_thinking() is True and rt3._cancelled and any("dropped it" in o for o in rt3.out), str(rt3.out))
+    rt3.ash_.go.set()
+    th3.join(10)
+    check("and its answer is not said", "A long answer." not in rt3.out)
+
+
 def l7_started():
     print("\n=== L7. The runtime starts the lane ===")
     rt = rig()
@@ -291,7 +362,7 @@ def l7_started():
 
 
 if __name__ == "__main__":
-    for fn in (l1_runs_at_once, l2_listens, l3_idle, l4_only_commands, l5_stop, l6_not_for_ash, l7_started, l8_journal_across_midnight, l9_never_mind):
+    for fn in (l1_runs_at_once, l2_listens, l3_idle, l4_only_commands, l5_stop, l6_not_for_ash, l7_started, l8_journal_across_midnight, l9_never_mind, l10_real_cancel):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)
