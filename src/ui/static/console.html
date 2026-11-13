@@ -679,6 +679,7 @@ const ROLE = { answer: ["answer", "replying to you"], remark: ["remark", "👁 o
 const OFFER_TAG = { free_moment: "✿ free moment", stuck_help: "✚ looks like you're stuck" };
 
 function addAsh(m, live) {
+  lastTouch = Date.now(); hideClock();            // a new line from ASH: the conversation, not the clock
   const [cls, tag] = ROLE[m.role] || ROLE.answer;
   const row = el("li", "msg ash " + cls);
   const tagEl = el("span", "tag", m.role === "offer" ? (OFFER_TAG[m.offer] || tag) : tag);
@@ -1298,7 +1299,9 @@ function tickClock() {
   $("clockMood").textContent = (status && status.mood && MOOD_FACE[status.mood]) || "";
 }
 let clockTimer = null, lastTouch = Date.now();
-const CLOCK_IDLE_MS = 120000;
+// The clock is a screensaver, never a gate: only after a long quiet, and it gives way by itself the moment ASH says
+// anything (so a remark is never hidden behind it, muted or not) or anything is typed or moved.
+const CLOCK_IDLE_MS = 15 * 60000;
 function showClock() {
   if ($("clock").hidden === false) return;
   tickClock(); $("clock").hidden = false; $("clock").focus({ preventScroll: true });
@@ -1310,7 +1313,7 @@ function hideClock() {
   $("clock").hidden = true; clearInterval(clockTimer); clockTimer = null; input.focus();
 }
 for (const ev of ["pointerdown", "keydown", "wheel"]) addEventListener(ev, () => { lastTouch = Date.now(); if (ev !== "wheel") hideClock(); }, { passive: true });
-addEventListener("pointermove", () => { lastTouch = Date.now(); }, { passive: true });
+addEventListener("pointermove", () => { lastTouch = Date.now(); if (!$("clock").hidden) hideClock(); }, { passive: true });
 $("clock").addEventListener("click", hideClock);
 setInterval(() => {
   const busy = cues.speaking || cues.thinking || (status && status.paused);
