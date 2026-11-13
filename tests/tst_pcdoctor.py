@@ -12,6 +12,7 @@ Run:  PYTHONIOENCODING=utf-8 python tests/tst_pcdoctor.py
 """
 
 import os
+import time
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -135,8 +136,48 @@ def p6_runtime():
     check("the real reader works here (read-only)", s.mem_total > 0 and s.groups and s.cores >= 1, f"{s.mem_percent}% {len(s.groups)} groups")
 
 
+def p7_off_the_loop():
+    print("\n=== P7. Reading the machine never blocks the loop ===")
+    from src.daemon.pcdoctor import CachedReader
+    T0 = 1_800_000_000.0
+    clock = [T0]
+    jobs = []
+    calls = []
+
+    def fn():
+        calls.append(clock[0])
+        s = snap(mem=70)
+        s.at = clock[0]
+        return s
+    cr = CachedReader(fn, clock=lambda: clock[0], fresh_s=20, max_age_s=600, spawn=jobs.append)
+    check("nothing read yet: it says so rather than waiting", cr() is None and len(jobs) == 1 and not calls)
+    check("asked again while the first is being taken: no second one started", cr() is None and len(jobs) == 1)
+    jobs.pop(0)()
+    got = cr()
+    check("after the background read, the answer is instant", got is not None and len(calls) == 1 and not jobs)
+    clock[0] += 5
+    check("a recent one is used as it is", cr() is got and not jobs)
+    clock[0] += 30
+    again = cr()
+    check("an old one is answered from at once, and a fresh one is started in the background",
+          again is got and len(jobs) == 1 and len(calls) == 1)
+    jobs.pop(0)()
+    check("...and used next time", cr() is not got and len(calls) == 2)
+    clock[0] += 3600
+    check("one far too old is not believed", cr() is None and len(jobs) == 1)
+    d = PCDoctor(reader=CachedReader(fn, clock=lambda: clock[0], spawn=lambda j: None), clock=lambda: clock[0])
+    check("first look not ready: said plainly, nothing breaks", "first look" in d.answer("slow", clock[0]))
+    t0 = time.time()
+    real = PCDoctor()
+    real.cached.warm()
+    check("making the real one returns at once (the reading is on its own thread)", time.time() - t0 < 0.5, f"{time.time() - t0:.2f}s")
+    t1 = time.time()
+    r = real.answer("slow")
+    check("...and so does the first question, answered or told to wait", time.time() - t1 < 0.5 and bool(r), f"{time.time() - t1:.2f}s")
+
+
 if __name__ == "__main__":
-    for fn in (p1_asking, p2_findings, p3_using, p4_fine, p5_closing, p6_runtime):
+    for fn in (p1_asking, p2_findings, p3_using, p4_fine, p5_closing, p6_runtime, p7_off_the_loop):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

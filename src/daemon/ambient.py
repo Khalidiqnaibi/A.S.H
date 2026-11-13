@@ -693,6 +693,8 @@ class AmbientRuntime:
         if self.cfg.pcdoctor:
             from .pcdoctor import PCDoctor
             self.pcdoctor = PCDoctor(reader=self.cfg.pcdoctor_reader)
+            if self.pcdoctor.cached is not None:
+                self.pcdoctor.cached.warm()                  # the first reading is taken now, off the loop
         self.notes = None
         if self.cfg.notes:
             from .notes import Notes

@@ -18,6 +18,7 @@ Windows' own. Reading is psutil only: no network, nothing kept.
 from __future__ import annotations
 
 import re
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -145,6 +146,63 @@ def read(psutil_mod=None, sample_s: float = 0.4, clock: Callable[[], float] = ti
                     groups=sorted(groups.values(), key=lambda g: -g.rss), uptime_s=up, battery=battery)
 
 
+class CachedReader:
+    """The machine's numbers without making anyone wait for them.
+
+    Reading every process takes a couple of seconds, and the daemon's loop is the one asking. So the reading is taken on a
+    thread of its own: once when this is made, and again, in the background, whenever an answer finds the last one older
+    than `fresh_s`. An answer uses the latest one taken (never older than `max_age_s`, and it is a few seconds old at most
+    when someone is actually asking). Before the first reading exists, `__call__` returns None and the caller says so."""
+
+    def __init__(self, fn: Callable[[], Snapshot], clock: Callable[[], float] = time.time, fresh_s: float = 20.0,
+                 max_age_s: float = 600.0, spawn: Optional[Callable[[Callable[[], None]], None]] = None):
+        self.fn, self.clock = fn, clock
+        self.fresh_s, self.max_age_s = float(fresh_s), float(max_age_s)
+        self._spawn = spawn or self._thread
+        self._snap: Optional[Snapshot] = None
+        self._busy = False
+        self._lock = threading.Lock()
+        self.refreshes = 0
+
+    @staticmethod
+    def _thread(job: Callable[[], None]) -> None:
+        threading.Thread(target=job, name="pcdoctor-read", daemon=True).start()
+
+    def warm(self) -> None:
+        self._kick()
+
+    def _kick(self) -> None:
+        with self._lock:
+            if self._busy:
+                return
+            self._busy = True
+
+        def job():
+            try:
+                snap = self.fn()
+                with self._lock:
+                    self._snap = snap
+                    self.refreshes += 1
+            except Exception:
+                pass
+            finally:
+                with self._lock:
+                    self._busy = False
+        self._spawn(job)
+
+    def __call__(self) -> Optional[Snapshot]:
+        now = self.clock()
+        with self._lock:
+            snap = self._snap
+        if snap is None or now - snap.at > self.fresh_s:
+            self._kick()
+        with self._lock:
+            snap = self._snap
+        if snap is None or now - snap.at > self.max_age_s:
+            return None
+        return snap
+
+
 @dataclass
 class Finding:
     what: str                   # memory | cpu | disk | swap | uptime | battery
@@ -157,7 +215,11 @@ class PCDoctor:
     def __init__(self, reader: Optional[Callable[[], Snapshot]] = None, clock: Callable[[], float] = time.time,
                  mem_high: float = 85.0, cpu_high: float = 85.0, disk_low_percent: float = 90.0,
                  disk_low_bytes: float = 10 * 1024 ** 3):
-        self.reader = reader or (lambda: read(clock=clock))
+        self.cached: Optional[CachedReader] = None
+        if reader is None:
+            self.cached = CachedReader(lambda: read(clock=clock), clock=clock)
+            reader = self.cached
+        self.reader = reader
         self.clock = clock
         self.mem_high, self.cpu_high = mem_high, cpu_high
         self.disk_low_percent, self.disk_low_bytes = disk_low_percent, disk_low_bytes
@@ -216,6 +278,8 @@ class PCDoctor:
         now = self.clock() if now is None else now
         self.stats["asked"] += 1
         s = self.reader()
+        if s is None:
+            return "I'm still taking my first look at the machine -- ask me again in a few seconds."
         self.last = s
         self.pending = None
         if kind == "memory":
