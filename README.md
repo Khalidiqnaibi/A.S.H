@@ -1756,6 +1756,34 @@ checks), the detector output parsing against a synthetic tensor with known geome
 **What was not:** a real camera, and the real YuNet/SFace/ONNX model files -- no model was downloaded in building this. Expect to
 tune `face_threshold` (0.40) and `thing_threshold` (0.88) on your own camera.
 
+## What ASH asked, and where you are (`src/daemon/asks.py`, `src/daemon/dwell.py`)
+
+Two gaps that made ASH feel like it had no memory of its own conversation.
+
+**What it asked.** Every question ASH puts to you is written down when it is said, with the situation (part of the day,
+the program in front, how long you had been in it, whether you were typing or reading), in `state/asks/asks.jsonl`.
+Your reply settles it -- *answered, said yes, said no, said later, talked past it, never replied* -- and the pair goes into
+episodic memory (`A.S.H asked at 10:12 while on A.S.H body blueprints: "..." -- Immortal said no`), which is where the
+conversation looks. "I have a question for you when you have a minute" stays open for hours, so *"go ahead"*,
+*"what questions do you have?"* or a plain *"yes"* asks the question then and there instead of reaching the model cold;
+*"not now"* puts it off. The model is told what it had asked when your message is the answer.
+The answers also teach it *when* asking is welcome: a no or a "later" lowers the odds for that situation (at night, in
+Edge, while you read), a yes or an answer raises them, and the free-moment chooser multiplies that in
+(`state/asks/timing.json`). Ask it: *"what have you asked me?"*, *"when do I like to be asked things?"*, or
+`python ashctl.py asks`. Set `asks.keep_replies` to `false` to keep only outcomes, not your words.
+
+**Where you are.** `state/dwell.json` keeps the window in front and for how long, whether you are typing, pausing,
+*reading* (same window, hands off the keyboard) or *away* (ten minutes without input, so a long read is not mistaken
+for leaving), and the day's time by program and window. What it does with that, all by rule:
+* reading one window for a few minutes is a **free moment** -- ASH says what it noticed ("you've been on *A.S.H body
+  blueprints* for 12 minutes without typing -- anything you want me to keep a note of?") or asks a question it was saving;
+* coming back after ten minutes away is **welcomed**, once, at your first pause ("Welcome back. You were away about 40 minutes.");
+* *"how long have I been on this?"*, *"what have I been doing today?"*, *"how long was I away?"* are answered from it;
+* the model is told which window you are in and for how long, and what you did earlier today.
+Private windows (a chat, a mailbox) and blocked ones are counted as a program only -- their titles are never kept, said or
+given to the model. Settings: `dwell.away_after_s`, `dwell.reading_after_s`, `dwell.welcome_back_after_s`.
+Tests: `tst_asks.py`, `tst_dwell.py`.
+
 ## Follow-ups to the browsing profile (`tst_followups.py`)
 
 Each of these is its own commit, with its own section in `tst_followups.py`.
