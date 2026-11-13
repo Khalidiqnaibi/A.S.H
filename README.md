@@ -1784,6 +1784,33 @@ Private windows (a chat, a mailbox) and blocked ones are counted as a program on
 given to the model. Settings: `dwell.away_after_s`, `dwell.reading_after_s`, `dwell.welcome_back_after_s`.
 Tests: `tst_asks.py`, `tst_dwell.py`.
 
+### Free moments: when the user can't talk, and every other moment (`src/daemon/availability.py`, `tst_availability.py`)
+
+A free moment used to be "a pause after two minutes of steady typing" -- rare, and the wrong question. The point is the
+opposite: when *can't* the user be spoken to? ASH keeps out of those and is there in every other moment.
+* **Never spoken to:** away (ten minutes without input), in a call (Zoom, Teams, a Meet tab), gaming, presenting, focus
+  mode, in the middle of a conversation with ASH, typing right now.
+* **Busy -- only something worth it:** coding or writing with input in the last minute, a video in front.
+* **Free:** present, hands off, for 20 seconds (`free_moments.free_after_s`; 0 gives back the old rule). The longer free,
+  the better the moment. The budget is 4 an hour, 5 minutes apart (`free_moments`), questions 3 an hour; the ask ledger's
+  timing model weighs each moment by whether you have welcomed asking in that situation.
+`python ashctl.py status` shows the current state under `availability`.
+
+### Yes and no, said any way (`src/daemon/yesno.py`)
+
+Every question that wants a yes (shut down, close an app, run a plan, play a game, send a text or a mail) reads the answer
+the same way: *ye, yea, yeah, okay, do it, please, confirm, "yes, shut it down"* are yes; *no, nah, not now, cancel* are no;
+"yes but later" is neither. A mail or text goes only on a clear yes, and only right after it was read back; "ok" or "mhm"
+never sends. Saying "shut down" again confirms a shutdown.
+
+### Never mind, the console clock, and what the camera says unprompted
+
+* "Never mind" (said or the button) now cuts the model request loose at once -- the loop is free and the answer is dropped --
+  and "Okay -- dropped it" is said once. The server may still finish its answer; nobody is listening.
+* The console's full-screen clock appears after 15 quiet minutes (was 2) and goes away by itself when ASH says anything.
+* The camera no longer says "you picked up a remote" (`vision.announce_objects`, off; it is still recorded on `/vision`).
+  After a look, *"try again"*, *"how about now?"*, *"what's this?"* look again; *"nope"* owns up and *"it's a watch"* teaches it.
+
 ## Follow-ups to the browsing profile (`tst_followups.py`)
 
 Each of these is its own commit, with its own section in `tst_followups.py`.
