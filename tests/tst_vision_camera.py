@@ -455,7 +455,7 @@ def v6_defaults():
     src = open(os.path.join(HERE, "ashd.py"), encoding="utf-8").read()
     check("ashd always builds it", "vision=True," in src)
     lc = LookingConfig.from_dict({"enabled": True})
-    check("the new settings have sane defaults", lc.react and lc.watch_interval_s >= 4 and lc.watch_confirm >= 2 and lc.announce_objects and not lc.announce_people
+    check("the new settings have sane defaults", lc.react and lc.watch_interval_s >= 4 and lc.watch_confirm >= 2 and not lc.announce_objects and not lc.announce_people
           and lc.detection_log_size == 300 and lc.classifier_min_conf < lc.object_conf and lc.classifier_sure_conf < lc.sure_conf)
     lk = build({}, {"eye": tv.Eye(grab=lambda: tv.frame()) if hasattr(tv, "Eye") else None}, lambda: None, lambda: False, lambda: 1.0, None)
     check("build() with an empty config: enabled, a YOLO-or-ImageNet object backend, no file for detections", lk.cfg.enabled and lk.detections.path is None

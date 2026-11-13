@@ -173,7 +173,7 @@ class LookingConfig:
     watch_confirm: int = 3                # readings in a row before "you picked up ..." / "... is gone"
     watch_min_conf: float = 0.30
     watch_cooldown_s: float = 120.0       # per label
-    announce_objects: bool = True         # say it aloud (it is always recorded on the /vision page)
+    announce_objects: bool = False        # say "you picked up X" aloud: off -- narrating what you hold is noise; it is always recorded on the /vision page
     announce_people: bool = False         # say "someone came into view" / "nobody is in view" for any person
     detection_log_size: int = 300         # detections kept in memory for the /vision page
     detection_log_lines: int = 2000       # ... and in state/vision/detections.jsonl (labels and numbers, never pictures)

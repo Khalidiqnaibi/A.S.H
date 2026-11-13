@@ -235,7 +235,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "enabled": True,
         "classifier": True,                # no YOLO file: name things with the ImageNet classifier (local cache only)
         "react": True,                     # "you picked up a watch": only while sensors.camera is on, never in privacy/kids mode
-        "announce_objects": True,          # ... and say it aloud (it is always recorded)
+        "announce_objects": False,         # ... and say it aloud: off (narrating what you pick up is noise); it is always recorded on /vision
         "announce_people": False,          # say "someone came into view" / "nobody is in view"
         "watch_interval_s": 8.0,
         "models_dir": "",                  # empty: state/models
