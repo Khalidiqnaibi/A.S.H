@@ -210,10 +210,27 @@ class FileSearch:
                     if n >= self.max_files:
                         return
 
+    def _embed_all(self, todo: List[Entry], batch: int = 32, pause_s: float = 0.02) -> None:
+        """Vectors for the files that have something to say, a batch at a time with a breath between, so the first index
+        of a large folder does not hold the machine (the language model shares it) while it is made."""
+        for i in range(0, len(todo), batch):
+            chunk = todo[i:i + batch]
+            texts = [f"{os.path.splitext(e.name)[0].replace('_', ' ')}. {e.text[:600]}" for e in chunk]
+            try:
+                vs = self.embed(texts)
+                for e, v in zip(chunk, vs):
+                    e.vec = [round(float(x), 4) for x in v]
+            except Exception:
+                for e in chunk:
+                    e.vec = None
+            if pause_s and i + batch < len(todo):
+                time.sleep(pause_s)
+
     def build(self) -> int:
         """(Re)build the index. Files that did not change keep what was read last time."""
         old = {e.path: e for e in self.entries}
         out: List[Entry] = []
+        todo: List[Entry] = []
         texts = 0
         for path in self._walk():
             try:
@@ -230,13 +247,10 @@ class FileSearch:
             if texts < self.max_text_files and st.st_size <= self.max_bytes and (ext in TEXT_EXT or ext in (".docx", ".pdf")):
                 e.text = _read_text(path, self.text_chars)
                 texts += 1
-            if self.embed is not None:
-                try:
-                    v = self.embed([f"{os.path.splitext(name)[0].replace('_', ' ')}. {e.text[:600]}"])[0]
-                    e.vec = [round(float(x), 4) for x in v]
-                except Exception:
-                    e.vec = None
+            if self.embed is not None and (e.text or len([w for w in e.words if len(w) >= 3 and w.isalpha()]) >= 2):
+                todo.append(e)          # a photo called IMG_2041 says nothing a vector could use: not embedded
             out.append(e)
+        self._embed_all(todo)
         with self._lock:
             self.entries = out
             self.built_at = self.clock()

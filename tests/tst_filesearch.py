@@ -202,8 +202,33 @@ def f8_runtime():
     check("read back by rule", "Pets are allowed" in rt.out[-1] and len(rt.ash.calls) == n, rt.out[-1])
 
 
+def f9_embedding_cost():
+    print("\n=== F9. The first index does not embed what has nothing to say ===")
+    root = tempfile.mkdtemp()
+    for i in range(70):
+        open(os.path.join(root, f"IMG_{2000 + i}.jpg"), "wb").write(b"JFIF-binary-bytes")
+    for i in range(5):
+        open(os.path.join(root, f"trip plan {i}.txt"), "w").write("flights and hotels")
+    open(os.path.join(root, "annual budget summary.xlsx"), "wb").write(b"PK")
+    calls = []
+
+    def embed(texts):
+        calls.append(list(texts))
+        return [[1.0, 0.0]] * len(texts)
+    f = FileSearch(folders=[root], index_path=None, embed=embed, clock=lambda: NOW)
+    f.build()
+    n = sum(len(c) for c in calls)
+    check("70 photos called IMG_nnnn are not embedded; the text files and the named spreadsheet are", n == 6, f"{n} embedded")
+    check("embedded in batches, not one call per file", len(calls) <= 2 and max(len(c) for c in calls) > 1, str([len(c) for c in calls]))
+    names = {e.name: e.vec for e in f.entries}
+    check("the ones with something to say have a vector", names["trip plan 0.txt"] is not None and names["annual budget summary.xlsx"] is not None)
+    check("the rest have none, and are still found by name", names["IMG_2001.jpg"] is None and "IMG_2001.jpg" in f.find("IMG_2001", NOW))
+    boom = FileSearch(folders=[root], index_path=None, embed=lambda ts: 1 / 0, clock=lambda: NOW)
+    check("an encoder that fails leaves the index usable", boom.build() == 76 and all(e.vec is None for e in boom.entries))
+
+
 if __name__ == "__main__":
-    for fn in (f1_asking, f2_dates, f3_finding, f4_meaning, f5_about, f6_index, f7_open, f8_runtime):
+    for fn in (f1_asking, f2_dates, f3_finding, f4_meaning, f5_about, f6_index, f7_open, f8_runtime, f9_embedding_cost):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)
