@@ -173,7 +173,7 @@ class Phone:
         if len(t) > 300 or not self.cfg.enabled or not self.cli:
             return False
         p = self.pending_sms
-        if p is not None and now - p[3] <= 300 and _SEND.match(t):
+        if p is not None and now - p[3] <= 300 and (_SEND.match(t) or (_yesno.is_yes(t, strong=True) and now - p[3] <= 90)):
             return True
         return bool(_STATUS.match(t) or _RING.match(t) or _SHARE.match(t) or _NOTE.match(t))
 
@@ -185,13 +185,13 @@ class Phone:
             return None
         p = self.pending_sms
         if p is not None and now - p[3] <= 300:
-            if _SEND.match(t):
+            if _SEND.match(t) or (_yesno.is_yes(t, strong=True) and now - p[3] <= 90):      # a plain yes only right after the read-back
                 self.pending_sms = None
                 if self._do("--send-sms", p[2], "--destination", p[1]):
                     self.stats["texted"] += 1
                     return f"Sent the text to {p[0]}."
                 return "The text didn't go -- is the phone connected?"
-            if _CANCEL.match(t):
+            if (_CANCEL.match(t) or _yesno.is_no(t)):
                 self.pending_sms = None
                 return "Okay, I won't send it."
         if _STATUS.match(t):
@@ -226,3 +226,6 @@ class Phone:
 
     def status(self) -> Dict[str, Any]:
         return {"ready": self.ready, "ntfy": bool(self.cfg.ntfy_url), **self.stats}
+
+
+from . import yesno as _yesno  # noqa: E402  (a plain yes sends what was read back; a plain no drops it)

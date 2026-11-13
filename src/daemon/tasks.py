@@ -283,3 +283,9 @@ class Tasks:
         with self._lock:
             return {"enabled": self.enabled, "saved": sorted(r["name"] for r in self.saved.values()),
                     "pending": self.pending is not None, **self.stats}
+
+
+# Any ordinary yes (ye, yea, okay, do it, please...) answers a question, not only the words listed above (yesno.py).
+from . import yesno as _yesno  # noqa: E402
+_YES = _yesno.yes_or(_YES)
+_NO = _yesno.no_or(_NO)

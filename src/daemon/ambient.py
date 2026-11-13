@@ -3790,8 +3790,13 @@ class AmbientRuntime:
         pend = getattr(self, "_shutdown_asked", None)
         if pend is not None:
             self._shutdown_asked = None
-            if now - pend <= 30.0 and self._meant_for_ash(ev) and re.match(
-                    r"^\s*(?:yes|yeah|yep|sure|ok(?:ay)?|do it|go ahead|confirm(?:ed)?)\b", text, re.I):
+            confirmed = False
+            if now - pend <= 30.0 and self._meant_for_ash(ev):
+                from . import yesno
+                cmd0 = voicectl.parse(text)
+                # any ordinary yes, or saying "shut down" again
+                confirmed = yesno.is_yes(text) or getattr(cmd0, "name", "") == "shutdown"
+            if confirmed:
                 req = getattr(self, "request_shutdown", None)
                 if req is None:
                     return self._control_say(ev, "I can't switch myself off from here -- use the console's stop, or "

@@ -222,8 +222,8 @@ class Desktop:
             self._pending = None
             if now - p[2] <= self.cfg.confirm_window_s and _YES.match(t):
                 return self._do_close(p[0], p[1])
-            if now - p[2] <= self.cfg.confirm_window_s and re.match(r"^\s*(?:no|nope|nah|don'?t|cancel|leave it)\b",
-                                                                     t, re.I):
+            if now - p[2] <= self.cfg.confirm_window_s and (re.match(r"^\s*(?:no|nope|nah|don'?t|cancel|leave it)\b",
+                                                                      t, re.I) or _yesno.is_no(t)):
                 return "Okay, I'll leave it open."
 
         m = _ROUTINE.match(t)
@@ -287,3 +287,8 @@ class Desktop:
 
     def status(self) -> Dict[str, Any]:
         return {"enabled": self.cfg.enabled, "apps": len(self.apps), **self.stats}
+
+
+# Any ordinary yes (ye, yea, okay, do it, please...) answers a question, not only the words listed above (yesno.py).
+from . import yesno as _yesno  # noqa: E402
+_YES = _yesno.yes_or(_YES)

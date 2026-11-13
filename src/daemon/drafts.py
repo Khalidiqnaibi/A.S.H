@@ -131,9 +131,9 @@ class Drafts:
             return None
         d = self._current(now)
         if d is not None:
-            if _SEND.match(t):
+            if _SEND.match(t) or (_yesno.is_yes(t, strong=True) and now - d.made_at <= 90):    # a plain yes only right after the read-back
                 return self._send(d)
-            if _CANCEL.match(t):
+            if (_CANCEL.match(t) or _yesno.is_no(t)):
                 self.draft = None
                 self.stats["cancelled"] += 1
                 return "Okay, I won't send it."
@@ -156,7 +156,7 @@ class Drafts:
                 d.body = new.strip()
                 d.made_at = now
                 return self._readback(d)
-        elif _SEND.match(t) or _CANCEL.match(t):
+        elif (_SEND.match(t) or _yesno.is_yes(t, strong=True)) or (_CANCEL.match(t) or _yesno.is_no(t)):
             return None                                      # nothing waiting: "send it" may be someone else's
         m = _REPLY.match(t)
         if m:
@@ -210,3 +210,6 @@ class Drafts:
 
     def status(self) -> Dict[str, Any]:
         return {**self.stats, "allow_send": self.allow_send, "waiting": self.draft is not None}
+
+
+from . import yesno as _yesno  # noqa: E402  (a plain yes sends what was read back; a plain no drops it)
