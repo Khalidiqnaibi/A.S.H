@@ -18,6 +18,7 @@ Run:  PYTHONIOENCODING=utf-8 python tests/tst_commands.py
 
 import os
 import sys
+import tempfile
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -78,7 +79,8 @@ def c3_nearest():
 
 def c4_catalog_is_real():
     print("\n=== C4. Every catalog phrase is a real command, exactly as written ===")
-    camera = {"who is this", "look around", "what am I holding"}
+    camera = {"who is this", "look around", "what am I holding", "look at me", "can you see me", "what do you see on the camera",
+              "what's in my hand", "show me what you see", "take a picture with the camera"}
     for phrase, kind in CATALOG:
         if kind != "rule":
             continue
@@ -121,7 +123,7 @@ def camera_runtime():
     mem.enroll("Omar", "person", tv.vec(1))
     io = dict(eye=Eye(grab=lambda: tv.frame()), faces=tv.FakeFaces([tv.face((200, 100, 160, 200))], [tv.vec(1)]),
               objects=tv.FakeObjects([tv.thing("cup", 0.9)]), memory=mem)
-    rt = te.rig(vision=True, vision_io=io, vision_cfg=dict(enrol_checks=False), loose_commands=False)
+    rt = te.rig(vision=True, vision_io=io, vision_cfg=dict(enrol_checks=False, photo_dir=tempfile.mkdtemp()), loose_commands=False)
     return rt
 
 

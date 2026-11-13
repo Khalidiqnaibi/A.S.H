@@ -65,6 +65,7 @@ class Thing:
     label: str
     score: float
     box: Tuple[int, int, int, int]
+    src: str = ""                              # where it came from: "" (a detector), "centre" or "tile" (the classifier)
 
 
 # ======================================================================================================================

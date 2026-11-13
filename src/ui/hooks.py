@@ -203,6 +203,18 @@ def attach_ui(runtime, bus, opener: Optional[Callable[[], Any]] = None,
             if face is None:
                 return {"ok": False, "error": "face not enabled"}
             return {"ok": bool(face.player.play(arg, force=True))}
+        elif cmd in ("vision_info", "vision_look"):
+            # The /vision page: labels, numbers and boxes (never a picture); "look now" is one explicit look.
+            lk = getattr(runtime, "looking", None)
+            if lk is None:
+                return {"ok": False, "error": "vision is not running"}
+            if cmd == "vision_look":
+                kids = getattr(runtime, "kids", None)
+                if kids is not None and kids.active:
+                    return {"ok": False, "say": "Kids mode is on, so I'm not using the camera.", "why": "kids", "vision": lk.snapshot()}
+                res = lk.look_now()
+                return {"ok": bool(res.get("ok")), "say": res.get("say") or "", "why": res.get("why", ""), "vision": lk.snapshot()}
+            return {"ok": True, "vision": lk.snapshot()}
         elif cmd == "settings":
             from . import settings
             return {"ok": True, "settings": settings.listing(runtime, config_path)}

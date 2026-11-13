@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en" data-theme="{{THEME}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASH Camera</title>
+<style>
+/* The console's themes, inserted by the server (src/ui/server.py: theme_css), so the page always matches. */
+/*{{THEMES}}*/
+:root { color-scheme: dark; }
+[data-theme="paper"], [data-theme="blossom"] { color-scheme: light; }
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  background: var(--panel-solid, #0d1527); color: var(--text, #d6f6ff);
+  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; padding: 16px; max-width: 1100px; margin: 0 auto;
+}
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 14px; }
+h1 { margin: 0; font-size: 20px; font-weight: 600; }
+h2 { margin: 0 0 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted, #6f8aa6); }
+a { color: var(--accent, #3ef0ff); }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px;
+        border: 1px solid var(--line, rgba(62,240,255,.18)); color: var(--muted, #6f8aa6); }
+.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; opacity: .6; }
+.pill.ok { color: var(--ok, #4dffa6); } .pill.ok::before { opacity: 1; }
+.pill.warn { color: var(--warn, #ffcf4d); } .pill.warn::before { opacity: 1; }
+.pill.bad { color: var(--bad, #ff5c7a); } .pill.bad::before { opacity: 1; }
+#why { color: var(--muted, #6f8aa6); flex: 1 1 260px; min-width: 0; }
+button { font: inherit; padding: 7px 14px; border-radius: 10px; cursor: pointer; color: var(--text, #d6f6ff);
+         border: 1px solid var(--accent, #3ef0ff); background: var(--ash-bg, rgba(62,240,255,.07)); }
+button:hover, button:focus-visible { background: var(--accent, #3ef0ff); color: var(--bg, #0d1527); outline: none; }
+button[disabled] { opacity: .5; cursor: progress; }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.card { padding: 12px; border-radius: 12px; border: 1px solid var(--line, rgba(62,240,255,.18)); background: var(--ash-bg, rgba(62,240,255,.07)); min-width: 0; }
+.wide { grid-column: 1 / -1; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 0; }
+.kv dt { color: var(--muted, #6f8aa6); } .kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+#say { margin-top: 8px; padding: 8px 10px; border-radius: 8px; border-left: 3px solid var(--accent, #3ef0ff); min-height: 2.2em; }
+#say.bad { border-left-color: var(--bad, #ff5c7a); }
+svg#frame { width: 100%; height: auto; display: block; border-radius: 8px; background: var(--panel, rgba(14,22,40,.72)); border: 1px solid var(--line, rgba(62,240,255,.18)); }
+svg .box { fill: none; stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+svg .lbl { font: 600 12px system-ui, sans-serif; paint-order: stroke; stroke: var(--panel-solid, #0d1527); stroke-width: 3px; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-weight: 600; font-size: 11px; color: var(--muted, #6f8aa6); padding: 2px 8px 6px 0; white-space: nowrap; }
+td { padding: 4px 8px 4px 0; border-top: 1px solid var(--line, rgba(62,240,255,.18)); vertical-align: middle; }
+.bar { position: relative; width: 110px; height: 8px; border-radius: 4px; background: var(--line, rgba(62,240,255,.18)); overflow: hidden; display: inline-block; vertical-align: middle; }
+.bar i { position: absolute; inset: 0 auto 0 0; background: var(--accent, #3ef0ff); border-radius: 4px; }
+.bar.lo i { background: var(--warn, #ffcf4d); }
+.num { display: inline-block; min-width: 3.2em; text-align: right; margin-left: 6px; }
+.tag { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line, rgba(62,240,255,.18)); color: var(--muted, #6f8aa6); }
+.empty { color: var(--muted, #6f8aa6); }
+.note { color: var(--muted, #6f8aa6); font-size: 12px; margin: 10px 0 0; }
+@media (max-width: 720px) { .grid { grid-template-columns: minmax(0, 1fr); } body { padding: 16px; } .bar { width: 70px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Camera</h1>
+  <span class="pill" id="state">...</span>
+  <span id="why"></span>
+  <button id="look" type="button">Look now</button>
+</header>
+<div id="say" class="empty" role="status" aria-live="polite">Press "Look now" and I'll take one picture, say what I see, and let the camera go.</div>
+
+<div class="grid" style="margin-top:12px">
+  <section class="card" aria-labelledby="h-how">
+    <h2 id="h-how">How I see</h2>
+    <dl class="kv" id="how"></dl>
+  </section>
+  <section class="card" aria-labelledby="h-people">
+    <h2 id="h-people">People and watching</h2>
+    <dl class="kv" id="people"></dl>
+  </section>
+
+  <section class="card" aria-labelledby="h-frame">
+    <h2 id="h-frame">The last look, as boxes</h2>
+    <svg id="frame" viewBox="0 0 640 480" role="img" aria-label="Schematic of the last look: the boxes of what was found"></svg>
+    <p class="note" id="frame-note"></p>
+  </section>
+  <section class="card" aria-labelledby="h-counts">
+    <h2 id="h-counts">What I have seen lately</h2>
+    <div class="scroll"><table id="counts"><thead><tr><th>What</th><th>Times</th><th>Average sureness</th></tr></thead><tbody></tbody></table></div>
+    <p class="note">Labels and numbers only, for the last <span id="kept">0</span> detections. No pictures are kept, and no names.</p>
+  </section>
+
+  <section class="card wide" aria-labelledby="h-det">
+    <h2 id="h-det">Latest detections</h2>
+    <div class="scroll"><table id="det"><thead><tr><th>Time</th><th>Kind</th><th>What</th><th>Sureness</th><th>From</th></tr></thead><tbody></tbody></table></div>
+  </section>
+</div>
+<p class="note" id="stamp"></p>
+
+<script>
+"use strict";
+let TOKEN = "{{TOKEN}}";
+const $ = (id) => document.getElementById(id);
+const SVGNS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, text) { const e = document.createElement(tag); for (const k in (attrs || {})) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; return e; }
+function sv(tag, attrs, text) { const e = document.createElementNS(SVGNS, tag); for (const k in (attrs || {})) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; return e; }
+function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
+function pct(x) { return Math.round(Math.max(0, Math.min(1, +x || 0)) * 100); }
+function hhmmss(t) { return new Date(t * 1000).toLocaleTimeString([], { hour12: false }); }
+function bar(conf, sure) {
+  const b = el("span", { class: "bar" + (conf < sure ? " lo" : ""), title: "the model's own probability" });
+  const i = el("i"); i.style.width = pct(conf) + "%"; b.appendChild(i);
+  const wrap = el("span"); wrap.append(b, el("span", { class: "num" }, pct(conf) + "%")); return wrap;
+}
+function kv(box, rows) {
+  clear(box);
+  for (const [k, v] of rows) { box.appendChild(el("dt", {}, k)); box.appendChild(el("dd", {}, v)); }
+}
+const STATE = { ready: ["ok", "Ready"], watching: ["ok", "Watching"], privacy: ["warn", "Privacy mode"], busy: ["warn", "Camera busy"],
+                unavailable: ["bad", "No camera"], off: ["bad", "Switched off"] };
+const COLORS = { object: "var(--accent, #3ef0ff)", person: "var(--accent2, #ff4fd8)", face: "var(--ok, #4dffa6)" };
+
+function render(v) {
+  if (!v || !v.camera) return;
+  const st = STATE[v.camera.state] || ["", v.camera.state];
+  const pill = $("state"); pill.className = "pill " + st[0]; pill.textContent = st[1];
+  $("why").textContent = v.camera.why || "";
+  const b = v.backend || {}, sure = b.sure_conf || 0.5;
+  const how = { yolo: "YOLO detector (an ONNX file)", imagenet: "ImageNet classifier (the brain's ViT, local cache)", detector: "an object detector", none: "nothing yet" }[b.kind] || String(b.kind);
+  kv($("how"), [["Things", b.objects ? how : "not available" + (b.why_not ? ": " + b.why_not : "")],
+                ["Faces", b.faces ? "face models installed" : "face models not installed (python ashctl.py vision install)"],
+                ["Says “it's a …” from", pct(sure) + "% sure; from " + pct(b.min_conf || 0) + "% it says “I think it's …”"]]);
+  const p = v.presence || {}, w = v.watching || {};
+  kv($("people"), [["Presence", p.on ? (p.here && p.here.length ? "here: " + p.here.join(", ") : "on, nobody known in view") + (p.stranger ? " – and someone I don't know" : "") : "off (vision.presence)"],
+                   ["Reacting to changes", w.react ? (v.camera.state === "watching" ? "on (" + (w.readings || 0) + " readings)" : "on, when the camera sensor is on") : "off"],
+                   ["Holding now", w.holding && w.holding.length ? w.holding.join(", ") : "nothing I've noticed"],
+                   ["Says aloud", [w.announce_objects ? "things" : "", w.announce_people ? "people" : ""].filter(Boolean).join(" and ") || "nothing (it only records)"]]);
+  drawFrame(v.scene, sure);
+  // counts
+  const cb = $("counts").tBodies[0]; clear(cb);
+  for (const c of (v.counts || []).slice(0, 12)) {
+    const tr = el("tr"); tr.append(el("td", {}, c.label + (c.kind === "face" ? "s" : "")), el("td", {}, String(c.count)), el("td"));
+    tr.lastChild.appendChild(bar(c.avg, sure)); cb.appendChild(tr);
+  }
+  if (!cb.children.length) { const tr = el("tr"); const td = el("td", { colspan: 3, class: "empty" }, "Nothing yet -- ask me to look."); tr.appendChild(td); cb.appendChild(tr); }
+  $("kept").textContent = String(v.kept || 0);
+  // detections
+  const db = $("det").tBodies[0]; clear(db);
+  for (const d of (v.detections || [])) {
+    const tr = el("tr");
+    tr.append(el("td", {}, hhmmss(d.t)), el("td"), el("td", {}, d.label), el("td"), el("td"));
+    tr.children[1].appendChild(el("span", { class: "tag" }, d.kind));
+    if (d.kind === "event") tr.children[3].textContent = "—"; else tr.children[3].appendChild(bar(d.conf, sure));
+    tr.children[4].textContent = d.source; db.appendChild(tr);
+  }
+  if (!db.children.length) { const tr = el("tr"); tr.appendChild(el("td", { colspan: 5, class: "empty" }, "No detections yet.")); db.appendChild(tr); }
+  $("stamp").textContent = "Updated " + hhmmss(Date.now() / 1000) + " · refreshes every 3 seconds";
+}
+
+function drawFrame(scene, sure) {
+  const svg = $("frame"); clear(svg);
+  const W = scene ? scene.w : 640, H = scene ? scene.h : 480;
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  svg.appendChild(sv("rect", { x: 0, y: 0, width: W, height: H, fill: "none" }));
+  svg.appendChild(sv("line", { x1: W / 2, y1: 0, x2: W / 2, y2: H, stroke: "var(--line, rgba(62,240,255,.18))", "stroke-dasharray": "4 6" }));
+  svg.appendChild(sv("line", { x1: 0, y1: H / 2, x2: W, y2: H / 2, stroke: "var(--line, rgba(62,240,255,.18))", "stroke-dasharray": "4 6" }));
+  if (!scene) { $("frame-note").textContent = "No look yet -- press “Look now”."; return; }
+  const k = Math.max(W, H) / 640;
+  for (const t of scene.things || []) {
+    const c = t.label === "person" ? COLORS.person : COLORS.object;
+    svg.appendChild(sv("rect", { class: "box", x: t.box[0], y: t.box[1], width: t.box[2], height: t.box[3], stroke: c, opacity: t.src === "tile" ? 0.45 : 1,
+                                 "stroke-dasharray": t.conf < sure ? "8 5" : "none" }));
+    const lab = sv("text", { class: "lbl", x: t.box[0] + 6 * k, y: t.box[1] + 16 * k, fill: c, "font-size": 12 * k }, t.label + " " + pct(t.conf) + "%");
+    svg.appendChild(lab);
+  }
+  for (const f of scene.faces || []) {
+    svg.appendChild(sv("rect", { class: "box", x: f.box[0], y: f.box[1], width: f.box[2], height: f.box[3], stroke: COLORS.face, rx: 6 }));
+    svg.appendChild(sv("text", { class: "lbl", x: f.box[0] + 6 * k, y: f.box[1] + f.box[3] - 6 * k, fill: COLORS.face, "font-size": 12 * k }, "face " + pct(f.conf) + "%"));
+  }
+  $("frame-note").textContent = (scene.things || []).length + " thing(s), " + (scene.faces || []).length + " face(s) at " + hhmmss(scene.t)
+    + " (" + scene.source + "). Boxes only, drawn from numbers; dashed = not sure; faint = a tile of the picture.";
+}
+
+async function refresh() {
+  try {
+    const r = await fetch("/api/vision", { cache: "no-store" });
+    const j = await r.json();
+    if (j && j.vision) render(j.vision);
+    else { $("state").className = "pill bad"; $("state").textContent = "Not running"; $("why").textContent = (j && j.error) || "vision is not running"; }
+  } catch (e) { $("state").className = "pill bad"; $("state").textContent = "Offline"; $("why").textContent = "Can't reach ASH."; }
+}
+$("look").addEventListener("click", async () => {
+  const btn = $("look"); btn.disabled = true; btn.textContent = "Looking…";
+  try {
+    const r = await fetch("/api/control", { method: "POST", headers: { "Content-Type": "application/json", "X-ASH-Token": TOKEN },
+                                            body: JSON.stringify({ cmd: "vision_look", arg: "" }) });
+    const j = await r.json();
+    const s = $("say"); s.classList.remove("empty"); s.className = j.ok ? "" : "bad"; s.textContent = j.say || j.error || "No answer.";
+    if (j.vision) render(j.vision);
+  } catch (e) { const s = $("say"); s.className = "bad"; s.textContent = "Can't reach ASH."; }
+  btn.disabled = false; btn.textContent = "Look now";
+});
+refresh();
+setInterval(() => { if (!document.hidden) refresh(); }, 3000);
+</script>
+</body>
+</html>

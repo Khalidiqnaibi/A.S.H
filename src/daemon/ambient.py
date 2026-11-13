@@ -755,6 +755,10 @@ class AmbientRuntime:
                                          lambda: bool(self.privacy.paused), lambda: self.clock(), self.cfg.vision_path,
                                          user=lambda: str(getattr(self.brain, "user", "") or ""),
                                          ollama_url=str(getattr(getattr(self.ash, "llm", None), "_ollama_url", "") or ""))
+        self.scene_watch = None              # "you picked up a watch": from the camera sensor's frames only (visionwatch.py)
+        if self.looking is not None:
+            from .visionwatch import SceneWatcher
+            self.scene_watch = SceneWatcher(self)
         if self.cfg.grammar:
             from .grammar import Grammar
             address.register_grammar(Grammar(self))
@@ -1140,6 +1144,11 @@ class AmbientRuntime:
             self._watch_step(now)
             self._reminder_step(now)
             self._presence_step(now)
+            if self.scene_watch is not None:
+                try:
+                    self.scene_watch.step(now)
+                except Exception:
+                    logger.exception("Camera-change watching failed on a tick")
             self._situation_step(now, idle_s)
             self._guard_step(now)
             self._feelings_step(now)

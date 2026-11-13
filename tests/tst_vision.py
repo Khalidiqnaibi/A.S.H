@@ -358,7 +358,7 @@ def looking(things=(), faces=(), vectors=(), eye_paused=False, grab=True, frames
 def step1_look_around_and_what_am_i_holding():
     print("\n=== STEP 1: 'look around' and 'what am I holding?' -- from the labels, no model ===")
     from src.daemon.looking import parse
-    ok = {"look around": "see", "what's in front of the camera": "see", "can you see me": "see", "use the camera": "see",
+    ok = {"look around": "see", "what's in front of the camera": "see", "can you see me": "me", "use the camera": "see",
           "what do you see through the camera": "see", "check the webcam and tell me what you see": "see",
           "what am I holding": "holding", "look at this": "holding", "what's in my hand": "holding", "what is this thing I'm holding": "holding",
           "hey ash, look around please": "see"}
@@ -385,17 +385,17 @@ def step1_look_around_and_what_am_i_holding():
 
     hold = looking([thing("person", .95, (0, 0, 640, 480)), thing("laptop", .9, (0, 200, 300, 200)), thing("cup", .8, (20, 20, 60, 60)),
                     thing("bottle", .85, (290, 180, 70, 120))])
-    check("what is held is the thing nearest the middle that is not a person or furniture", hold.hear("what am I holding") == "That looks like a bottle.")
-    check("unsure: hedged", looking([thing("cup", 0.45, (290, 200, 60, 80))]).hear("look at this") == "That might be a cup, but I'm not sure.")
+    check("what is held is the thing nearest the middle that is not a person or furniture", hold.hear("what am I holding") == "It's a bottle.")
+    check("unsure: hedged", looking([thing("cup", 0.45, (290, 200, 60, 80))]).hear("look at this") == "I think it's a cup, but I'm not sure.")
     check("nothing to hold: it says to hold it closer", "holding it closer" in looking([thing("person", .9)]).hear("what am I holding"))
     check("without an object model it says what is missing", "object model" in looking(objects=FakeObjects(available=False)).hear("what am I holding"))
     check("with faces but no object model it says so honestly", "no object model" in looking(objects=FakeObjects(available=False)).hear("what am I holding"))
 
-    check("privacy mode: it does not look, and says why", looking(eye_paused=True).hear("look around") == "I'm paused for privacy, so I'm not looking.")
+    check("privacy mode: it does not look, and says why", looking(eye_paused=True).hear("look around") == "Privacy mode is on, so my camera is off and I'm not looking.")
     check("no camera: said", "no camera I can open" in looking(grab=False).hear("look around"))
     off = looking([thing("cup", .9)], )
     off.cfg.enabled = False
-    check("switched off: nothing happens and no frame is taken", off.hear("look around") is None and off.eye.looks == 0)
+    check("switched off: it says so (never the model's) and no frame is taken", "switched off" in off.hear("look around") and off.eye.looks == 0)
     check("an unrelated sentence takes no frame", looking([thing("cup", .9)]).hear("what time is it") is None)
 
     # on the runtime
@@ -512,7 +512,7 @@ def step2_teach_by_showing():
     nop.hear("remember this as my blue mug")
     check("without the ask, nothing is written to disk", os.listdir(folder2) == [])
     paused = looking(faces=[face()], vectors=[omar], eye_paused=True)
-    check("in privacy mode nothing is looked at or learned", paused.hear("remember Omar's face") == "I'm paused for privacy, so I'm not looking."
+    check("in privacy mode nothing is looked at or learned", paused.hear("remember Omar's face") == "Privacy mode is on, so my camera is off and I'm not looking."
           and paused.memory.list() == [])
 
     # ---- on the runtime
@@ -1060,7 +1060,7 @@ def step6_open_questions_opt_in():
     check("a free question reaches the model as asked", "if the stove is on" in sent[0][1]["messages"][0]["content"])
     check("no answer from the model: said", "couldn't get an answer" in with_vlm("").hear("describe what you see"))
     pr = with_vlm(eye_paused=True)
-    check("in privacy mode nothing is looked at and nothing is sent", pr.hear("describe what you see") == "I'm paused for privacy, so I'm not looking." and pr.vlm.calls == 0)
+    check("in privacy mode nothing is looked at and nothing is sent", pr.hear("describe what you see") == "Privacy mode is on, so my camera is off and I'm not looking." and pr.vlm.calls == 0)
     check("no camera: said", "no camera I can open" in with_vlm(grab=False).hear("describe what you see"))
 
     # the runtime
@@ -1099,11 +1099,11 @@ def wiring_config_control_and_installer():
     from src.daemon.service import DEFAULT_CONFIG
     from src.vision import models
     v = DEFAULT_CONFIG["vision"]
-    check("vision is off by default, and so is everything that watches or sends", v["enabled"] is False and v["presence"] is False
+    check("vision is on for asked looks by default; everything that watches in the background or sends is off", v["enabled"] is True and v["presence"] is False
           and v["announce_known"] is False and v["announce_strangers"] is False and v["open_questions"] is False and v["vlm_model"] == "")
     check("...with the private-things hold on", v["hold_when_stranger"] is True)
     src = open(os.path.join(HERE, "ashd.py"), encoding="utf-8").read()
-    check("the daemon builds it from the config", 'vision=bool((cfg.get("vision") or {}).get("enabled", False))' in src and "vision_cfg=cfg.get" in src)
+    check("the daemon always builds it (the camera's questions are never the model's), from the config", "vision=True," in src and "vision_cfg=cfg.get" in src)
 
     # the installer's command line
     out, folder, calls = [], tempfile.mkdtemp(), []

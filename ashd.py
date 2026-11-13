@@ -401,7 +401,7 @@ def main() -> int:
                 personas=bool(cfg.get("personas", {}).get("enabled", True)) if isinstance(cfg.get("personas", {}), dict) else True,
                 scenes=bool(cfg.get("scenes", {}).get("enabled", True)) if isinstance(cfg.get("scenes", {}), dict) else True,
                 grammar=bool((cfg.get("address") or {}).get("grammar", True)),
-                vision=bool((cfg.get("vision") or {}).get("enabled", False)),
+                vision=True,    # always built: "look at me" is the camera's to answer, even when vision.enabled is false (it says so)
                 vision_cfg=cfg.get("vision") or {},
                 vision_path=os.path.join(os.getcwd(), "state", "vision.json"),
                 clipboard=bool((cfg.get("clipboard") or {}).get("enabled", False)) if isinstance(cfg.get("clipboard"), dict) else False,

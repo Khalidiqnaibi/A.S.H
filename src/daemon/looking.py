@@ -28,6 +28,9 @@ logger = logging.getLogger("ash.daemon.looking")
 _A = r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:so\s+)?(?:please\s+|can you\s+|could you\s+)?"
 _Z = r"(?:\s+please)?\s*[.!?]*\s*$"
 
+_CAM = r"(?:the\s+|your\s+|my\s+)?(?:cam|camera|webcam|web\s*cam)"
+
+
 def _L(n: str = "") -> str:
     return r"(?P<label%s>[a-z][a-z0-9' \-]{0,38}?)" % n
 
@@ -65,15 +68,48 @@ _RX: List[Tuple[str, "re.Pattern"]] = [(k, re.compile(p, re.I)) for k, p in (
     ("is_this", _A + r"is\s+(?:this|that)\s+(?:(?P<label>my\s+[a-z][a-z0-9' \-]{0,30}?)|(?P<label2>(?-i:[A-Z][a-z]{1,19}(?:\s[A-Z][a-z]{1,19})?)))" + _Z),
     ("where", _A + r"(?:where(?:'s|\s+is|\s+are)\s+(?:my\s+)?(?P<label>[a-z][a-z0-9' \-]{1,30}?)|where\s+did\s+i\s+(?:leave|put)\s+(?:my\s+)?(?P<label2>[a-z][a-z0-9' \-]{1,30}?))"
                   r"(?:\s+right\s+now)?" + _Z),
-    ("holding",_A + r"(?:what\s+(?:am\s+i|are\s+we)\s+holding|what(?:'s|\s+is)\s+(?:this|that)\s+(?:in\s+my\s+hand|i'?m\s+holding)"
-                     r"|what(?:'s|\s+is)\s+in\s+my\s+hand|look\s+at\s+this(?:\s+(?:thing|object))?"
-                     r"|what\s+is\s+this\s+(?:thing|object)(?:\s+i'?m\s+holding)?)" + _Z),
-    ("see", _A + r"(?:look\s+around|what(?:'s|\s+is)\s+in\s+front\s+of\s+(?:you|the\s+camera|the\s+webcam)"
-                 r"|what\s+(?:can|do)\s+you\s+see\s+(?:through|with|on|from)\s+(?:the\s+|your\s+)?(?:camera|webcam)"
-                 r"|what(?:'s|\s+is)\s+(?:on|in\s+view\s+of)\s+(?:the\s+|your\s+)?(?:camera|webcam)"
-                 r"|(?:use|check)\s+(?:the\s+|your\s+)?(?:camera|webcam)(?:\s+and\s+(?:tell\s+me\s+)?what\s+you\s+see)?"
-                 r"|can\s+you\s+see\s+(?:me|anything))" + _Z),
+    ("snap", _A + r"(?:take|snap|grab|capture|shoot|get)\s+(?:me\s+)?(?:a|an|one|another|the)\s+(?:photo|picture|pic|selfie|snapshot|image|shot)"
+                  r"(?:\s+of\s+(?:this|that|it|me|my\s+[a-z]+|what\s+(?:you\s+see|i'?m\s+holding)))?\s+(?:with|using|from|on|through)\s+" + _CAM + _Z),
+    ("snap", _A + r"(?:take|snap|grab|capture|shoot|get)\s+(?:me\s+)?(?:a|an|one|another|the)\s+(?:photo|picture|pic|snapshot|image|shot)"
+                  r"\s+of\s+(?:this|that|it|what\s+(?:you\s+see|i'?m\s+holding)|my\s+(?:hand|desk|room))" + _Z),
+    ("me", _A + r"(?:look\s+at\s+me(?:\s+(?:now|please))?|(?:can|could|do)\s+you\s+(?:see|spot|find)\s+me(?:\s+(?:now|there|here|on\s+" + _CAM + r"))?"
+                r"|(?:am\s+i|are\s+we)\s+(?:in\s+(?:view|frame|the\s+(?:frame|picture|shot))|visible)(?:\s+(?:to\s+you|on\s+" + _CAM + r"))?"
+                r"|(?:do\s+you\s+)?see\s+me\s+(?:now|there))" + _Z),
+    ("holding",_A + r"(?:what\s+(?:am\s+i|are\s+we|i\s+am|i'?m)\s+(?:holding(?:\s+up)?|showing\s+(?:you|off)|waving)(?:\s+(?:up|here|now|right\s+now))?"
+                     r"|what(?:'s|\s+is)\s+(?:this|that|it)\s+(?:in\s+my\s+hands?|i'?m\s+(?:holding|showing\s+you)|i\s+am\s+holding|i'?m\s+holding\s+up)"
+                     r"|what(?:'s|\s+is)\s+in\s+my\s+hands?|what\s+do\s+i\s+(?:have|got)(?:\s+(?:here|in\s+my\s+hands?))?"
+                     r"|what(?:'s|\s+is)\s+it\s+that\s+i'?m\s+holding|what\s+object\s+am\s+i\s+holding"
+                     r"|(?:can|could)\s+you\s+(?:tell|see|guess)\s+what\s+(?:i'?m|i\s+am)\s+holding|(?:tell\s+me|guess)\s+what\s+(?:i'?m|i\s+am)\s+holding"
+                     r"|look\s+at\s+(?:this|what\s+i'?m\s+holding)(?:\s+(?:thing|object))?|identify\s+(?:this|that)(?:\s+(?:thing|object))?"
+                     r"|what\s+(?:is|'s)\s+this\s+(?:thing|object)(?:\s+(?:i'?m|i\s+am)\s+holding(?:\s+up)?)?|what\s+kind\s+of\s+(?:thing|object)\s+is\s+this)" + _Z),
+    ("see", _A + r"(?:look\s+around(?:\s+(?:you|here|the\s+room))?|take\s+a\s+look(?:\s+around)?(?:\s+(?:with|through)\s+" + _CAM + r")?"
+                 r"|what(?:'s|\s+is)\s+in\s+front\s+of\s+(?:you|" + _CAM + r")"
+                 r"|what(?:'s|\s+is)\s+in\s+(?:the\s+)?(?:view|frame|shot)"
+                 r"|what\s+(?:can|do|could)\s+you\s+see\s+(?:(?:through|with|on|from|in|via|using)\s+" + _CAM + r"|(?:right\s+)?in\s+front\s+of\s+(?:you|" + _CAM + r"))"
+                 r"|what(?:'s|\s+is)\s+(?:on|in|in\s+view\s+of|showing\s+on)\s+" + _CAM +
+                 r"|what(?:'s|\s+is)\s+" + _CAM + r"\s+(?:showing|seeing|looking\s+at)"
+                 r"|show\s+me\s+what\s+you\s+(?:can\s+)?see(?:\s+(?:through|on|with|from|in)\s+" + _CAM + r")?"
+                 r"|(?:look|see)\s+(?:through|with|using|in)\s+" + _CAM + r"(?:\s+and\s+(?:tell\s+me\s+)?what\s+you\s+see)?"
+                 r"|look\s+(?:at|into)\s+" + _CAM + r"(?:\s+and\s+(?:tell\s+me\s+)?what\s+you\s+see)?"
+                 r"|(?:use|check)\s+" + _CAM + r"(?:\s+and\s+(?:tell\s+me\s+)?what\s+you\s+see)?"
+                 r"|(?:can|do)\s+you\s+see\s+(?:anything|something|anyone)(?:\s+(?:there|now|on\s+" + _CAM + r"))?)" + _Z),
 )]
+
+
+_TAUGHT = frozenset("teach_me teach_person teach_thing is_this where forget forget_kind ask list export save_photo read describe".split())
+_TYPOS = {"wat": "what", "wht": "what", "whta": "what", "waht": "what", "wats": "what's", "whats": "what's", "whos": "who's",
+          "holdin": "holding", "holdng": "holding", "holing": "holding", "hodling": "holding", "holidng": "holding", "holdig": "holding",
+          "camra": "camera", "cammera": "camera", "camerea": "camera", "cmera": "camera", "camer": "camera", "webcm": "webcam",
+          "wbcam": "webcam", "lok": "look", "loook": "look", "lookk": "look", "luk": "look", "aroud": "around", "arround": "around",
+          "arund": "around", "pitcure": "picture", "pictuer": "picture", "picutre": "picture", "pickture": "picture", "pic": "picture",
+          "pics": "pictures", "sea": "see", "se": "see", "mee": "me", "im": "i'm", "ur": "your", "u": "you", "cn": "can", "cna": "can",
+          "yuo": "you", "teh": "the", "thsi": "this", "ths": "this", "hld": "holding", "hoding": "holding"}
+
+
+def _norm(text: str) -> str:
+    """The line with its usual typos put right ("wat am i holding", "lookk at me", "whats in my hnad"), nothing reworded."""
+    t = re.sub(r"(\w)\1{2,}", r"\1\1", str(text or "").strip())           # "lookkkk" -> "lookk"
+    return re.sub(r"[A-Za-z']+", lambda m: _TYPOS.get(m.group(0).lower(), m.group(0)), t).replace("hnad", "hand")
 
 
 def parse(text: str) -> Optional[Tuple[str, Dict[str, str]]]:
@@ -82,7 +118,7 @@ def parse(text: str) -> Optional[Tuple[str, Dict[str, str]]]:
     if not t or len(t) > 140:
         return None
     for kind, rx in _RX:
-        m = rx.match(t)
+        m = rx.match(t) or (rx.match(_norm(t)) if kind not in _TAUGHT else None)
         if m:
             g = {k: v for k, v in m.groupdict().items() if v}
             label = next((g[k] for k in ("label", "label2", "label3") if k in g), "")
@@ -125,6 +161,23 @@ class LookingConfig:
     hold_when_stranger: bool = True
     announce_known: bool = False          # say "Omar just came in" -- off: it only shows on the console and answers "who's here?"
     announce_strangers: bool = False      # say "someone I don't know came into view"
+    # The ImageNet classifier (the brain's own ViT, from the local cache) when there is no YOLO file: no download.
+    classifier: bool = True
+    classifier_model: str = "google/vit-base-patch16-224"
+    classifier_min_conf: float = 0.15     # a classifier's probabilities are lower than a detector's: its own floor ...
+    classifier_sure_conf: float = 0.50    # ... and its own "I'm sure". object_conf / sure_conf above are for YOLO.
+    # Reacting to what the camera sees change ("you picked up a watch"). Only ever from the camera SENSOR's own frames, so
+    # only while sensors.camera is on; never in privacy mode or kids mode.
+    react: bool = True
+    watch_interval_s: float = 8.0
+    watch_confirm: int = 3                # readings in a row before "you picked up ..." / "... is gone"
+    watch_min_conf: float = 0.30
+    watch_cooldown_s: float = 120.0       # per label
+    announce_objects: bool = True         # say it aloud (it is always recorded on the /vision page)
+    announce_people: bool = False         # say "someone came into view" / "nobody is in view" for any person
+    detection_log_size: int = 300         # detections kept in memory for the /vision page
+    detection_log_lines: int = 2000       # ... and in state/vision/detections.jsonl (labels and numbers, never pictures)
+    detections_path: str = ""             # empty: state/vision/detections.jsonl
 
     @classmethod
     def from_dict(cls, d: Optional[Dict[str, Any]]) -> "LookingConfig":
@@ -146,22 +199,31 @@ def build(cfg: Optional[Dict[str, Any]], io: Optional[Dict[str, Any]], sensor: C
     import os
     from src.vision import models as vmodels
     from src.vision.backends import ONNXObjects, OpenCVFaces, ThingEmbedder
+    from src.vision.classify import ClassifierObjects, FallbackObjects
     from src.vision.eye import Eye
     from src.vision.memory import VisualMemory
+    from src.vision.scene import DetectionLog
     io = io or {}
     c = dict(cfg or {})
     folder = os.path.expanduser(str(c.get("models_dir") or vmodels.default_dir()))
-    lc = LookingConfig.from_dict({**c, "enabled": True})
+    lc = LookingConfig.from_dict({"enabled": True, **c})         # on unless daemon.json says vision.enabled: false
     eye = io.get("eye") or Eye(sensor=sensor, paused=paused, index=int(c.get("camera_index", 0)), clock=clock)
     faces = io["faces"] if "faces" in io else OpenCVFaces(vmodels.path_of("face_detector", folder), vmodels.path_of("face_recognizer", folder))
-    objects = io["objects"] if "objects" in io else ONNXObjects(os.path.expanduser(str(c.get("objects_path") or os.path.join(folder, "objects.onnx"))),
-                                                                  conf=lc.object_conf)
+    if "objects" in io:
+        objects = io["objects"]
+    else:
+        onnx = ONNXObjects(os.path.expanduser(str(c.get("objects_path") or os.path.join(folder, "objects.onnx"))), conf=lc.object_conf)
+        objects = (FallbackObjects(onnx, ClassifierObjects(name=lc.classifier_model, min_conf=lc.classifier_min_conf,
+                                                          sure_conf=lc.classifier_sure_conf)) if lc.classifier else onnx)
+    det_path = lc.detections_path or (os.path.join(os.path.dirname(os.path.abspath(memory_path)), "vision", "detections.jsonl") if memory_path else None)
+    detections = io["detections"] if "detections" in io else DetectionLog(det_path, size=lc.detection_log_size, max_lines=lc.detection_log_lines, clock=clock)
     memory = io["memory"] if "memory" in io else VisualMemory(memory_path, clock=clock)
     vlm = io.get("vlm")
     if vlm is None and lc.open_questions and lc.vlm_model:
         from src.vision.vlm import OllamaVision
         vlm = OllamaVision(lc.vlm_model, lc.vlm_url or ollama_url or "http://127.0.0.1:11434/api/chat")
-    return Looking(eye, faces, objects, io.get("embedder") or ThingEmbedder(), memory, lc, clock=clock, user=user, vlm=vlm)
+    return Looking(eye, faces, objects, io.get("embedder") or ThingEmbedder(), memory, lc, clock=clock, user=user, vlm=vlm,
+                   detections=detections)
 
 
 _PLURAL = {"person": "people", "sheep": "sheep"}
@@ -184,7 +246,7 @@ class Looking:
     """The camera, asked. `eye`, `faces`, `objects` and `embedder` are injected so tests never touch hardware."""
 
     def __init__(self, eye, faces, objects, embedder, memory=None, cfg: Optional[LookingConfig] = None,
-                 clock: Callable[[], float] = time.time, user: Callable[[], str] = lambda: "", vlm=None):
+                 clock: Callable[[], float] = time.time, user: Callable[[], str] = lambda: "", vlm=None, detections=None):
         self.user = user
         self.vlm = vlm
         self.eye = eye
@@ -200,6 +262,13 @@ class Looking:
         self._stat_lock = threading.Lock()
         self._unreadable = 0                 # faces in the last picture that could not be described
         self._busy = threading.RLock()       # the models are not thread-safe, and presence reads on a worker thread
+        from src.vision.scene import ChangeWatcher, DetectionLog
+        self.detections = detections if detections is not None else DetectionLog(None, size=self.cfg.detection_log_size, clock=clock)
+        self.changes = ChangeWatcher(confirm=self.cfg.watch_confirm, min_conf=self.cfg.watch_min_conf,
+                                     cooldown_s=self.cfg.watch_cooldown_s, skip=_BIG)
+        self.scenes: Dict[str, Optional[Dict[str, Any]]] = {"asked": None, "watch": None}   # boxes of the latest looks (numbers, not pixels)
+        self.last_look: Dict[str, Any] = {}                  # when, how it went, what was said
+        self._logged_at: Dict[str, float] = {}
 
     # -- what can be done at all ----------------------------------------------------
     def can_see_things(self) -> bool:
@@ -209,24 +278,58 @@ class Looking:
         return bool(self.faces is not None and self.faces.available())
 
     def _no_models(self) -> str:
+        why = getattr(self.objects, "why_not", lambda: "")() if self.objects is not None else ""
         return ("I got a picture, but I have no model installed to read it with. The face models install with "
-                "\"python ashctl.py vision install\" (it asks first); an object model is any YOLOv8 ONNX file -- see the README.")
+                "\"python ashctl.py vision install\" (it asks first); an object model is any YOLOv8 ONNX file -- see the README."
+                + (f" (No fallback either: {why}.)" if why else ""))
+
+    def _off(self) -> str:
+        return "My camera features are switched off in my settings (daemon.json: vision.enabled), so I'm not looking."
+
+    @staticmethod
+    def _why_none(why: str) -> str:
+        """One line, the real reason there is no picture."""
+        if why == "privacy":
+            return "Privacy mode is on, so my camera is off and I'm not looking."
+        if why == "busy":
+            return "My camera is busy -- another app (or my own camera sensor) has it -- so I couldn't get a picture."
+        return "I couldn't get a picture -- there's no camera I can open (it may be off, unplugged, or in use by another app)."
 
     # -- answering -------------------------------------------------------------------
     def wants(self, text: str) -> bool:
         """A request for the camera -- and for "is this X" / "where is my X", only when X is something it was taught."""
         p = parse(text)
-        if p is None or not self.cfg.enabled:
+        if p is None:
             return False
         if p[0] in ("is_this", "where", "forget"):
-            return self.memory is not None and self.memory.get(p[1].get("label", "")) is not None
-        return True
+            return self.cfg.enabled and self.memory is not None and self.memory.get(p[1].get("label", "")) is not None
+        return True                                          # a request for the camera is ours, on or off: never the model's
 
     def hear(self, text: str, now: Optional[float] = None) -> Optional[str]:
         if not self.wants(text):
             return None
         kind, _d = parse(text)
         now = self.clock() if now is None else now
+        if not self.cfg.enabled:
+            return self._off()
+        return self.run(kind, _d, now)
+
+    def look_now(self, now: Optional[float] = None) -> Dict[str, Any]:
+        """One explicit look, from the /vision page: the same as "look around". Never in privacy mode."""
+        now = self.clock() if now is None else now
+        if not self.cfg.enabled:
+            return {"ok": False, "say": self._off(), "why": "off"}
+        say = self.run("see", {}, now)
+        return {"ok": self.last_look.get("why", "") == "", "say": say, "why": self.last_look.get("why", "")}
+
+    def run(self, kind: str, _d: Dict[str, str], now: float) -> Optional[str]:
+        self.last_look = {"t": now, "why": "", "say": ""}
+        self.scenes["asked"] = None
+        say = self._run(kind, _d, now)
+        self.last_look["say"] = say or ""
+        return say
+
+    def _run(self, kind: str, _d: Dict[str, str], now: float) -> Optional[str]:
         if kind in ("read", "describe", "ask") and not self.can_open_questions():
             return self._no_vlm()                            # before any frame is taken
         if kind in ("list", "export", "save_photo", "forget", "forget_kind"):
@@ -235,8 +338,8 @@ class Looking:
             return self.who_from_state(now)                  # already watching: answered from that, no new capture
         frame, why = self.eye.look(now)
         if frame is None:
-            return ("I'm paused for privacy, so I'm not looking." if why == "privacy"
-                    else "I couldn't get a picture -- there's no camera I can open.")
+            self.last_look["why"] = why
+            return self._why_none(why)
         self._bump("looks")
         with self._hold(self.cfg.busy_wait_s) as got:
             if not got:
@@ -296,21 +399,81 @@ class Looking:
             return self.where(_d["label"], frame, now)
         if kind == "holding":
             return self.holding(frame, now)
+        if kind == "me":
+            return self.look_at_me(frame, now)
+        if kind == "snap":
+            return self.snap(frame, now)
         return self.around(frame, now)
 
-    def _things(self, frame) -> List[Any]:
+    # -- what the detector's numbers mean ----------------------------------------------------------
+    def _min_conf(self) -> float:
+        """The floor below which a detection is not reported: the backend's own (a classifier's probabilities are lower
+        than a detector's), else vision.object_conf."""
+        m = getattr(self.objects, "min_conf", None)
+        return float(m) if isinstance(m, (int, float)) else self.cfg.object_conf
+
+    def _sure(self) -> float:
+        """Where "it's a watch" replaces "I think it's a watch"."""
+        m = getattr(self.objects, "sure_conf", None)
+        return float(m) if isinstance(m, (int, float)) else self.cfg.sure_conf
+
+    def _things(self, frame, source: str = "asked", light: bool = False) -> List[Any]:
+        if not self.can_see_things():
+            return []
         try:
-            return [t for t in self.objects.detect(frame) if t.score >= self.cfg.object_conf] if self.can_see_things() else []
+            fn = getattr(self.objects, "detect_light", None) if light else None
+            floor = self._min_conf()
+            things = [t for t in (fn or self.objects.detect)(frame) if t.score >= floor]
         except Exception:
             logger.exception("Object detection failed")
             return []
+        self._note(frame, source, things=things)
+        return things
 
-    def _faces(self, frame) -> List[Any]:
+    def _faces(self, frame, source: str = "asked") -> List[Any]:
         try:
-            return self.faces.detect(frame) if self.can_see_faces() else []
+            found = self.faces.detect(frame) if self.can_see_faces() else []
         except Exception:
             logger.exception("Face detection failed")
             return []
+        if found:
+            self._note(frame, source, faces=found)
+        return found
+
+    def _note(self, frame, source: str, things=None, faces=None):
+        """Remember the boxes of this look (numbers only) and put each detection in the log. Never the picture, never a name."""
+        now = self.clock()
+        try:
+            h, w = frame.shape[:2]
+        except Exception:
+            return
+        sc = self.scenes.get(source)
+        if sc is None:
+            sc = self.scenes[source] = {"t": now, "w": int(w), "h": int(h), "source": source, "things": [], "faces": []}
+        for t in things or []:
+            sc["things"].append({"label": t.label, "conf": round(float(t.score), 3), "box": [int(v) for v in t.box], "src": getattr(t, "src", "")})
+            self._log("person" if t.label == "person" else "object", t.label, t.score, t.box, source, now)
+        for f in faces or []:
+            sc["faces"].append({"conf": round(float(f.score), 3), "box": [int(v) for v in f.box]})
+            self._log("face", "face", f.score, f.box, source, now)
+
+    @property
+    def last_scene(self) -> Optional[Dict[str, Any]]:
+        """The boxes of the newest look, asked or watched."""
+        got = [s for s in self.scenes.values() if s]
+        return max(got, key=lambda s: s["t"]) if got else None
+
+    def _log(self, kind: str, label: str, conf: float, box, source: str, now: float):
+        """Every asked detection is logged; a watched one at most once a minute per label (it would be the same thing 8 s later)."""
+        if source == "watch":
+            key = f"{kind}:{label}"
+            if now - self._logged_at.get(key, -1e18) < 60.0:
+                return
+            self._logged_at[key] = now
+        try:
+            self.detections.add(kind, label, conf, box, source, now)
+        except Exception:
+            logger.debug("detection log failed", exc_info=True)
 
     # -- recognising -----------------------------------------------------------------------
     @staticmethod
@@ -397,22 +560,16 @@ class Looking:
         pieces += [_count(k, counts[k]) for k in sorted(counts, key=lambda k: (-counts[k], k))]
         if not pieces:
             return "I don't see anything I recognise."
-        sure = [t for t in things if t.score >= self.cfg.sure_conf]
+        sure = [t for t in things if t.score >= self._sure()]
         hedge = "" if (sure or people or yours) else " -- though I'm not very sure"
         extra = f", and {len(pieces) - 5} other things" if len(pieces) > 5 else ""
         return f"I see {_list(pieces[:5])}{extra}{hedge}."
 
     def _held(self, frame):
         """What is held up to the camera: the detection nearest the middle that is not a person or furniture."""
-        things = [t for t in self._things(frame) if t.label not in _BIG]
-        if not things:
-            return None
+        from src.vision.scene import pick_held
         h, w = frame.shape[:2]
-
-        def off(t):
-            x, y, bw, bh = t.box
-            return ((x + bw / 2 - w / 2) / w) ** 2 + ((y + bh / 2 - h / 2) / h) ** 2
-        return min(things, key=lambda t: (off(t) - 0.15 * t.score))
+        return pick_held(self._things(frame), w, h, _BIG)
 
     def holding(self, frame, now: Optional[float] = None) -> str:
         now = self.clock() if now is None else now
@@ -422,13 +579,48 @@ class Looking:
             self.memory.seen_now(m.label, now)
             return f"That's {self._yours(m.label)}."
         if not self.can_see_things():
-            return ("I can't tell what's in your hand without an object model installed. Any YOLOv8 ONNX file works -- see the README."
-                    if not self.can_see_faces() else "I can tell people apart, but I have no object model to say what you're holding.")
+            why = getattr(self.objects, "why_not", lambda: "")() if self.objects is not None else ""
+            tail = f" ({why}.)" if why else ""
+            return (("I can't tell what's in your hand without an object model installed. Any YOLOv8 ONNX file works -- see the README." + tail)
+                    if not self.can_see_faces() else "I can tell people apart, but I have no object model to say what you're holding." + tail)
         if best is None:
-            return "I can't make out what you're holding -- try holding it closer to the camera."
-        if best.score >= self.cfg.sure_conf:
-            return f"That looks like {_a(best.label)}."
-        return f"That might be {_a(best.label)}, but I'm not sure."
+            return "I can't make out what you're holding -- try holding it closer to the camera, in the middle."
+        if best.score >= self._sure():
+            return f"It's {_a(best.label)}."
+        return f"I think it's {_a(best.label)}, but I'm not sure."
+
+    def look_at_me(self, frame, now: Optional[float] = None) -> str:
+        """"Look at me" / "can you see me?": whether someone is there, and who if it knows."""
+        if not (self.can_see_things() or self.can_see_faces()):
+            return self._no_models()
+        now = self.clock() if now is None else now
+        people = self._people(frame)
+        person_things = [t for t in self._things(frame) if t.label == "person"]
+        n = max(len(people), len(person_things))
+        if n == 0:
+            return "I looked, and I don't see anyone in front of the camera -- check that you're in the middle of the picture and there's some light."
+        names = [who for who, _n, _f in people if who]
+        for who in names:
+            self.memory.seen_now(who, now)
+        if names:
+            me = (self.user() or "").strip().lower()
+            extra = n - len(names)
+            who = (f"you, {names[0]}" if me and names[0].lower() == me else names[0]) if len(names) == 1 else _list(names)
+            return f"Yes, I can see {who}" + (f", and {'someone' if extra == 1 else str(extra) + ' people'} I don't know." if extra > 0 else ".")
+        sure = bool(people) or any(t.score >= self._sure() for t in person_things)
+        if not self.can_see_faces():
+            return ("Yes, I can see someone." if sure else "I think I can see someone.") + " I can't tell who without the face models."
+        return (f"Yes, I can see {'someone' if n == 1 else str(n) + ' people'}, but I don't know "
+                f"{'them' if n == 1 else 'who'} -- say \"remember my face\" and I will.")
+
+    def snap(self, frame, now: Optional[float] = None) -> str:
+        """"Take a picture with the camera": one frame, saved to the photos folder because you asked."""
+        now = self.clock() if now is None else now
+        path = self.eye.save(frame, self.cfg.photo_dir, "", now)
+        if not path:
+            return "I got the picture but couldn't save it."
+        folder = self.cfg.photo_dir.replace(chr(92), "/").rstrip("/").rsplit("/", 1)[-1]
+        return f"Got it -- saved as {path.replace(chr(92), '/').rsplit('/', 1)[-1]} in {folder}."
 
     def who(self, frame, now: Optional[float] = None) -> str:
         """"Who's this?": the people in view, by name where they are known."""
@@ -780,6 +972,89 @@ class Looking:
     def _stats_copy(self) -> Dict[str, Any]:
         with self._stat_lock:
             return dict(self.stats)
+
+    # -- reacting to change (fed by daemon/visionwatch.py, from the camera sensor's own frames) ---------------
+    def watch_scene(self, frame, now: Optional[float] = None) -> List[Tuple[str, str, float]]:
+        """One background reading: the middle of the frame (and faces) against the last few. Returns the changes worth
+        saying -- ("appeared", "watch", 0.7), ("gone", ...), ("person_in", "", 1.0) -- each already in the log. Nothing
+        of the frame is kept; a busy model means no reading this time."""
+        if not (self.cfg.enabled and self.cfg.react):
+            return []
+        now = self.clock() if now is None else now
+        with self._hold(1.0) as got:
+            if not got:
+                self._bump("busy")
+                return []
+            self._clear_faults()
+            self.scenes["watch"] = None
+            things = self._things(frame, "watch", light=True)
+            faces = self._faces(frame, "watch") if (self.cfg.presence and self.can_see_faces()) else []   # face reading is presence's opt-in
+            broke = self._fault()
+        if broke:
+            self._bump("faults")
+            return []
+        h, w = frame.shape[:2]
+        people = max(len(faces), sum(1 for t in things if t.label == "person"))
+        events = self.changes.observe(things, people, (h, w), now)
+        for kind, label, conf in events:
+            self._bump("changes")
+            self._log("event", f"{kind} {label}".strip(), conf, None, "watch", now)
+        return events
+
+    def change_line(self, kind: str, label: str, conf: float) -> str:
+        """What to say aloud about a change; "" when that kind is not switched on for speaking."""
+        from src.vision.scene import event_line
+        if kind in ("appeared", "gone") and not self.cfg.announce_objects:
+            return ""
+        if kind in ("person_in", "person_out") and not self.cfg.announce_people:
+            return ""
+        return event_line(kind, label, conf, self._sure())
+
+    # -- the /vision page ----------------------------------------------------------------------------
+    def camera_state(self) -> Dict[str, str]:
+        """{"state": off|privacy|watching|unavailable|busy|ready, "why": one line}."""
+        if not self.cfg.enabled:
+            return {"state": "off", "why": "vision is switched off (daemon.json: vision.enabled is false)"}
+        try:
+            if self.eye.paused():
+                return {"state": "privacy", "why": "Privacy mode is on, so the camera is not used"}
+        except Exception:
+            pass
+        s = None
+        try:
+            s = self.eye.sensor()
+        except Exception:
+            pass
+        val = getattr(getattr(s, "state", None), "value", "") if s is not None else ""
+        if val == "active":
+            return {"state": "watching", "why": "the camera sensor is on" + (", reacting to what changes" if self.cfg.react else "")}
+        if val == "unavailable":
+            return {"state": "unavailable", "why": str(getattr(s, "unavailable_reason", "") or "the camera could not be opened")}
+        why = self.last_look.get("why", "")
+        if why in ("busy", "no camera"):
+            return {"state": "busy" if why == "busy" else "unavailable",
+                    "why": "the last look failed: " + ("the camera is busy in another app" if why == "busy" else "no camera could be opened")}
+        return {"state": "ready", "why": "the camera is off until you ask -- it opens for one picture, then lets go"}
+
+    def backend_info(self) -> Dict[str, Any]:
+        kind = getattr(self.objects, "kind", None)
+        if kind is None:
+            kind = "detector" if self.can_see_things() else "none"
+        return {"objects": self.can_see_things(), "faces": self.can_see_faces(), "kind": kind,
+                "why_not": getattr(self.objects, "why_not", lambda: "")() if self.objects is not None else "",
+                "min_conf": self._min_conf(), "sure_conf": self._sure()}
+
+    def snapshot(self) -> Dict[str, Any]:
+        """Everything the /vision page shows: numbers and labels, no pictures."""
+        now = self.clock()
+        return {"ok": True, "t": now, "enabled": self.cfg.enabled, "camera": self.camera_state(), "backend": self.backend_info(),
+                "presence": {"on": bool(self.cfg.presence), "here": self.presence.here(now) if self.cfg.presence else [],
+                             "stranger": bool(self.cfg.presence and self.presence.stranger(now))},
+                "watching": {"react": self.cfg.react, "readings": self.changes.readings, "holding": sorted(self.changes.present),
+                             "announce_objects": self.cfg.announce_objects, "announce_people": self.cfg.announce_people},
+                "scene": self.last_scene, "detections": self.detections.recent(60), "counts": self.detections.counts(),
+                "kept": len(self.detections), "last_look": {k: v for k, v in self.last_look.items() if k in ("t", "why", "say")},
+                "stats": self._stats_copy()}
 
     def status(self) -> Dict[str, Any]:
         now = self.clock()

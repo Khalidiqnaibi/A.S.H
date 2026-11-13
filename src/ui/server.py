@@ -4,6 +4,8 @@ src/ui/server.py
 The console's web server. Loopback only, standard library only.
 
     GET  /               the page (static/console.html, with a session token)
+    GET  /vision         the camera page (static/vision.html): status, detections, the last look as boxes
+    GET  /api/vision     its JSON: labels, confidences and boxes -- never a picture
     GET  /events         server-sent events: history, then live records/poses
     GET  /api/state      theme, sticky cues, peripherals
     POST /api/say        {"text": ...}           -- the user typed to ASH
@@ -134,6 +136,14 @@ class ConsoleServer:
         return (html.replace("{{TOKEN}}", self.token)
                     .replace("{{THEME}}", self.theme)).encode("utf-8")
 
+    def vision(self) -> bytes:
+        """The camera page: status, the latest detections, a schematic of the last look. Same themes as the console."""
+        with open(os.path.join(STATIC, "vision.html"), encoding="utf-8") as f:
+            html = f.read()
+        return (html.replace("/*{{THEMES}}*/", theme_css())
+                    .replace("{{TOKEN}}", self.token)
+                    .replace("{{THEME}}", self.theme)).encode("utf-8")
+
     def hud(self) -> bytes:
         """The heads-up widget: a small always-on-top panel. Same themes as the console (taken from it, one source)."""
         with open(os.path.join(STATIC, "hud.html"), encoding="utf-8") as f:
@@ -186,6 +196,17 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(200, self.srv.page(), "text/html; charset=utf-8")
         if path == "/hud":
             return self._send(200, self.srv.hud(), "text/html; charset=utf-8")
+        if path in ("/vision", "/vision.html"):
+            return self._send(200, self.srv.vision(), "text/html; charset=utf-8")
+        if path == "/api/vision":
+            if self.srv.on_control is None:
+                return self._json(503, {"ok": False, "error": "not connected to ASH"})
+            try:
+                res = self.srv.on_control("vision_info", "")
+            except Exception as e:
+                logger.exception("Vision info failed")
+                res = {"ok": False, "error": str(e)}
+            return self._json(200, res or {"ok": False, "error": "no answer"})
         if path == "/events":
             return self._events()
         if path == "/api/state":

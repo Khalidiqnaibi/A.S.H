@@ -62,22 +62,24 @@ class Eye:
         self.looks = 0
 
     def look(self, now: Optional[float] = None) -> Tuple[Optional[np.ndarray], str]:
-        """(frame, "sensor" | "camera") or (None, "privacy" | "no camera")."""
+        """(frame, "sensor" | "camera") or (None, "privacy" | "busy" | "no camera"). "busy": the camera sensor has the
+        device open and gave no frame, so a second open would fail too."""
         now = self.clock() if now is None else now
         if self.paused():
             self.drop()
             return None, "privacy"
-        frame, how = None, "camera"
+        frame, how, held = None, "camera", False
         try:
             s = self.sensor()
             if s is not None and getattr(s, "state", None) is not None and getattr(s.state, "value", "") == "active":
+                held = True                                   # the camera sensor has the device open
                 frame, how = s.grab_now(), "sensor"
         except Exception:
             logger.debug("sensor frame failed", exc_info=True)
         if frame is None:
             frame, how = (self._grab() if self._grab is not None else capture_once(self.index)), "camera"
         if frame is None:
-            return None, "no camera"
+            return None, ("busy" if held else "no camera")
         self._frame, self._at = frame, now
         self.looks += 1
         return frame, how

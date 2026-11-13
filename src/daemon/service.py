@@ -223,13 +223,21 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # answers "what do I like?" itself and gives the model the list only when
     # the question is about choosing something. Never learned from a guest's
     # voice.
-    # The camera, asked (and, if you switch presence on, watched): "look around", "remember this as my blue mug", "who's
-    # this?", "where are my keys?". OFF until you turn it on, and it still needs the camera sensor (sensors.camera) for
-    # presence. What it keeps are labels and numbers describing a face or a thing -- never pictures unless you ask for one.
-    # Models: `python ashctl.py vision install` fetches the two face models (it asks first); an object detector is any
-    # YOLOv8 ONNX file at objects_path. Open questions ("what does this label say?") need a LOCAL multimodal Ollama model.
+    # The camera, asked: "look at me", "what am I holding?", "look around", "remember this as my blue mug", "who's this?".
+    # ON for asked looks -- the camera opens for one picture when you ask, then lets go (its light goes out); background
+    # watching (presence, and reacting to what changes) needs the camera sensor (sensors.camera), which is off until you
+    # turn it on. What it keeps are labels and numbers -- never pictures unless you ask for one. Things are named by YOLO
+    # (a YOLOv8 ONNX file at objects_path) when there is one, else by the ImageNet classifier the brain already uses
+    # (google/vit-base-patch16-224, from the local Hugging Face cache -- nothing is downloaded by looking). Faces:
+    # `python ashctl.py vision install` fetches the two face models (it asks first). Open questions ("what does this label
+    # say?") need a LOCAL multimodal Ollama model. Look at it all on the console's /vision page.
     "vision": {
-        "enabled": False,
+        "enabled": True,
+        "classifier": True,                # no YOLO file: name things with the ImageNet classifier (local cache only)
+        "react": True,                     # "you picked up a watch": only while sensors.camera is on, never in privacy/kids mode
+        "announce_objects": True,          # ... and say it aloud (it is always recorded)
+        "announce_people": False,          # say "someone came into view" / "nobody is in view"
+        "watch_interval_s": 8.0,
         "models_dir": "",                  # empty: state/models
         "objects_path": "",                # empty: <models_dir>/objects.onnx
         "photo_dir": "~/Pictures/ASH",     # where "save that photo" goes

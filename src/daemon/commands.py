@@ -164,6 +164,11 @@ CATALOG: Sequence[Tuple[str, str]] = (
     # the camera
     # (a bare "what do you see?" is the SCREEN's question, not the camera's -- deliberately not here)
     ("who is this", "rule"), ("look around", "rule"), ("what am I holding", "rule"),
+    ("look at me", "rule"), ("can you see me", "rule"), ("what do you see on the camera", "rule"),
+    ("what's in my hand", "rule"), ("show me what you see", "rule"), ("take a picture with the camera", "rule"),
+    # what it asked, where you are
+    ("what have you asked me", "rule"), ("how long have I been on this", "rule"), ("what have I been doing today", "rule"),
+    ("how long was I away", "rule"),
     # about what it said
     ("why did you say that", "rule"),
     # the brain's own tools
