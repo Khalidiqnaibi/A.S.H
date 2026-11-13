@@ -121,6 +121,15 @@ def k5_runtime():
     rt.t[0] += 21 * 60
     rt._tick()
     check("time up: said once", any("time is up" in o for o in rt.out[-3:]), str(rt.out[-3:]))
+    from src.senses import address as _address
+    _address.conversation.__init__()                      # no exchange open: what follows is not for ASH
+    rt.t[0] += 600
+    n_out = len(rt.out)
+    rt.say("any new email?", addressed=False)
+    check("speech overheard, not said to ASH, is not answered with a kids-mode refusal", REFUSE not in rt.out[n_out:], str(rt.out[n_out:]))
+    check("...and no email, weather or calendar answer either", not any("email" in o for o in rt.out[n_out:]), str(rt.out[n_out:]))
+    rt.say("I need to buy milk on the way home", addressed=False)
+    check("...nor with anything about buying", REFUSE not in rt.out[n_out:], str(rt.out[n_out:]))
     rt.say("Ash, kids mode off")
     check("off", not rt.kids.active and rt.out[-1] == "Kids mode off.")
     rt.say("Ash, tell me something")

@@ -1886,8 +1886,8 @@ class AmbientRuntime:
                 say = k.start(text, now)
             elif kind == "off" and self._meant_for_ash(ev):
                 say = k.stop_asked(guest)
-            elif k.active:
-                say = k.refuse(text)
+            elif k.active and self._meant_for_ash(ev):
+                say = k.refuse(text)             # only a line said to ASH: overheard speech gets no answer
         if not say:
             return False
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
@@ -2443,7 +2443,7 @@ class AmbientRuntime:
     def _email_request(self, ev, now: float) -> bool:
         """"Any new email?": the unread count and senders, read-only, no model."""
         b = self.inbox
-        if b is None or not self._user_source(ev):
+        if b is None or not self._user_source(ev) or not self._meant_for_ash(ev):
             return False
         try:
             say = b.hear(str(getattr(ev, "text", "") or ""))
@@ -2460,7 +2460,7 @@ class AmbientRuntime:
         """"What's the weather like today?" for the place set, without the model.
         Another place, or no place set, is left to the brain's weather tool."""
         w = self.weather
-        if w is None or not self._user_source(ev):
+        if w is None or not self._user_source(ev) or not self._meant_for_ash(ev):
             return False
         try:
             say = w.hear(str(getattr(ev, "text", "") or ""), now)
@@ -2475,7 +2475,7 @@ class AmbientRuntime:
     def _calendar_request(self, ev, now: float) -> bool:
         """"What's on my calendar today?": read from the .ics sources, no model."""
         c = self.calendar
-        if c is None or not self._user_source(ev):
+        if c is None or not self._user_source(ev) or not self._meant_for_ash(ev):
             return False
         try:
             say = c.hear(str(getattr(ev, "text", "") or ""), now)
