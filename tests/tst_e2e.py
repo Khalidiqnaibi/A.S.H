@@ -212,6 +212,12 @@ CORPUS = [
     ("memory", A + "when is my sister's birthday", "act", dict(say=["May"])),
     ("memory", A + "remember that I parked on level 3", "act", {}),
     ("memory", A + "where did I park", "act", dict(say=["level 3"])),
+    # -- what ASH asked, where the user is: answered from the ledger and the window record, no model
+    ("asks", A + "what have you asked me", "rule:asks", dict(say=["haven't asked"])),
+    ("asks", A + "when do I like to be asked things", "rule:asks", dict(say=["haven't asked"])),
+    ("where", A + "how long have I been on this", "rule:dwell", dict(say=["switch windows"])),
+    ("where", A + "what have I been doing today", "rule:dwell", dict(say=["today"])),
+    ("where", A + "how long was I away", "rule:dwell", dict(say=["away"])),
     # -- reminders, tasks, focus
     ("organise", A + "remind me in 10 minutes to check the oven", "rule:reminder", {}),
     ("organise", A + "what are my reminders", "rule:reminder", dict(say=["oven"])),

@@ -41,7 +41,7 @@ check = tw.check
 FEATURES = dict(wonder=True, taste=True, briefings=True, watch=True, desktop=True, rituals=True, personas=True,
                 scenes=True, research=True, calendar=True, smarthome=True, voice=True, reminders=True, play=True,
                 media=True, focus=True, weather=True, email=True, weekly=True, cheer=True, facts=True, care=True,
-                tasks=True, arrivals=True, grammar=True)
+                tasks=True, arrivals=True, grammar=True, asks=True, dwell=True)
 NAMES_RX = re.compile(r"^_(\w+_request|\w+_step|voice_command|guest_action)$")
 REAL_TOUCHES = []          # anything that reaches a real executor lands here; must stay empty
 
