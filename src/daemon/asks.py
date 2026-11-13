@@ -69,7 +69,7 @@ def idle_bucket(idle_s: Optional[float]) -> str:
         return "unknown"
     if idle_s < 5:
         return "typing"
-    if idle_s < 120:
+    if idle_s < 25:
         return "pausing"
     return "reading"
 
@@ -169,8 +169,17 @@ class TimingModel:
         low = [r for r in rows if r[0] <= 0.35][:3]
         high = [r for r in rows[::-1] if r[0] >= 0.7][:3]
 
+        def one(x: str) -> str:
+            kind, val = x.split(":", 1)
+            return {"part": {"morning": "in the morning", "afternoon": "in the afternoon", "evening": "in the evening", "night": "at night"}.get(val, val),
+                    "mode": {"typing": "while you're typing", "pausing": "when you pause", "reading": "while you're reading or watching",
+                             "unknown": ""}.get(val, val),
+                    "app": f"in {val}",
+                    "dwell": {"just_started": "right after you switch to something", "a_while": "after a while on one thing",
+                              "long": "after a long time on one thing"}.get(val, val)}.get(kind, val)
+
         def name(k: str) -> str:
-            return " and ".join(x.split(":", 1)[1].replace("_", " ") for x in k.split("|"))
+            return " ".join(w for w in (one(x) for x in k.split("|")) if w)
         parts = []
         if high:
             parts.append("You're usually fine being asked things " + "; ".join(f"{name(k)}" for _p, _n, k in high))

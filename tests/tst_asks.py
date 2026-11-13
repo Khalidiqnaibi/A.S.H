@@ -345,8 +345,28 @@ def a9_the_model_knows():
     check("and nothing about it afterwards", "holding up" not in seen.get("context", ""))
 
 
+def a10_timing_in_the_chooser():
+    print("\n=== A10. What the answers taught is used when choosing ===")
+    from src.daemon.freemoment import Candidate
+    from src.daemon.wondering import Environment
+    h = rig(moments=True, moments_cfg={"jokes": False, "mood_check": False, "min_gap_s": 0})
+    ctx = h.rt._ask_ctx(h.clock[0], 40.0)
+    env = Environment(idle_s=40.0)
+    c = Candidate("gap_closure", "Who is Omar to you?", 0.8)
+    before = h.rt.moments.fit(c, env)
+    for _ in range(6):
+        h.rt.asks.asked("moment", "Another question?", h.clock[0], ctx=ctx)
+        h.rt.asks.hear("not now", h.clock[0] + 2)
+    after = h.rt.moments.fit(c, env)
+    check("after six 'not now's in this situation the chooser weighs asking down", before == 1.0 and after < 0.6, f"{before} -> {after}")
+    check("it is in the timing file, readable", os.path.exists(os.path.join(h.dir, "asks", "timing.json")))
+    check("and in words", "leave you alone" in h.rt.asks.report(), h.rt.asks.report())
+    h.say("when do I like to be asked things?")
+    check("'when do I like to be asked things?' answers from it", "I've asked 6 things" in h.said()[-1], h.said()[-1])
+
+
 if __name__ == "__main__":
-    for fn in (a1_settling, a2_standing, a3_ledger, a4_episodic, a5_timing, a6_context_and_report, a7_runtime, a8_the_briefing_question, a9_the_model_knows):
+    for fn in (a1_settling, a2_standing, a3_ledger, a4_episodic, a5_timing, a6_context_and_report, a7_runtime, a8_the_briefing_question, a9_the_model_knows, a10_timing_in_the_chooser):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

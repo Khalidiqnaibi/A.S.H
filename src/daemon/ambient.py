@@ -274,6 +274,12 @@ class AmbientConfig:
     # Guard mode: while you're away the camera watches; strangers and movement go to your phone (guard.py).
     guard: bool = False
     # What ASH asked and what the user said back, and when asking is welcome (asks.py). The ledger is in state/asks/.
+    # Where the user is and for how long: reading, away, back, the day's time (dwell.py). state/dwell.json.
+    dwell: bool = False
+    dwell_path: Optional[str] = None
+    dwell_away_s: float = 600.0                 # no input this long: gone, not reading
+    dwell_reading_s: float = 240.0              # one window this long, hands off: a moment worth a question
+    dwell_welcome_min_s: float = 600.0          # welcome them back after being away at least this long
     asks: bool = False
     asks_dir: Optional[str] = None
     asks_keep_replies: bool = True
@@ -676,6 +682,16 @@ class AmbientRuntime:
         if self.cfg.fun:
             from .fun import Fun
             self.fun = Fun(self.cfg.fun_path, clock=lambda: self.clock())
+        self.dwell = None
+        self._reading_at = -1e18
+        self._welcome_due = None
+        if self.cfg.dwell:
+            from .dwell import Dwell
+            self.dwell = Dwell(self.cfg.dwell_path, clock=lambda: self.clock(), away_s=self.cfg.dwell_away_s,
+                               reading_min_s=self.cfg.dwell_reading_s)
+            if self.moments is not None:
+                from .dwell import ReadingNote
+                self.moments.register(ReadingNote(self.dwell))
         self.asks = None
         self._ask_res = None
         self._idle_now: Optional[float] = None
@@ -1109,6 +1125,8 @@ class AmbientRuntime:
                 idle_s = self._idle_seconds()
             self._idle_now = idle_s
             self.occasion.tick(now, idle_s)
+            if self.dwell is not None and idle_s is not None:
+                self._dwell_step(now, idle_s)
             if self.activity is not None:
                 try:
                     self.activity.tick(now, idle_s)
@@ -2079,6 +2097,44 @@ class AmbientRuntime:
         self._last_why = {"kind": "asked", "query": str(getattr(ev, "text", ""))[:80]}
         return True
 
+    def _dwell_step(self, now: float, idle_s: float):
+        """Back from being away: welcomed, once. Reading in one window long enough: a free moment (a question about it)."""
+        d = self.dwell
+        try:
+            back = d.tick(now, idle_s)
+            if back is not None and back.away_s >= self.cfg.dwell_welcome_min_s:
+                self._welcome_due = back                    # said at their first pause: never over typing
+            wb = self._welcome_due
+            if wb is not None and now - wb.at > 600.0:
+                self._welcome_due = None
+            elif wb is not None and 5.0 <= idle_s <= 120.0:
+                self._welcome_due = None
+                env = self._wonder_env(now, idle_s)
+                if not (env.muted or env.paused or env.quiet_hours or self._stranger_hold(now)):
+                    text = d.welcome_back(wb)
+                    self.submit(SensorEvent(source="flow", modality=Modality.TEXT, text=text, salience=0.6, ts=now, persistable=False,
+                                            meta={"offer": "moment", "offer_strength": 0.9, "say": text, "moment": "welcome_back",
+                                                  "topic": "welcome_back", "accept_context": f"You had just said: {text}"}))
+            elif d.reading(now, idle_s) and now - self._reading_at >= 120.0:
+                # Reading is a pause worth using: the free-moment chooser (its own budget, gaps and cool-downs) decides what, if anything.
+                self._reading_at = now
+                self._free_until = now + (self.wonder.cfg.free_moment_s if self.wonder else 180.0)
+        except Exception:
+            self.stats["errors"] += 1
+            logger.exception("Dwell step failed")
+
+    def _dwell_request(self, ev, now: float) -> bool:
+        """"How long have I been on this?" / "what have I been doing today?" / "how long was I away?": from where they were."""
+        d = self.dwell
+        if d is None or not self._user_source(ev) or not self._meant_for_ash(ev):
+            return False
+        kind = d.parse(str(getattr(ev, "text", "") or ""))
+        if kind is None:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": d.answer(kind, now), "outcome": "desktop"})())
+        self._last_why = {"kind": "asked", "query": str(getattr(ev, "text", ""))[:80]}
+        return True
+
     def _ask_ctx(self, now: float, idle_s: Optional[float] = None) -> Dict[str, Any]:
         """The situation an ask is made in, for the ledger and the timing model."""
         from .asks import context_of
@@ -2086,6 +2142,9 @@ class AmbientRuntime:
         process = getattr(flow, "process", "") if flow is not None else ""
         subject = getattr(flow, "subject", "") if flow is not None else ""
         since = getattr(flow, "since", 0.0) if flow is not None else 0.0
+        if self.dwell is not None and self.dwell.process:
+            process, since = self.dwell.process, self.dwell.since
+            subject = "" if self.dwell.private else self.dwell.subject
         mood = None
         try:
             mood = self.moments.mood(now) if self.moments is not None else None
@@ -2818,6 +2877,9 @@ class AmbientRuntime:
         elif getattr(ev, "source", "") == "active_window":
             m = getattr(ev, "meta", None) or {}
             self.occasion.window(str(m.get("process") or ""), now, blocked=bool(m.get("blocked")))
+            if self.dwell is not None:
+                self.dwell.window(str(m.get("process") or ""), str(m.get("subject") or ""), str(m.get("project") or ""), now,
+                                  private=bool(m.get("private")), blocked=bool(m.get("blocked")))
         if self.activity is not None:
             try:
                 self.activity.observe(ev, now)
@@ -2997,6 +3059,8 @@ class AmbientRuntime:
         if self._ask_followthrough(ev, now):
             return True
         if not loose and self._asks_request(ev, now):
+            return True
+        if not loose and self._dwell_request(ev, now):
             return True
 
         if self.wonder is not None and not guest and not loose:
@@ -3358,6 +3422,10 @@ class AmbientRuntime:
                     if to_ash and getattr(self, "kids", None) is not None and self.kids.active:
                         from .kids import CONTEXT as _KIDS
                         context = (context + "\n" + _KIDS).strip()
+                    if to_ash and self.dwell is not None and not meta.get("guest"):
+                        dc = self.dwell.context(self.clock())
+                        if dc:
+                            context = (context + "\n" + dc).strip()
                     if to_ash and self._clip_ask is not None:
                         cc = self._clipboard_context(self.clock())
                         if cc:
@@ -4151,6 +4219,7 @@ class AmbientRuntime:
             "notes": self.notes.status() if self.notes is not None else None,
             "pcdoctor": self.pcdoctor.status() if self.pcdoctor is not None else None,
             "asks": self.asks.status() if self.asks is not None else None,
+            "dwell": self.dwell.status() if self.dwell is not None else None,
             "situation": self.situation.status() if self.situation is not None else None,
             "filesearch": self.filesearch.status() if self.filesearch is not None else None,
             "phone": self.phone.status() if self.phone is not None else None,

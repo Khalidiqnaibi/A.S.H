@@ -355,6 +355,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # What ASH asked and what you said back: kept in state/asks/ (one line per ask, with the situation and the reply), written to
     # episodic memory, and the answers teach it when asking is welcome ("what have you asked me?", "when do I like to be asked things?").
     "asks": {"enabled": True, "keep_replies": True},
+    # Where you are and for how long (state/dwell.json): the window in front, typing / reading / away, the day by program. Reading one
+    # window for a few minutes with your hands off is a free moment (a question about it); coming back after ten minutes is welcomed;
+    # "how long have I been on this?", "what have I been doing today?" are answered from it, and the model is told where you are.
+    # Private windows (a chat, a mailbox) are counted as a program only.
+    "dwell": {"enabled": True, "away_after_s": 600.0, "reading_after_s": 240.0, "welcome_back_after_s": 600.0},
     # Jokes (original, none repeated until all are told), made-up songs, inside jokes from what made you laugh.
     "fun": {"enabled": True},
     # "Kids mode on (for 30 minutes)": grown-up features refused, the model told it's talking with a child, a word
