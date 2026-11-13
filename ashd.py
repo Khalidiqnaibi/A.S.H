@@ -324,6 +324,7 @@ def main() -> int:
                 phone=bool(cfg.get("phone", {}).get("enabled", True)),
                 phone_cfg=cfg.get("phone", {}),
                 guard=bool(cfg.get("guard", {}).get("enabled", True)),
+                free_after_s=float(cfg.get("free_moments", {}).get("free_after_s", 20.0)),
                 dwell=bool(cfg.get("dwell", {}).get("enabled", True)),
                 dwell_path=os.path.join(os.getcwd(), "state", "dwell.json"),
                 dwell_away_s=float(cfg.get("dwell", {}).get("away_after_s", 600.0)),

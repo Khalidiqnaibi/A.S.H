@@ -280,6 +280,7 @@ class AmbientConfig:
     dwell_away_s: float = 600.0                 # no input this long: gone, not reading
     dwell_reading_s: float = 240.0              # one window this long, hands off: a moment worth a question
     dwell_welcome_min_s: float = 600.0          # welcome them back after being away at least this long
+    free_after_s: float = 0.0                   # present and not busy this long: a free moment (availability.py); 0: off
     asks: bool = False
     asks_dir: Optional[str] = None
     asks_keep_replies: bool = True
@@ -682,6 +683,8 @@ class AmbientRuntime:
         if self.cfg.fun:
             from .fun import Fun
             self.fun = Fun(self.cfg.fun_path, clock=lambda: self.clock())
+        self._avail = None                      # can the user talk right now? (availability.py)
+        self._free_since = None
         self.dwell = None
         self._reading_at = -1e18
         self._welcome_due = None
@@ -692,6 +695,10 @@ class AmbientRuntime:
             if self.moments is not None:
                 from .dwell import ReadingNote
                 self.moments.register(ReadingNote(self.dwell))
+        if self.moments is not None:
+            # A moment that is merely "free" is worth less than one that has been free for a while.
+            self.moments.add_fit(lambda c, env: 0.6 + 0.8 * float(getattr(((env.extra or {}).get("avail")), "score", 0.55) or 0.55)
+                                 if (env.extra or {}).get("avail") is not None else 1.0)
         self.asks = None
         self._ask_res = None
         self._idle_now: Optional[float] = None
@@ -1128,6 +1135,7 @@ class AmbientRuntime:
             if idle_s is None:
                 idle_s = self._idle_seconds()
             self._idle_now = idle_s
+            self._availability(now, idle_s)
             self.occasion.tick(now, idle_s)
             if self.dwell is not None and idle_s is not None:
                 self._dwell_step(now, idle_s)
@@ -2106,6 +2114,51 @@ class AmbientRuntime:
         self._last_why = {"kind": "asked", "query": str(getattr(ev, "text", ""))[:80]}
         return True
 
+    def _availability(self, now: float, idle_s: Optional[float]):
+        """Can the user be spoken to right now? Kept as `self._avail`; `self._free_since` is when they last became free."""
+        from .availability import judge
+        flow, d = self.flow, self.dwell
+        process = (d.process if d is not None and d.process else getattr(flow, "process", "")) if (d is not None or flow is not None) else ""
+        subject = (d.subject if d is not None else getattr(flow, "subject", "")) or ""
+        private = bool(d.private) if d is not None else bool(getattr(flow, "private", False))
+        since = (now - self._free_since) if self._free_since is not None else 0.0
+        video = bool(getattr(self.occasion, "_browser_front", False) and getattr(self.occasion, "_leisure", False)
+                     and getattr(self.occasion, "_page", "") in ("", "video"))
+        try:
+            a = judge(process, subject, idle_s, since_free_s=since,
+                      focus=bool(self.focus is not None and self.focus.active(now)),
+                      conversation=address.conversation.openness(now) > 0.2,
+                      speaking=self._speaking_now(), away_s=self.cfg.dwell_away_s, private=private, video_page=video)
+        except Exception:
+            logger.exception("Availability failed")
+            return
+        if a.free:
+            if self._free_since is None:
+                self._free_since = now
+        else:
+            self._free_since = None
+        self._avail = a
+
+    def _speaking_now(self) -> bool:
+        sp = self.periphery.actuators.get("speak") if hasattr(self.periphery, "actuators") else None
+        return bool(sp is not None and getattr(sp, "speaking", False))
+
+    def _is_free_moment(self, now: float) -> bool:
+        """A free moment is open (a stretch of work ended, or a long read, or they are simply free) -- and never while they
+        can't be talked to (in a call, a game, a presentation, focus mode, away)."""
+        a = self._avail
+        if self.cfg.free_after_s > 0 and a is not None and not a.can_talk:
+            return False
+        return (now < self._free_until) or self._free_to_talk(now)
+
+    def _free_to_talk(self, now: float) -> bool:
+        """They are present, not in the middle of anything, and have been for a few seconds: a free moment, whether or not a
+        stretch of typing came before it."""
+        if self.cfg.free_after_s <= 0:
+            return False
+        a = self._avail
+        return bool(a is not None and a.free and self._free_since is not None and now - self._free_since >= self.cfg.free_after_s)
+
     def _dwell_step(self, now: float, idle_s: float):
         """Back from being away: welcomed, once. Reading in one window long enough: a free moment (a question about it)."""
         d = self.dwell
@@ -2727,7 +2780,8 @@ class AmbientRuntime:
             quiet_hours=bool(self.gate._in_quiet_hours(now)), paused=bool(self.privacy.paused),
             conversation_open=address.conversation.openness(now) > 0.02,
             plan_active=self._plan_active(),
-            free_moment=now < self._free_until, mood=mood,
+            free_moment=self._is_free_moment(now), mood=mood,
+            extra={"avail": self._avail},
             activity=(f"{getattr(flow, 'subject', '')} {getattr(flow, 'process', '')}".strip()
                       if flow is not None else ""))
 
@@ -4259,6 +4313,8 @@ class AmbientRuntime:
             "pcdoctor": self.pcdoctor.status() if self.pcdoctor is not None else None,
             "asks": self.asks.status() if self.asks is not None else None,
             "dwell": self.dwell.status() if self.dwell is not None else None,
+            "availability": ({"state": self._avail.state, "can_talk": self._avail.can_talk, "why": self._avail.why,
+                              "score": round(self._avail.score, 2)} if self._avail is not None else None),
             "situation": self.situation.status() if self.situation is not None else None,
             "filesearch": self.filesearch.status() if self.filesearch is not None else None,
             "phone": self.phone.status() if self.phone is not None else None,

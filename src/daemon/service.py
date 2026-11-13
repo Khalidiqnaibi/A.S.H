@@ -172,9 +172,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # pause; the rest are saved for a free moment. Master switch: enabled.
     "wondering": {
         "enabled": True,
-        "max_per_hour": 2,
-        "max_per_day": 8,
-        "min_gap_s": 600,
+        "max_per_hour": 3,
+        "max_per_day": 12,
+        "min_gap_s": 420,
         "subject_cooldown_s": 21600,
         "expire_s": 259200,
         "urgent_at": 0.75,
@@ -401,8 +401,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "routines": {"enabled": True, "min_days": 3, "window_s": 600, "away_s": 1800},
     "free_moments": {
         "enabled": True,
-        "min_gap_s": 600,
-        "max_per_hour": 2,
+        "min_gap_s": 300,
+        "max_per_hour": 4,
+        "free_after_s": 20,      # present and not busy this long (availability.py): a free moment; never in a call, a game, focus, away
         "disabled": [],          # by name: gap_closure joke mood_check system_assessment follow_up
         "jokes": True,
         "mood_check": True,
