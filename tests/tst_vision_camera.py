@@ -473,8 +473,61 @@ def v6_defaults():
           "show me what you see", "take a picture with the camera", "what am I holding"} <= phrases)
 
 
+def v7_follow_ups():
+    print("\n=== V7. 'Try again', 'how about now?', 'what's this?' ===")
+    from src.daemon.looking import parse
+    for q in ("What am I holding Ash?", "what am I holding, ash",
+              "look at me, ash"):
+        check(f"{q!r} is the camera", parse(q) is not None, str(parse(q)))
+    for q in ("what's the weather", "what's that song", "what is this error", "what's this about", "how about now", "try again", "What's this, Ash?", "what is this"):
+        check(f"{q!r} alone is not (nothing was looked at)", parse(q) is None)
+    rt = rt_with([tv.thing("watch", .8, MID)])
+    n = len(rt.ash.calls)
+    k = len(rt.grabs)
+    rt.say("Ash, what am I holding")
+    check("(a look first)", "watch" in rt.out[-1] and len(rt.grabs) == k + 1)
+    for q in ("Try again.", "How about now?", "now", "and now", "one more time", "look again", "what about now", "How about with no?", "this one",
+              "What's this, Ash?", "what is that", "Ash, what's this one", "what do you think it is"):
+        k = len(rt.grabs)
+        rt.say(q)
+        check(f"{q!r} right after a look: looks again, by rule", len(rt.grabs) == k + 1 and "watch" in rt.out[-1] and len(rt.ash.calls) == n, f"{rt.out[-1]} {len(rt.grabs) - k}")
+    rt.t[0] += 600
+    k = len(rt.grabs)
+    rt.say("how about now")
+    check("ten minutes later it is not a camera request any more", len(rt.grabs) == k)
+    rt2 = rt_with([tv.thing("watch", .8, MID)])
+    k = len(rt2.grabs)
+    rt2.say("try again")
+    check("with no look before it, 'try again' is nothing to the camera", len(rt2.grabs) == k)
+    rt2.say("look at me")
+    rt2.say("now")
+    check("after 'look at me', 'now' looks at them again", len(rt2.grabs) == 2 and rt2.out[-1].startswith("Yes, I can see someone"), rt2.out[-1])
+
+
+def v8_corrections():
+    print("\n=== V8. Being told it got it wrong ===")
+    rt = rt_with([tv.thing("phone", .55, MID)])
+    n = len(rt.ash.calls)
+    rt.say("Ash, what am I holding")
+    check("(it guesses)", "phone" in rt.out[-1])
+    rt.say("nope")
+    check("'nope' after a guess: it owns up and asks, by rule, no model", rt.out[-1].startswith("Okay, I got that wrong. What is it?") and len(rt.ash.calls) == n, rt.out[-1])
+    rt.say("it's not a phone")
+    check("'it's not a phone' too", rt.out[-1].startswith("Okay, I got that wrong"), rt.out[-1])
+    rt.say("it's a watch")
+    check("'it's a watch' teaches it from what it just saw", "watch" in rt.out[-1].lower() and len(rt.ash.calls) == n, rt.out[-1])
+    check("...and it is in its memory", rt.looking.memory.get("watch") is not None or rt.looking.memory.get("a watch") is not None, str(rt.looking.memory.listing() if hasattr(rt.looking.memory, "listing") else ""))
+    rt.t[0] += 600
+    m = len(rt.ash.calls)
+    rt.say("it's a nice day")
+    check("ten minutes later 'it's a nice day' is just conversation", len(rt.ash.calls) == m + 1)
+    rt2 = rt_with([tv.thing("phone", .55, MID)])
+    rt2.say("nope")
+    check("with nothing looked at, 'nope' is not the camera's", "got that wrong" not in (rt2.out[-1] if rt2.out else ""))
+
+
 if __name__ == "__main__":
-    for fn in (v1_phrasings, v2_why_not, v3_answers, v4_runtime, v5_reacting, v6_defaults):
+    for fn in (v1_phrasings, v2_why_not, v3_answers, v4_runtime, v5_reacting, v6_defaults, v7_follow_ups, v8_corrections):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

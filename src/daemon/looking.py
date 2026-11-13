@@ -26,7 +26,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 logger = logging.getLogger("ash.daemon.looking")
 
 _A = r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:so\s+)?(?:please\s+|can you\s+|could you\s+)?"
-_Z = r"(?:\s+please)?\s*[.!?]*\s*$"
+_Z = r"(?:\s+please)?(?:[,\s]+ash)?\s*[.!?]*\s*$"          # "what am I holding, Ash?"
 
 _CAM = r"(?:the\s+|your\s+|my\s+)?(?:cam|camera|webcam|web\s*cam)"
 
@@ -296,8 +296,45 @@ class Looking:
         return "I couldn't get a picture -- there's no camera I can open (it may be off, unplugged, or in use by another app)."
 
     # -- answering -------------------------------------------------------------------
+    # "Try again", "how about now?", "and now?" right after a look: the same look again.
+    _AGAIN = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:ok(?:ay)?|so|and)[,\s]+)?(?:try\s+(?:it\s+)?again|again|one\s+more\s+time|look\s+again|"
+                        r"check\s+again|(?:how|what)\s+about\s+(?:now|this(?:\s+one)?|that(?:\s+one)?|with\s+(?:this|that|it|no))|and\s+now|now|this\s+one|that\s+one|"
+                        r"what(?:'s|\s+is)\s+(?:this|that)(?:\s+one)?|what\s+(?:is|'s)\s+it|what\s+do\s+you\s+think\s+(?:it|this|that)\s+is|"
+                        r"(?:and\s+)?(?:what|how)\s+about\s+now)(?:[,\s]+ash)?\W*$", re.I)
+    again_s = 180.0
+
+    def _again(self, text: str, now: Optional[float] = None) -> Optional[Tuple[str, Dict[str, str]]]:
+        last = getattr(self, "_last_run", None)
+        now = self.clock() if now is None else now
+        if last is None or now - last[2] > self.again_s or not self._AGAIN.match(str(text or "").strip()):
+            return None
+        return last[0], last[1]
+
+    # Told it got it wrong, right after it named something held: "no, it's not a phone", "nope", "it's a watch".
+    _WRONG = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:no+|nope|nah|wrong|incorrect)\b[,.\s]*(?:(?:it'?s|that'?s|this\s+is)\s+not\s+(?:a|an|the)\s+[a-z][a-z' \-]{1,30})?\W*$"
+                        r"|^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:no[,.\s]+)?(?:it'?s|that'?s|this\s+is)\s+not\s+(?:a|an|the)\s+[a-z][a-z' \-]{1,30}\W*$", re.I)
+    _IS = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:no|nope|nah|actually)[,.\s]+)?(?:it'?s|that'?s|this\s+is|it\s+is)\s+(?:a|an|my|the)\s+"
+                     r"(?P<label>[a-z][a-z' \-]{1,30}?)\W*$", re.I)
+
+    def _correction(self, text: str, now: float) -> Optional[Tuple[str, str]]:
+        """("wrong", "") or ("is", label) when `text` corrects what was just said about something held; else None."""
+        last = getattr(self, "_last_run", None)
+        if last is None or last[0] != "holding" or now - last[2] > 120.0:
+            return None
+        t = str(text or "").strip()
+        if len(t) > 60:
+            return None
+        m = self._IS.match(t)
+        if m and not re.search(r"\bnot\b", t, re.I):
+            return "is", re.sub(r"\s+", " ", m.group("label")).strip(" -'")
+        if self._WRONG.match(t):
+            return "wrong", ""
+        return None
+
     def wants(self, text: str) -> bool:
         """A request for the camera -- and for "is this X" / "where is my X", only when X is something it was taught."""
+        if self._again(text) is not None or self._correction(text, self.clock()) is not None:
+            return True
         p = parse(text)
         if p is None:
             return False
@@ -308,8 +345,16 @@ class Looking:
     def hear(self, text: str, now: Optional[float] = None) -> Optional[str]:
         if not self.wants(text):
             return None
-        kind, _d = parse(text)
         now = self.clock() if now is None else now
+        corr = self._correction(text, now)
+        if corr is not None:
+            if corr[0] == "wrong":
+                return "Okay, I got that wrong. What is it? Say \u201cit's a ...\u201d and I'll remember it."
+            if not self.cfg.enabled or self.memory is None:
+                return self._off()
+            say = self.run("teach_thing", {"label": corr[1]}, now)
+            return say
+        kind, _d = self._again(text, now) or parse(text)
         if not self.cfg.enabled:
             return self._off()
         return self.run(kind, _d, now)
@@ -324,6 +369,8 @@ class Looking:
 
     def run(self, kind: str, _d: Dict[str, str], now: float) -> Optional[str]:
         self.last_look = {"t": now, "why": "", "say": ""}
+        if kind in ("holding", "see", "me", "who", "around", "is_this", "where"):
+            self._last_run = (kind, dict(_d), now)           # so "try again" / "how about now?" can look again
         self.scenes["asked"] = None
         say = self._run(kind, _d, now)
         self.last_look["say"] = say or ""
