@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import logging
 import re
+import queue
 import threading
 import time
 from collections import deque
@@ -268,6 +269,8 @@ class AmbientConfig:
     phone: bool = False
     phone_cfg: Optional[Dict[str, Any]] = None
     phone_io: Optional[Dict[str, Any]] = None                 # tests: {"cli": path or None, "runner": fake, "poster": fake}
+    phone_background: bool = True                             # talking to the phone can take seconds: done off the loop
+    phone_spawn: Optional[Callable[[Callable[[], None]], None]] = None   # tests: run the job on the spot
     # Guard mode: while you're away the camera watches; strangers and movement go to your phone (guard.py).
     guard: bool = False
     # BMO's moods: feelings that last (cheer, energy), from what happened; "how are you feeling?" (feelings.py).
@@ -646,6 +649,8 @@ class AmbientRuntime:
         self._arrival_at = 0.0
         self._dym = None                          # a "Did you mean ...?" waiting for yes or no: (phrase, when)
         self.hud_opener: Optional[Callable[[], str]] = None      # set by ashd once the console is up
+        self._said_later: "queue.Queue" = queue.Queue()
+        self._phone_busy = False
         self.phone = None
         if self.cfg.phone:
             from .phone import Phone, PhoneConfig
@@ -1040,6 +1045,8 @@ class AmbientRuntime:
             for ev in sensor.poll():
                 self.privacy.scrub_event(ev)
                 self.submit(ev)
+
+        self._say_later()
 
         # 2. Process.
         events = self._drain()
@@ -2023,8 +2030,27 @@ class AmbientRuntime:
         bo = getattr(self, "booth", None)
         if bo is not None and bo.last_path and now - bo.last_at <= 600 and bo.last_at > last_t:
             last = bo.last_path                               # the photo just taken is newer than the file found
+        text = str(getattr(ev, "text", "") or "")
+        if self.cfg.phone_background and ph.slow(text, now):
+            if self._phone_busy:
+                self._wonder_say(ev, type("R", (), {"say": "Still talking to your phone -- one moment.", "outcome": "desktop"})())
+                return True
+
+            def job(ev=ev, text=text, last=last, now=now):
+                try:
+                    said = ph.hear(text, last_thing=last, now=now)
+                except Exception:
+                    logger.exception("Phone request failed")
+                    said = "I couldn't reach your phone."
+                finally:
+                    self._phone_busy = False
+                if said:
+                    self._said_later.put((ev, said, text))
+            self._phone_busy = True
+            (self.cfg.phone_spawn or self._spawn_job)(job)
+            return True
         try:
-            say = ph.hear(str(getattr(ev, "text", "") or ""), last_thing=last, now=now)
+            say = ph.hear(text, last_thing=last, now=now)
         except Exception:
             logger.exception("Phone request failed")
             return False
@@ -2035,6 +2061,22 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         self._last_why = {"kind": "asked", "query": str(getattr(ev, "text", ""))[:80]}
         return True
+
+    @staticmethod
+    def _spawn_job(job: Callable[[], None]) -> None:
+        threading.Thread(target=job, name="ash-job", daemon=True).start()
+
+    def _say_later(self):
+        """What a worker thread finished (a call to the phone): said here, on the loop, in the order it was done."""
+        while True:
+            try:
+                ev, say, text = self._said_later.get_nowait()
+            except queue.Empty:
+                return
+            if say.startswith("Text to "):
+                say = self._maybe_hold(say, self.clock())
+            self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+            self._last_why = {"kind": "asked", "query": text[:80]}
 
     def _hud_request(self, ev, now: float) -> bool:
         """"Show the heads-up display": the small always-on-top widget (src/ui/static/hud.html)."""

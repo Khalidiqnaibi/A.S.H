@@ -165,6 +165,18 @@ class Phone:
                 return name, num
         return w, None
 
+    def slow(self, text: str, now: Optional[float] = None) -> bool:
+        """Would `hear` talk to the phone for this line? (Ringing, sharing, notifying, sending a text, asking if it is
+        connected: each runs the KDE Connect tool, which can take seconds -- so the caller may run `hear` off its loop.)"""
+        now = self.clock() if now is None else now
+        t = (text or "").strip()
+        if len(t) > 300 or not self.cfg.enabled or not self.cli:
+            return False
+        p = self.pending_sms
+        if p is not None and now - p[3] <= 300 and _SEND.match(t):
+            return True
+        return bool(_STATUS.match(t) or _RING.match(t) or _SHARE.match(t) or _NOTE.match(t))
+
     def hear(self, text: str, last_thing: Optional[str] = None, now: Optional[float] = None) -> Optional[str]:
         """What to say back, or None. `last_thing` is a file path or link ASH just gave (for "send it to my phone")."""
         now = self.clock() if now is None else now

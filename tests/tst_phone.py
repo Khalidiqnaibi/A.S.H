@@ -108,7 +108,7 @@ def p5_runtime():
     import tempfile
     import tst_effects as te
     cli = FakeCLI()
-    rt = te.rig(phone=True, phone_cfg={"contacts": {"Omar": "+962791234567"}}, phone_io={"cli": "kdeconnect-cli", "runner": cli},
+    rt = te.rig(phone=True, phone_background=False, phone_cfg={"contacts": {"Omar": "+962791234567"}}, phone_io={"cli": "kdeconnect-cli", "runner": cli},
                 filesearch=True, filesearch_folders=[tempfile.mkdtemp()])
     n = len(rt.ash.calls)
     rt.say("Ash, find my phone")
@@ -131,8 +131,51 @@ def p5_runtime():
     check("a text's read-back waits for a stranger to go", rt.out[-1] == rt.HOLD_LINE)
 
 
+def p6_off_the_loop():
+    print("\n=== P6. A slow phone never stalls the loop ===")
+    import threading
+    import time as _t
+    import tst_effects as te
+    gate = threading.Event()
+
+    class Slow(FakeCLI):
+        def __call__(self, args, timeout):
+            if "--ring" in args:
+                gate.wait(5)
+            return super().__call__(args, timeout)
+    cli = Slow()
+    jobs = []
+    rt = te.rig(phone=True, phone_io={"cli": "kdeconnect-cli", "runner": cli}, phone_spawn=jobs.append)
+    t0 = _t.time()
+    rt.say("Ash, find my phone")
+    check("the loop is free at once (the call waits on its own job)", _t.time() - t0 < 1.0 and len(jobs) == 1 and not rt.out)
+    rt.say("Ash, ring my phone")
+    check("a second ask while one is running is told to wait", rt.out and rt.out[-1].startswith("Still talking"), str(rt.out))
+    gate.set()
+    jobs.pop(0)()
+    rt._tick()
+    check("the result is said on the next tick", any("Ringing your phone" in o for o in rt.out), str(rt.out))
+    rt.say("Ash, any new email?")
+    check("the loop answers other things meanwhile", len(rt.out) >= 3)
+    real = threading.Thread
+    th = []
+    rt2 = te.rig(phone=True, phone_io={"cli": "kdeconnect-cli", "runner": Slow()})
+    gate.clear()
+    t1 = _t.time()
+    rt2.say("Ash, find my phone")
+    check("with real threads too: returns at once", _t.time() - t1 < 1.0 and not rt2.out, str(rt2.out))
+    gate.set()
+    for _ in range(100):
+        rt2.t[0] += 1
+        rt2._tick()
+        if rt2.out:
+            break
+        _t.sleep(0.05)
+    check("...and says it when the phone answers", any("Ringing" in o for o in rt2.out), str(rt2.out))
+
+
 if __name__ == "__main__":
-    for fn in (p1_asking, p2_actions, p3_texts, p4_not_set_up, p5_runtime):
+    for fn in (p1_asking, p2_actions, p3_texts, p4_not_set_up, p5_runtime, p6_off_the_loop):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

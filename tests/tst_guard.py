@@ -145,7 +145,7 @@ def g5_runtime():
     import tst_effects as te
     from tst_phone import FakeCLI
     cli = FakeCLI()
-    rt = te.rig(phone=True, phone_io={"cli": "kdeconnect-cli", "runner": cli}, guard=True)
+    rt = te.rig(phone=True, phone_background=False, phone_io={"cli": "kdeconnect-cli", "runner": cli}, guard=True)
     cam = Cam(on=False)
     rt.periphery.sensors["camera"] = cam
     rt.say("Ash, guard mode on")

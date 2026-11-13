@@ -82,7 +82,7 @@ def b4_runtime():
     grabs = []
     cli = FakeCLI()
     rt = te.rig(photobooth=True, photobooth_dir=d, photobooth_delay_s=0, photobooth_grab=lambda: grabs.append(1) or face_frame(),
-                phone=True, phone_io={"cli": "kdeconnect-cli", "runner": cli})
+                phone=True, phone_background=False, phone_io={"cli": "kdeconnect-cli", "runner": cli})
     n = len(rt.ash.calls)
     rt.say("Ash, take a silly photo")
     check("countdown, then saved -- by rule, no model", any("cheese" in o for o in rt.out[-2:]) and rt.out[-1].startswith("Got it!")
