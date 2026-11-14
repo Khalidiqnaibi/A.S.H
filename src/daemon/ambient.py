@@ -1168,11 +1168,13 @@ class AmbientRuntime:
             if idle_s is None:
                 idle_s = self._idle_seconds()
             self._idle_now = idle_s
-            self._availability(now, idle_s)
-            self.occasion.tick(now, idle_s)
-            self._game_step(now)
+            # Each step on its own: one that keeps failing (a reminders file on a full disk, say) used to stop everything
+            # after it every second -- the calendar, the crash watch, free moments -- and was reported as "internal errors".
+            self._step("availability", self._availability, now, idle_s)
+            self._step("occasion", self.occasion.tick, now, idle_s)
+            self._step("game mode", self._game_step, now)
             if self.dwell is not None and idle_s is not None:
-                self._dwell_step(now, idle_s)
+                self._step("dwell", self._dwell_step, now, idle_s)
             if self.activity is not None:
                 try:
                     self.activity.tick(now, idle_s)
@@ -1183,17 +1185,17 @@ class AmbientRuntime:
                     self.routines.tick(now)
                 except Exception:
                     logger.exception("Routines failed on a tick")
-            self._watch_step(now)
-            self._reminder_step(now)
-            self._presence_step(now)
+            self._step("watches", self._watch_step, now)
+            self._step("reminders", self._reminder_step, now)
+            self._step("presence", self._presence_step, now)
             if self.scene_watch is not None:
                 try:
                     self.scene_watch.step(now)
                 except Exception:
                     logger.exception("Camera-change watching failed on a tick")
-            self._situation_step(now, idle_s)
-            self._guard_step(now)
-            self._feelings_step(now)
+            self._step("situation", self._situation_step, now, idle_s)
+            self._step("guard", self._guard_step, now)
+            self._step("feelings", self._feelings_step, now)
             if self.kids is not None and self.kids.time_up(now):
                 try:
                     self.response_sink("Kids mode time is up! Time for a break -- go and find a grown-up.",
@@ -1243,7 +1245,7 @@ class AmbientRuntime:
                 except Exception:
                     logger.exception("Calendar refresh failed")
             if self.focus is not None:
-                self._focus_tick(now)
+                self._step("focus", self._focus_tick, now)
                 if self.focus.active(now):
                     # Keep the flow detector's picture current, but say nothing.
                     if self.flow is not None and idle_s is not None:
@@ -1272,6 +1274,22 @@ class AmbientRuntime:
         except Exception:
             self.stats["errors"] += 1
             logger.exception("Social step failed")
+
+    def _step(self, name: str, fn, *args):
+        """Run one part of the tick; if it raises, say so (once a minute per part) and carry on with the rest."""
+        try:
+            return fn(*args)
+        except Exception:
+            t = self.clock()
+            seen = self.__dict__.setdefault("_step_failed", {})
+            first, last = seen.get(name, (0.0, 0.0))
+            if t - last >= 60.0:
+                logger.exception("%s failed on a tick (it will be tried again)", name.capitalize())
+            if t - first >= 600.0:                  # one count per part per ten minutes, so a stuck part is not an "internal error" a second
+                self.stats["errors"] = self.stats.get("errors", 0) + 1
+                first = t
+            seen[name] = (first or t, t)
+            return None
 
     # ------------------------------------------------------------------
     # Free moments
