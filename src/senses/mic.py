@@ -236,9 +236,20 @@ class MicrophoneSensor(Sensor):
     # ------------------------------------------------------------------
     # Capture thread
     # ------------------------------------------------------------------
+    def on_retry(self):
+        self.restarts = 0
+        self._start_capture()
+
     def _start_capture(self):
         if self._thread and self._thread.is_alive():
-            return
+            if not self._stop.is_set():
+                return                                   # running
+            # Being stopped, and still busy with the last phrase: wait for it to finish, or "on" straight after "off"
+            # finds a live thread, returns, and the thread then ends -- a microphone that says it is on and hears nothing.
+            self._thread.join(timeout=5.0)
+            if self._thread.is_alive():
+                logger.warning("Microphone: the previous capture is still finishing; try again in a moment")
+                return
         self._stop.clear()
         self._thread = threading.Thread(target=self._loop, daemon=True, name="ash-mic")
         self._thread.start()
@@ -246,8 +257,8 @@ class MicrophoneSensor(Sensor):
 
     def _stop_capture(self):
         self._stop.set()
-        if self._thread:
-            self._thread.join(timeout=2.0)
+        if self._thread and self._thread is not threading.current_thread():
+            self._thread.join(timeout=5.0)
 
     def _frames(self):
         """Yield fixed-size int16 frames from whichever backend is present."""
@@ -311,6 +322,8 @@ class MicrophoneSensor(Sensor):
 
         try:
             for frame in self._frames():
+                if self.restarts:
+                    self.restarts = 0                     # frames are flowing again: the next failure starts the count afresh
                 speech = self._is_speech(frame)
                 self._live(frame)
 
@@ -350,8 +363,8 @@ class MicrophoneSensor(Sensor):
             if self.restarts <= 8 and not self._stop.is_set():
                 def again():
                     if not self._stop.wait(wait) and self.state == self.state.__class__.ACTIVE:
-                        self._thread = None
-                        self._start_capture()
+                        if self._thread is None or not self._thread.is_alive():      # not over one that someone else started
+                            self._start_capture()
                 threading.Thread(target=again, daemon=True, name="ash-mic-retry").start()
             else:
                 self.state = self.state.__class__.ERROR

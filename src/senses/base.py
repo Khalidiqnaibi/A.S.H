@@ -191,6 +191,9 @@ class Sensor(ABC):
 
     RETRY_AFTER_S = 120.0
 
+    def on_retry(self):
+        """Called when a sensor that gave up is given another go. Sensors that run their own thread restart it."""
+
     def due(self, now: Optional[float] = None) -> bool:
         now = now or time.time()
         # A sensor that gave up (a full disk, a locked screen, a device taken by a game) is tried again after a while,
@@ -198,6 +201,10 @@ class Sensor(ABC):
         if self.state == State.ERROR and self.errored_at and now - self.errored_at >= self.RETRY_AFTER_S:
             self.state, self.error_count, self.interval = State.ACTIVE, 3, self.base_interval
             logger.info("Sensor %s: trying again after a failure", self.name)
+            try:
+                self.on_retry()                 # a sensor with its own thread (the microphone) starts it again here
+            except Exception:
+                logger.exception("Sensor %s could not restart", self.name)
         return self.state == State.ACTIVE and (now - self.last_read) >= self.interval
 
     # -- the actual work -------------------------------------------------
@@ -225,7 +232,7 @@ class Sensor(ABC):
                 logger.warning("Sensor %s read failed again (%d in a row)", self.name, self.error_count)
             # Exponential backoff, then rest for a couple of minutes (due() tries it again).
             self.interval = min(self.interval * 2, 300.0)
-            if self.error_count >= 5:
+            if self.error_count >= 5 and self.state == State.ACTIVE:      # not over a "switch it off" that landed mid-read
                 self.state = State.ERROR
                 self.errored_at = time.time()
                 logger.error("Sensor %s paused after %d failures; it will be tried again in %.0fs",
