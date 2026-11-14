@@ -442,6 +442,7 @@ class Browsing:
             if s.cls.is_ignored(site):
                 return f"I'm already keeping {site} out."
             s.cls.ignore(site)
+            s.drop(site=site)
             n = led.forget(site=site)
             gone = f" and deleted what I had ({n} records)" if n else ""
             return f"Okay, I won't record anything about {site} from now on{gone}. Say \"start tracking {site} again\" to undo."
@@ -499,10 +500,11 @@ class Browsing:
                 bits.append("Most time: " + _lst([f"{site} ({cat}, {dur(sec)})" for site, cat, sec, _v in top]) + ".")
             bits.append(f"You've told me the category of {s.cls.status()['tags']} site{'s' if s.cls.status()['tags'] != 1 else ''}"
                         f"{'; I keep out ' + _lst(sorted(s.cls.ignored)) if s.cls.ignored else ''}.")
-            bits.append("I never keep page addresses, page text, titles, or anything from private windows or banks, mail, chat, "
-                        "health and similar sites. Say \"export my browsing data\" for a file, or \"forget my browsing\" to delete it.")
+            bits.append("I never keep page addresses or page text, and titles only as the words I learned from pages you tagged; "
+                        "nothing from private windows or banks, mail, chat, health and similar sites. Say \"export my browsing data\" for a file, or \"forget my browsing\" to delete it.")
             return " ".join(bits)
         if kind == "forget_all":
+            s.drop(everything=True)
             n = led.forget_all()
             return f"Done -- I've deleted everything I kept about your browsing ({n} records)." if n else "I didn't have anything about your browsing."
         if kind == "forget_tags":
@@ -511,10 +513,12 @@ class Browsing:
         if kind == "forget_site":
             site = d["site"].lower()
             from .pagekind import host_of, site_of
+            s.drop(site=site_of(host_of(site)))
             n = led.forget(site=site_of(host_of(site)))
             s.cls.untag(site)
             return f"Forgotten: everything about {site}." if n else f"I don't have anything about {site}."
         if kind == "forget_cat":
+            s.drop(category=d["cat"])
             n = led.forget(category=d["cat"])
             return f"Forgotten: your {d['cat']} browsing." if n else f"I don't have any {d['cat']} browsing."
         if kind == "tag":
