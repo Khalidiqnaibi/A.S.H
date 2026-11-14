@@ -1,10 +1,11 @@
 """
 tst_homesafety.py -- what the smart-home handler must not do.
 
-Review found the never-by-voice list was tested on the spoken name and the friendly name, never the entity's id, so
-`switch.garage_door_opener` with the friendly name "Opener" was operated, and the list had no pump, valve, boiler or siren.
-
-Two devices that matched a name equally well were not told apart: "turn off the light" switched whichever came first.
+Review found: the never-by-voice list was tested on the spoken name and the friendly name, never the entity's id, so
+`switch.garage_door_opener` with the friendly name "Opener" was operated, and the list had no pump, valve, boiler or siren; two
+devices that matched a name equally well were not told apart ("turn off the light" switched whichever came first); and a line
+that was not about a home device at all ("turn off the monitor") was answered "I couldn't find anything called monitor in Home
+Assistant", hijacking it from the handlers that could do it.
 
 Run:  PYTHONIOENCODING=utf-8 python tests/tst_homesafety.py
 """
@@ -74,8 +75,17 @@ def t2_ambiguous():
           not (say or "").startswith("Which one") or "lock" not in (say or "").lower(), str(say))
 
 
+def t3_not_a_device():
+    print("\n=== Not a home device ===")
+    s = home(th.STATES)
+    for t in ("turn off the monitor", "turn off the wifi", "switch off the screen", "turn on the radio"):
+        check(f"{t!r} is left for the handlers that can do it", s.hear(t) is None, str(s.hear(t)))
+    check("a missing home device is still said plainly", "couldn't find anything called attic lights" in (s.hear("turn on the attic lights") or ""))
+
+
 if __name__ == "__main__":
     t1_entity_id()
     t2_ambiguous()
+    t3_not_a_device()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)
