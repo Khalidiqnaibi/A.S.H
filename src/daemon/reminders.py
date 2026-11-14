@@ -69,6 +69,12 @@ _LIST = re.compile(r"\b(?:what(?:'s| are| is)?|list|any)\s+(?:my\s+)?(?:reminder
                    r"|\bdo i have any (?:reminders?|timers?|alarms?)\b", re.I)
 
 
+def is_request(text: str) -> bool:
+    """Is this sentence a reminder, timer, alarm, snooze, cancel or list request? (For code that must refuse them, a guest's.)"""
+    s = (text or "").strip()
+    return bool(s and (any(rx.match(s) for rx in (_REMIND, _TIMER, _TIMER_N, _ALARM, _SNOOZE, _CANCEL)) or (_LIST.search(s) and len(s.split()) <= 8)))
+
+
 @dataclass
 class Reminder:
     id: str

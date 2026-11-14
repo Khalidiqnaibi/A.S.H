@@ -1465,7 +1465,7 @@ class AmbientRuntime:
         """"Tell me when the download finishes": set up, and acknowledged
         without the model."""
         w = self.watcher
-        if w is None or not self._user_source(ev):
+        if w is None or not self._user_source(ev) or not self._meant_for_ash(ev) or self._is_guest(ev):
             return False
         try:
             before = set(w.watches)
@@ -1493,6 +1493,14 @@ class AmbientRuntime:
         addr = (getattr(ev, "meta", None) or {}).get("address") or {}
         return bool(addr.get("likely"))
 
+    def _is_guest(self, ev) -> bool:
+        return bool((getattr(ev, "meta", None) or {}).get("guest"))
+
+    def _may_confirm(self, ev, now: float) -> bool:
+        """A bare "yes" that answers a question ASH just asked: the user's, in the conversation that question opened --
+        never a guest's voice, never speech from a video or the room."""
+        return (not self._is_guest(ev)) and (self._meant_for_ash(ev) or address.conversation.openness(now) > 0.2)
+
     def _desktop_request(self, ev, now: float) -> bool:
         """"Open Outlook" / "close Word" / "run my morning check": done (or,
         for closing, asked about) without the model. Only on a line meant for
@@ -1502,6 +1510,8 @@ class AmbientRuntime:
             return False
         if not self._meant_for_ash(ev) and getattr(d, "_pending", None) is None:
             return False                  # overheard; but a bare "yes" to "Close Word?" answers it
+        if getattr(d, "_pending", None) is not None and not self._may_confirm(ev, now):
+            return False                  # ...only the user's, in that conversation: not a guest, not the TV
         try:
             from src.senses.mic import MicrophoneSensor
             text = MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or ""))
@@ -1654,7 +1664,8 @@ class AmbientRuntime:
         from .desktop import _CLOSE, _OPEN, _ROUTINE, _SWITCH
         from .research import parse_request as research_req
         from .smarthome import _DIM, _ON_OFF
-        from .watch import parse_request as watch_req
+        from .watch import parse_request as watch_req, wants_cancel as watch_cancel
+        from . import reminders as reminders_mod
         from .media import _PHOTO
         from . import arrival as arrival_mod
         from .voicectl import parse as ctl_parse
@@ -1662,6 +1673,8 @@ class AmbientRuntime:
         ctl = ctl_parse(t)
         if getattr(self, "_shutdown_asked", None) is not None:
             self._shutdown_asked = None                  # a guest's voice never confirms a shutdown
+        if self.desktop is not None:
+            self.desktop._pending = None                 # ...nor "Close Word?"
         tk = self.tasks
         acts = (watch_req(t) is not None or research_req(t) is not None
                 or (ctl is not None and ctl.name not in ("face", "faces", "status"))
@@ -1674,6 +1687,8 @@ class AmbientRuntime:
                 or (self.scenes is not None and (self.scenes.parse(t) or (None,))[0] in ("start", "end"))
                 or (tk is not None and (tk.awaiting(now_t := self.clock()) is not None or tk.hear_is_task(t)))
                 or wants_undo(t) or wants_forget(t) is not None
+                or watch_cancel(t) is not None
+                or (self.reminders is not None and reminders_mod.is_request(t))
                 or any(rx.match(t) for rx in (_OPEN, _CLOSE, _SWITCH, _ROUTINE, _ON_OFF, _DIM, _PHOTO))
                 or (self.calendar is not None and self.calendar._ASK.search(t)))
         if not acts:
@@ -1836,7 +1851,7 @@ class AmbientRuntime:
     def _arrival_request(self, ev, now: float) -> bool:
         """"Remind me when I get home to ...", "this is home": kept by network name."""
         a = self.arrivals
-        if a is None or not self._user_source(ev):
+        if a is None or not self._user_source(ev) or not self._meant_for_ash(ev) or self._is_guest(ev):
             return False
         try:
             say = a.hear(str(getattr(ev, "text", "") or ""), now)
@@ -1852,8 +1867,8 @@ class AmbientRuntime:
         """"Remind me to ...", "set a timer for ...", "wake me at ...", "snooze":
         kept and acknowledged without the model."""
         r = self.reminders
-        if r is None or not self._user_source(ev):
-            return False
+        if r is None or not self._user_source(ev) or not self._meant_for_ash(ev) or self._is_guest(ev):
+            return False                  # TV speech saying "remind me to..." or "wake me at 3" set alarms
         before = set(r.items)
         try:
             say = r.hear(str(getattr(ev, "text", "") or ""), now)
@@ -3808,6 +3823,11 @@ class AmbientRuntime:
         tk = self.tasks
         if tk is None or not self._user_source(ev) or self._capture is not None:
             return False
+        if tk.awaiting(now) is not None:
+            if not self._may_confirm(ev, now):
+                return False              # "Go ahead?" is answered by the user, not by whoever is talking nearby
+        elif not self._meant_for_ash(ev) or self._is_guest(ev):
+            return False                  # overheard "open X then close Y" made a plan, and a "yes" ran it
         try:
             from src.senses.mic import MicrophoneSensor
             text = MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or ""))
