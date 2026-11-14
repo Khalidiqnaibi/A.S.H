@@ -146,15 +146,23 @@ _SENT = re.compile(r"(?<=[.!?])\s+")
 # and narrating the person it is talking to in the third person.
 _MODELS = r"(?:deepseek|qwen|llama|mistral|gemma|phi|chatgpt|gpt|claude|gemini|openai|anthropic|alibaba|meta ai)"
 _PERSONA_LEAK = re.compile(
-    r"\bI(?:'m| am)\s+(?:an?\s+)?(?:\w+[- ]){0,3}" + _MODELS + r"\b|"
-    r"\b(?:created|made|built|developed|trained)\s+(?:exclusively\s+)?by\s+(?:the\s+)?(?:\w+\s+){0,2}" + _MODELS + r"\b|"
-    r"\bas an? (?:ai|artificial intelligence|language model|assistant)\b|"
+    # who it "really" is: "I'm DeepSeek-R1", "I am Qwen", "made by OpenAI" -- not "I'm opening Claude" or "a fan of Gemini"
+    r"\bI(?:'m| am)\s+(?:an?\s+)?" + _MODELS + r"\b|"
+    r"\b(?:created|made|built|developed|trained)\s+(?:exclusively\s+)?by\s+(?:the\s+)?(?:company\s+)?" + _MODELS + r"\b|"
+    r"\bas an? (?:ai|artificial intelligence|language model)\b|"
     r"\bI(?:'m| am) (?:just )?an? (?:ai|artificial intelligence|language model|chatbot|virtual assistant)\b|"
-    r"\bI apologi[sz]e for\b|\bsorry for (?:any|the) (?:confusion|inconvenience)\b|"
-    r"\bcould you (?:please )?(?:provide|give|share) (?:me )?(?:with )?(?:more|some|a bit more) (?:context|details|information)\b|"
-    r"\bcould you (?:please )?clarify\b|\bplease (?:provide|clarify)\b|\bI'?m not sure what you mean by that\b|"
-    r"\b(?:it )?(?:seems|looks|appears) (?:like )?(?:the|this) user\b|\bthe user (?:is|has|was|wants|asked|seems|mentioned|said|typed)\b|"
-    r"\bI see that (?:you(?:'ve| have)|the user) (?:typed|said|entered|written|mentioned)\b", re.I)
+    # a whole sentence that is only the formula: "I apologize for any confusion." / "Could you please provide more context?"
+    r"^\W*I apologi[sz]e for\b[^,;]*\W*$|^\W*sorry for (?:any|the) (?:confusion|inconvenience)\W*$|"
+    r"^\W*(?:could|can) you (?:please )?(?:provide|give|share) (?:me )?(?:with )?(?:more|some|a bit more|additional) "
+    r"(?:context|details|information)(?: or clarify[^.?!]*)?\W*$|"
+    r"^\W*(?:could|can) you (?:please )?clarify(?: what you mean| your intention| what you want)?\W*$|"
+    # narrating the person it is talking to: "The user wants...", "It seems like the user is...", "I see that you've typed..."
+    r"^\W*(?:the user (?:is|has|was|wants|asked|seems|mentioned|said|typed|just|did|does|would)\b|(?:it )?(?:seems|looks|appears)(?: like)? (?:the|this) user\b|"
+    r"I see that (?:the user|you(?:'ve| have)) (?:typed|said|entered|written|mentioned)\b)", re.I)
+# An apology that leads into the answer is stripped, and the answer kept: "I apologize for the confusion, but the capital
+# is Paris." -> "The capital is Paris."
+_APOLOGY_LEAD = re.compile(r"^\W*(?:I apologi[sz]e(?: for [^,;]*)?|sorry for (?:any|the) (?:confusion|inconvenience))[,;]\s*"
+                           r"(?:but\s+|and\s+)?", re.I)
 _MDLINK = re.compile(r"\[([^\]\n]{1,80})\]\((?:mailto:|tel:|https?://)[^)\s]*\)", re.I)
 # The addresses a model writes when it has none: never real, wherever they came from.
 _PLACEHOLDER = re.compile(r"@(?:email|mail|example|domain|test|yourdomain|company|website)\.(?:com|org|net)$|"
@@ -190,6 +198,10 @@ def sanitize(reply: str, known: Any = "") -> str:
             if _PERSONA_LEAK.search(sent):
                 leaked = True
                 continue                            # not a made-up fact: just not something ASH says
+            lead = _APOLOGY_LEAD.sub("", sent, count=1)
+            if lead != sent and lead.strip():
+                leaked = True
+                sent = lead[:1].upper() + lead[1:]  # the answer after the apology stays
             for m in _SPAN.finditer(sent):
                 span = m.group(0).strip(" .,;:)")
                 if re.search(r"x{3,}", span, re.I):
