@@ -200,11 +200,11 @@
   "manual_music": {
     "rule_id": "manual_music",
     "category": "capability",
-    "text": "ASH manual, music and photos. \"Pause the music\", \"play\", \"next song\", \"previous track\", \"turn it up\", \"mute the sound\": sent as media keys, so it works with Spotify or a browser video without knowing which. \"Take a photo\" saves one webcam frame to Pictures/ASH, only when asked and never while privacy is on. It can't pick a specific song or playlist.",
+    "text": "ASH manual, music and photos. \"Pause the music\", \"play\", \"next song\", \"previous track\", \"turn it up\", \"mute the sound\", \"make it louder\", \"lower the volume a bit\", \"play some music\": sent as media keys, so it works with Spotify or a browser video without knowing which. \"Take a photo\" saves one webcam frame to Pictures/ASH, only when asked and never while privacy is on. It can't pick a specific song or playlist.",
     "priority": 5,
     "hard": false,
     "created_at": 1794288508.2551916,
-    "updated_at": 1794288508.2551916
+    "updated_at": 1794645721.0845876
   },
   "manual_plans": {
     "rule_id": "manual_plans",
@@ -227,11 +227,11 @@
   "manual_quiet": {
     "rule_id": "manual_quiet",
     "category": "capability",
-    "text": "ASH manual, quiet and focus. \"Quiet for an hour\", \"quiet until 9\", \"go to sleep\" (wake up ends it): ASH stops volunteering but still answers you. \"Focus for 45 minutes\", \"do not disturb until 3\", \"I'm done focusing\": same, and it tells you in one line what it held back. Reminders and watches still go off. It silences itself only, not other apps' notifications.",
+    "text": "ASH manual, quiet and focus. \"Quiet for an hour\", \"quiet for forty five minutes\", \"quiet until 9\", \"go to sleep\" (wake up ends it): ASH stops volunteering but still answers you. \"Focus for 45 minutes\", \"do not disturb until 3\", \"I'm done focusing\": same, and it tells you in one line what it held back. Reminders and watches still go off. It silences itself only, not other apps' notifications.",
     "priority": 6,
     "hard": false,
     "created_at": 1794288508.2551916,
-    "updated_at": 1794288508.2551916
+    "updated_at": 1794645721.0845876
   },
   "manual_scenes": {
     "rule_id": "manual_scenes",
@@ -380,11 +380,11 @@
   "manual_screen": {
     "rule_id": "manual_screen",
     "category": "capability",
-    "text": "ASH manual, the screen. With screen capture on, ASH knows which window is focused and what it is called (the file or page, the project, the app). \"What do you see?\" or \"what's on my screen?\" makes it look at that window, say what kind of screen it is and read out the gist of the words. It never looks at its own window or terminal, at windows on its blocked list, or at chats and mail (those protections are switched off for you in daemon.json under privacy, not for others). It cannot click or type in what it sees.",
+    "text": "ASH manual, the screen. With screen capture on, ASH knows which window is focused and what it is called (the file or page, the project, the app). \"What do you see?\" or \"what's on my screen?\" makes it look at that window, say what kind of screen it is and read out the gist of the words. It never looks at its own window or terminal, at windows on its blocked list (passwords, banking, calls). Chats and mail on screen it may read: protection for those is off by default, and privacy.protect_private_content in daemon.json turns it on. It cannot click or type.",
     "priority": 5,
     "hard": false,
     "created_at": 1794320943.6915863,
-    "updated_at": 1794320943.6915863
+    "updated_at": 1794645721.0845876
   },
   "manual_activity": {
     "rule_id": "manual_activity",
@@ -416,11 +416,11 @@
   "manual_browsing": {
     "rule_id": "manual_browsing",
     "category": "capability",
-    "text": "ASH manual, browser tabs. Off until switched on (sensors.browser_tabs in daemon.json, plus the ash-tabs extension). Then ASH keeps a local ledger of how long each site was in front: site and category only, no model. Never private windows, banks, mail, chat, health or password pages, nor page text or addresses. Ask \"what have I been browsing this week?\", \"how much time on youtube?\", \"when do I focus best?\", \"what am I into lately?\", \"any suggestions about my browsing?\", \"what are my browsing habits?\". \"Tag this site as work\" teaches it; \"stop watching my tabs\" pauses; \"forget my browsing\" deletes. A guest is refused.",
+    "text": "ASH manual, browser tabs. Off until switched on (sensors.browser_tabs in daemon.json, plus the ash-tabs extension). Then a local ledger of time per site and category, no model; never private windows, banks, mail, chat, health or adult pages, nor page text or addresses. Ask \"what have I been browsing this week?\", \"when do I focus best?\", \"how many tabs do I have open?\", \"compare today with yesterday\", \"any suggestions?\". Control it: \"don't record the next hour\", \"never track youtube\", \"tag acme.dev as work\", \"keep social under 3 hours a week\", \"export my browsing data\", \"forget my browsing\". A guest is refused.",
     "priority": 4,
     "hard": false,
     "created_at": 1794402077.3460057,
-    "updated_at": 1794402077.3460057
+    "updated_at": 1794645721.0845876
   },
   "manual_learning": {
     "rule_id": "manual_learning",
@@ -430,5 +430,14 @@
     "hard": false,
     "created_at": 1794402077.3460057,
     "updated_at": 1794402077.3460057
+  },
+  "manual_camera": {
+    "rule_id": "manual_camera",
+    "category": "capability",
+    "text": "ASH manual, the camera. Off until switched on (vision.enabled in daemon.json). Then, when asked: \"look around\", \"what am I holding?\", \"remember this as my blue mug\", \"remember Omar's face\", \"who's this?\", \"is this my mug?\", \"where are my keys?\", \"what have you saved?\", \"forget Omar's face\", \"save that photo\". It keeps labels and numbers, not pictures, only on this computer, and never looks in privacy mode or for a guest. Things are told apart by colour and shape and can be mixed up; faces need the face models (python ashctl.py vision install). With presence on it knows who is here and holds private read-outs while a stranger is in view.",
+    "priority": 4,
+    "hard": false,
+    "created_at": 1794645721.0845876,
+    "updated_at": 1794645721.0845876
   }
 }

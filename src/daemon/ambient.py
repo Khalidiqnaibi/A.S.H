@@ -3233,7 +3233,8 @@ class AmbientRuntime:
                 return True
 
         # An answer to a free-moment remark (how are you?) is spent the same way.
-        if not loose and self.moments is not None and getattr(ev, "source", "") != "flow":
+        # Only what the user said can answer it: a window-switch line is not how they feel.
+        if not loose and self.moments is not None and self._user_source(ev):
             try:
                 said = self.moments.hear(getattr(ev, "text", "") or "", now)
             except Exception:

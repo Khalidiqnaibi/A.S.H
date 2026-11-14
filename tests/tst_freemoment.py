@@ -290,6 +290,11 @@ def f4_runtime():
 
     n = len(h.ash.calls)
     h.step(5, 5.0)
+    said_before = len(h.said())
+    h.say("switched to terrible awful failed build (was on exhausted for 40s)", source="active_window", addressed=False)
+    check("a window switch is not an answer: sensor text never answers the mood question (found live: "
+          "it was read as the user feeling bad)",
+          len(h.said()) == said_before and h.rt.moments.mood(h.clock[0]) is None, str(h.said()))
     h.say("pretty tired honestly", source="microphone", addressed=False)
     check("the answer is spent on the mood check, not sent to the model",
           len(h.ash.calls) == n and "Sorry" in h.said()[-1], str(h.said()))
