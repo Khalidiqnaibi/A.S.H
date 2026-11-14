@@ -192,7 +192,11 @@ class SmartHome:
             a = self.last_choices
             return "Which one -- " + ", ".join(a[:-1]) + (" or " if len(a) > 1 else "") + a[-1] + "?"
         if ent is None:
-            return None if not m and not d else f"I couldn't find anything called {name.strip()} in Home Assistant."
+            if not m and not d:
+                return None
+            if not _DEVICE.search(name):
+                return None                 # "turn off the monitor", "turn off the wifi": not a home device, not for this
+            return f"I couldn't find anything called {name.strip()} in Home Assistant."
         friendly = (ent.get("attributes") or {}).get("friendly_name") or ent["entity_id"]
         if q:
             return f"{friendly} is {ent.get('state', 'unknown')}."
