@@ -130,6 +130,8 @@ class Sensor(ABC):
 
     def __init__(self, interval: Optional[float] = None, enabled: bool = True):
         self.interval = interval if interval is not None else self.default_interval
+        self.base_interval = self.interval      # what it goes back to once it reads again
+        self.errored_at = 0.0
         self.state = State.DISABLED
         self.last_read: float = 0.0
         self.error_count = 0
@@ -187,8 +189,15 @@ class Sensor(ABC):
         if self.state in (State.ACTIVE, State.ERROR):
             self.state = State.DISABLED
 
+    RETRY_AFTER_S = 120.0
+
     def due(self, now: Optional[float] = None) -> bool:
         now = now or time.time()
+        # A sensor that gave up (a full disk, a locked screen, a device taken by a game) is tried again after a while,
+        # not left dead until someone switches it off and on.
+        if self.state == State.ERROR and self.errored_at and now - self.errored_at >= self.RETRY_AFTER_S:
+            self.state, self.error_count, self.interval = State.ACTIVE, 3, self.base_interval
+            logger.info("Sensor %s: trying again after a failure", self.name)
         return self.state == State.ACTIVE and (now - self.last_read) >= self.interval
 
     # -- the actual work -------------------------------------------------
@@ -205,16 +214,22 @@ class Sensor(ABC):
         try:
             events = self.read() or []
             self.error_count = 0
+            self.interval = self.base_interval      # one good read ends the slowdown a bad patch caused
             self.event_count += len(events)
             return events
         except Exception:
             self.error_count += 1
-            logger.exception("Sensor %s read failed (%d consecutive)", self.name, self.error_count)
-            # Exponential backoff, then give up.
+            if self.error_count == 1:
+                logger.exception("Sensor %s read failed", self.name)
+            else:
+                logger.warning("Sensor %s read failed again (%d in a row)", self.name, self.error_count)
+            # Exponential backoff, then rest for a couple of minutes (due() tries it again).
             self.interval = min(self.interval * 2, 300.0)
             if self.error_count >= 5:
                 self.state = State.ERROR
-                logger.error("Sensor %s disabled after %d failures", self.name, self.error_count)
+                self.errored_at = time.time()
+                logger.error("Sensor %s paused after %d failures; it will be tried again in %.0fs",
+                             self.name, self.error_count, self.RETRY_AFTER_S)
             return []
 
     def close(self):

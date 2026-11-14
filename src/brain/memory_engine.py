@@ -42,7 +42,7 @@ WM_TTL = 600.0   # seconds before a working-memory slot decays out
 # like (tools/LLM.py returns the error as plain text rather than raising). Neither
 # is something ASH meant, so neither may be remembered: a provider error stored
 # as an utterance became entities, "core" context and cached replies.
-NO_REPLY_TEXT = "I've got nothing useful for that one."
+NO_REPLY_TEXT = "That one's got me stumped -- try it another way?"
 # Wordings this line has had before. They are still out there -- in episodic
 # memory, in reflex caches, in journals written by an older build -- and a
 # retired line that stops being recognised is a failure that gets replayed as

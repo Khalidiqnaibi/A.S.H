@@ -40,6 +40,8 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from src.memory.atomic import log_io_failure
+
 logger = logging.getLogger("ash.daemon.journal")
 
 JOURNAL_DIR = os.environ.get("ASH_JOURNAL_DIR", os.path.join(os.getcwd(), "state", "journal"))
@@ -86,14 +88,18 @@ class Journal:
         by_day: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
         for r in self._buffer:
             by_day[self._path(r["ts"])].append(r)
+        failed: List[Dict[str, Any]] = []
         for path, rows in by_day.items():
             try:
                 with open(path, "a", encoding="utf-8") as fh:
                     for r in rows:
                         fh.write(json.dumps(r, ensure_ascii=False) + "\n")
-            except Exception:
-                logger.exception("Journal write failed for %s", path)
-        self._buffer.clear()
+            except Exception as e:
+                log_io_failure(logger, "the journal", e)
+                failed.extend(rows)
+        # What could not be written (a full disk) is kept, a little, for the next flush -- not dropped, and not allowed
+        # to grow without end.
+        self._buffer[:] = failed[-500:]
 
     # ------------------------------------------------------------------
     def read_day(self, day: Optional[str] = None) -> List[Dict[str, Any]]:

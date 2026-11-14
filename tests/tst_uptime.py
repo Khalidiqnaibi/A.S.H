@@ -67,7 +67,15 @@ def u1_files():
     with open(old + ".runs", "w") as fh:
         fh.write("{not json")
     c4 = make(old)
-    check("a damaged file is survived", len(c4.runs) == 1)
+    check("a damaged file is survived: the last good copy is used, and the damaged one is set aside",
+          len(c4.runs) >= 2 and os.path.exists(old + ".runs.bad"), str(c4.runs))
+    for ext in ("", ".bak", ".bad"):
+        if os.path.exists(old + ".runs" + ext):
+            os.remove(old + ".runs" + ext)
+    with open(old + ".runs", "w") as fh:
+        fh.write("")
+    c4b = make(old)
+    check("an empty file (the power went) with no backup: starts fresh, and starts", len(c4b.runs) == 1)
 
 
 def u2_beats():

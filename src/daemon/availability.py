@@ -63,7 +63,7 @@ class Avail:
 
 def judge(process: str = "", subject: str = "", idle_s: Optional[float] = None, since_free_s: float = 0.0,
           focus: bool = False, conversation: bool = False, speaking: bool = False, away_s: float = 600.0,
-          private: bool = False, video_page: bool = False) -> Avail:
+          private: bool = False, video_page: bool = False, game_up: bool = False) -> Avail:
     """The state from what is in front and how long the hands have been off."""
     if idle_s is None:
         return Avail("unknown", False, 0.0, "no way to tell when they are at the machine")
@@ -79,7 +79,7 @@ def judge(process: str = "", subject: str = "", idle_s: Optional[float] = None, 
         return Avail("call", False, 0.0, "in a call")
     if stem in BROWSERS and _CALL_TITLE.search(title) and re.search(r"\b(?:meet|zoom|teams|webex)\b", title, re.I):
         return Avail("call", False, 0.0, "in a call")
-    if ACTIVITY_OF.get(stem) == "gaming":
+    if game_up or ACTIVITY_OF.get(stem) == "gaming":       # game_up: game mode saw one (a full-screen program, or one running behind)
         return Avail("gaming", False, 0.0, "playing a game")
     if _PRESENT_TITLE.search(title):
         return Avail("presenting", False, 0.0, "presenting")

@@ -99,6 +99,17 @@ def attach_ui(runtime, bus, opener: Optional[Callable[[], Any]] = None,
 
     # ---- output -------------------------------------------------------
     def sink(text: str, meta: Dict[str, Any]):
+        # What the runtime would drop is not shown either: an answer the user cancelled ("never mind") reached the console
+        # even though it was never spoken, and in kids mode the unfiltered text did.
+        try:
+            if (text and getattr(runtime, "_cancelled", False) and meta.get("addressed")
+                    and threading.current_thread() is getattr(runtime, "_respond_thread", None)):
+                return orig_sink(text, meta)
+            kids = getattr(runtime, "kids", None)
+            if text and kids is not None and kids.active:
+                text = kids.filter(text)
+        except Exception:
+            logger.debug("UI hook could not pre-check a line", exc_info=True)
         try:
             if cycle["t0"] is not None:          # what ASH did reads before what it says
                 _report_trace(runtime, bus, cycle["t0"], cycle)
@@ -127,7 +138,12 @@ def attach_ui(runtime, bus, opener: Optional[Callable[[], Any]] = None,
                         replies=QUICK_REPLIES.get(kind, []) if role == "offer" else [],
                         why=", ".join(att.get("reasons") or [])[:200])
             now = time.time()
-            if (opener is not None and open_on_message and bus.clients == 0
+            game = getattr(runtime, "game", None)
+            busy = bool(game is not None and game.active)            # a window popping over a game is not a nicety
+            avail = getattr(runtime, "_avail", None)
+            if not meta.get("addressed") and avail is not None and not getattr(avail, "can_talk", True):
+                busy = True                                         # unprompted, and they cannot be talked to right now
+            if (opener is not None and open_on_message and bus.clients == 0 and not busy
                     and now - last_open[0] > REOPEN_MIN_S):
                 last_open[0] = now
                 opener()

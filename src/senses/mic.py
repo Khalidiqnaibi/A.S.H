@@ -157,8 +157,12 @@ class MicrophoneSensor(Sensor):
                  silence_ms: int = 700, min_speech_ms: int = 400,
                  max_utterance_s: float = 20.0,
                  transcriber=None, keep_audio: bool = False, voiceprint: bool = False,
-                 speculative: bool = True, early_ms: int = 300, barge=None, wake=None):
+                 speculative: bool = True, early_ms: int = 300, barge=None, wake=None, local_only: bool = True):
         self.device = device
+        # privacy.require_local_asr: with it (the default) speech is recognised on this machine or not at all. The online
+        # fallback used to run whenever Whisper failed to load or ran out of memory, which sent the room's audio to Google.
+        self.local_only = bool(local_only)
+        self.restarts = 0
         # Live voice (livevoice.py). speculative: start transcribing `early_ms` into the end-of-turn silence, so the
         # words are ready when the silence is long enough (a word after that throws the guess away). barge: a
         # BargeIn -- the user talking over ASH stops it at once (on_barge_in), from the level alone. wake: a WakeGate
@@ -338,8 +342,19 @@ class MicrophoneSensor(Sensor):
                     early = None
                     buf, preroll = [], collections.deque(maxlen=int(400 // FRAME_MS))
         except Exception:
-            logger.exception("Microphone loop died")
-            self.state = self.state.__class__.ERROR
+            # A headset unplugged, a game grabbing the device, an overflow: not the end of listening. Try again in a
+            # little while, a little longer each time, instead of staying deaf until someone turns it off and on.
+            self.restarts += 1
+            wait = min(60.0, 5.0 * self.restarts)
+            logger.exception("Microphone loop died (restart %d in %.0fs)", self.restarts, wait)
+            if self.restarts <= 8 and not self._stop.is_set():
+                def again():
+                    if not self._stop.wait(wait) and self.state == self.state.__class__.ACTIVE:
+                        self._thread = None
+                        self._start_capture()
+                threading.Thread(target=again, daemon=True, name="ash-mic-retry").start()
+            else:
+                self.state = self.state.__class__.ERROR
 
     def _live(self, frame):
         """Per frame: the wake word, and the user talking over ASH."""
@@ -463,7 +478,9 @@ class MicrophoneSensor(Sensor):
             from faster_whisper import WhisperModel  # type: ignore
 
             if not hasattr(self, "_whisper"):
-                self._whisper = WhisperModel("base.en", device="cpu", compute_type="int8")
+                # Two threads, not every core: the game, or whatever else is running, still needs most of them.
+                self._whisper = WhisperModel("base.en", device="cpu", compute_type="int8", cpu_threads=2,
+                                             local_files_only=self.local_only)
             # The hint makes the name likelier to come out as "Ash" -- it was
             # heard as "Ass system status" and ignored.
             segs, _ = self._whisper.transcribe(audio.astype(np.float32) / 32768.0,
@@ -474,7 +491,12 @@ class MicrophoneSensor(Sensor):
                                                condition_on_previous_text=False)
             return trusted_text(list(segs))
         except Exception:
-            pass
+            if self.local_only:
+                logger.warning("Local speech recognition failed; not sending audio anywhere (privacy.require_local_asr)")
+                return ""
+
+        if self.local_only:
+            return ""           # privacy.require_local_asr: the room's audio never goes to an online service
 
         try:
             import speech_recognition as sr

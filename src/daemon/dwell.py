@@ -38,6 +38,8 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from src.memory.atomic import load_json, log_io_failure, write_json
+
 from .social import friendly_app
 
 logger = logging.getLogger("ash.daemon.dwell")
@@ -265,20 +267,17 @@ class Dwell:
         if not self.path:
             return
         try:
-            os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True)
-            tmp = self.path + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as fh:
-                json.dump({"v": 1, "day": self.day}, fh)
-            os.replace(tmp, self.path)
-        except Exception:
-            logger.exception("Could not save the dwell record")
+            write_json(self.path, {"v": 1, "day": self.day})
+        except Exception as e:
+            log_io_failure(logger, "the dwell record", e)
 
     def _load(self) -> None:
-        if not self.path or not os.path.exists(self.path):
+        if not self.path:
+            return
+        d = load_json(self.path, default=None, logger=logger)      # the file, else its backup, else nothing
+        if not isinstance(d, dict):
             return
         try:
-            with open(self.path, "r", encoding="utf-8") as fh:
-                d = json.load(fh)
             self.day = {str(k): {str(a): float(b) for a, b in v.items()} for k, v in d.get("day", {}).items()}
         except Exception:
             logger.exception("Dwell record unreadable; starting fresh")

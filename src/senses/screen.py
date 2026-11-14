@@ -299,6 +299,35 @@ def _hamming(a: int, b: int) -> int:
     return bin(a ^ b).count("1")
 
 
+def _fills_monitor(u32, hwnd) -> bool:
+    """Does this window cover its whole monitor with no title bar? Exclusive and borderless-fullscreen games do; a
+    maximised window keeps its frame (and its taskbar), so it does not."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class _MI(ctypes.Structure):
+            _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT), ("rcWork", wintypes.RECT),
+                        ("dwFlags", wintypes.DWORD)]
+        if not hwnd:
+            return False
+        u32.MonitorFromWindow.restype = ctypes.c_void_p
+        hmon = u32.MonitorFromWindow(ctypes.c_void_p(hwnd), 2)        # nearest
+        mi = _MI()
+        mi.cbSize = ctypes.sizeof(mi)
+        if not hmon or not u32.GetMonitorInfoW(ctypes.c_void_p(hmon), ctypes.byref(mi)):
+            return False
+        r = wintypes.RECT()
+        if not u32.GetWindowRect(ctypes.c_void_p(hwnd), ctypes.byref(r)):
+            return False
+        m = mi.rcMonitor
+        covers = r.left <= m.left and r.top <= m.top and r.right >= m.right and r.bottom >= m.bottom
+        framed = bool(u32.GetWindowLongW(ctypes.c_void_p(hwnd), -16) & 0x00C00000)        # WS_CAPTION
+        return bool(covers and not framed)
+    except Exception:
+        return False
+
+
 # ----------------------------------------------------------------------
 class ActiveWindowSensor(Sensor):
     """Which application has focus, and for how long.
@@ -338,6 +367,8 @@ class ActiveWindowSensor(Sensor):
         # Which process owns the focused window, as of the last current().
         self.last_pid: int = 0
         self.last_console: bool = False
+        self.last_process: str = ""
+        self.last_fullscreen: bool = False       # fills the whole monitor with no frame: a game, usually
         super().__init__(interval=interval, enabled=enabled)
 
     def hosts_daemon(self) -> bool:
@@ -382,6 +413,8 @@ class ActiveWindowSensor(Sensor):
         except Exception:
             pass
         self.last_pid = int(pid.value or 0)
+        self.last_process = proc
+        self.last_fullscreen = _fills_monitor(u32, hwnd)
         # A classic console window is the daemon's own when it is the one this
         # process is attached to. (Under Windows Terminal the console window
         # is a hidden stand-in, so that case is caught by ancestry instead.)
@@ -500,7 +533,7 @@ class ActiveWindowSensor(Sensor):
                   "subject": subject, "project": project, "dwell": dwell},
             persistable=not blocked,
             meta={"process": proc, "subject": subject, "project": project,
-                  "blocked": blocked, "dwell_s": round(dwell, 1),
+                  "blocked": blocked, "dwell_s": round(dwell, 1), "fullscreen": bool(self.last_fullscreen),
                   "private": looks_private(title, proc)},
         )]
 
@@ -528,8 +561,10 @@ class ScreenshotSensor(Sensor):
                  hamming_threshold: int = 6, save_frames: bool = False,
                  max_frames: int = 500, read_text: bool = False,
                  describe: bool = True, read_text_every_s: float = 120.0,
-                 ocr_threads: int = 2):
+                 ocr_threads: int = 2, min_repeat_s: float = 120.0):
         self._grab = None
+        self._last_said: Optional[Tuple[str, float]] = None
+        self.min_repeat_s = float(min_repeat_s)
         self.ocr_threads = int(ocr_threads or 2)
         self.window_sensor = window_sensor
         self.hamming_threshold = hamming_threshold
@@ -706,6 +741,15 @@ class ScreenshotSensor(Sensor):
         where = f" while in {title[:60]}" if title else ""
         what = screenread.phrase(scene)
         text = f"screen changed{where}" + (f" -- {what}" if what else "")
+        # A film or a video changes the picture every frame, so one window produced 405 of a day's 492 journal lines
+        # ("screen changed while in Stremio -- a mix of text and images", over and over). The same window is said once
+        # in a while, not on every change; a different window is said at once.
+        now_t = time.time()
+        last = self._last_said
+        if last is not None and last[0] == (title or "") and now_t - last[1] < self.min_repeat_s:
+            self._dropped += 1
+            return out
+        self._last_said = ((title or ""), now_t)
 
         out.append(SensorEvent(
             source=self.name, modality=Modality.VISION,
@@ -799,6 +843,16 @@ class ScreenshotSensor(Sensor):
             self._last_view = {"title": title, "process": proc, "scene": scene,
                                "text": text, "at": time.time()}
         return base
+
+    def release(self):
+        """Drop the OCR engines from memory; they are rebuilt the next time they are needed."""
+        self._reader = None
+        self._look_reader = None
+        try:
+            import gc
+            gc.collect()
+        except Exception:
+            pass
 
     def _maybe_read(self, img, title: str, scene: str, ahash: int, proc: str = ""):
         """Kick off an OCR pass if one is due and none is running.

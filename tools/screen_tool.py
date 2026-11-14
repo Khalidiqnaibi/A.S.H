@@ -66,11 +66,25 @@ _SCENE = {
 }
 
 
+# What is not worth reading out: log lines ("2026-11-09 14:43:43,078 INFO Intent candidate..."), tracebacks, and lines that
+# are mostly symbols. Read back verbatim they made ASH sound like a terminal.
+_LOGLINE = re.compile(r"^\s*(?:\d{4}-\d\d-\d\d[ T]\d\d:\d\d|\[\d\d:\d\d|\d\d:\d\d:\d\d)|"
+                      r"\b(?:INFO|DEBUG|WARNING|ERROR|CRITICAL|Traceback|Exception)\b|^\s*File \"", re.I)
+
+
+def _readable(piece: str) -> bool:
+    if _LOGLINE.search(piece):
+        return False
+    letters = sum(c.isalpha() for c in piece)
+    return len(piece) > 0 and letters / len(piece) >= 0.6
+
+
 def _spoken_text(text: str) -> str:
     """The gist as a spoken clause: the line breaks the OCR used become full
     stops, and it is cut at a word, not in the middle of one."""
     # "def f(x): / return y" must not become "def f(x):. return y".
     pieces = [p.strip().rstrip(".:;,") for p in re.split(r"\s*/\s*", text or "") if p.strip()]
+    pieces = [p for p in pieces if _readable(p)]
     flat = ". ".join(pieces)
     if len(flat) <= MAX_SPOKEN_TEXT:
         return flat
@@ -121,7 +135,9 @@ def describe_view(view: Dict[str, Any]) -> str:
 
     text = _spoken_text(view.get("text", ""))
     if text:
-        parts.append(f"The part I can read says: {text}")
+        parts.append(f"I can make out: {text}")
+    elif (view.get("text") or "").strip():
+        parts.append("It's mostly code and logs -- nothing I'd read out.")
     elif view.get("reader") is False:
         parts.append("I can tell what kind of screen it is, but I don't have anything "
                      "installed that reads the words on it.")

@@ -190,6 +190,13 @@ ENTRIES: List[Tuple[str, int, str]] = [
      "guesses nothing, and idle time is not an activity. Ask \"what do I listen to while coding?\". What you say, like "
      "\"I listen to lo-fi while I'm studying\", stands over what it saw. It uses program names only, never titles or "
      "screen text."),
+    ("game", 5,
+     "ASH manual, when you game. When a game is up -- a known one like League of Legends or Valorant, or any program "
+     "that fills the whole screen -- ASH gets out of its way: it drops to idle priority, pauses the screen sensor and "
+     "the microphone, lets go of its vision model, tells Ollama to unload, and says nothing unprompted. It waits 8 "
+     "seconds before acting and 45 after the game ends, then everything comes back by itself. \"ashctl game\" says what "
+     "it is doing; game_mode in daemon.json turns any part off. Limits: with the mic paused it cannot hear you, and "
+     "the first question after a game takes a few seconds while the language model loads again."),
     ("limits", 7,
      "ASH manual, what ASH cannot do. It cannot browse the web or open links, send email, texts or chat messages, make "
      "calls, buy or order anything, know your location, control other people's devices, or see the screen unless "

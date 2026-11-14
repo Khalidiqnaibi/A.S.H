@@ -75,7 +75,8 @@ SONGS = [
      "zero one {x}, we'll be there soon!"),
 ]
 
-_LEAD = r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:please|can\s+you|could\s+you|will\s+you|would\s+you)[,\s]+)*"
+_THANKS = r"(?:(?:thanks?(?:\s+you)?|thank\s+you|ok(?:ay)?|cool|nice|great|alright|so|and|now|hey)(?:\s+ash)?[\s,.\-\u2013\u2014\u2026]*)*"
+_LEAD = r"^\s*" + _THANKS + r"(?:(?:hey\s+)?ash[,\s]+)?(?:(?:please|can\s+you|could\s+you|will\s+you|would\s+you)[,\s]+)*"
 _JOKE = re.compile(_LEAD + r"(?:tell\s+me\s+(?:a|another)\s+joke|(?:a|another)\s+joke|make\s+me\s+laugh|say\s+something\s+funny|"
                    r"(?:tell\s+me\s+)?another\s+one|one\s+more(?:\s+joke)?)\s*(?:please)?\s*[.!?]*\s*$", re.I)
 _SONG = re.compile(_LEAD + r"(?:sing|make\s+up)\s+(?:me\s+)?(?:a\s+(?:little\s+)?song|something)(?:\s+(?:about|for|on)\s+(?P<x>.{2,40}?))?\s*(?:please)?\s*[.!?]*\s*$", re.I)

@@ -217,6 +217,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "episode_min_s": 300.0,  # a stretch this long earns a sentence
         "max_episodes_per_hour": 6,
     },
+    # Game mode: a game up (a known one, or any program that fills the screen) and ASH gets out of its way -- idle
+    # priority, screen sensor and mic paused, vision and language models released -- and everything comes back after.
+    "game_mode": {"enabled": True, "enter_after_s": 8.0, "leave_after_s": 45.0, "lower_priority": True,
+                  "pause_screen": True, "pause_mic": True, "free_model": True, "fullscreen_counts": True},
     # Taste: what the user, and the people they talk about, like and dislike
     # ("I love Interstellar", "Ali likes jazz when he's sad"), learned from
     # what is said and kept with what ASH knows about people (taste.py). It
@@ -306,8 +310,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # Play: "let's play a game" (a number game, or a quiz on your own people);
     # at a free moment ASH may say it is bored (only when your mood is good)
     # or offer an evening story. free_moments.disabled can drop bored/story.
-    # voice: the TTS voice game lines are spoken in ("" for the usual one).
-    "play": {"enabled": True, "voice": "bm_george"},
+    # voice: a different TTS voice for game lines (e.g. "bm_george"); "" keeps ASH's own, which is what a game
+    # should sound like -- the same ASH, playing.
+    "play": {"enabled": True, "voice": ""},
     # The remark log: everything ASH says and how it landed, kept two weeks
     # under state/remarks/, read back by `ashctl review [days]` with tips on
     # what to tune. keep_text false keeps only the kind and the reaction.
@@ -711,6 +716,11 @@ class ControlServer:
                 lk.presence.clear()
                 return {"ok": True, "report": f"forgot {gone} visual entr{'y' if gone == 1 else 'ies'}"}
             return {"ok": True, "report": lk.listing(time.time()), "status": lk.status()}
+        if cmd == "game":
+            g = getattr(rt, "game", None)
+            if g is None:
+                return {"ok": False, "error": "game mode is not enabled (daemon.json: game_mode.enabled)"}
+            return {"ok": True, "report": g.report(), "status": g.status()}
         if cmd == "profile":
             t = getattr(rt, "taste", None)
             if t is None:
@@ -725,7 +735,7 @@ class ControlServer:
             return {"ok": True, "stopping": True}
         return {"ok": False, "error": f"unknown command {cmd!r}",
                 "commands": ["status", "pause", "resume", "mute", "unmute", "say",
-                             "why", "history", "sleep", "rollup", "sensors", "hud", "face", "wonders", "wonder", "activity", "profile", "vision", "asks", "followups", "corrections", "routines", "briefing", "watches", "review",
+                             "why", "history", "sleep", "rollup", "sensors", "hud", "face", "wonders", "wonder", "activity", "profile", "game", "vision", "asks", "followups", "corrections", "routines", "briefing", "watches", "review",
                              "enable", "disable", "simulate", "shutdown"]}
 
     # ------------------------------------------------------------------
@@ -923,6 +933,9 @@ class Watchdog:
                 logger.exception("Watchdog itself failed")
 
 
+_CONSOLE_HANDLER = None
+
+
 def install_signal_handlers(on_shutdown: Callable[[], None]):
     def _handler(signum, _frame):
         logger.warning("Received signal %s -- shutting down", signum)
@@ -940,3 +953,27 @@ def install_signal_handlers(on_shutdown: Callable[[], None]):
             signal.signal(signal.SIGBREAK, _handler)
         except Exception:
             pass
+    # Closing the console window, logging off and shutting down arrive as console control events, which Python's signal
+    # module never sees: ASH was simply killed, with nothing saved and no clean end recorded -- the "10 unexpected
+    # shutdowns" in its own report were mostly this. The handler gets a few seconds from Windows, so it does the stop
+    # and does not return until it is done.
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            handler_type = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_uint)
+
+            def _console_event(ctrl_type):
+                if ctrl_type in (2, 5, 6):                    # CLOSE, LOGOFF, SHUTDOWN
+                    logger.warning("Console event %s (window closed or logging off) -- shutting down", ctrl_type)
+                    try:
+                        on_shutdown()
+                    except Exception:
+                        logger.exception("Shutdown from a console event failed")
+                    return 1
+                return 0
+
+            global _CONSOLE_HANDLER                           # keep a reference, or it is collected and Windows calls nothing
+            _CONSOLE_HANDLER = handler_type(_console_event)
+            ctypes.windll.kernel32.SetConsoleCtrlHandler(_CONSOLE_HANDLER, True)
+        except Exception:
+            logger.debug("Could not install the console close handler", exc_info=True)

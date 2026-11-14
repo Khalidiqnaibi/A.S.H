@@ -16,6 +16,7 @@ ashctl.py -- talk to a running ASH daemon.
     python ashctl.py history 200            # last N decision traces
     python ashctl.py history-export out.json  # write history to a file for
                                                # tools/web/decision_explorer.html
+    python ashctl.py game                  # is game mode on (a game is up, ASH is out of the way)
     python ashctl.py wonders               # what ASH is wondering about
     python ashctl.py wonder off|on         # master switch
     python ashctl.py wonder dismiss <id>   # drop one question

@@ -61,6 +61,7 @@ from datetime import datetime
 from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
 
 from .social import friendly_app
+from src.memory.atomic import log_io_failure, write_json
 
 logger = logging.getLogger("ash.daemon.activity")
 
@@ -243,16 +244,13 @@ class ActivityMemory:
         now = self.clock()
         if not force and now - self._saved_at < 30.0:
             return
+        self._saved_at = now                    # even a failed attempt waits: a full disk is not retried every tick
         try:
-            os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
-            tmp = self.path + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as fh:
-                json.dump({"v": 1, "stats": self.stats,
-                           "topics": {k: asdict(t) for k, t in self.topics.items()}}, fh)
-            os.replace(tmp, self.path)
-            self._dirty, self._saved_at = False, now
-        except Exception:
-            logger.exception("Could not write the activity file")
+            write_json(self.path, {"v": 1, "stats": self.stats,
+                                   "topics": {k: asdict(t) for k, t in self.topics.items()}})
+            self._dirty = False
+        except Exception as e:
+            log_io_failure(logger, "the activity file", e)
 
     # ---- input -----------------------------------------------------------
     def observe(self, ev, now: Optional[float] = None) -> None:

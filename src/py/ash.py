@@ -286,6 +286,7 @@ class ASH:
     def _append_history(self, role: str, text: str):
         ash_state.setdefault("history", [])
         ash_state["history"].append({"role": role, "text": text, "time": _now_iso()})
+        del ash_state["history"][:-300]                 # the last few hundred: nothing reads further back
 
     def _append_tool_log(self, tool_name: str, tool_input: Any, tool_output: Any):
         ash_state.setdefault("tool_log", [])
@@ -296,6 +297,7 @@ class ASH:
             "input": tool_input,
             "output": tool_output,
         })
+        del ash_state["tool_log"][:-300]
 
     def _sync_state(self, query: str, response):
         ash_state["input"] = query

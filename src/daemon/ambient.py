@@ -41,6 +41,7 @@ from __future__ import annotations
 import logging
 import re
 import queue
+import sys
 import threading
 import time
 from collections import deque
@@ -54,6 +55,7 @@ from .journal import Journal
 from .privacy import PrivacyPolicy
 from .activity import ActivityConfig, ActivityMemory
 from .occasion import Occasion
+from .gamemode import GameMode, GameModeConfig
 from .taste import Taste, TasteConfig
 from .followups import FollowUpActivity, FollowUps, FollowUpsConfig
 from .freemoment import FreeMoments, ProviderActivity, default_moments, mood_of
@@ -134,7 +136,7 @@ def clip_reply(text: str, limit: int) -> str:
     return head.rsplit(" ", 1)[0].rstrip(" ,;:") + "..."
 
 
-NO_MODEL_TEXT = "My model isn't answering right now, so I've got nothing for you on that."
+NO_MODEL_TEXT = "My brain's not answering right now. Give it a minute and ask me again."
 
 
 @dataclass
@@ -208,6 +210,10 @@ class AmbientConfig:
     # Needs wonder. Off on a bare runtime; the daemon turns it on.
     taste: bool = False
     taste_cfg: Optional[Dict[str, Any]] = None
+    # Game mode: with a game up, ASH drops to idle priority, pauses the screen sensor and the mic, frees the vision and
+    # language models, and keeps quiet (gamemode.py). On in the daemon; a bare test runtime leaves it off.
+    game_mode: bool = False
+    game_cfg: Optional[Dict[str, Any]] = None
     # Follow-ups: an event the user mentions ("my interview on Thursday") is
     # asked about after it happened, at a free moment (followups.py). Needs
     # moments to be asked. Off on a bare runtime; the daemon turns it on.
@@ -505,6 +511,11 @@ class AmbientRuntime:
         self.taste: Optional[Taste] = None
         # What the user is doing, so a play can be linked to it ("while coding").
         self.occasion = Occasion(clock=lambda: self.clock())
+        # Out of a game's way (gamemode.py). Off unless the daemon turns it on.
+        self.game: Optional[GameMode] = None
+        if self.cfg.game_mode:
+            self.game = GameMode(GameModeConfig.from_dict(self.cfg.game_cfg), clock=lambda: self.clock(),
+                                 periphery=self.periphery, release=self._release_models, restore=self._wake_models)
         # What the now-playing sensor last reported as on (None: nothing), so "this song" means something.
         self._playing: Optional[Dict[str, Any]] = None
         # What the browser-tab ledger says about the user, by rule (browsing.py). Inert without the sensor.
@@ -803,6 +814,7 @@ class AmbientRuntime:
         self._think_started = 0.0               # when the answer in progress began
         self._think_query = ""
         self._cancelled = False                 # "never mind" said while it was in progress
+        self._cancel_lock = threading.Lock()    # the loop and the fast lane both touch _cancelled and the model's block
         self._respond_thread: Optional[threading.Thread] = None
         self._lane: Optional[threading.Thread] = None
         self._lane_skip: set = set()
@@ -855,8 +867,8 @@ class AmbientRuntime:
             # "I've sent the email": nothing was sent. A tool that really ran is exempt.
             logger.info("Model claimed something it did not do -- replaced: %r", text[:120])
             text = honest.NOT_DONE
-        if (text and meta.get("addressed") and str(meta.get("pathway", "")).lower() == "slow"
-                and not meta.get("degraded")):
+        if (text and (meta.get("addressed") or str(meta.get("pathway", "")).lower() == "offer")
+                and str(meta.get("pathway", "")).lower() in ("slow", "offer") and not meta.get("degraded")):
             try:
                 clean = honest.sanitize(text, self._known_text)
             except Exception:
@@ -956,8 +968,24 @@ class AmbientRuntime:
                 self.activity.save(force=True)
             except Exception:
                 logger.exception("Could not flush activity memory")
+        self._save_learning()
         self.periphery.close_all()
         logger.info("Ambient runtime stopped. %s", self.stats)
+
+    def _save_learning(self):
+        """What the brain has learned is written on a clean stop, not only in the sleep phase -- which a PC that is gamed
+        on, or restarted by Windows, rarely reaches, so the learning was lost on every restart."""
+        b = getattr(self, "brain", None)
+        if b is None:
+            return
+        for name, fn in (("concept network", lambda: b.concepts.net.save() if getattr(b, "concepts", None) is not None else None),
+                         ("system 1", lambda: b.system1.save()),
+                         ("predictive model", lambda: b.predictive.save()),
+                         ("request history", lambda: b.sensory.save_requests())):
+            try:
+                fn()
+            except Exception:
+                logger.warning("Could not save the %s on stop", name, exc_info=True)
 
     def alive(self) -> bool:
         return bool(self._thread and self._thread.is_alive())
@@ -1097,7 +1125,12 @@ class AmbientRuntime:
         for i, ev in enumerate(events):
             self._rest = events[i + 1:]
             self.stats["events"] += 1
-            self._handle(ev)
+            try:
+                self._handle(ev)
+            except Exception:
+                self.stats["errors"] = self.stats.get("errors", 0) + 1
+                logger.exception("Handling an event failed (%s: %r)", getattr(ev, "source", "?"),
+                                 str(getattr(ev, "text", ""))[:60])
         self._rest = []
 
         # 2b. Carry on a plan, one step per tick, but never on a tick where
@@ -1137,6 +1170,7 @@ class AmbientRuntime:
             self._idle_now = idle_s
             self._availability(now, idle_s)
             self.occasion.tick(now, idle_s)
+            self._game_step(now)
             if self.dwell is not None and idle_s is not None:
                 self._dwell_step(now, idle_s)
             if self.activity is not None:
@@ -2128,7 +2162,8 @@ class AmbientRuntime:
             a = judge(process, subject, idle_s, since_free_s=since,
                       focus=bool(self.focus is not None and self.focus.active(now)),
                       conversation=address.conversation.openness(now) > 0.2,
-                      speaking=self._speaking_now(), away_s=self.cfg.dwell_away_s, private=private, video_page=video)
+                      speaking=self._speaking_now(), away_s=self.cfg.dwell_away_s, private=private, video_page=video,
+                      game_up=bool(self.game is not None and self.game.active))
         except Exception:
             logger.exception("Availability failed")
             return
@@ -2860,6 +2895,31 @@ class AmbientRuntime:
         except Exception:
             logger.exception("Taste failed on what was played")
 
+    def _game_step(self, now: float):
+        """Once a tick: is a game up? (the sensor already knows what is in front and whether it fills the screen)"""
+        g = self.game
+        if g is None:
+            return
+        try:
+            aw = getattr(self.periphery, "sensors", {}).get("active_window")
+            g.look(str(getattr(aw, "last_process", "") or ""), bool(getattr(aw, "last_fullscreen", False)), now)
+        except Exception:
+            logger.exception("Game mode failed on a tick")
+
+    def _release_models(self):
+        """What can be let go of while a game runs: the vision model and the OCR engines."""
+        v = getattr(getattr(self.brain, "sensory", None), "vision", None)
+        if v is not None and hasattr(v, "rest"):
+            v.rest()
+        shot = getattr(self.periphery, "sensors", {}).get("screenshot")
+        if shot is not None and hasattr(shot, "release"):
+            shot.release()
+
+    def _wake_models(self):
+        v = getattr(getattr(self.brain, "sensory", None), "vision", None)
+        if v is not None and hasattr(v, "wake"):
+            v.wake()
+
     def _wonder_reaction(self, rep, now: float):
         """The user's reply to a question is a reaction to it. An addressed
         reply was already read by the reaction tracker; one heard without
@@ -3064,23 +3124,22 @@ class AmbientRuntime:
             return
         self.stats["responded"] += 1
         self._last_activity = time.time()
-        self._thinking += 1
-        self._cancelled = False
+        with self._cancel_lock:
+            self._resume_model()                  # a block left by a cancel that landed late must not outlive its answer
+            self._thinking += 1
+            self._cancelled = False
         self._think_started = time.time()
         self._think_query = str(getattr(ev, "text", "") or "")[:80]
         self._respond_thread = threading.current_thread()
         try:
             self._respond(ev, decision)
         finally:
-            self._thinking -= 1
-            self._think_started = 0.0
-            if self._cancelled:
-                try:
-                    from tools.LLM import resume
-                    resume()                                  # the next question may use the model again
-                except Exception:
-                    logger.debug("could not resume the model", exc_info=True)
-            self._cancelled = False
+            with self._cancel_lock:
+                self._thinking -= 1
+                self._think_started = 0.0
+                self._cancelled = False
+                self._respond_thread = None
+                self._resume_model()                      # the next question may use the model again
             if (ev.meta or {}).get("offer") == "wonder":
                 self._wonder_inflight = None
             elif (ev.meta or {}).get("offer") == "moment":
@@ -3428,11 +3487,11 @@ class AmbientRuntime:
                 say = helped
             elif react is not None and react.offer.accept_context:
                 context = (f"{context}\n[{react.offer.accept_context} "
-                           f"The user's message is their answer to that.]").strip()
+                           f"Their message is their answer to that.]").strip()
             elif self._ask_res is not None and self._ask_res.outcome != "moved_on":
                 said = {"answered": "their answer", "accepted": "their yes", "declined": "their no",
                         "later": "them putting it off"}.get(self._ask_res.outcome, "their reply")
-                context = (f"{context}\n[You had asked the user: \"{self._ask_res.ask.text}\" "
+                context = (f"{context}\n[You had asked them: \"{self._ask_res.ask.text}\" "
                            f"Their message is {said}.]").strip()
         elif offer == "stuck_help" and meta.get("say"):
             say = str(meta["say"])
@@ -3457,7 +3516,7 @@ class AmbientRuntime:
                                  str(meta.get("project", ""))).strip()
             fact = ev.text if (not where or where in ev.text) else f"{ev.text} ({where})"
             prompt = (
-                f"[FREE MOMENT -- the user did not ask you anything. Fact: {fact}. "
+                f"[FREE MOMENT -- nobody asked you anything. Fact: {fact}. "
                 f"Reply with ONE short sentence, under 25 "
                 f"words, that mentions what they were doing or for how long -- a natural remark "
                 f"from a colleague who noticed, e.g. about the stretch of work or a break. Do NOT "
@@ -3468,7 +3527,7 @@ class AmbientRuntime:
             # it is volunteering rather than answering. Without this the LLM
             # reliably writes as though it had been asked a question.
             prompt = (
-                f"[UNPROMPTED OBSERVATION -- the user did not ask you anything. "
+                f"[UNPROMPTED OBSERVATION -- nobody asked you anything. "
                 f"You noticed: {ev.text}. Decide whether this is worth one short "
                 f"remark. If it isn't clearly useful, say nothing of substance.]"
             )
@@ -3591,7 +3650,9 @@ class AmbientRuntime:
                 topic=str(meta.get("topic", "")),
                 accept_context=str(meta.get("accept_context") or f"You had just said: {text}"))
 
-    _CUES = ("Hmm, let me think.", "One sec, thinking.", "Let me see.", "Good question, give me a moment.")
+    # Said when the model is slow. Different each time and never the one just used; in character, not a status line.
+    _CUES = ("On it.", "Give me a second.", "Hmm, let me chew on that.", "Beep boop, thinking.", "One sec.",
+             "Let me see.", "Ooh. Okay, hold on.", "Working on it.")
 
     def _thinking_cue(self, to_ash: bool):
         """A person asked something and the model is slow: say so after a few
@@ -3599,8 +3660,10 @@ class AmbientRuntime:
         wait = float(getattr(self.cfg, "think_cue_s", 0) or 0)
         if not to_ash or wait <= 0:
             return None
-        self._cue_n = getattr(self, "_cue_n", -1) + 1
-        line = self._CUES[self._cue_n % len(self._CUES)]
+        import random as _random
+        last = getattr(self, "_cue_last", "")
+        line = _random.choice([c for c in self._CUES if c != last] or list(self._CUES))
+        self._cue_last = line
 
         def fire():
             try:
@@ -3776,7 +3839,7 @@ class AmbientRuntime:
     def _is_immediate(self, ev) -> bool:
         """A line that is a control command (or a "stop"), however busy the
         main loop is."""
-        if id(ev) in self._lane_skip or not self._user_source(ev):
+        if getattr(ev, "_lane_skip", False) or not self._user_source(ev):
             return False
         from src.senses.mic import MicrophoneSensor
         text = MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or ""))
@@ -3821,7 +3884,7 @@ class AmbientRuntime:
                 self.stats["lane"] = self.stats.get("lane", 0) + 1
                 logger.info("Ran %r while the model was still answering", str(ev.text)[:60])
             else:
-                self._lane_skip.add(id(ev))       # not for us after all: the loop gets it, in order
+                ev._lane_skip = True              # not for us after all: the loop gets it, in order
                 self.submit(ev)
 
     def _overtaken(self, ev) -> bool:
@@ -3988,24 +4051,36 @@ class AmbientRuntime:
     def cancel_thinking(self) -> bool:
         """"Never mind" (said, or the button): the answer being worked out is abandoned NOW -- the request to the model is
         cut loose so the loop is free at once, nothing is said when it ends, and saying it twice says nothing twice."""
-        if not self._thinking:
-            return False
-        if self._cancelled:
-            return True                                   # already dropped: no second "dropped it"
-        self._cancelled = True
+        with self._cancel_lock:
+            if not self._thinking:
+                return False
+            if self._cancelled:
+                return True                               # already dropped: no second "dropped it"
+            self._cancelled = True
+            try:
+                from tools.LLM import cancel_inflight
+                cancel_inflight()                         # inside the lock: the answer's own clean-up cannot run between
+            except Exception:
+                logger.debug("could not cut the model request loose", exc_info=True)
         sp = self.periphery.actuators.get("speak")
         if sp is not None and hasattr(sp, "stop"):
             try:
                 sp.stop()
             except Exception:
                 logger.debug("stopping speech failed", exc_info=True)
-        try:
-            from tools.LLM import cancel_inflight
-            cancel_inflight()
-        except Exception:
-            logger.debug("could not cut the model request loose", exc_info=True)
         self._speech_say("Okay -- dropped it.", "cancel")
         return True
+
+    @staticmethod
+    def _resume_model():
+        """Clear a cancel's block on the model. Only if the model module is loaded at all: there is nothing to clear
+        otherwise, and importing it here is what pulls in the whole classifier stack."""
+        try:
+            mod = sys.modules.get("tools.LLM")
+            if mod is not None and hasattr(mod, "resume"):
+                mod.resume()
+        except Exception:
+            logger.debug("could not resume the model", exc_info=True)
 
     def _speech_say(self, say: str, outcome: str, short_version: bool = False):
         self._last_why = {"kind": "answered"}
@@ -4308,6 +4383,7 @@ class AmbientRuntime:
             "wondering": self.wonder.status() if self.wonder else None,
             "activity": self.activity.status() if self.activity else None,
             "taste": self.taste.status() if self.taste else None,
+            "game_mode": self.game.status() if self.game else None,
             "browsing": (lambda sn: sn.status() if sn is not None else None)(self.browsing._s()),
             "vision": ({**self.looking.status(), "presence_stuck": self.presence_stuck} if self.looking is not None else None),
             "notes": self.notes.status() if self.notes is not None else None,

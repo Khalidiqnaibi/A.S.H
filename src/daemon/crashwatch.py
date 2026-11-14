@@ -31,6 +31,8 @@ import time
 from datetime import date, datetime
 from typing import Any, Callable, Dict, List, Optional
 
+from src.memory.atomic import load_json, log_io_failure, write_json
+
 logger = logging.getLogger("ash.daemon.crashwatch")
 
 DAY = 86400.0
@@ -122,34 +124,31 @@ class CrashWatch:
 
     # -- keeping what was told ------------------------------------------------
     def _load(self):
-        if not self.path or not os.path.exists(self.path):
+        if not self.path:
             return
-        try:
-            with open(self.path, "r", encoding="utf-8") as fh:
-                self.told_until = float(json.load(fh).get("told_until", 0.0))
+        d = load_json(self.path, default=None, logger=logger)
+        if isinstance(d, dict):
+            try:
+                self.told_until = float(d.get("told_until", 0.0))
                 self._first = False
-        except Exception:
-            logger.warning("Could not read %s", self.path, exc_info=True)
+            except (TypeError, ValueError):
+                logger.warning("Could not read %s", self.path)
 
     def _save(self):
         if not self.path:
             return
         try:
-            os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True)
-            tmp = self.path + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as fh:
-                json.dump({"told_until": self.told_until}, fh)
-            os.replace(tmp, self.path)
-        except Exception:
-            logger.warning("Could not save %s", self.path, exc_info=True)
+            write_json(self.path, {"told_until": self.told_until})
+        except Exception as e:
+            log_io_failure(logger, self.path, e)
 
     # -- when ASH was running ----------------------------------------------------
     def _load_runs(self):
         now = self.clock()
-        if self.runs_path and os.path.exists(self.runs_path):
+        if self.runs_path:
+            d = load_json(self.runs_path, default=None, logger=logger)
             try:
-                with open(self.runs_path, "r", encoding="utf-8") as fh:
-                    got = json.load(fh).get("runs", [])
+                got = d.get("runs", []) if isinstance(d, dict) else []
                 self.runs = [r for r in got if isinstance(r, dict) and "start" in r
                              and now - float(r.get("beat", r["start"])) <= 90 * DAY][-200:]
             except Exception:
@@ -163,13 +162,9 @@ class CrashWatch:
             return
         self._beat_saved = now
         try:
-            os.makedirs(os.path.dirname(os.path.abspath(self.runs_path)), exist_ok=True)
-            tmp = self.runs_path + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as fh:
-                json.dump({"runs": self.runs}, fh)
-            os.replace(tmp, self.runs_path)
-        except Exception:
-            logger.warning("Could not save %s", self.runs_path, exc_info=True)
+            write_json(self.runs_path, {"runs": self.runs})
+        except Exception as e:
+            log_io_failure(logger, self.runs_path, e)
 
     def heartbeat(self, now: Optional[float] = None):
         """Called often; writes at most once a minute."""

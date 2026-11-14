@@ -483,16 +483,16 @@ class PredictiveModel:
             return
         try:
             os.makedirs(STATE_DIR, exist_ok=True)
-            np.savez_compressed(self.path, **self.forward.state_dict())
-            with open(self.outcome_path, "w", encoding="utf-8") as fh:
-                json.dump({k: [v.alpha, v.beta] for k, v in self.outcomes.items()}, fh, indent=2)
+            from src.memory.atomic import write_with, write_json
+            state = self.forward.state_dict()
+            write_with(self.path, lambda f: np.savez_compressed(f, **state), "wb")
+            write_json(self.outcome_path, {k: [v.alpha, v.beta] for k, v in self.outcomes.items()}, indent=2)
             if self.goal_protos:
                 keys = list(self.goal_protos.keys())
-                np.savez_compressed(
-                    self.goal_path,
-                    intents=np.array(keys, dtype=object),
-                    protos=np.stack([self.goal_protos[k] for k in keys]),
-                    counts=np.array([self.goal_counts.get(k, 0) for k in keys], dtype=np.int64))
+                intents = np.array(keys, dtype=object)
+                protos = np.stack([self.goal_protos[k] for k in keys])
+                counts = np.array([self.goal_counts.get(k, 0) for k in keys], dtype=np.int64)
+                write_with(self.goal_path, lambda f: np.savez_compressed(f, intents=intents, protos=protos, counts=counts), "wb")
         except Exception:
             logger.exception("Failed to persist predictive model")
 

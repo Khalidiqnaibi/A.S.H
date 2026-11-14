@@ -48,6 +48,21 @@ _START = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:let'?s|can we|could we|wan
 _STOP = re.compile(r"^\s*(?:stop|quit|enough|i'?m done|end (?:the )?game|let'?s stop|i give up|give up)\b", re.I)
 _YES = re.compile(r"^\s*(?:yes|yeah|yep|sure|ok(?:ay)?|why not|go on|let'?s|alright|please)\b", re.I)
 _NO = re.compile(r"^\s*(?:no|nope|nah|not now|maybe later|later)\b", re.I)
+# "Hit me", "bring it on", "let's go": an unmistakable yes to an offer, good for half an hour -- the one that came back
+# after twelve minutes ("hit me") went to the model, which asked what it meant.
+_GO = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:yeah|yes|okay|ok|alright|sure|well|so)[,\s]+)?(?:hit\s+me(?:\s+(?:with\s+(?:it|one|that)|up))?|"
+                 r"hit\s+it|bring\s+it(?:\s+on)?|let'?s\s+(?:go|do\s+it|play)|go\s+for\s+it|fire\s+away|i'?m\s+(?:in|ready)|"
+                 r"ready|give\s+it\s+to\s+me|go\s+on|come\s+on\s+then|ask\s+(?:me|away))\b[\s.!,]*(?:ash)?[\s.!?]*$", re.I)
+GO_WINDOW_S = 1800.0
+# After a game: "that's easy" / "another one" / "too hard" are about the game that just ended, not a new request.
+_EASY = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:oh|ha|haha|pfft|psh|lol)[,\s]+)?(?:(?:that'?s|that\s+was|it'?s|it\s+was|too|so)\s+"
+                   r"(?:so\s+|way\s+|really\s+|too\s+|pretty\s+)?easy|easy(?:\s+peasy)?|piece\s+of\s+cake|is\s+that\s+all|too\s+easy|"
+                   r"(?:i\s+)?knew\s+that|got\s+it\s+easy)\b[^?]*$", re.I)
+_HARD = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:that'?s|that\s+was|it'?s|it\s+was|too|so)\s+(?:so\s+|way\s+|really\s+|too\s+|pretty\s+)?"
+                   r"(?:hard|tough|difficult|tricky)|too\s+hard|no\s+idea|i\s+(?:don'?t|do\s+not)\s+know)\b[^?]*$", re.I)
+_MORE = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:yes|yeah|okay|ok)[,\s]+)?(?:another(?:\s+one)?|next(?:\s+(?:one|question))?|one\s+more|"
+                   r"again|more|ask\s+me\s+another(?:\s+one)?|give\s+me\s+(?:another|more))(?:\s+(?:please|pls))?\s*[.!?]*\s*$", re.I)
+AFTER_S = 180.0
 _NUM = re.compile(r"\b(\d{1,3})\b")
 _WORDNUM = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
             "ten": 10, "eleven": 11, "twelve": 12, "fifteen": 15, "twenty": 20, "thirty": 30, "forty": 40,
@@ -128,6 +143,7 @@ class Play:
         self.enabled = enabled
         self.game: Optional[Game] = None
         self.offered: Optional[Tuple[str, float]] = None    # ("game"|"story", when)
+        self.last: Optional[Tuple[str, float]] = None       # (name of the game that just ended, when)
         self.stats = {"games": 0, "finished": 0, "stories": 0}
 
     def _people(self) -> List[Tuple[str, str]]:
@@ -187,21 +203,43 @@ class Play:
                 return {"say": "Okay, game over. That was fun."}
             say, over = self.game.hear(t)
             if over:
+                name = self.game.name
                 self.game = None
                 self.stats["finished"] += 1
+                self.last = (name, now)
+                if name in ("trivia", "riddle") and not say.endswith("Another one?"):
+                    say += " Another one?"
                 if say.endswith("Another one?"):
-                    self.offer("game", now)
+                    self.offer("again:" + name if name in ("trivia", "riddle") else "game", now)
             return {"say": say}
         off = self.offered
-        if off is not None and now - off[1] <= 120.0:
-            self.offered = None
-            if _YES.match(t):
-                if off[0] == "story":
-                    self.stats["stories"] += 1
-                    return {"story": True}
-                return {"say": self.start({"trivia": "daily trivia", "riddle": "riddle"}.get(off[0], ""), now)}
-            if _NO.match(t):
-                return {"say": "Okay, another time."}
+        if off is not None:
+            age = now - off[1]
+            go = bool(_GO.match(t))
+            if age <= 120.0 or (age <= GO_WINDOW_S and go):
+                self.offered = None
+                if _YES.match(t) or go:
+                    if off[0] == "story":
+                        self.stats["stories"] += 1
+                        return {"story": True}
+                    which = ({"trivia": "daily trivia", "riddle": "riddle"}.get(off[0], "") if not off[0].startswith("again:")
+                             else off[0][6:])
+                    return {"say": self.start(which, now)}
+                if _NO.match(t):
+                    return {"say": "Okay, another time."}
+        last = self.last
+        if last is not None and now - last[1] <= AFTER_S and last[0] in ("trivia", "riddle"):
+            again = last[0]
+            if _EASY.match(t):
+                self.last = None
+                return {"say": "Easy, was it? Let's see how you do with this one. " + self.start(again, now)}
+            if _MORE.match(t):
+                self.last, self.offered = None, None
+                return {"say": self.start(again, now)}
+            if _HARD.match(t):
+                self.last = None
+                self.offer("again:" + again, now)
+                return {"say": "Fair -- that was a tough one. Want another?"}
         m = _START.match(t)
         if m:
             return {"say": self.start(m.group("which") or m.group("which2") or m.group("which3") or "", now)}

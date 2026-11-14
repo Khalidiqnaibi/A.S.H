@@ -129,20 +129,43 @@ class VisionExtractor(BaseExtractor):
 
     modality = "vision"
 
-    def __init__(self, model_name: str = "google/vit-base-patch16-224", target_dim: int = 384):
+    def __init__(self, model_name: str = "google/vit-base-patch16-224", target_dim: int = 384, load_vit: bool = True):
         self.model_name = model_name
         self.target_dim = target_dim
         self._backend = None
         self._proj: Optional[np.ndarray] = None
-        self._try_load()
+        self._resting = False
+        if load_vit:
+            self._try_load()
+        else:
+            self._backend = "descriptor"
+
+    def rest(self):
+        """Let the ViT go from memory (about 350 MB) while the machine is wanted for something else; the colour/edge
+        descriptor stands in. wake() brings it back."""
+        if self._backend == "vit":
+            self._model = self._processor = None
+            self._backend, self._resting = "descriptor", True
+            try:
+                import gc
+                gc.collect()
+            except Exception:
+                pass
+            logger.info("VisionExtractor: ViT released")
+
+    def wake(self):
+        if self._resting:
+            self._resting = False
+            self._try_load()
 
     def _try_load(self):
         try:
             from transformers import AutoImageProcessor, AutoModel  # type: ignore
             import torch  # noqa: F401
 
-            self._processor = AutoImageProcessor.from_pretrained(self.model_name)
-            self._model = AutoModel.from_pretrained(self.model_name)
+            # From this machine's cache only: a daemon that is always on does not go to the network for a model.
+            self._processor = AutoImageProcessor.from_pretrained(self.model_name, local_files_only=True)
+            self._model = AutoModel.from_pretrained(self.model_name, local_files_only=True)
             self._model.eval()
             self._backend = "vit"
             logger.info("VisionExtractor: loaded ViT %s", self.model_name)
@@ -285,9 +308,9 @@ class SensoryCortex:
         except Exception:
             logger.warning("Could not save request history", exc_info=True)
 
-    def enable_vision(self):
+    def enable_vision(self, load_vit: bool = True):
         if self.vision is None:
-            self.vision = VisionExtractor(target_dim=self.latent_dim)
+            self.vision = VisionExtractor(target_dim=self.latent_dim, load_vit=load_vit)
 
     def _novelty(self, emb: Optional[np.ndarray], stream: str = "request") -> float:
         """1 - max cosine similarity against recent percepts of the same
@@ -315,7 +338,9 @@ class SensoryCortex:
 
         if image is not None:
             if self.vision is None:
-                self.enable_vision()
+                # An image arrived without vision being switched on (every screen capture is one): the cheap colour and
+                # edge descriptor is enough for novelty. The ViT loads only when ASH_ENABLE_VISION=1 asked for it.
+                self.enable_vision(load_vit=False)
             p_vis = self.vision.extract(image) if self.vision else None
             if p_vis is not None:
                 percepts.append(p_vis)

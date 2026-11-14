@@ -27,7 +27,8 @@ _STRONG_YES = {"yes", "yeah", "yea", "yep", "yup", "yeh", "ye", "y", "ya", "yah"
                "certainly", "affirmative", "confirm", "confirmed", "proceed", "please", "doit", "goahead", "sendit", "gofor",
                "ofcourse", "yesplease", "surething", "byallmeans"}
 _WEAK_YES = {"ok", "okay", "k", "kk", "okey", "okie", "alright", "aight", "fine", "right", "correct", "mhm", "mmhm", "uhhuh",
-             "uhuh", "sounds", "whynot", "gofor", "goon", "thatsfine", "yesok", "okey", "okie"}
+             "uhuh", "sounds", "whynot", "gofor", "goon", "thatsfine", "yesok", "okey", "okie",
+             "hitme", "bringit", "letsgo", "fireaway", "imin", "imready"}
 _NO_WORDS = {"no", "n", "nope", "nah", "nay", "negative", "cancel", "stop", "dont", "wait", "nevermind", "never", "leave",
              "forget", "abort", "hold", "not", "nothanks", "nono", "noo"}
 _BUT = re.compile(r"\b(?:but|except|unless|however|though|actually|wait|not\s+(?:now|yet|that)|later|instead)\b", re.I)
@@ -63,6 +64,11 @@ def _tokens(text: str):
         return []
     t = re.sub(r"^(?:hey )?ash ", "", t)
     t = re.sub(r" ash$", "", t)
+    t = re.sub(r"\bhit me(?: with (?:it|one|that)| up)?\b", "hitme", t)
+    t = re.sub(r"\bbring it(?: on)?\b", "bringit", t)
+    t = re.sub(r"\blet'?s (?:go|do it|play)\b", "letsgo", t)
+    t = re.sub(r"\bfire away\b", "fireaway", t)
+    t = re.sub(r"\bi'?m (?:in|ready)\b", "imin", t)
     t = re.sub(r"\bgo ahead\b", "goahead", t)
     t = re.sub(r"\bdo it\b", "doit", t)
     t = re.sub(r"\bsend it\b", "sendit", t)

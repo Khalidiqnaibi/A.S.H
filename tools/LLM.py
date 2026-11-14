@@ -28,7 +28,8 @@ _REASONING = re.compile(
     r"^\s*(?:(?:okay|ok|alright|hmm+|so|well)[,.]?\s+)+(?:the user|let me|i(?:'m| am) trying to|i need to (?:figure|think|understand|"
     r"determine|remember)|i remember (?:that )?(?:from|the)|first,? i)\b|"
     r"^\s*(?:let me (?:think|break|figure|see|start)|the user (?:is asking|asked|wants|mentioned|said)|"
-    r"i need to (?:figure|think|understand|determine))\b", re.IGNORECASE)
+    r"i need to (?:figure|think|understand|determine))\b|"
+    r"^\s*(?:it (?:seems|looks|appears)(?: like)?|i (?:see|notice) that)\s+(?:the|this) user\b", re.IGNORECASE)
 
 
 

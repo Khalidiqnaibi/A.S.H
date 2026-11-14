@@ -628,7 +628,7 @@ class FollowUps:
             noun = f.what.split(" ", 1)[1] if " " in f.what else f.what
             if _DIDNT.search(t):
                 self._finish(f, "didnt_happen", now)
-                return "Ah, okay. Thanks for telling me.", f"The user's {noun} did not happen."
+                return "Ah, fair enough.", f"Their {noun} did not happen."
             if _NOT_YET.search(t):
                 self._finish(f, "not_yet", now)
                 return "Fingers crossed, then.", ""
@@ -642,13 +642,13 @@ class FollowUps:
             if m > 0.2:
                 self._finish(f, "good", now)
                 return ("That's great to hear!" if f.important else "Good to hear."), \
-                    f"The user's {noun} went well."
+                    f"Their {noun} went well."
             if m < -0.2:
                 self._finish(f, "bad", now)
-                return ("I'm sorry it didn't go well." if f.important else "Sorry to hear that."), \
-                    f"The user's {noun} went badly."
+                return ("Ugh, that's rough." if f.important else "Ah, that's a shame."), \
+                    f"Their {noun} went badly."
             self._finish(f, "mixed", now)
-            return "Okay, thanks for telling me.", f"The user's {noun} went okay."
+            return "Okay, good to know.", f"Their {noun} went okay."
 
     def _how_it_went(self, text: str) -> Optional[float]:
         """The sentiment model's reading of a reply to "how did it go?". A short
