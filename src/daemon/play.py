@@ -57,12 +57,12 @@ GO_WINDOW_S = 1800.0
 # After a game: "that's easy" / "another one" / "too hard" are about the game that just ended, not a new request.
 _EASY = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:oh|ha|haha|pfft|psh|lol)[,\s]+)?(?:(?:that'?s|that\s+was|it'?s|it\s+was|too|so)\s+"
                    r"(?:so\s+|way\s+|really\s+|too\s+|pretty\s+)?easy|easy(?:\s+peasy)?|piece\s+of\s+cake|is\s+that\s+all|too\s+easy|"
-                   r"(?:i\s+)?knew\s+that|got\s+it\s+easy)\b[^?]*$", re.I)
+                   r"(?:i\s+)?knew\s+that|got\s+it\s+easy)\b(?:\s+(?:peasy|one|question|enough))?[\s.!,]*$", re.I)
 _HARD = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:that'?s|that\s+was|it'?s|it\s+was|too|so)\s+(?:so\s+|way\s+|really\s+|too\s+|pretty\s+)?"
-                   r"(?:hard|tough|difficult|tricky)|too\s+hard|no\s+idea|i\s+(?:don'?t|do\s+not)\s+know)\b[^?]*$", re.I)
+                   r"(?:hard|tough|difficult|tricky)|too\s+hard|no\s+idea|i\s+(?:don'?t|do\s+not)\s+know)[\s.!,]*$", re.I)
 _MORE = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:yes|yeah|okay|ok)[,\s]+)?(?:another(?:\s+one)?|next(?:\s+(?:one|question))?|one\s+more|"
                    r"again|more|ask\s+me\s+another(?:\s+one)?|give\s+me\s+(?:another|more))(?:\s+(?:please|pls))?\s*[.!?]*\s*$", re.I)
-AFTER_S = 180.0
+AFTER_S = 120.0
 _NUM = re.compile(r"\b(\d{1,3})\b")
 _WORDNUM = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
             "ten": 10, "eleven": 11, "twelve": 12, "fifteen": 15, "twenty": 20, "thirty": 30, "forty": 40,
@@ -226,6 +226,7 @@ class Play:
                              else off[0][6:])
                     return {"say": self.start(which, now)}
                 if _NO.match(t):
+                    self.last = None
                     return {"say": "Okay, another time."}
         last = self.last
         if last is not None and now - last[1] <= AFTER_S and last[0] in ("trivia", "riddle"):
@@ -240,6 +241,7 @@ class Play:
                 self.last = None
                 self.offer("again:" + again, now)
                 return {"say": "Fair -- that was a tough one. Want another?"}
+            self.last = None                  # something else was said: the game is over, "next" no longer means it
         m = _START.match(t)
         if m:
             return {"say": self.start(m.group("which") or m.group("which2") or m.group("which3") or "", now)}

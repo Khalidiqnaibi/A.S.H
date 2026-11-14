@@ -1703,6 +1703,14 @@ class AmbientRuntime:
         True if spent; a story accepted is passed on to the brain to tell."""
         if not self._user_source(ev):
             return False
+        pl = self.play
+        if not pl.playing:
+            # Nothing is being played. Starting one, or answering an offer or the game that just ended, is for a line meant
+            # for ASH (a confirmation: the user's, in the conversation the question opened) -- not the TV saying "stop",
+            # "let's go" or "next", which started games, used up offers and hijacked "next" while music played.
+            live = pl.offered is not None or pl.last is not None
+            if not (self._meant_for_ash(ev) or (live and self._may_confirm(ev, now))):
+                return False
         text = str(getattr(ev, "text", "") or "")
         sb = self.storybook
         if sb is not None and not self.play.playing:

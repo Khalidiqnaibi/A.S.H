@@ -40,7 +40,7 @@ def make():
         config=AmbientConfig(tick_seconds=0.02, sleep_after_idle_s=10 ** 9, desktop=True, reminders=True,
                              reminders_path=os.path.join(d, "r.json"), tasks=True, tasks_path=os.path.join(d, "t.json"),
                              watch=True, watch_path=os.path.join(d, "w.json"), arrivals=True,
-                             arrivals_path=os.path.join(d, "a.json")),
+                             arrivals_path=os.path.join(d, "a.json"), play=True, story_path=os.path.join(d, "s.json")),
         response_sink=lambda t, m: out.append(t))
     rt.clock = lambda: clock[0]
     rt.desktop.ex = td.FakeEx()
@@ -137,10 +137,64 @@ def o4_confirm():
     check("a plan that waited two minutes is gone, whoever says yes", rt.desktop.ex.opened == [])
 
 
+def o5_games():
+    print("\n=== O5. Games ===")
+    rt = make()
+    from src.daemon.play import Play
+    rt.play.enabled = True
+    rt.hear("let's play a game")
+    check("'let's play a game' from the room starts nothing", not rt.play.playing, str(rt.out[-1:]))
+    rt.hear("let's play a game", addressed=True)
+    check("said to ASH, it starts", rt.play.playing, str(rt.out[-1:]))
+    n = len(rt.out)
+    rt.hear("stop")
+    check("a game that is being played still hears its answers and 'stop' without the name", not rt.play.playing)
+
+    rt = make()
+    rt.play.enabled = True
+    rt.play.offer("trivia", rt.t[0])
+    rt.hear("what a day")
+    check("chatter from the room does not use up an offer", rt.play.offered is not None)
+    rt.hear("hit me", guest=True)
+    check("a guest's 'hit me' does not take it", not rt.play.playing)
+    rt.play.offer("trivia", rt.t[0])
+    rt.hear("hit me", addressed=True)
+    check("the user's does", rt.play.playing)
+
+    rt = make()
+    rt.play.enabled = True
+    rt.play.last = ("trivia", rt.t[0])
+    rt.hear("next")
+    check("'next' from the room after a game starts nothing (it is also what the TV says)", not rt.play.playing)
+
+    from src.daemon.play import Play, _EASY, _HARD, _MORE
+    for t in ("Easy, set a timer for ten minutes", "I don't know what to cook tonight", "easy come easy go"):
+        check(f"not a reaction to the game: {t!r}", not _EASY.match(t) and not _HARD.match(t))
+    for t in ("that's easy", "thats easy peasy!", "easy", "too hard", "no idea", "I don't know"):
+        check(f"still is: {t!r}", bool(_EASY.match(t) or _HARD.match(t)))
+    p = Play(clock=lambda: T0, seed=1)
+    p.last = ("trivia", T0)
+    p.offered = ("again:trivia", T0)
+    p.hear("no", T0 + 5)
+    check("'no' to 'Another one?' ends the game's context: a later 'next' is not 'another one'", p.last is None)
+    p.last = ("trivia", T0)
+    p.hear("what time is it", T0 + 5)
+    check("any other line ends it too", p.last is None)
+    p.last = ("trivia", T0)
+    check("and it lapses after two minutes", p.hear("another one", T0 + 130) is None)
+
+    from src.daemon import yesno
+    for t in ("stop the music", "cancel my reminder", "wait for me", "hold the door", "forget it for now please"):
+        check(f"not a refusal: {t!r}", not yesno.is_no(t))
+    for t in ("stop", "wait", "hold on", "never mind", "no", "nope", "not now", "cancel", "stop it"):
+        check(f"still a refusal: {t!r}", yesno.is_no(t))
+
+
 if __name__ == "__main__":
     o1_overheard()
     o2_meant()
     o3_guest()
     o4_confirm()
+    o5_games()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

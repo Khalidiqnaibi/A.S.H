@@ -114,8 +114,9 @@ def is_no(text: str) -> bool:
     word = _is(first, _NO_WORDS)
     if word is None:
         return False
-    if word in ("never", "leave", "forget", "hold", "wait", "stop"):
-        return len(toks) <= 3
+    if word in ("never", "leave", "forget", "hold", "wait", "stop", "cancel"):
+        # "stop", "wait", "never mind" are a refusal; "stop the music" and "wait for me" are requests about something else
+        return len(toks) == 1 or (len(toks) == 2 and toks[1] in ("it", "that", "please", "now", "this", "on", "up"))
     return len(toks) <= 4 or word in ("no", "nope", "nah", "n")
 
 
