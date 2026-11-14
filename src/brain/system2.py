@@ -550,6 +550,15 @@ class System2Deliberator:
         "API Error:", "Error:",
     )
 
+    @staticmethod
+    def _text_of(resp) -> str:
+        """What a model reply says. An EMPTY answer is "" -- the designed 'nothing to say' (a reasoning model that spent its
+        budget thinking) -- not str(resp), which is "content='' additional_kwargs={} response_metadata={}" and was spoken."""
+        content = getattr(resp, "content", None)
+        if content is None:
+            return str(resp)
+        return content if isinstance(content, str) else str(content)
+
     @classmethod
     def _is_llm_error(cls, text: str) -> bool:
         return isinstance(text, str) and text.strip().startswith(cls._LLM_ERROR_PREFIXES)
@@ -599,7 +608,7 @@ class System2Deliberator:
             if isinstance(resp, tuple):
                 text = str(resp[0])
             else:
-                text = getattr(resp, "content", None) or str(resp)
+                text = self._text_of(resp)
             if self._is_llm_error(text):
                 logger.warning(
                     "LLM.%s returned a provider error, not a reply -- not trying other "
@@ -623,7 +632,7 @@ class System2Deliberator:
                 if isinstance(resp, tuple):
                     text = str(resp[0])
                 else:
-                    text = getattr(resp, "content", None) or str(resp)
+                    text = self._text_of(resp)
                 if not self._is_llm_error(text):
                     return text
                 logger.warning("LLM callable returned a provider error, not a reply: %s", text)
