@@ -210,7 +210,7 @@ class LLM(BaseChatModel):
             r = _post(url, headers=headers, json=payload, timeout=self._timeout)
             if r.status_code != 200:
                 print(f"[LLM ERROR] HF API returned status {r.status_code}: {r.text}")
-                print(f"[LLM] request shape: requests.post({url}, headers={headers}, json={payload}, timeout={self._timeout})")
+                print(f"[LLM] request shape: requests.post({url}, headers=<hidden>, json=<hidden>, timeout={self._timeout})")
                 return f"API Error: {r.status_code} - {r.text}"
             
             data = r.json()
@@ -237,7 +237,7 @@ class LLM(BaseChatModel):
             
             if r.status_code != 200:
                 print(f"[LLM ERROR] OpenRouter returned status {r.status_code}: {r.text}")
-                print(f"[LLM] request shape: requests.post({DEFAULT_OPENROUTER_URL}, headers={headers}, json={payload}, timeout={self._timeout})")
+                print(f"[LLM] request shape: requests.post({DEFAULT_OPENROUTER_URL}, headers=<hidden>, json=<hidden>, timeout={self._timeout})")
                 return f"[LLM] API Error: {r.status_code} - {r.text}"
             
             data = r.json()
