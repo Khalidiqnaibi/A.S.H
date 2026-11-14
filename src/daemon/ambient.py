@@ -815,6 +815,8 @@ class AmbientRuntime:
         self._think_query = ""
         self._cancelled = False                 # "never mind" said while it was in progress
         self._cancel_lock = threading.Lock()    # the loop and the fast lane both touch _cancelled and the model's block
+        self._waiters: List[Any] = []           # queues of callers of ask(): what ASH says next, handed to them
+        self._waiters_lock = threading.Lock()
         self._respond_thread: Optional[threading.Thread] = None
         self._lane: Optional[threading.Thread] = None
         self._lane_skip: set = set()
@@ -904,6 +906,10 @@ class AmbientRuntime:
                     meta = {**meta, "spoken": spoken}     # said short, shown in full
             except Exception:
                 logger.exception("Speech control failed")
+        if text and self._waiters and meta.get("outcome") != "thinking_cue":
+            with self._waiters_lock:
+                for q in list(self._waiters):
+                    q.put((text, meta))
         return self._sink(text, meta)
 
     # ------------------------------------------------------------------
@@ -989,6 +995,35 @@ class AmbientRuntime:
 
     def alive(self) -> bool:
         return bool(self._thread and self._thread.is_alive())
+
+    def ask(self, text: str, timeout: float = 240.0) -> Optional[Dict[str, Any]]:
+        """Say something to ASH the way a person typing in the console would, and wait for the answer.
+
+        The event goes through the loop like any other -- the attention gate, the lane, the rules, "never mind" -- and the
+        answer comes back through the same sink as everyone else's. `ashctl say` used to call the brain directly from the
+        control thread: at the same time as the loop, past every rule, with a brain that is not thread-safe.
+        Returns {"text", "pathway"}, or None if nothing was said in `timeout` seconds."""
+        import queue as _queue
+        q: Any = _queue.Queue()
+        with self._waiters_lock:
+            self._waiters.append(q)
+        try:
+            self.submit(SensorEvent(source="console", modality=Modality.TEXT, text=str(text), addressed=True,
+                                    salience=0.9, urgency=0.6))
+            end = time.time() + timeout
+            while True:
+                left = end - time.time()
+                if left <= 0:
+                    return None
+                try:
+                    said, meta = q.get(timeout=min(left, 1.0))
+                except _queue.Empty:
+                    continue
+                return {"text": said, "pathway": str(meta.get("pathway") or "slow")}
+        finally:
+            with self._waiters_lock:
+                if q in self._waiters:
+                    self._waiters.remove(q)
 
     # ------------------------------------------------------------------
     # Queue

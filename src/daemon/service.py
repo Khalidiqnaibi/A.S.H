@@ -591,6 +591,12 @@ class ControlServer:
             rt.gate.mute(False)
             return {"ok": True, "muted": False}
         if cmd == "say":
+            if rt.alive():
+                # Through the loop, as a person typing would: not the brain called from this thread, past every rule.
+                got = rt.ask(arg)
+                if got is not None:
+                    return {"ok": True, **got}
+                return {"ok": False, "error": "ASH did not answer in time (it may be busy with the model); try again"}
             resp = rt.ash.think(arg)
             return {"ok": True, "text": resp.text, "pathway": resp.pathway.value}
         if cmd == "simulate":
