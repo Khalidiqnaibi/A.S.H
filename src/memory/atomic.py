@@ -25,10 +25,34 @@ import errno
 import json
 import logging
 import os
+import shutil
+import threading
 import time
 from typing import Any, Callable, Dict, Optional
 
 _last_logged: Dict[str, float] = {}
+_locks: Dict[str, threading.Lock] = {}
+_locks_guard = threading.Lock()
+
+
+def _lock_for(path: str) -> threading.Lock:
+    """One lock per file: an autosave and the save on shutdown writing the same path must take turns."""
+    key = os.path.abspath(path).lower()
+    with _locks_guard:
+        return _locks.setdefault(key, threading.Lock())
+
+
+def _replace(src: str, dst: str, tries: int = 6) -> None:
+    """os.replace, trying again when Windows says the destination is busy (an antivirus scan or a reader has it open for a
+    moment) -- the write used to be lost."""
+    for i in range(tries):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if i == tries - 1:
+                raise
+            time.sleep(0.05 * (i + 1))
 
 
 def is_disk_full(exc: BaseException) -> bool:
@@ -54,28 +78,42 @@ def write_with(path: str, writer: Callable[[Any], None], mode: str = "wb", keep_
     """Write through `writer(fileobj)` to a temp file beside `path`, force it to disk, then swap it in."""
     d = os.path.dirname(os.path.abspath(path))
     os.makedirs(d, exist_ok=True)
-    tmp = path + ".tmp"
+    tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"       # never a name another writer is using
     kw = {} if "b" in mode else {"encoding": encoding or "utf-8"}
-    try:
-        with open(tmp, mode, **kw) as fh:
-            writer(fh)
-            fh.flush()
-            try:
-                os.fsync(fh.fileno())
-            except OSError:
-                pass
-        if keep_backup and os.path.exists(path):
-            try:
-                os.replace(path, path + ".bak")
-            except OSError:
-                pass
-        os.replace(tmp, path)
-    except BaseException:
+    with _lock_for(path):
         try:
-            os.remove(tmp)
+            with open(tmp, mode, **kw) as fh:
+                writer(fh)
+                fh.flush()
+                try:
+                    os.fsync(fh.fileno())
+                except OSError:
+                    pass
+            if keep_backup:
+                _keep_previous(path)
+            _replace(tmp, path)
+        except BaseException:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+            raise
+
+
+def _keep_previous(path: str) -> None:
+    """The file as it is now becomes the backup -- as a second name for the same data (a hard link: free), so `path` is
+    never missing in between, and only if it is not empty (an empty file must not replace the last good backup)."""
+    try:
+        if not os.path.exists(path) or os.path.getsize(path) == 0:
+            return
+        bak, hold = path + ".bak", f"{path}.{os.getpid()}.{threading.get_ident()}.bak.tmp"
+        try:
+            os.link(path, hold)
         except OSError:
-            pass
-        raise
+            shutil.copyfile(path, hold)
+        _replace(hold, bak)
+    except OSError:
+        logging.getLogger("ash.atomic").debug("could not keep a backup of %s", path, exc_info=True)
 
 
 def write_bytes(path: str, data: bytes, keep_backup: bool = False) -> None:
@@ -103,11 +141,15 @@ def load_json(path: str, default: Any = None, logger: Optional[logging.Logger] =
             if not raw.strip():
                 raise ValueError("empty file")
             return json.loads(raw)
-        except (ValueError, OSError) as e:
+        except ValueError as e:
             log.warning("%s is unreadable (%s)%s", cand, e, "; trying the backup" if cand == path else "")
             if cand == path:
                 try:
-                    os.replace(path, path + ".bad")
+                    os.replace(path, path + ".bad")          # damaged: set aside, so it is not a repeat of the crash
                 except OSError:
                     pass
+        except OSError as e:
+            # Locked for a moment, a permissions blip: nothing is wrong with the file. Use the backup this once and leave it
+            # where it is (it used to be moved aside, and the next save then overwrote the backup too).
+            log.warning("%s could not be read just now (%s)%s", cand, e, "; using the backup" if cand == path else "")
     return default
