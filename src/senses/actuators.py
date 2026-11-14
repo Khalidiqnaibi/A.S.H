@@ -184,6 +184,18 @@ class SpeakActuator(Actuator):
         chunks_q: "_queue.Queue" = _queue.Queue(maxsize=2)
         DONE = object()
 
+        def _put(item) -> bool:
+            """Hand a chunk to the player -- unless the line was cut off, when nobody is listening any more. A plain put()
+            on a full queue blocked for ever once the player had left (every interrupted long answer leaked a thread and
+            two or three synthesised sentences)."""
+            while not stop.is_set():
+                try:
+                    chunks_q.put(item, timeout=0.25)
+                    return True
+                except _queue.Full:
+                    continue
+            return False
+
         def _make():
             try:
                 made = 0
@@ -192,7 +204,8 @@ class SpeakActuator(Actuator):
                         for wav in self.tts.stream_audio(text, voice=voice):
                             if stop.is_set():
                                 return
-                            chunks_q.put(wav)
+                            if not _put(wav):
+                                return
                             made += 1
                     except Exception:
                         logger.warning("Voice %r failed; using the usual one", voice)
@@ -200,11 +213,12 @@ class SpeakActuator(Actuator):
                     for wav in self.tts.stream_audio(text):
                         if stop.is_set():
                             return
-                        chunks_q.put(wav)
+                        if not _put(wav):
+                            return
             except Exception:
                 logger.exception("TTS synthesis failed")
             finally:
-                chunks_q.put(DONE)
+                _put(DONE)
 
         def _play():
             n = 0
