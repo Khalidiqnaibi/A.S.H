@@ -237,11 +237,29 @@ class SpeakActuator(Actuator):
         return {"ok": True, "result": f"speaking {len(text)} chars (async)"}
 
 
+# What is fine on a screen and wrong out loud: where a setting lives, a file's path, an emoji, a slash between lines of a
+# song, an arrow. The text the console shows keeps all of it (the person reading may be the one who has to fix it).
+_CONFIG_ROOTS = ("sensors|actuators|privacy|game_mode|taste|vision|phone|email|play|ui|face|attention|runtime|llm|activity|"
+                 "follow_ups|wonder|moments|care|weather|calendar|inbox|browser_tabs|now_playing")
+_CONFIG_PAREN = re.compile(r"\s*\([^()]*(?:daemon\.json|\b(?:" + _CONFIG_ROOTS + r")\.[a-z_]+)[^()]*\)", re.I)
+_CONFIG_KEY = re.compile(r"\b(?:" + _CONFIG_ROOTS + r")\.([a-z]+(?:_[a-z]+)*)\b")
+_PATH = re.compile(r"(?:[A-Za-z]:\\|~[/\\]|/(?:home|Users|var|tmp|etc)/)[^\s\"'<>|]*[^\s\"'<>|.,;:!?]")
+_PICTOGRAPH = re.compile("[\U0001F000-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\uFE0F\u200D\u266A\u266B]")
+
+
 def speakable(text: str) -> str:
     """One line to speak: list markers and line breaks become pauses. The
     phonemizer counts lines in and out, and warned ("words count mismatch")
     on every answer with a numbered list -- and read "1." as "one dot"."""
-    t = re.sub(r"\n\s*(?:\d{1,2}[.)]|[-*\u2022])\s+", ". ", "\n" + (text or "")).lstrip(". ")
+    t = _CONFIG_PAREN.sub("", text or "")                    # "(email.allow_send in daemon.json)" -- not for the ear
+    t = _PATH.sub("your files", t)                           # "saved to C:\\Users\\...\\x.json"
+    t = _CONFIG_KEY.sub(lambda m: m.group(1).replace("_", " "), t)        # sensors.browser_tabs -> browser tabs
+    t = re.sub(r"\bpython ashctl\.py\s+([a-z ]+?)(?=[\"\u201d'.,;)]|$)", r"the \1 command", t)
+    t = re.sub(r"\bdaemon\.json\b", "the settings file", t)
+    t = _PICTOGRAPH.sub("", t)                               # emoji, music notes: read aloud or silently dropped
+    t = re.sub(r"\s*(?:\u2192|->|=>)\s*", ", then ", t)          # "a -> b -> c"
+    t = re.sub(r"\s+/\s+", ", ", t)                         # a song's lines, a screen's: "line one / line two"
+    t = re.sub(r"\n\s*(?:\d{1,2}[.)]|[-*\u2022])\s+", ". ", "\n" + t).lstrip(". ")
     t = re.sub(r"\*\*|__|`", "", t)                       # markdown emphasis and code ticks
     t = re.sub(r"\s*\n+\s*", " ", t)
     t = re.sub(r"([.!?:;])\s*\.\s", r"\1 ", t)               # "intro:. first" -> "intro: first"
