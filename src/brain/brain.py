@@ -50,7 +50,7 @@ from typing import Any, Callable, Deque, Dict, List, Optional
 import numpy as np
 
 from .executive import ExecutiveCore
-from .gist import build_gist
+from .gist import build_gist, readable as _words
 from .homeostasis import HomeostaticModulator
 from .memory_engine import NO_REPLY_TEXT, MemoryEngine, is_failure_text
 from .planfollow import Decision, PlanFollower
@@ -140,7 +140,8 @@ def _fmt_tool_output(out: Any) -> str:
             if key in out and out[key] is not None:
                 return str(out[key])
         if out.get("ok") is False:
-            return f"That didn't work: {out.get('error', 'unknown error')}"
+            err = out.get("error")
+            return f"That didn't work: {err}" if err else "That didn't work out."
         return ", ".join(f"{k}: {v}" for k, v in out.items() if k != "ok")
     return str(out)
 
@@ -857,7 +858,7 @@ class Brain:
             f.drop(reason)
             return self._plan_response(
                 trace, "aborted", reason,
-                f"I stopped the plan before '{step.intent}' -- it needs your go-ahead.",
+                f"I've paused the plan before {_words(step.intent)} -- it needs your go-ahead.",
                 step=step, t0=t0, steps_done=done_before, steps_of=n)
 
         proposal = ActionProposal(
@@ -869,11 +870,13 @@ class Brain:
         verdict = self.executive.arbitrate([proposal], bundle, self.homeostasis.drives, prediction)
         if verdict.chosen is None:
             who = ", ".join(verdict.vetoed_by) or "the board"
+            said_who = "the safety check" if not verdict.vetoed_by or any("safety" in str(v) for v in verdict.vetoed_by) \
+                else ", ".join(_words(str(v)) for v in verdict.vetoed_by)
             done_before = f.idx
             f.drop(f"'{step.intent}' blocked by {who}")
             return self._plan_response(
                 trace, "aborted", f"blocked by {who}",
-                f"I stopped the plan: '{step.intent}' was blocked by {who}.",
+                f"I stopped the plan: {_words(step.intent)} was blocked by {said_who}.",
                 step=step, t0=t0, steps_done=done_before, steps_of=n)
 
         tool_out = self.system1.execute(proposal)

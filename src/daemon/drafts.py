@@ -202,7 +202,10 @@ class Drafts:
             self.send(acct, d)
         except Exception as e:
             self.stats["failed"] += 1
-            kind = "the login was refused" if isinstance(e, smtplib.SMTPAuthenticationError) else type(e).__name__
+            from .inbox import why_it_failed
+            kind = "the login was refused" if isinstance(e, smtplib.SMTPAuthenticationError) else why_it_failed(e)
+            if isinstance(e, smtplib.SMTPException) and kind == "something went wrong":
+                kind = "the mail server wouldn't answer"
             return f"It didn't send ({kind}). The draft is still here -- say “send it” to try again."
         self.draft = None
         self.stats["sent"] += 1

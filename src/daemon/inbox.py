@@ -51,6 +51,16 @@ _ABOUT = re.compile(_LEAD + r"(?:what\s+are\s+(?:they|the\s+e-?mails)\s+about|(?
                     r"|what\s+(?:are\s+)?the\s+subjects?)\s*[?.!]*\s*$", re.I)
 
 
+def why_it_failed(e: BaseException) -> str:
+    """An exception, in words a person can be told. The class name ("OSError", "SMTPServerDisconnected") is for the log."""
+    import socket
+    if isinstance(e, (socket.timeout, TimeoutError)):
+        return "it took too long to answer"
+    if isinstance(e, (OSError, EOFError)):
+        return "the mail server wouldn't answer"
+    return "something went wrong"
+
+
 @dataclass
 class InboxConfig:
     enabled: bool = True
@@ -189,7 +199,7 @@ class Inbox:
         except Exception as e:
             self.stats["errors"] += 1
             # Never the password: only the kind of failure.
-            self.last_error = "login failed" if isinstance(e, imaplib.IMAP4.error) else type(e).__name__
+            self.last_error = "login failed" if isinstance(e, imaplib.IMAP4.error) else why_it_failed(e)
             logger.info("Inbox check failed: %s", self.last_error)
         finally:
             self._inflight = False
