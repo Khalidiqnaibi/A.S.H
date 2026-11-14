@@ -217,6 +217,11 @@ def attach_ui(runtime, bus, opener: Optional[Callable[[], Any]] = None,
                 res = lk.look_now()
                 return {"ok": bool(res.get("ok")), "say": res.get("say") or "", "why": res.get("why", ""), "vision": lk.snapshot()}
             return {"ok": True, "vision": lk.snapshot()}
+        elif cmd == "mind_info":
+            # The /mind page: the concept graph and the rest of what ASH keeps. Read-only; nothing is saved or asked.
+            from src.daemon import mind
+            cn = getattr(getattr(getattr(runtime, "brain", None), "concepts", None), "net", None)
+            return mind.build(net=cn)
         elif cmd == "settings":
             from . import settings
             return {"ok": True, "settings": settings.listing(runtime, config_path)}

@@ -1811,6 +1811,21 @@ never sends. Saying "shut down" again confirms a shutdown.
 * The camera no longer says "you picked up a remote" (`vision.announce_objects`, off; it is still recorded on `/vision`).
   After a look, *"try again"*, *"how about now?"*, *"what's this?"* look again; *"nope"* owns up and *"it's a watch"* teaches it.
 
+### The mind page: what ASH has learned, and how it keeps it (`tst_mind.py`)
+
+`http://127.0.0.1:<console port>/mind` (or `python ashctl.py mind [--root DIR] [--out FILE] [--open]`, which writes one
+HTML file from the saved files and needs no daemon). Read-only and rule-based: nothing is written and no model is asked.
+
+* **Map.** Every concept is a point in 384-dimensional meaning space, drawn by a 2-D projection (it says how little of the
+  spread two axes keep, so a click lists the real nearest neighbours). Switch to the *wiring* layout to see what it learned
+  goes together whatever it means; click a concept for its facets, wires and neighbours; filter wires by weight and kind,
+  or show only links meaning would not predict.
+* **What it learned.** Wires made permanent in sleep, links meaning would not predict, expected sequences, what fires most.
+* **Everything else it keeps.** People and things, episodes, core rules, outcomes.
+* **What is wrong, and how to make it better.** Findings from the data (one concept swallowing 27% of all activity, system
+  telemetry stored as knowledge, causal arrows from mere adjacency, entities that are only names, episodes not linked to
+  concepts, creation times not saved) and ranked ideas, each tied to the finding that argues for it.
+
 ## Follow-ups to the browsing profile (`tst_followups.py`)
 
 Each of these is its own commit, with its own section in `tst_followups.py`.

@@ -25,6 +25,7 @@ ashctl.py -- talk to a running ASH daemon.
     python ashctl.py profile               # what you (and the people you mention) like and dislike
     python ashctl.py profile forget [name] # forget one person's tastes, or everyone's
     python ashctl.py vision                # who and what it can recognise, and what the camera features are doing
+    python ashctl.py mind [--root DIR] [--out FILE] [--open]   # what it learned and how it keeps it, as a page (works without the daemon)
     python ashctl.py hud                   # the heads-up widget: a small always-on-top panel (clock, what's next, who's here)
     python ashctl.py vision doctor         # will it work here? takes one picture, tests each model, says how long it took
     python ashctl.py vision forget [name]  # forget one person or thing it was shown, or everyone and everything
@@ -79,6 +80,7 @@ breakdown per decision.
 """
 
 import json
+import os
 import sys
 
 # A response containing an em dash or a narrow no-break space (e.g. from
@@ -126,6 +128,31 @@ def main() -> int:
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(reply.get("history", []), f, indent=2, default=str)
         _safe_print(f"Wrote {len(reply.get('history', []))} traces to {out_path}")
+        return 0
+
+    if sys.argv[1:2] == ["mind"]:
+        # Read-only: reads the saved graph and memory files and writes one HTML file. No daemon, no model, no writes to memory.
+        import argparse
+        ap = argparse.ArgumentParser(prog="ashctl.py mind")
+        ap.add_argument("--root", default=os.getcwd(), help="the ASH folder whose state/ and memory files to read")
+        ap.add_argument("--out", default="", help="where to write the page (default state/exports/mind.html)")
+        ap.add_argument("--open", action="store_true", help="open it in the browser")
+        a = ap.parse_args(sys.argv[2:])
+        from src.daemon import mind
+        root = os.path.abspath(a.root)
+        data = mind.build(state_dir=os.path.join(root, "state"), entities_path=os.path.join(root, "entities.json"),
+                          episodic_path=os.path.join(root, "episodic_memory.jsonl"),
+                          core_path=os.path.join(root, "core_memory.json"))
+        out = a.out or os.path.join(os.getcwd(), "state", "exports", "mind.html")
+        os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+        with open(out, "w", encoding="utf-8") as fh:
+            fh.write(mind.standalone_html(data, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src", "ui", "static", "mind.html")))
+        g = data.get("graph") or {}
+        _safe_print(f"Wrote {out}: {g.get('stats', {}).get('concepts', 0)} concepts, {g.get('stats', {}).get('synapses', 0)} wires, "
+                    f"{len([f for f in data['findings'] if f['level'] != 'info'])} things to fix.")
+        if a.open:
+            import webbrowser
+            webbrowser.open("file:///" + os.path.abspath(out).replace(os.sep, "/"))
         return 0
 
     if sys.argv[1:3] == ["vision", "install"]:

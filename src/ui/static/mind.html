@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en" data-theme="{{THEME}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASH Mind</title>
+<style>
+/* The console's themes, inserted by the server (src/ui/server.py: theme_css), so the page always matches. */
+/*{{THEMES}}*/
+:root { color-scheme: dark; }
+[data-theme="paper"], [data-theme="blossom"] { color-scheme: light; }
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body { background: var(--panel-solid, #0d1527); color: var(--text, #d6f6ff);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; padding: 16px; max-width: 1280px; margin: 0 auto; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 10px; }
+h1 { margin: 0; font-size: 20px; font-weight: 600; }
+h2 { margin: 0 0 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted, #6f8aa6); }
+h3 { margin: 0 0 4px; font-size: 14px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px;
+        border: 1px solid var(--line, rgba(62,240,255,.18)); color: var(--muted, #6f8aa6); }
+.pill.ok { color: var(--ok, #4dffa6); } .pill.warn { color: var(--warn, #ffcf4d); } .pill.bad { color: var(--bad, #ff5c7a); }
+.sub { color: var(--muted, #6f8aa6); flex: 1 1 280px; min-width: 0; }
+nav { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 12px; }
+button, select, input[type=search] { font: inherit; padding: 6px 12px; border-radius: 10px; color: var(--text, #d6f6ff);
+  border: 1px solid var(--line, rgba(62,240,255,.18)); background: var(--ash-bg, rgba(62,240,255,.07)); }
+button { cursor: pointer; }
+button[aria-selected="true"], button.on { border-color: var(--accent, #3ef0ff); background: var(--accent, #3ef0ff); color: var(--bg, #0d1527); }
+button:hover, button:focus-visible { border-color: var(--accent, #3ef0ff); outline: none; }
+.card { padding: 12px; border-radius: 12px; border: 1px solid var(--line, rgba(62,240,255,.18)); background: var(--ash-bg, rgba(62,240,255,.07)); min-width: 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.wide { grid-column: 1 / -1; }
+.muted, .note { color: var(--muted, #6f8aa6); } .note { font-size: 12px; margin: 8px 0 0; }
+.tool { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 10px; font-size: 12px; color: var(--muted, #6f8aa6); }
+.tool label { display: inline-flex; align-items: center; gap: 5px; }
+.map { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; }
+#cv { width: 100%; height: 620px; display: block; border-radius: 10px; background: var(--panel, rgba(14,22,40,.72));
+      border: 1px solid var(--line, rgba(62,240,255,.18)); touch-action: none; cursor: grab; }
+#tip { position: fixed; pointer-events: none; padding: 4px 8px; border-radius: 6px; font-size: 12px; z-index: 5; display: none; max-width: 320px;
+       background: var(--panel-solid, #0d1527); border: 1px solid var(--accent, #3ef0ff); }
+.bar { position: relative; width: 100%; height: 7px; border-radius: 4px; background: var(--line, rgba(62,240,255,.18)); overflow: hidden; }
+.bar i { position: absolute; inset: 0 auto 0 0; background: var(--accent, #3ef0ff); border-radius: 4px; }
+.row { display: grid; grid-template-columns: 96px 1fr 54px; gap: 8px; align-items: center; margin: 4px 0; font-size: 12px; }
+.row span:last-child { text-align: right; color: var(--muted, #6f8aa6); font-variant-numeric: tabular-nums; }
+ul.l { list-style: none; margin: 0; padding: 0; } ul.l li { padding: 5px 0; border-top: 1px solid var(--line, rgba(62,240,255,.18)); overflow-wrap: anywhere; }
+ul.l li:first-child { border-top: 0; }
+a.n, .lnk { color: var(--accent, #3ef0ff); cursor: pointer; text-decoration: none; } a.n:hover { text-decoration: underline; }
+.tag { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line, rgba(62,240,255,.18)); color: var(--muted, #6f8aa6); white-space: nowrap; }
+.f { padding: 10px 12px; border-radius: 10px; border-left: 4px solid var(--line, #888); margin-bottom: 10px; background: var(--ash-bg, rgba(62,240,255,.07)); }
+.f.bad { border-left-color: var(--bad, #ff5c7a); } .f.warn { border-left-color: var(--warn, #ffcf4d); } .f.info { border-left-color: var(--accent, #3ef0ff); }
+.f p { margin: 4px 0; } .fix { color: var(--ok, #4dffa6); } .ex { font-size: 12px; color: var(--muted, #6f8aa6); }
+.path { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 4px 0; font-size: 12px; } .path b { color: var(--muted, #6f8aa6); font-weight: 400; }
+svg text { fill: var(--muted, #6f8aa6); font: 10px system-ui, sans-serif; }
+.hide { display: none !important; }
+@media (max-width: 900px) { .map { grid-template-columns: minmax(0, 1fr); } #cv { height: 440px; } body { padding: 12px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Mind</h1><span class="pill" id="src">...</span><span class="pill" id="sum1"></span><span class="pill" id="sum2"></span>
+  <span class="sub" id="sub"></span>
+</header>
+<nav role="tablist" id="tabs"></nav>
+<div id="tip"></div>
+
+<section id="t-map">
+  <div class="tool">
+    <span>Layout</span><select id="lay"><option value="meaning">Meaning (what it is about)</option><option value="wiring">Wiring (what it learned goes with what)</option></select>
+    <span>Colour</span><select id="col"><option value="cluster">Topic</option><option value="origin">Where it came from</option><option value="system">System reading or language</option><option value="act">How busy</option></select>
+    <label>Wires stronger than <input type="range" id="minw" min="0" max="100" value="12"><span id="minwv"></span></label>
+    <label><input type="checkbox" id="k-assoc" checked>associated</label><label><input type="checkbox" id="k-causal" checked>cause &rarr; effect</label>
+    <label><input type="checkbox" id="k-other" checked>routes, rules</label>
+    <label><input type="checkbox" id="beyond">only links meaning would not predict</label>
+    <input type="search" id="find" placeholder="find a concept" aria-label="Find a concept" size="16">
+    <button id="reset" type="button">Reset view</button>
+  </div>
+  <div class="map">
+    <div><canvas id="cv" role="img" aria-label="Map of every concept ASH has, and the wires between them"></canvas>
+      <p class="note" id="mapnote"></p></div>
+    <aside class="card" id="side" aria-live="polite"></aside>
+  </div>
+</section>
+
+<section id="t-learned" class="hide"><div class="grid" id="learned"></div></section>
+<section id="t-memory" class="hide"><div class="grid" id="memory"></div></section>
+<section id="t-health" class="hide"><div id="health"></div></section>
+
+<script>
+const EMBED = /*{{DATA}}*/null;
+let D = EMBED, G = null, CS = [], ES = [], sel = -1, hov = -1, found = new Set();
+const $ = (id) => document.getElementById(id);
+const TABS = [["map", "Map"], ["learned", "What it learned"], ["memory", "Everything else it keeps"], ["health", "What is wrong, and how to make it better"]];
+function el(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) { if (k === "class") e.className = props[k]; else if (k === "on") for (const ev in props.on) e.addEventListener(ev, props.on[ev]); else e.setAttribute(k, props[k]); }
+  for (const c of kids.flat()) if (c != null && c !== false) e.append(c.nodeType ? c : document.createTextNode(String(c)));
+  return e;
+}
+const pct = (x) => (x * 100).toFixed(x < 0.1 ? 1 : 0) + "%";
+const css = (v, d) => (getComputedStyle(document.documentElement).getPropertyValue(v) || "").trim() || d;
+const when = (t) => t ? new Date(t * 1000).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "?";
+const hue = (j) => `hsl(${(j * 47 + 190) % 360} 80% 60%)`;
+const ORIGIN = { intent: "hsl(190 90% 60%)", core: "hsl(45 95% 60%)", entity: "hsl(130 70% 55%)", tool: "hsl(270 80% 70%)", grown: "hsl(330 80% 66%)", merged: "hsl(20 90% 62%)" };
+
+async function load() {
+  if (!D) {
+    try { const r = await fetch("/api/mind", { cache: "no-store" }); D = await r.json(); }
+    catch (e) { D = { ok: false, error: String(e) }; }
+  }
+  if (!D || D.ok === false) { document.body.append(el("p", { class: "muted" }, "ASH is not answering: " + ((D && D.error) || "no data"))); return; }
+  G = D.graph; render();
+}
+
+function render() {
+  const nF = (D.findings || []).filter((f) => f.level !== "info").length;
+  const src = $("src"); src.textContent = G ? (G.live ? "live" : "saved copy") : "no graph yet"; src.className = "pill " + (G && G.live ? "ok" : "warn");
+  $("sum1").textContent = G ? `${G.stats.concepts} concepts · ${G.stats.synapses} wires` : "0 concepts";
+  const s2 = $("sum2"); s2.textContent = nF ? `${nF} things to fix` : "looks healthy"; s2.className = "pill " + (nF ? "warn" : "ok");
+  $("sub").textContent = G ? `Each concept is a point in ${G.dim}-dimensional meaning space; wires are what it learned goes with what. ${G.cycles.toLocaleString()} thinking cycles so far.` : "";
+  const tabs = $("tabs");
+  for (const [id, label] of TABS) tabs.append(el("button", { type: "button", role: "tab", "aria-selected": id === "map" ? "true" : "false", "data-t": id, on: { click: () => tab(id) } }, label));
+  if (G) { CS = G.concepts; ES = G.edges; initMap(); }
+  else { $("t-map").replaceChildren(el("p", { class: "muted" }, "ASH has not built a concept graph yet (state/concepts is empty). Talk to it for a while and come back.")); }
+  renderLearned(); renderMemory(); renderHealth();
+}
+function tab(id) {
+  for (const [t] of TABS) $("t-" + t).classList.toggle("hide", t !== id);
+  for (const b of $("tabs").children) b.setAttribute("aria-selected", String(b.dataset.t === id));
+  if (id === "map") draw();
+}
+function jump(i) { tab("map"); select(i); }
+function nameLink(i, label) { return el("a", { class: "n", on: { click: () => jump(i) } }, label || CS[i].name); }
+
+/* ------------------------------------------------------------ the map */
+const cv = $("cv"), ctx = cv.getContext("2d");
+let W = 0, H = 0, view = { k: 1, x: 0, y: 0 }, layouts = {}, pos = [];
+function initMap() {
+  layouts.meaning = CS.map((c) => [c.x, c.y]); pos = layouts.meaning;
+  for (const id of ["lay", "col", "minw", "k-assoc", "k-causal", "k-other", "beyond"]) $(id).addEventListener("input", onTool);
+  $("find").addEventListener("input", () => { const q = $("find").value.trim().toLowerCase(); found = new Set(q ? CS.filter((c) => (c.name + " " + c.seed).toLowerCase().includes(q)).map((c) => c.i) : []);
+    if (found.size === 1) select([...found][0]); draw(); });
+  $("reset").addEventListener("click", () => { view = { k: 1, x: 0, y: 0 }; select(-1); draw(); });
+  new ResizeObserver(resize).observe(cv); resize(); onTool(); select(-1);
+  cv.addEventListener("wheel", (e) => { e.preventDefault(); const f = e.deltaY < 0 ? 1.15 : 1 / 1.15, r = cv.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top; view.x = mx - (mx - view.x) * f; view.y = my - (my - view.y) * f; view.k *= f; draw(); }, { passive: false });
+  let drag = null, moved = false;
+  cv.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }; moved = false; cv.setPointerCapture(e.pointerId); cv.style.cursor = "grabbing"; });
+  cv.addEventListener("pointermove", (e) => {
+    if (drag) { const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) moved = true; view.x = drag.vx + dx; view.y = drag.vy + dy; draw(); return; }
+    const r = cv.getBoundingClientRect(), h = hit(e.clientX - r.left, e.clientY - r.top); if (h !== hov) { hov = h; draw(); }
+    const t = $("tip"); if (h >= 0) { t.style.display = "block"; t.style.left = e.clientX + 14 + "px"; t.style.top = e.clientY + 14 + "px"; t.textContent = `${CS[h].name}  ·  fired ${CS[h].act.toLocaleString()}×`; } else t.style.display = "none"; });
+  cv.addEventListener("pointerup", (e) => { cv.style.cursor = "grab"; if (drag && !moved) { const r = cv.getBoundingClientRect(); select(hit(e.clientX - r.left, e.clientY - r.top)); } drag = null; });
+  cv.addEventListener("pointerleave", () => { $("tip").style.display = "none"; hov = -1; draw(); });
+}
+function resize() { const r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1; W = r.width; H = r.height; cv.width = W * d; cv.height = H * d; ctx.setTransform(d, 0, 0, d, 0, 0); draw(); }
+const sx = (i) => W / 2 + view.x + pos[i][0] * (Math.min(W, H) / 2 - 36) * view.k;
+const sy = (i) => H / 2 + view.y + pos[i][1] * (Math.min(W, H) / 2 - 36) * view.k;
+const rad = (c) => 3 + 2.4 * Math.log10(c.act + 1);
+function hit(mx, my) { let b = -1, bd = 1e9; for (let i = 0; i < CS.length; i++) { const d = Math.hypot(sx(i) - mx, sy(i) - my); if (d < Math.max(8, rad(CS[i]) + 3) && d < bd) { bd = d; b = i; } } return b; }
+function colour(c) {
+  const m = $("col").value;
+  if (m === "origin") return ORIGIN[c.origin] || "#999";
+  if (m === "system") return c.system ? css("--warn", "#ffcf4d") : css("--accent", "#3ef0ff");
+  if (m === "act") { const t = Math.min(1, Math.log10(c.act + 1) / 5); return `hsl(${210 - 190 * t} 85% 60%)`; }
+  return hue(c.cluster);
+}
+function keep(e) {
+  const k = e.k === "assoc" ? "k-assoc" : e.k === "causal" ? "k-causal" : "k-other";
+  if (!$(k).checked || Math.abs(e.w) < $("minw").value / 400) return false;
+  return !($("beyond").checked && !(e.cos < 0.4));
+}
+function draw() {
+  if (!G || !W) return;
+  ctx.clearRect(0, 0, W, H);
+  const line = css("--muted", "#6f8aa6"), txt = css("--text", "#d6f6ff"), acc = css("--accent", "#3ef0ff");
+  const focus = sel >= 0 ? new Set([sel, ...CS[sel].wired.map((w) => w.i)]) : null;
+  for (const e of ES) {
+    if (!keep(e)) continue;
+    const on = focus ? (e.s === sel || e.d === sel) : true;
+    ctx.globalAlpha = focus ? (on ? 0.9 : 0.04) : Math.min(0.5, 0.08 + e.w * 1.6);
+    ctx.strokeStyle = e.k === "causal" ? acc : e.k === "assoc" ? line : e.k === "inhibit" ? css("--bad", "#ff5c7a") : css("--ok", "#4dffa6");
+    ctx.lineWidth = Math.min(3.5, 0.5 + e.w * 9);
+    ctx.beginPath(); ctx.moveTo(sx(e.s), sy(e.s));
+    if (e.k === "causal") { const mx = (sx(e.s) + sx(e.d)) / 2, my = (sy(e.s) + sy(e.d)) / 2; ctx.quadraticCurveTo(mx + (sy(e.d) - sy(e.s)) * 0.12, my - (sx(e.d) - sx(e.s)) * 0.12, sx(e.d), sy(e.d)); }
+    else ctx.lineTo(sx(e.d), sy(e.d));
+    ctx.stroke();
+    if (on && focus && e.k === "causal") { const a = Math.atan2(sy(e.d) - sy(e.s), sx(e.d) - sx(e.s)), r = rad(CS[e.d]) + 3, px = sx(e.d) - Math.cos(a) * r, py = sy(e.d) - Math.sin(a) * r;
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px - Math.cos(a - .4) * 8, py - Math.sin(a - .4) * 8); ctx.lineTo(px - Math.cos(a + .4) * 8, py - Math.sin(a + .4) * 8); ctx.fillStyle = acc; ctx.fill(); }
+  }
+  for (const c of CS) {
+    const dim = (focus && !focus.has(c.i)) || (found.size && !found.has(c.i));
+    ctx.globalAlpha = dim ? 0.13 : 1; ctx.fillStyle = colour(c);
+    ctx.beginPath(); ctx.arc(sx(c.i), sy(c.i), rad(c), 0, 6.283); ctx.fill();
+    if (c.i === sel || c.i === hov || (found.has(c.i))) { ctx.globalAlpha = 1; ctx.lineWidth = 2; ctx.strokeStyle = txt; ctx.stroke(); }
+  }
+  ctx.globalAlpha = 1; ctx.fillStyle = txt; ctx.font = "11px system-ui, sans-serif";
+  const label = (i) => { ctx.fillText(CS[i].name.slice(0, 30), sx(i) + rad(CS[i]) + 4, sy(i) + 4); };
+  if (sel >= 0) focus.forEach(label); else if (view.k > 1.6) CS.forEach((c) => { if (c.act > 200) label(c.i); });
+  if (sel < 0 && !found.size) {
+    ctx.font = "600 11px system-ui, sans-serif"; ctx.lineJoin = "round"; ctx.lineWidth = 4; ctx.strokeStyle = css("--panel-solid", "#0d1527"); const placed = [];
+    for (const k of G.clusters.slice().sort((a, b) => b.size - a.size).slice(0, view.k > 1.8 ? 12 : 6)) {
+      const m = CS.filter((c) => c.cluster === k.id); if (!m.length) continue;
+      let x = 0, y = 0; m.forEach((c) => { x += sx(c.i); y += sy(c.i); }); x /= m.length; y /= m.length;
+      const t = k.name.slice(0, 24), w = ctx.measureText(t).width;
+      if (placed.some((p) => Math.abs(p[0] - x) < (p[2] + w) / 2 && Math.abs(p[1] - y) < 14)) continue;
+      placed.push([x, y, w]); ctx.fillStyle = hue(k.id); ctx.strokeText(t, x - w / 2, y); ctx.fillText(t, x - w / 2, y); }
+  }
+}
+function onTool() {
+  $("minwv").textContent = ($("minw").value / 400).toFixed(2);
+  if ($("lay").value === "wiring") { if (!layouts.wiring) layouts.wiring = forceLayout(); pos = layouts.wiring; } else pos = layouts.meaning;
+  const shown = ES.filter(keep).length;
+  $("mapnote").textContent = `${shown} of ${G.edge_total} wires drawn (the strongest). `
+    + ($("lay").value === "meaning" ? `Distance here is similarity of meaning, flattened from ${G.dim} dimensions (the two axes keep only ${pct(G.variance_kept[0] + G.variance_kept[1])} of the spread, so click a concept for its true neighbours). Bigger = fired more.`
+      : "Distance here is the wiring: concepts it learned go together sit close, whatever they mean. Compare with Meaning to see what it learned that meaning alone would not tell it.");
+  draw();
+}
+function forceLayout() {
+  const n = CS.length, p = CS.map((c) => [c.x * 0.8, c.y * 0.8]), v = p.map(() => [0, 0]);
+  const strong = ES.filter((e) => Math.abs(e.w) > 0.02);
+  for (let it = 0; it < 260; it++) {
+    const cool = 1 - it / 260;
+    for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) {
+      let dx = p[a][0] - p[b][0], dy = p[a][1] - p[b][1], d2 = dx * dx + dy * dy + 0.0004, f = 0.0009 / d2; const d = Math.sqrt(d2);
+      v[a][0] += dx / d * f; v[a][1] += dy / d * f; v[b][0] -= dx / d * f; v[b][1] -= dy / d * f; }
+    for (const e of strong) { const dx = p[e.d][0] - p[e.s][0], dy = p[e.d][1] - p[e.s][1], k = 0.05 * Math.min(1, e.w * 6);
+      v[e.s][0] += dx * k; v[e.s][1] += dy * k; v[e.d][0] -= dx * k; v[e.d][1] -= dy * k; }
+    for (let a = 0; a < n; a++) { v[a][0] -= p[a][0] * 0.01; v[a][1] -= p[a][1] * 0.01;
+      p[a][0] += Math.max(-0.05, Math.min(0.05, v[a][0])) * cool; p[a][1] += Math.max(-0.05, Math.min(0.05, v[a][1])) * cool; v[a][0] *= 0.6; v[a][1] *= 0.6; }
+  }
+  let m = 0.001; p.forEach((q) => { m = Math.max(m, Math.abs(q[0]), Math.abs(q[1])); }); return p.map((q) => [q[0] / m, q[1] / m]);
+}
+function bar(label, frac, text) { return el("div", { class: "row" }, el("span", {}, label), el("div", { class: "bar" }, el("i", { style: `width:${Math.max(1, Math.min(100, frac * 100))}%` })), el("span", {}, text)); }
+function select(i) {
+  sel = i; const s = $("side"); s.replaceChildren();
+  if (i < 0) {
+    s.append(el("h2", {}, "Click a concept"), el("p", { class: "muted" }, "Dots are things ASH has a concept for: the skills it can use, its own rules, and everything it grew from talking to you."),
+      el("p", { class: "muted" }, "Size is how often it fired. Lines are wires it learned; the bluer curved ones have a direction (A tends to come before B)."), el("h2", {}, "Topics"));
+    const ul = el("ul", { class: "l" }); for (const k of G.clusters.slice().sort((a, b) => b.size - a.size)) ul.append(el("li", {}, el("span", { style: `color:${hue(k.id)}` }, "● "), k.name, " ", el("span", { class: "tag" }, k.size + " concepts"), k.system ? el("span", { class: "tag" }, k.system + " system readings") : null));
+    s.append(ul); draw(); return;
+  }
+  const c = CS[i];
+  s.append(el("h3", {}, c.name), el("div", {}, el("span", { class: "tag" }, c.origin), " ", c.system ? el("span", { class: "tag" }, "system reading") : null, " ", c.intent ? el("span", { class: "tag" }, "skill: " + c.intent) : null, c.frozen ? el("span", { class: "tag" }, "frozen") : null));
+  if (c.seed) s.append(el("p", { class: "muted" }, "Born from: “" + c.seed + "”"));
+  s.append(el("h2", { style: "margin-top:10px" }, "Facets"),
+    bar("Busyness", Math.log10(c.act + 1) / 5.2, c.act.toLocaleString() + "×"), bar("Share of all", Math.min(1, c.share * 4), pct(c.share)),
+    bar("Lately", Math.min(1, c.rate), c.rate.toFixed(3)), bar("Plasticity", Math.min(1, c.plasticity * 8), c.plasticity.toFixed(2)),
+    bar("Wires in", Math.min(1, c["in"] / Math.max(1, CS.length - 1)), c["in"]), bar("Wires out", Math.min(1, c.out / Math.max(1, CS.length - 1)), c.out));
+  const wl = el("ul", { class: "l" }), wset = new Set(c.wired.map((w) => w.i));
+  for (const w of c.wired) wl.append(el("li", {}, nameLink(w.i), " ", el("span", { class: "tag" }, "w " + w.w.toFixed(2)), c.similar.some((x) => x.i === w.i) ? "" : el("span", { class: "tag" }, "learned, not obvious")));
+  const sl = el("ul", { class: "l" });
+  for (const x of c.similar) sl.append(el("li", {}, nameLink(x.i), " ", el("span", { class: "tag" }, pct(x.cos) + " alike"), wset.has(x.i) ? "" : el("span", { class: "tag" }, "not wired")));
+  s.append(el("h2", { style: "margin-top:10px" }, "Wired to (what it learned)"), c.wired.length ? wl : el("p", { class: "muted" }, "Nothing yet."),
+    el("h2", { style: "margin-top:10px" }, "Most alike in meaning"), sl); draw();
+}
+
+/* ------------------------------------------------------------ what it learned */
+function pairRow(p) { return el("li", {}, nameLink(p.s, p.from), " ", el("b", { class: "muted" }, p.kind === "causal" ? "→" : "↔"), " ", nameLink(p.d, p.to), " ",
+  el("span", { class: "tag" }, "w " + p.w.toFixed(2)), el("span", { class: "tag" }, "seen " + p.n.toLocaleString() + "×"), el("span", { class: "tag" }, pct(Math.max(0, p.cos)) + " alike")); }
+function card(title, note, body, wide) { return el("section", { class: "card" + (wide ? " wide" : "") }, el("h2", {}, title), body, note ? el("p", { class: "note" }, note) : null); }
+function renderLearned() {
+  const root = $("learned"), L = D.learned; root.replaceChildren();
+  if (!L) { root.append(card("Nothing yet", "", el("p", { class: "muted" }, "No concept graph to read."))); return; }
+  root.append(card("Wires it has made permanent", "Permanent weight only moves during sleep; these survived it. This is what ASH has really learned, as opposed to noticed today.", el("ul", { class: "l" }, L.solid.map(pairRow))));
+  root.append(card("Links meaning would not predict", "Strong wires between concepts that are far apart in meaning. This is where experience taught it something its language model could not: the most interesting thing it knows, and the first place a wrong lesson would show.", el("ul", { class: "l" }, L.beyond_meaning.map(pairRow))));
+  root.append(card("Sequences it expects", "Chains of arrows with real ordering behind them: after A, B, then C.", L.chains.length ? L.chains.map((c) => el("div", { class: "path" }, c.path.map((i, k) => [k ? el("b", {}, "→") : null, nameLink(i)]))) : el("p", { class: "muted" }, "None strong enough yet.")));
+  root.append(card("What fires most", "Share of every activation ever. A healthy network has a spread; one name at the top that is a system reading is a problem (see the last tab).",
+    el("ul", { class: "l" }, L.busiest.map((b) => el("li", {}, nameLink(b.i, b.name), " ", el("span", { class: "tag" }, b.act.toLocaleString() + "×"), el("span", { class: "tag" }, pct(b.share)), b.system ? el("span", { class: "tag" }, "system reading") : null)))));
+  root.append(card("Recently active", "By the running activity average, which fades with disuse.", el("ul", { class: "l" }, L.hot.map((b) => el("li", {}, nameLink(b.i, b.name), " ", el("span", { class: "tag" }, b.rate.toFixed(2)))))));
+  root.append(card("Newest concepts it grew", "Highest ids; the saved graph does not keep creation times, so this is the best order it has.", el("ul", { class: "l" }, L.newest.map((b) => el("li", {}, nameLink(b.i, b.name))))));
+  root.append(card("Used before, now fading", "", L.faded.length ? el("ul", { class: "l" }, L.faded.map((b) => el("li", {}, nameLink(b.i, b.name), " ", el("span", { class: "tag" }, b.act.toLocaleString() + "× ever")))) : el("p", { class: "muted" }, "Nothing is fading.")));
+  const lr = D.learners || {}, parts = [];
+  if (lr.asks) parts.push("Asks: " + Object.entries(lr.asks).map(([k, v]) => v + " " + k).join(", "));
+  if (lr.timing_cells != null) parts.push("When to ask: " + lr.timing_cells + " learned time cells");
+  if (lr.dwell_days != null) parts.push("Time on screen: " + lr.dwell_days + " days");
+  if (parts.length) root.append(card("What the newer learners hold", "", el("ul", { class: "l" }, parts.map((t) => el("li", {}, t)))));
+}
+
+/* ------------------------------------------------------------ everything else it keeps */
+function counts(obj, max) { const e = Object.entries(obj || {}); const m = Math.max(1, ...e.map((x) => x[1])); return el("div", {}, e.slice(0, max || 12).map(([k, v]) => bar(k, v / m, v.toLocaleString()))); }
+function renderMemory() {
+  const root = $("memory"), M = D.memory || {}; root.replaceChildren();
+  const E = M.entities || {}, P = M.episodes || {}, C = M.core || {}, B = M.brain || {};
+  root.append(card(`People and things (${(E.total || 0).toLocaleString()})`, `${E.no_facets || 0} hold only a name and a sentence. Types are guesses by the name finder.`, counts(E.by_type)));
+  root.append(card("Best-known", "Ranked by how much is known about them, then how recently seen.", el("ul", { class: "l" }, (E.top || []).map((r) => el("li", {}, el("b", {}, r.name), " ", el("span", { class: "tag" }, r.type), " ", el("span", { class: "tag" }, r.facets + " facets"), r.context ? el("div", { class: "ex" }, r.context) : null)))));
+  const days = P.by_day || [], mx = Math.max(1, ...days.map((d) => d[1])), w = 14;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"); svg.setAttribute("viewBox", `0 0 ${Math.max(1, days.length) * w} 70`); svg.setAttribute("style", "width:100%;height:auto"); svg.setAttribute("role", "img"); svg.setAttribute("aria-label", "Episodes per day");
+  days.forEach((d, i) => { const h = 50 * d[1] / mx, r = document.createElementNS(svg.namespaceURI, "rect"); r.setAttribute("x", i * w + 1); r.setAttribute("y", 55 - h); r.setAttribute("width", w - 3); r.setAttribute("height", Math.max(1, h)); r.setAttribute("rx", 2); r.setAttribute("fill", css("--accent", "#3ef0ff")); const t = document.createElementNS(svg.namespaceURI, "title"); t.textContent = d[0] + ": " + d[1]; r.append(t); svg.append(r); });
+  if (days.length) { const a = document.createElementNS(svg.namespaceURI, "text"); a.setAttribute("x", 0); a.setAttribute("y", 67); a.textContent = days[0][0]; svg.append(a); const b = document.createElementNS(svg.namespaceURI, "text"); b.setAttribute("x", days.length * w); b.setAttribute("y", 67); b.setAttribute("text-anchor", "end"); b.textContent = days[days.length - 1][0]; svg.append(b); }
+  root.append(card(`Episodes (${(P.total || 0).toLocaleString()})`, `${P.entity_linked || 0} name an entity, ${P.concept_linked || 0} record the concepts that were active, ${P.never_recalled || 0} were never recalled. First: ${when(P.first)}.`, el("div", {}, svg, counts(P.by_type))));
+  root.append(card("Latest episodes", "", el("ul", { class: "l" }, (P.recent || []).map((r) => el("li", {}, el("span", { class: "tag" }, r.type), " ", r.text, el("div", { class: "ex" }, when(r.t)))))));
+  root.append(card("What it was told to be", `${C.total || 0} core rules, by weight.`, el("ul", { class: "l" }, (C.rules || []).slice(0, 12).map((r) => el("li", {}, el("span", { class: "tag" }, r.category + (r.hard ? " · hard" : "")), " ", r.text)))));
+  const outs = B.outcomes || [];
+  root.append(card("How its own actions turn out", B.critic ? `Critic updated ${B.critic.updates} times.` : "", outs.length ? el("div", {}, outs.map((o) => bar(o.tool, o.tries ? o.success / o.tries : 0, `${Math.round(o.success)}/${Math.round(o.tries)}`))) : el("p", { class: "muted" }, "No outcomes recorded.")));
+}
+
+/* ------------------------------------------------------------ what is wrong */
+function renderHealth() {
+  const root = $("health"); root.replaceChildren();
+  root.append(el("h2", {}, "What looks wrong in what it keeps"));
+  const F = D.findings || [];
+  if (!F.length) root.append(el("p", { class: "muted" }, "Nothing stands out."));
+  for (const f of F) root.append(el("div", { class: "f " + f.level }, el("h3", {}, f.title), el("p", {}, f.detail), el("p", { class: "fix" }, "Fix: " + f.fix), f.examples && f.examples.length ? el("div", { class: "ex" }, "e.g. " + f.examples.join(" · ")) : null));
+  root.append(el("h2", { style: "margin-top:18px" }, "How to make it more like BMO and Jarvis"), el("p", { class: "muted" }, "Ranked by how much of what you see above argues for it. None of these needs a language model."));
+  const names = Object.fromEntries(F.map((f) => [f.id, f.title]));
+  for (const it of D.ideas || []) root.append(el("div", { class: "f " + (it.priority ? "warn" : "info") }, el("h3", {}, it.title, " ", el("span", { class: "tag" }, "feels like " + it.like)), el("p", {}, it.what), it.argued_by.length ? el("div", { class: "ex" }, "Because: " + it.argued_by.map((x) => names[x] || x).join("; ")) : null));
+}
+load();
+</script>
+</body>
+</html>
