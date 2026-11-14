@@ -4,6 +4,8 @@ tst_homesafety.py -- what the smart-home handler must not do.
 Review found the never-by-voice list was tested on the spoken name and the friendly name, never the entity's id, so
 `switch.garage_door_opener` with the friendly name "Opener" was operated, and the list had no pump, valve, boiler or siren.
 
+Two devices that matched a name equally well were not told apart: "turn off the light" switched whichever came first.
+
 Run:  PYTHONIOENCODING=utf-8 python tests/tst_homesafety.py
 """
 
@@ -50,7 +52,30 @@ def t1_entity_id():
     check("an ordinary switch still is", any(c[0] == "POST" for c in s.f.calls), str(say))
 
 
+def t2_ambiguous():
+    print("\n=== Two that fit equally ===")
+    s = home([
+        {"entity_id": "light.living_room", "state": "off", "attributes": {"friendly_name": "Living room light"}},
+        {"entity_id": "light.desk", "state": "off", "attributes": {"friendly_name": "Desk light"}},
+        {"entity_id": "light.hall", "state": "off", "attributes": {"friendly_name": "Hall light"}},
+    ])
+    say = s.hear("turn off the light")
+    check("'turn off the light' with three lights asks which, and switches none",
+          say and say.startswith("Which one") and "Desk light" in say and not any(c[0] == "POST" for c in s.f.calls), str(say))
+    s.f.calls.clear()
+    s.hear("turn off the desk light")
+    check("a name that fits one is done", any(c[0] == "POST" for c in s.f.calls))
+    s2 = home([
+        {"entity_id": "light.a", "state": "off", "attributes": {"friendly_name": "Reading light"}},
+        {"entity_id": "lock.front", "state": "locked", "attributes": {"friendly_name": "Front light lock"}},
+    ])
+    say = s2.hear("turn on the light")
+    check("a refused device tied with a safe one is not a reason to ask (and is never the one chosen)",
+          not (say or "").startswith("Which one") or "lock" not in (say or "").lower(), str(say))
+
+
 if __name__ == "__main__":
     t1_entity_id()
+    t2_ambiguous()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

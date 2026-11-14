@@ -101,6 +101,7 @@ class SmartHome:
         self._states: List[Dict[str, Any]] = []
         self._states_at = -1e18
         self.stats = {"done": 0, "refused": 0, "errors": 0}
+        self.last_choices: List[str] = []
 
     NOT_SET_UP = ("I'm not connected to your smart home yet. Add your Home Assistant address and token in the console's "
                   "settings (smarthome.url and smarthome.token), and I'll switch things for you.")
@@ -130,6 +131,7 @@ class SmartHome:
         if not want:
             return None, "unknown"
         best, best_score = None, 0.0
+        tied: List[Dict[str, Any]] = []
         for s in self.states():
             dom = s["entity_id"].split(".", 1)[0]
             fname = str((s.get("attributes") or {}).get("friendly_name") or s["entity_id"].split(".", 1)[1])
@@ -140,9 +142,16 @@ class SmartHome:
                 have.add("fan")
             score = len(want & have) / len(want)
             if score > best_score:
-                best, best_score = s, score
+                best, best_score, tied = s, score, [s]
+            elif score == best_score and score >= 0.99:
+                tied.append(s)
         if best is None or best_score < 0.99:
             return None, "unknown"
+        # "turn off the light" with five lights switched whichever came first. Two that fit equally well are asked about.
+        safe_tied = [t for t in tied if t["entity_id"].split(".", 1)[0] in SAFE_DOMAINS and not self._never(t)]
+        if len(safe_tied) > 1:
+            self.last_choices = [str((t.get("attributes") or {}).get("friendly_name") or t["entity_id"]) for t in safe_tied][:4]
+            return None, "ambiguous"
         # The name the person said, the friendly name AND the entity id ("switch.garage_door_opener" is "Opener" to a person).
         if best["entity_id"].split(".", 1)[0] not in SAFE_DOMAINS or self._never(best):
             return None, "refused"
@@ -179,6 +188,9 @@ class SmartHome:
         if why == "refused":
             self.stats["refused"] += 1
             return f"I don't operate {name.strip()} by voice. Use Home Assistant for that one."
+        if why == "ambiguous":
+            a = self.last_choices
+            return "Which one -- " + ", ".join(a[:-1]) + (" or " if len(a) > 1 else "") + a[-1] + "?"
         if ent is None:
             return None if not m and not d else f"I couldn't find anything called {name.strip()} in Home Assistant."
         friendly = (ent.get("attributes") or {}).get("friendly_name") or ent["entity_id"]
