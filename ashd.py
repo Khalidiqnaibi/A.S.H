@@ -92,7 +92,7 @@ _background_priority()
 
 from src.daemon import (  # noqa: E402
     AmbientConfig, AmbientRuntime, AttentionGate, ControlServer, Journal,
-    PrivacyPolicy, SingleInstance, Watchdog, install_signal_handlers,
+    PrivacyPolicy, SingleInstance, Stopper, Watchdog, install_signal_handlers,
     load_config, setup_logging,
 )
 
@@ -555,17 +555,16 @@ def main() -> int:
         # below ends and runs the same shutdown as Ctrl-C.
         runtime.request_shutdown = lambda: threading.Timer(3.0, quit_requested.set).start()
 
-        def shutdown():
-            if done.is_set():
-                return                    # the signal handler and the main loop both get here
-            done.set()
-            try:
-                face = getattr(runtime, "face", None)
-                if face is not None:
-                    face.on_shutdown()
-                    face.player.shutdown(play_outro=True)
-            except Exception:
-                pass
+        def _shutdown(quick: bool = False):
+            # quick: the window is being closed and Windows allows a few seconds -- save first, skip the goodbye sound.
+            if not quick:
+                try:
+                    face = getattr(runtime, "face", None)
+                    if face is not None:
+                        face.on_shutdown()
+                        face.player.shutdown(play_outro=True)
+                except Exception:
+                    pass
             try:
                 watchdog.stop()
                 if console:
@@ -576,7 +575,9 @@ def main() -> int:
             finally:
                 lock.release()
 
-        install_signal_handlers(shutdown)
+        # The signal handler, the console-close handler and the main loop all get here; one does the work and the others wait.
+        shutdown = Stopper(_shutdown)
+        install_signal_handlers(shutdown, on_console_close=lambda: shutdown(quick=True))
 
         runtime.start()
         if control:

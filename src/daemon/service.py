@@ -942,7 +942,47 @@ class Watchdog:
 _CONSOLE_HANDLER = None
 
 
-def install_signal_handlers(on_shutdown: Callable[[], None]):
+class Stopper:
+    """Runs the shutdown once, however many threads ask for it, and makes the others wait until it has finished.
+
+    A window being closed arrives on a thread of its own while the main thread is in its loop; when that loop ended it called
+    the same shutdown, found it "already running", returned, and the process exited under the thread that was still saving.
+    Now whoever comes second waits (up to `wait_s`, which is about what Windows gives a closing console) for the first."""
+
+    def __init__(self, work: Callable[[bool], None], wait_s: float = 8.0):
+        self.work, self.wait_s = work, wait_s
+        self.finished = threading.Event()
+        self._lock = threading.Lock()
+        self._started = False
+
+    def __call__(self, quick: bool = False):
+        with self._lock:
+            first = not self._started
+            self._started = True
+        if not first:
+            self.finished.wait(self.wait_s)
+            return
+        try:
+            self.work(quick)
+        finally:
+            self.finished.set()
+
+
+def console_event_handler(on_close: Callable[[], None]):
+    """The function Windows calls for a console control event: 2 (window closed), 5 (log-off), 6 (shutdown) stop ASH cleanly."""
+    def handler(ctrl_type):
+        if ctrl_type in (2, 5, 6):
+            logger.warning("Console event %s (window closed or logging off) -- shutting down", ctrl_type)
+            try:
+                on_close()
+            except Exception:
+                logger.exception("Shutdown from a console event failed")
+            return 1
+        return 0
+    return handler
+
+
+def install_signal_handlers(on_shutdown: Callable[[], None], on_console_close: Optional[Callable[[], None]] = None):
     def _handler(signum, _frame):
         logger.warning("Received signal %s -- shutting down", signum)
         on_shutdown()
@@ -968,18 +1008,8 @@ def install_signal_handlers(on_shutdown: Callable[[], None]):
             import ctypes
             handler_type = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_uint)
 
-            def _console_event(ctrl_type):
-                if ctrl_type in (2, 5, 6):                    # CLOSE, LOGOFF, SHUTDOWN
-                    logger.warning("Console event %s (window closed or logging off) -- shutting down", ctrl_type)
-                    try:
-                        on_shutdown()
-                    except Exception:
-                        logger.exception("Shutdown from a console event failed")
-                    return 1
-                return 0
-
             global _CONSOLE_HANDLER                           # keep a reference, or it is collected and Windows calls nothing
-            _CONSOLE_HANDLER = handler_type(_console_event)
+            _CONSOLE_HANDLER = handler_type(console_event_handler(on_console_close or on_shutdown))
             ctypes.windll.kernel32.SetConsoleCtrlHandler(_CONSOLE_HANDLER, True)
         except Exception:
             logger.debug("Could not install the console close handler", exc_info=True)
