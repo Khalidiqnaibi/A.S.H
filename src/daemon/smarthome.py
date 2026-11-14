@@ -33,7 +33,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 logger = logging.getLogger("ash.daemon.smarthome")
 
 SAFE_DOMAINS = ("light", "switch", "fan", "input_boolean")
-NEVER = re.compile(r"\b(?:lock|locks|door|doors|garage|gate|alarm|security|camera|oven|stove|heater)\b", re.I)
+NEVER = re.compile(r"\b(?:lock|locks|unlock|door|doors|garage|gate|alarm|security|camera|oven|stove|heater|boiler|"
+                       r"pump|valve|furnace|siren|sprinklers?)\b", re.I)
 
 _ON_OFF = re.compile(r"^\s*(?:please\s+|can you\s+|could you\s+)?(?:turn|switch|put)\s+(?P<a>on|off)\s+(?:the\s+|my\s+)?"
                      r"(?P<t>[\w '\-]{2,40}?)\s*(?:please)?\s*[.!]?\s*$"
@@ -142,10 +143,15 @@ class SmartHome:
                 best, best_score = s, score
         if best is None or best_score < 0.99:
             return None, "unknown"
-        if best["entity_id"].split(".", 1)[0] not in SAFE_DOMAINS or NEVER.search(
-                str((best.get("attributes") or {}).get("friendly_name") or "")):
+        # The name the person said, the friendly name AND the entity id ("switch.garage_door_opener" is "Opener" to a person).
+        if best["entity_id"].split(".", 1)[0] not in SAFE_DOMAINS or self._never(best):
             return None, "refused"
         return best, ""
+
+    @staticmethod
+    def _never(s: Dict[str, Any]) -> bool:
+        ident = s["entity_id"].split(".", 1)[1].replace("_", " ")
+        return bool(NEVER.search(ident) or NEVER.search(str((s.get("attributes") or {}).get("friendly_name") or "")))
 
     def hear(self, text: str) -> Optional[str]:
         """A device command or question: what to say back, or None."""
