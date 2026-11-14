@@ -96,6 +96,7 @@ class Occasion:
         self._segs: Deque[Tuple[float, float, str]] = deque()      # (start, end, activity), closed
         self._cur: Optional[Tuple[float, str]] = None               # (since, activity) still going
         self._page = ""                                             # the activity of the browser tab in front, if any
+        self._front = ""                                            # the activity of what is in front now, running or not
         self._browser_front = False
         self._leisure = False                                       # the tab in front is video, social, news...
         self._lock = threading.Lock()
@@ -110,6 +111,7 @@ class Occasion:
             if not self._browser_front:
                 self._leisure = False
             act = "" if blocked else (activity_of(process) or (self._page if self._browser_front else ""))
+            self._front = act
             if self._cur is not None and self._cur[1] == act:
                 return
             self._close(now)
@@ -123,11 +125,13 @@ class Occasion:
             if stopped:
                 self._page, self._leisure = "", False
                 if self._browser_front:                 # only if a browser is still what is in front: a late
+                    self._front = ""
                     self._close(now)                    # "stopped" must not end what an editor started since
                 self._browser_front = False
                 return
             act = page_activity(category)
             self._page, self._browser_front = act, True
+            self._front = act
             self._leisure = (category or "").strip().lower() in LEISURE_PAGES
             if self._cur is not None and self._cur[1] == act:
                 return
@@ -140,6 +144,10 @@ class Occasion:
         with self._lock:
             if self._cur is not None and idle_s is not None and idle_s >= self.idle_cut_s:
                 self._close(max(self._cur[0], now - idle_s))        # it ended when they went quiet
+            elif self._cur is None and self._front and (idle_s is None or idle_s < self.idle_cut_s):
+                # Back from a break, to the same window: window() only fires when the title changes, so without this a
+                # coffee break ended "coding" until the next time the title changed.
+                self._cur = (now, self._front)
             while self._segs and now - self._segs[0][1] > self.keep_s:
                 self._segs.popleft()
 
