@@ -34,7 +34,7 @@ def g1_what_is_a_game():
     from src.daemon.gamemode import looks_like_game
     from src.daemon.occasion import activity_of
     for proc, fs, want in [
-        ("League of Legends.exe", False, "game"), ("LeagueClientUx.exe", False, "game"),
+        ("League of Legends.exe", False, "game"), ("LeagueClientUx.exe", False, ""), ("LeagueClient.exe", False, ""),
         ("VALORANT-Win64-Shipping.exe", False, "game"), ("cs2.exe", False, "game"), ("eldenring.exe", True, "game"),
         ("steam.exe", False, ""), ("EpicGamesLauncher.exe", False, ""), ("RiotClientServices.exe", False, ""),
         ("somegame.exe", True, "fullscreen"), ("somegame.exe", False, ""),
@@ -307,11 +307,112 @@ def g5_pieces():
     check("...which fits", len(ids["game"]) < 760, str(len(ids.get("game", ""))))
 
 
+def g6_robustness():
+    print("\n=== G6. What review found ===")
+    from src.daemon.gamemode import GameMode, GameModeConfig, looks_like_game, running_games
+    from src.daemon.occasion import activity_of
+
+    check("the League client (open for hours) is a launcher: it does not keep game mode on all day",
+          looks_like_game("LeagueClientUx.exe") == "" and looks_like_game("LeagueClient.exe") == "")
+    check("...but it still means 'gaming' for who may be spoken to", activity_of("LeagueClientUx.exe") == "gaming")
+    for proc in ("soffice.exe", "AcroRd32.exe", "SumatraPDF.exe", "mpc-be64.exe", "ScreenClippingHost.exe", "parsecd.exe"):
+        check(f"a full-screen {proc} is not a game", looks_like_game(proc, True) == "")
+
+    # the user's own switch during a game
+    per = Per(screenshot="active", microphone="active")
+    gm = mode(per)
+    gm.look("cs2.exe", False, T0)
+    gm.look("cs2.exe", False, T0 + 9)
+    per.sensors["microphone"].state = type("S", (), {"value": "disabled"})()        # (it was paused by game mode)
+    gm.forget("microphone")
+    gm.look("Code.exe", False, T0 + 20)
+    gm.look("Code.exe", False, T0 + 70)
+    check("a sensor the user switched themselves during the game is not switched back on after it",
+          per.sensors["microphone"].log == ["disable"] and "microphone" not in gm.paused, str(per.sensors["microphone"].log))
+    check("...but the ones game mode paused are", per.sensors["screenshot"].log == ["disable", "enable"])
+
+    # privacy mode on during the game
+    per = Per(screenshot="active", microphone="active")
+    held = []
+    from src.daemon.gamemode import GameMode as GM
+    gm = GM(GameModeConfig(), clock=lambda: T0, periphery=per, release=lambda: None, restore=lambda: None, scan=lambda: [],
+            own_priority=lambda low: None, unload_model=lambda: None, held=lambda: True, on_held=held.append)
+    gm.look("cs2.exe", False, T0)
+    gm.look("cs2.exe", False, T0 + 9)
+    gm.look("Code.exe", False, T0 + 20)
+    gm.look("Code.exe", False, T0 + 70)
+    check("privacy mode on when the game ends: the sensors stay off", all(s.log == ["disable"] for s in per.sensors.values()))
+    check("...and are handed to privacy mode, which brings them back when it ends", sorted(held) == ["microphone", "screenshot"], str(held))
+
+    # the window sensor going quiet
+    rt = te.rig(game_mode=True, game_cfg={"enter_after_s": 8, "leave_after_s": 45, "lower_priority": False, "free_model": False})
+    aw = AW()
+    rt.periphery.sensors["active_window"] = aw
+    rt.game._scan = lambda: []
+    aw.last_process = "League of Legends.exe"
+    aw.state = type("S", (), {"value": "active"})()
+    try:
+        for _ in range(5):
+            rt.t[0] += 3
+            rt._tick()
+        check("(a game is up)", rt.game.active)
+        aw.state = type("S", (), {"value": "error"})()
+        for _ in range(20):
+            rt.t[0] += 3
+            rt._tick()
+        check("the window sensor failing does not keep game mode on forever on its last reading", not rt.game.active,
+              str(rt.game.status()))
+        # the user's own switch through the runtime
+        aw.state = type("S", (), {"value": "active"})()
+        aw.last_process = "cs2.exe"
+        for _ in range(5):
+            rt.t[0] += 3
+            rt._tick()
+        check("(a game again)", rt.game.active)
+        ok, why = rt.set_sensor("microphone", False)
+        check("switching the mic off through the runtime tells game mode it is theirs", "microphone" not in rt.game.paused,
+              str(rt.game.paused))
+        check("privacy: the runtime hands game mode what privacy mode needs", callable(rt.game._held) and rt.game._held() is False)
+    finally:
+        te.stop_all(rt)
+
+    # which model is unloaded
+    seen = []
+    from src.daemon import gamemode as gmod
+    real = gmod.unload_ollama
+    gmod.unload_ollama = lambda model="", url="": seen.append((model, url))
+    try:
+        rt2 = te.rig(game_mode=True)
+        rt2.ash.llm = type("L", (), {"_ollama_model": "deepseek-r1:1.5b", "_ollama_url": "http://127.0.0.1:4444/api/chat",
+                                    "_light_model": "qwen3:1b"})()
+        rt2._unload_model()
+    finally:
+        gmod.unload_ollama = real
+    check("the model that is unloaded is the one ASH is configured with, at its address (not the env default)",
+          seen == [("deepseek-r1:1.5b", "http://127.0.0.1:4444/api/chat"), ("qwen3:1b", "http://127.0.0.1:4444/api/chat")], str(seen))
+
+    # priorities: what was lowered is what is restored
+    import psutil
+    gmod._BASELINE.clear()
+    me = psutil.Process()
+    before = me.nice()
+    gmod._set_priority(True)
+    lowered = me.nice()
+    gmod._set_priority(False)
+    check("priority goes down and comes back to what it was (not to 'normal')", lowered != before and me.nice() == before,
+          f"{before} {lowered} {me.nice()}")
+    check("...and the bookkeeping is empty afterwards", gmod._BASELINE == {})
+    gmod._BASELINE[999999999] = (1.0, 5)
+    gmod._set_priority(False)
+    check("a stale entry for a process that is gone is dropped, not applied to a stranger", gmod._BASELINE == {})
+
+
 if __name__ == "__main__":
     g1_what_is_a_game()
     g2_state_machine()
     g3_running_behind()
     g4_runtime()
     g5_pieces()
+    g6_robustness()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

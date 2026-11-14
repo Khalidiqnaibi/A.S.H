@@ -31,7 +31,7 @@ import time
 import urllib.request
 import json
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .occasion import BROWSERS, GAME_PROCS, is_known_game
 
@@ -39,7 +39,9 @@ logger = logging.getLogger("ash.daemon.gamemode")
 
 # A program that fills the screen is a game unless it is one of these.
 _NOT_GAMES = frozenset("""explorer applicationframehost searchhost shellexperiencehost startmenuexperiencehost
-    lockapp logonui dwm vlc mpv mpc-hc mpc-hc64 potplayer potplayermini64 wmplayer kodi plex netflix primevideo
+    lockapp logonui dwm vlc mpv mpc-hc mpc-hc64 mpc-be mpc-be64 potplayer potplayermini64 wmplayer kodi plex netflix primevideo
+    soffice soffice.bin acrord32 acrobat sumatrapdf screenclippinghost parsecd video.ui msteams slack discord lightshot
+    gimp-2.10 krita
     disneyplus stremio stremio-shell-ng spotify powerpnt keynote excel winword outlook teams zoom code cursor
     windowsterminal wt cmd powershell pwsh conhost mintty devenv pycharm64 idea64 studio64 figma photoshop
     illustrator blender obs64 obs streamlabs obs-studio mstsc vmconnect virtualboxvm vmware teamviewer anydesk
@@ -107,7 +109,9 @@ class GameMode:
                  restore: Optional[Callable[[], None]] = None,
                  scan: Callable[[], List[str]] = running_games,
                  own_priority: Optional[Callable[[bool], None]] = None,
-                 unload_model: Optional[Callable[[], None]] = None):
+                 unload_model: Optional[Callable[[], None]] = None,
+                 held: Optional[Callable[[], bool]] = None,
+                 on_held: Optional[Callable[[str], None]] = None):
         self.cfg = cfg or GameModeConfig()
         self.clock = clock
         self.periphery = periphery
@@ -116,6 +120,8 @@ class GameMode:
         self._scan = scan
         self._priority = own_priority or _set_priority
         self._unload = unload_model or unload_ollama
+        self._held = held                  # privacy mode is on: nothing sensitive may be switched on, by anyone
+        self._on_held = on_held            # ...so a sensor that would have been resumed is handed to privacy mode instead
         self.active = False
         self.why = ""
         self.since = 0.0
@@ -195,13 +201,30 @@ class GameMode:
             except Exception:
                 logger.exception("Could not pause %s for the game", n)
 
+    def forget(self, name: str):
+        """The user (or privacy mode) switched this sensor themselves while a game was up: it is theirs now, and game mode
+        must not switch it back on when the game ends."""
+        with self._lock:
+            if name in self.paused:
+                self.paused.remove(name)
+
     def _resume_sensors(self):
         sensors = getattr(self.periphery, "sensors", None) or {}
+        held = False
+        try:
+            held = bool(self._held()) if self._held is not None else False
+        except Exception:
+            held = False
         for n in self.paused:
             s = sensors.get(n)
             try:
-                if s is not None and s.state.value == "disabled":
-                    s.enable()
+                if s is None or s.state.value != "disabled":
+                    continue
+                if held:
+                    if self._on_held is not None:
+                        self._on_held(n)          # privacy mode brings it back when privacy mode ends, not before
+                    continue
+                s.enable()
             except Exception:
                 logger.exception("Could not resume %s after the game", n)
         self.paused = []
@@ -233,7 +256,7 @@ class GameMode:
 # ----------------------------------------------------------------------------
 # What it does to the machine
 # ----------------------------------------------------------------------------
-_BASELINE: Dict[int, int] = {}
+_BASELINE: Dict[int, Tuple[float, int]] = {}
 
 
 def _set_priority(low: bool):
@@ -244,21 +267,30 @@ def _set_priority(low: bool):
     else:
         lowest = 19
     procs = [psutil.Process()]
-    try:
-        for p in psutil.process_iter(["name"]):
-            if (p.info.get("name") or "").lower().startswith("ollama"):
-                procs.append(p)
-    except Exception:
-        pass
-    for p in procs:
+    if low:
         try:
-            if low:
-                _BASELINE.setdefault(p.pid, p.nice())          # what it was, to go back to (ASH itself starts below normal)
-                p.nice(lowest)
-            else:
-                p.nice(_BASELINE.pop(p.pid, psutil.NORMAL_PRIORITY_CLASS if os.name == "nt" else 0))
+            for p in psutil.process_iter(["name"]):
+                if (p.info.get("name") or "").lower().startswith("ollama"):
+                    procs.append(p)
         except Exception:
-            logger.debug("Could not change the priority of %s", getattr(p, "pid", "?"), exc_info=True)
+            pass
+        for p in procs:
+            try:
+                _BASELINE[p.pid] = (p.create_time(), p.nice())      # what it was (ASH itself starts below normal), and which process
+                p.nice(lowest)
+            except Exception:
+                logger.debug("Could not lower the priority of %s", getattr(p, "pid", "?"), exc_info=True)
+        return
+    # Back: only the processes that were lowered, only if they are still the same process (a pid can be reused), and what
+    # started during the game -- a new Ollama runner -- is left as it is.
+    for pid, (created, was) in list(_BASELINE.items()):
+        try:
+            p = psutil.Process(pid)
+            if abs(p.create_time() - created) < 1.0:
+                p.nice(was)
+        except Exception:
+            pass
+    _BASELINE.clear()
 
 
 def unload_ollama(model: str = "", url: str = ""):

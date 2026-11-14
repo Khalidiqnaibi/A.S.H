@@ -515,7 +515,9 @@ class AmbientRuntime:
         self.game: Optional[GameMode] = None
         if self.cfg.game_mode:
             self.game = GameMode(GameModeConfig.from_dict(self.cfg.game_cfg), clock=lambda: self.clock(),
-                                 periphery=self.periphery, release=self._release_models, restore=self._wake_models)
+                                 periphery=self.periphery, release=self._release_models, restore=self._wake_models,
+                                 unload_model=self._unload_model, held=lambda: self.privacy.paused,
+                                 on_held=lambda n: self._privacy_held.append(n) if n not in self._privacy_held else None)
         # What the now-playing sensor last reported as on (None: nothing), so "this song" means something.
         self._playing: Optional[Dict[str, Any]] = None
         # What the browser-tab ledger says about the user, by rule (browsing.py). Inert without the sensor.
@@ -1121,6 +1123,8 @@ class AmbientRuntime:
         except Exception:
             logger.exception("Could not switch %s", name)
             return False, "it raised an error"
+        if self.game is not None:
+            self.game.forget(name)               # their switch, not game mode's: it is not game mode's to undo
         if name in self._privacy_held:           # an explicit choice replaces the automatic one
             self._privacy_held.remove(name)
         now_state = getattr(getattr(target, "state", None), "value", "")
@@ -2978,9 +2982,21 @@ class AmbientRuntime:
             return
         try:
             aw = getattr(self.periphery, "sensors", {}).get("active_window")
-            g.look(str(getattr(aw, "last_process", "") or ""), bool(getattr(aw, "last_fullscreen", False)), now)
+            if aw is not None and getattr(getattr(aw, "state", None), "value", "active") != "active":
+                g.look("", False, now)           # the window sensor is off or failing: its last reading is not news
+            else:
+                g.look(str(getattr(aw, "last_process", "") or ""), bool(getattr(aw, "last_fullscreen", False)), now)
         except Exception:
             logger.exception("Game mode failed on a tick")
+
+    def _unload_model(self):
+        """Ask Ollama to drop the model ASH is actually configured to use, at the address it is configured with."""
+        from .gamemode import unload_ollama
+        llm = getattr(self.ash, "llm", None)
+        unload_ollama(str(getattr(llm, "_ollama_model", "") or ""), str(getattr(llm, "_ollama_url", "") or ""))
+        light = str(getattr(llm, "_light_model", "") or "")
+        if light:
+            unload_ollama(light, str(getattr(llm, "_ollama_url", "") or ""))
 
     def _release_models(self):
         """What can be let go of while a game runs: the vision model and the OCR engines."""

@@ -58,7 +58,9 @@ GAME_PROCS = frozenset("""steam steamwebhelper epicgameslauncher battle.net riot
 ACTIVITY_OF = {p: act for act, procs in _GROUPS.items() for p in procs.split()}
 ACTIVITY_OF.update({p: "gaming" for p in GAME_PROCS})
 # Launchers and stores: "gaming" for who is free to talk, but not a game running behind everything.
-LAUNCHERS = frozenset("steam steamwebhelper epicgameslauncher battle.net riotclientservices riotclientux minecraftlauncher".split())
+# (The League client is open for hours before and after a match, and so is Steam: neither is "a game is running".)
+LAUNCHERS = frozenset("""steam steamwebhelper epicgameslauncher battle.net riotclientservices riotclientux minecraftlauncher
+    leagueclient leagueclientux leagueclientuxrender""".split())
 
 
 def is_known_game(stem: str, launchers: bool = True) -> bool:
