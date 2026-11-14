@@ -52,9 +52,16 @@ app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config["SECRET_KEY"] = app.config.get("SECRET_KEY", "dev-secret")
 
 # SocketIO setup: keeping your exact parameters intact
+# The older web app answered anyone who could reach port 5000 -- the whole LAN, and (cross-site Socket.IO, origins "*") any web
+# page open in the user's browser -- and ran what they sent through ASH's tools and memory. It listens on this machine only, and
+# accepts this app's own pages only. ASH_APP_HOST / ASH_APP_ORIGINS (comma-separated) to change that on purpose.
+APP_HOST = os.environ.get("ASH_APP_HOST", "127.0.0.1")
+APP_ORIGINS = [o.strip() for o in os.environ.get(
+    "ASH_APP_ORIGINS", "http://127.0.0.1:5000,http://localhost:5000").split(",") if o.strip()]
+
 socketio = SocketIO(
     app,
-    cors_allowed_origins="*",
+    cors_allowed_origins=APP_ORIGINS,
     ping_timeout=120,
     ping_interval=25,
     max_http_buffer_size=10_000_000, 
@@ -197,6 +204,12 @@ def handle_user_voice(audio_bytes):
         sound.export(wav_stream, format="wav")
         wav_stream.seek(0)
 
+        if os.environ.get("ASH_ALLOW_ONLINE_STT", "0") != "1":
+            # recognize_google uploads the recording to Google. ASH promises local-only speech recognition
+            # (privacy.require_local_asr); this path needs a deliberate ASH_ALLOW_ONLINE_STT=1.
+            socketio.emit("system", {"msg": "Online speech recognition is switched off here (ASH keeps your voice on this "
+                                            "machine). Type instead, or use the daemon's microphone."}, room=sid)
+            return
         recognizer = sr.Recognizer()
         with sr.AudioFile(wav_stream) as source:
             audio_data = recognizer.record(source)
@@ -221,5 +234,5 @@ def handle_user_voice(audio_bytes):
 
 
 if __name__ == "__main__":
-    print("Starting ASH Socket.IO server on 0.0.0.0:5000", file=sys.stderr)
-    socketio.run(app, host="0.0.0.0", port=5000, debug=False, use_reloader=False, allow_unsafe_werkzeug=True)
+    print(f"Starting ASH Socket.IO server on {APP_HOST}:5000", file=sys.stderr)
+    socketio.run(app, host=APP_HOST, port=5000, debug=False, use_reloader=False, allow_unsafe_werkzeug=True)
