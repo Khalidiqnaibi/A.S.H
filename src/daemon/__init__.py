@@ -17,6 +17,7 @@ from .social import SocialLearner, ReactionTracker, FlowDetector
 from .service import (
     load_config, DEFAULT_CONFIG, SingleInstance, ControlServer,
     control_client, setup_logging, Watchdog, install_signal_handlers, Stopper,
+    load_or_create_control_token,
 )
 
 __all__ = [
@@ -24,5 +25,5 @@ __all__ = [
     "PrivacyPolicy", "AmbientRuntime", "AmbientConfig", "load_config",
     "Wonderer", "Knowledge", "WonderingConfig", "Environment", "SocialLearner", "ReactionTracker", "FlowDetector",
     "DEFAULT_CONFIG", "SingleInstance", "ControlServer", "control_client",
-    "setup_logging", "Watchdog", "install_signal_handlers", "Stopper",
+    "setup_logging", "Watchdog", "install_signal_handlers", "Stopper", "load_or_create_control_token",
 ]

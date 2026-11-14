@@ -92,7 +92,7 @@ _background_priority()
 
 from src.daemon import (  # noqa: E402
     AmbientConfig, AmbientRuntime, AttentionGate, ControlServer, Journal,
-    PrivacyPolicy, SingleInstance, Stopper, Watchdog, install_signal_handlers,
+    PrivacyPolicy, SingleInstance, Stopper, Watchdog, install_signal_handlers, load_or_create_control_token,
     load_config, setup_logging,
 )
 
@@ -545,7 +545,8 @@ def main() -> int:
         ccfg = cfg.get("control", {})
         if ccfg.get("enabled", True) and not args.no_control:
             control = ControlServer(runtime, ccfg.get("host", "127.0.0.1"),
-                                    int(ccfg.get("port", 8787)))
+                                    int(ccfg.get("port", 8787)),
+                                    token=load_or_create_control_token() if ccfg.get("require_token", True) else None)
 
         watchdog = Watchdog(runtime)
 

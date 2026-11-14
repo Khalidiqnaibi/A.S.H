@@ -413,7 +413,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "jokes": True,
         "mood_check": True,
     },
-    "control": {"enabled": True, "host": "127.0.0.1", "port": 8787},
+    # require_token: ashctl proves it can read state/control.token; nothing else on the machine can run `shutdown` or `say`.
+    "control": {"enabled": True, "host": "127.0.0.1", "port": 8787, "require_token": True},
     "ui": {
         "enabled": True,
         "port": 8788,            # loopback only
@@ -504,11 +505,49 @@ def _pid_alive(pid: int) -> bool:
 
 
 # ----------------------------------------------------------------------
-class ControlServer:
-    """Line protocol on loopback. One command per line, JSON reply."""
+def control_token_path() -> str:
+    return os.path.join(os.getcwd(), "state", "control.token")
 
-    def __init__(self, runtime, host: str = "127.0.0.1", port: int = 8787):
+
+def load_or_create_control_token(path: Optional[str] = None) -> str:
+    """The secret `ashctl` and the daemon share, in a file next to the other state: any local process could connect to the
+    loopback port and run `shutdown`, `pause`, `say` or `simulate mic ...` (which is taken for the user speaking); now it has
+    to be able to read this file."""
+    import secrets
+    path = path or control_token_path()
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            tok = fh.read().strip()
+        if len(tok) >= 16:
+            return tok
+    except OSError:
+        pass
+    tok = secrets.token_hex(16)
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(tok)
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+    except OSError:
+        logger.warning("Could not write the control token to %s", path)
+    return tok
+
+
+_TOKEN_PREFIX = "ASHTOKEN "
+
+
+class ControlServer:
+    """Line protocol on loopback. One command per line, JSON reply. With a token, a line is `ASHTOKEN <token> <command>`."""
+
+    def __init__(self, runtime, host: str = "127.0.0.1", port: int = 8787, token: Optional[str] = None):
         self.runtime = runtime
+        if host not in ("127.0.0.1", "localhost", "::1"):
+            logger.warning("The control socket is for this machine only: ignoring host %r, using 127.0.0.1", host)
+            host = "127.0.0.1"
+        self.token = token or None
         self.host, self.port = host, port
         self._sock: Optional[socket.socket] = None
         self._thread: Optional[threading.Thread] = None
@@ -550,7 +589,7 @@ class ControlServer:
         try:
             conn.settimeout(10)
             data = conn.recv(65536).decode("utf-8", errors="replace").strip()
-            reply = self.dispatch(data)
+            reply = self.authorise_and_dispatch(data)
             conn.sendall((json.dumps(reply, default=str) + "\n").encode())
         except Exception as e:
             try:
@@ -562,6 +601,24 @@ class ControlServer:
                 conn.close()
             except Exception:
                 pass
+
+    def authorise_and_dispatch(self, line: str) -> Dict[str, Any]:
+        """The token check, then the command. A browser page can only send HTTP (`POST /...`), which was refused by accident
+        before (an unknown command); it is refused on purpose now, with or without a token."""
+        first = line.split(" ", 1)[0].upper()
+        if first in ("GET", "POST", "PUT", "HEAD", "OPTIONS", "DELETE", "PATCH", "CONNECT") or "HTTP/" in line[:200]:
+            return {"ok": False, "error": "this is not a web server"}
+        if self.token:
+            import hmac
+            if not line.startswith(_TOKEN_PREFIX):
+                return {"ok": False, "error": "the control token is required (state/control.token; ashctl sends it)"}
+            tok, _, rest = line[len(_TOKEN_PREFIX):].partition(" ")
+            if not hmac.compare_digest(tok.encode("utf-8", "replace"), self.token.encode("utf-8", "replace")):
+                return {"ok": False, "error": "wrong control token"}
+            line = rest.strip()
+        elif line.startswith(_TOKEN_PREFIX):
+            line = line[len(_TOKEN_PREFIX):].partition(" ")[2].strip()      # a client that sends one to a server with none
+        return self.dispatch(line)
 
     def dispatch(self, line: str) -> Dict[str, Any]:
         parts = line.split(" ", 1)
@@ -863,12 +920,18 @@ class ControlServer:
 
 
 def control_client(cmd: str, host: str = "127.0.0.1", port: int = 8787,
-                   timeout: Optional[float] = None) -> Dict[str, Any]:
+                   timeout: Optional[float] = None, token: Optional[str] = None) -> Dict[str, Any]:
     """Used by `ashctl`. With no timeout given, one is chosen from the
-    command: see CTL_TIMEOUT and SLOW_COMMANDS above."""
+    command: see CTL_TIMEOUT and SLOW_COMMANDS above. The token is read from state/control.token unless given."""
+    if token is None:
+        try:
+            with open(control_token_path(), "r", encoding="utf-8") as fh:
+                token = fh.read().strip() or None
+        except OSError:
+            token = None
     with socket.create_connection(
             (host, port), timeout=ctl_timeout(cmd) if timeout is None else timeout) as s:
-        s.sendall((cmd + "\n").encode())
+        s.sendall(((_TOKEN_PREFIX + token + " " if token else "") + cmd + "\n").encode())
         buf = b""
         while not buf.endswith(b"\n"):
             chunk = s.recv(65536)
