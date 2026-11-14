@@ -33,7 +33,7 @@ import threading
 import time
 import uuid
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional
 
 from .followups import resolve_when
@@ -195,7 +195,8 @@ class Reminders:
                     return "What time should I wake you? Say something like \"wake me up at 7\"."
                 due = w.start
             if due <= now:
-                due += 86400.0
+                # "Tomorrow at 7" is seven o'clock on the wall, not 86400 seconds on: across a clock change that is an hour off.
+                due = (datetime.fromtimestamp(due) + timedelta(days=1)).timestamp()
             hm = datetime.fromtimestamp(due).strftime("%H:%M")
             day = "tomorrow" if datetime.fromtimestamp(due).date() != datetime.fromtimestamp(now).date() else "today"
             return self._add("alarm", "", due, now, say=f"Okay, I'll wake you at {hm} {day}.")
