@@ -37,6 +37,7 @@
         window.USERNAME = "{{ user }}";
      </script>
      <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+     <script src="{{ url_for('static', filename='safehtml.js') }}"></script>
      <script src="{{ url_for('static', filename='renderer.js') }}"></script>
     </body>
 </html>

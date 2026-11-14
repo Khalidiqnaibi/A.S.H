@@ -127,7 +127,8 @@ def d5_failure():
     check("says the login was refused, keeps the draft, no password in it", "login was refused" in out and d.draft is not None
           and "app-password" not in out, out)
     d.send = lambda a, dr: (_ for _ in ()).throw(TimeoutError())
-    check("another failure is named by its kind", "TimeoutError" in d.hear("send it"))
+    out2 = d.hear("send it")
+    check("another failure is named in words, not by its class", "too long" in out2 and "TimeoutError" not in out2, out2)
 
 
 def d6_inbox():

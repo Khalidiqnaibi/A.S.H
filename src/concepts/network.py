@@ -425,12 +425,11 @@ class ConceptNetwork:
         try:
             os.makedirs(directory, exist_ok=True)
             self._rebuild()
-            np.savez_compressed(
-                os.path.join(directory, "prototypes.npz"),
-                ids=np.array(self._ids, dtype=np.int64),
-                protos=self._matrix if self._matrix is not None
-                else np.zeros((0, self.dim), dtype=np.float32),
-            )
+            from src.memory.atomic import write_with, write_json
+            ids = np.array(self._ids, dtype=np.int64)
+            protos = self._matrix if self._matrix is not None else np.zeros((0, self.dim), dtype=np.float32)
+            write_with(os.path.join(directory, "prototypes.npz"),
+                       lambda f: np.savez_compressed(f, ids=ids, protos=protos), "wb")
             meta = {
                 "dim": self.dim, "next_id": self._next_id, "cycles": self.cycles,
                 "concepts": [
@@ -440,8 +439,7 @@ class ConceptNetwork:
                 "synapses": [s.as_dict() for s in self.synapses.values()
                              if abs(s.w_slow) > 1e-4 or s.frozen],
             }
-            with open(os.path.join(directory, "graph.json"), "w", encoding="utf-8") as fh:
-                json.dump(meta, fh, indent=1)
+            write_json(os.path.join(directory, "graph.json"), meta, indent=1)
         except Exception:
             logger.exception("Failed to persist concept network")
 

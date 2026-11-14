@@ -361,9 +361,9 @@ class System1Policy:
             return
         try:
             os.makedirs(STATE_DIR, exist_ok=True)
-            with open(self.path, "w", encoding="utf-8") as fh:
-                json.dump({"w": self.critic.w.tolist(), "updates": self.critic.updates,
-                           "reward_version": REWARD_VERSION}, fh, indent=2)
+            from src.memory.atomic import write_json
+            write_json(self.path, {"w": self.critic.w.tolist(), "updates": self.critic.updates,
+                                   "reward_version": REWARD_VERSION}, indent=2)
         except Exception:
             logger.exception("Failed to persist critic")
 

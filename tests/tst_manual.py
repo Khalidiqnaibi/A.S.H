@@ -58,7 +58,7 @@ def m2():
     check("the limits say no email, calls, buying", all(w in lim for w in ("send email", "make calls", "buy")))
     areas = ["reminders", "home", "watch", "apps", "music", "plans", "quiet", "scenes", "pretend", "greetings", "facts", "memory",
              "face", "privacy", "clipboard", "info", "games", "care", "routines", "explain", "limits", "overview",
-             "taste", "screen", "activity", "playing", "occasion"]
+             "taste", "screen", "activity", "playing", "occasion", "game"]
     check("every area is covered", all(a in ids for a in areas), str([a for a in areas if a not in ids]))
 
 

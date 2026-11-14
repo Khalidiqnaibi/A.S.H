@@ -427,10 +427,10 @@ class MoodCheck(Activity):
             return None                 # not an answer; handle it as any utterance
         self.moments.set_mood(m, now)   # asked directly: this reading replaces the old one
         if m <= -0.3:
-            return "Sorry to hear that. I'll keep the questions light."
+            return "Ah, that sounds rough. I'll go easy."
         if m >= 0.3:
-            return "Good to hear."
-        return "Okay."
+            return "Good. Hold onto that."
+        return "Fair enough."
 
 
 def default_moments(cfg: Optional[Dict[str, Any]] = None, wonderer=None,

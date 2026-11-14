@@ -227,11 +227,13 @@ class Classifier:
 
     # -- keeping ----------------------------------------------------------------
     def _load(self):
-        if not self.path or not os.path.exists(self.path):
+        if not self.path:
             return
         try:
-            with open(self.path, "r", encoding="utf-8") as fh:
-                raw = json.load(fh)
+            from src.memory.atomic import load_json
+            raw = load_json(self.path, default=None)        # the file, else its backup: "never track X" must survive a bad write
+            if not isinstance(raw, dict):
+                return
             self.tags = {str(k): str(v) for k, v in (raw.get("tags") or {}).items()}
             self.counts = {c: {str(t): int(n) for t, n in d.items()} for c, d in (raw.get("counts") or {}).items()}
             self.docs = {str(c): int(n) for c, n in (raw.get("docs") or {}).items()}
@@ -243,11 +245,13 @@ class Classifier:
         if not self.path:
             return
         try:
-            os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
-            tmp = self.path + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as fh:
-                json.dump({"tags": self.tags, "counts": self.counts, "docs": self.docs, "ignored": sorted(self.ignored)}, fh)
-            os.replace(tmp, self.path)
+            from src.memory.atomic import log_io_failure, write_json
+            try:
+                write_json(self.path, {"tags": self.tags, "counts": self.counts, "docs": self.docs,
+                                       "ignored": sorted(self.ignored)})
+            except OSError as e:
+                import logging
+                log_io_failure(logging.getLogger("ash.daemon.pagekind"), "the sites you told ASH about", e)
         except Exception:
             pass
 

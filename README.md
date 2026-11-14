@@ -712,9 +712,10 @@ carry on, not start over. "What happens next?" asks for the next part right
 away; "tell me a new story" starts fresh, and so does a story left for a
 week. It is kept in `state/story.json`.
 
-Game lines are spoken in a character voice: `play.voice`, Kokoro's
-`bm_george` by default, or "" for the usual voice. If that voice fails, the
-usual one is used.
+Game lines are spoken in ASH's own voice. `play.voice` can name a different
+Kokoro voice for them (e.g. `bm_george`); if that voice fails, the usual one is
+used. (It used to default to `bm_george`, which made the trivia sound like someone
+else.)
 
 ### Caring nudges
 
@@ -988,6 +989,59 @@ once.
 - **Not yet**: one app opened while another is in front ("opens this while
   looking at that"), and other people's habits -- those are only ever from what
   you say.
+
+## Staying out of a game's way (`src/daemon/gamemode.py`, `tst_gamemode.py`)
+
+ASH is always on, and on a gaming PC that is the problem: with League of Legends running it read the screen,
+transcribed the game's sound, ran a vision model on every frame and held 2 GB -- 100% of CPU and RAM. When a game is up
+ASH steps aside, and comes back by itself.
+
+- **What counts as a game**: a known one (League of Legends, Valorant, CS2, Dota, Elden Ring, Minecraft... about 90
+  names; launchers like Steam and Epic do not count), a known game running behind the window in front, or any program
+  that fills the whole screen with no title bar -- unless it is a browser, a video player, Office, an editor, a
+  terminal and the like. The window sensor now reports `fullscreen`.
+- **What it does**: ASH (and Ollama's processes) drop to idle priority; the screen sensor (capture, OCR, vision) and the
+  microphone (speech recognition on the game's audio) are paused -- only if they were on, and only until the game is
+  gone; the vision model and OCR engines are released from memory; Ollama is told to unload the language model (the
+  first question afterwards takes a few seconds while it loads again); and nothing is said unprompted (the console
+  window is not opened over the game either).
+- **When**: 8 seconds of a game before it acts, 45 seconds without one before it comes back, so alt-tabbing does not
+  flap. `ashctl game` says what it is doing. `game_mode` in `daemon.json` switches each part: `enabled`,
+  `enter_after_s`, `leave_after_s`, `lower_priority`, `pause_screen`, `pause_mic`, `free_model`, `fullscreen_counts`.
+- **Always, game or not**: ASH starts below normal priority, with 2 threads for torch, onnx and BLAS (`ASH_THREADS`
+  to change, `ASH_PRIORITY=normal` to opt out), Whisper on 2 threads, and the ViT vision model is no longer loaded just
+  because a screenshot arrived (only with `ASH_ENABLE_VISION=1`, and then only from the local cache).
+
+## What survives a crash (`src/memory/atomic.py`, `tst_lastsession.py`)
+
+On a PC that froze or lost power 53 times in a month, `dwell.json` and `crashes.json.runs` were found empty at the next
+start and the history was lost. Everything that holds ASH's memory is now written temp file -> flush -> `fsync` ->
+replace, with the previous good copy kept as `.bak`; read back, a file that is empty or torn is set aside as `.bad` and
+the backup is used. Entity and core memory no longer stop the daemon starting when damaged; an episode file with a torn
+last line skips it and does not glue the next line to it; the concept network, system 1 and the predictive model are
+written atomically and also on a clean stop (not only in the sleep phase, which a PC that is gamed on rarely reaches).
+A full disk is said once a minute, not as a traceback every second; the journal keeps up to 500 lines it could not write
+for the next try; a failed save waits instead of retrying every tick. Closing the console window, logging off and
+shutting down now stop ASH cleanly (they used to just kill it, which showed up as an "unexpected shutdown"). A sensor
+that failed five times rests for two minutes and is tried again instead of staying dead; a microphone that dies is
+restarted. Speech is recognised on this machine or not at all unless `privacy.require_local_asr` is switched off (the
+online fallback used to run whenever Whisper failed).
+
+## Other fixes from that session
+
+- Games and trivia are spoken in ASH's own voice (`play.voice` defaults to ""; it was `bm_george`).
+- "Hit me", "bring it on", "let's go", "go for it", "I'm in" answer an offer, for half an hour (a plain yes still
+  needs to be within two minutes). After trivia or a riddle ASH asks "Another one?"; "another one", "next", "that's
+  easy" (a new question, with a remark) and "too hard" (sympathy and an offer) are about the game that just ended.
+- "Thank you ash .. tell me a joke" is a joke by rule, not a 78-second model answer.
+- One window that changes every frame (a film) is said once in a while (`sensors.screenshot.min_repeat_s`, 120), not
+  405 times a day.
+- A "never mind" can no longer leave the language model blocked for good, one event that raises no longer drops the
+  rest of the tick's events, and the console no longer shows an answer that was cancelled or unfiltered kids-mode text.
+- Answers are cleaned of what neither JARVIS nor BMO would say -- "I'm DeepSeek-R1", "as an AI", "I apologize for any
+  confusion", "could you provide more context", "it seems like the user..." -- and the persona prompt says it
+  (composed and a little dry, with a bit of BMO; play along when it sounds like a game; never "the user"). The stall lines
+  while the model thinks are different each time and in character; a screen full of log lines is not read out.
 
 ## Where a sentence goes (and the test that pins it)
 

@@ -192,6 +192,19 @@ def t2_sensor():
     check("the sensor says it only reads titles of players", "player" in NowPlayingSensor.capability.description)
     check("...and is marked privacy-sensitive", NowPlayingSensor.capability.privacy_sensitive is True)
 
+    # What the tab sensor would never record is not a "like" either.
+    w7 = World()
+    s7 = w7.sensor()
+    w7.windows = [("Symptoms of anxiety - YouTube - Google Chrome", "chrome.exe", True, 300)]
+    w7.poll(s7)
+    check("a video whose title is about health is not reported as playing", w7.poll(s7) == [] and not s7.playing_now())
+    w7.windows = [("Your recovery key - YouTube - Google Chrome", "chrome.exe", True, 300)]
+    w7.poll(s7)
+    check("...nor one about a password or recovery key", w7.poll(s7) == [])
+    w7.windows = [("Interstellar Docking Scene - YouTube - Google Chrome", "chrome.exe", True, 300)]
+    w7.poll(s7)
+    check("an ordinary title still is", len(w7.poll(s7)) == 1)
+
     # Two players at once are two plays.
     w5 = World()
     s5 = w5.sensor()

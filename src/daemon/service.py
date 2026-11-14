@@ -217,6 +217,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "episode_min_s": 300.0,  # a stretch this long earns a sentence
         "max_episodes_per_hour": 6,
     },
+    # Game mode: a game up (a known one, or any program that fills the screen) and ASH gets out of its way -- idle
+    # priority, screen sensor and mic paused, vision and language models released -- and everything comes back after.
+    "game_mode": {"enabled": True, "enter_after_s": 8.0, "leave_after_s": 45.0, "lower_priority": True,
+                  "pause_screen": True, "pause_mic": True, "free_model": True, "fullscreen_counts": True},
     # Taste: what the user, and the people they talk about, like and dislike
     # ("I love Interstellar", "Ali likes jazz when he's sad"), learned from
     # what is said and kept with what ASH knows about people (taste.py). It
@@ -306,8 +310,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # Play: "let's play a game" (a number game, or a quiz on your own people);
     # at a free moment ASH may say it is bored (only when your mood is good)
     # or offer an evening story. free_moments.disabled can drop bored/story.
-    # voice: the TTS voice game lines are spoken in ("" for the usual one).
-    "play": {"enabled": True, "voice": "bm_george"},
+    # voice: a different TTS voice for game lines (e.g. "bm_george"); "" keeps ASH's own, which is what a game
+    # should sound like -- the same ASH, playing.
+    "play": {"enabled": True, "voice": ""},
     # The remark log: everything ASH says and how it landed, kept two weeks
     # under state/remarks/, read back by `ashctl review [days]` with tips on
     # what to tune. keep_text false keeps only the kind and the reaction.
@@ -408,7 +413,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "jokes": True,
         "mood_check": True,
     },
-    "control": {"enabled": True, "host": "127.0.0.1", "port": 8787},
+    # require_token: ashctl proves it can read state/control.token; nothing else on the machine can run `shutdown` or `say`.
+    "control": {"enabled": True, "host": "127.0.0.1", "port": 8787, "require_token": True},
     "ui": {
         "enabled": True,
         "port": 8788,            # loopback only
@@ -499,11 +505,49 @@ def _pid_alive(pid: int) -> bool:
 
 
 # ----------------------------------------------------------------------
-class ControlServer:
-    """Line protocol on loopback. One command per line, JSON reply."""
+def control_token_path() -> str:
+    return os.path.join(os.getcwd(), "state", "control.token")
 
-    def __init__(self, runtime, host: str = "127.0.0.1", port: int = 8787):
+
+def load_or_create_control_token(path: Optional[str] = None) -> str:
+    """The secret `ashctl` and the daemon share, in a file next to the other state: any local process could connect to the
+    loopback port and run `shutdown`, `pause`, `say` or `simulate mic ...` (which is taken for the user speaking); now it has
+    to be able to read this file."""
+    import secrets
+    path = path or control_token_path()
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            tok = fh.read().strip()
+        if len(tok) >= 16:
+            return tok
+    except OSError:
+        pass
+    tok = secrets.token_hex(16)
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(tok)
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+    except OSError:
+        logger.warning("Could not write the control token to %s", path)
+    return tok
+
+
+_TOKEN_PREFIX = "ASHTOKEN "
+
+
+class ControlServer:
+    """Line protocol on loopback. One command per line, JSON reply. With a token, a line is `ASHTOKEN <token> <command>`."""
+
+    def __init__(self, runtime, host: str = "127.0.0.1", port: int = 8787, token: Optional[str] = None):
         self.runtime = runtime
+        if host not in ("127.0.0.1", "localhost", "::1"):
+            logger.warning("The control socket is for this machine only: ignoring host %r, using 127.0.0.1", host)
+            host = "127.0.0.1"
+        self.token = token or None
         self.host, self.port = host, port
         self._sock: Optional[socket.socket] = None
         self._thread: Optional[threading.Thread] = None
@@ -545,7 +589,7 @@ class ControlServer:
         try:
             conn.settimeout(10)
             data = conn.recv(65536).decode("utf-8", errors="replace").strip()
-            reply = self.dispatch(data)
+            reply = self.authorise_and_dispatch(data)
             conn.sendall((json.dumps(reply, default=str) + "\n").encode())
         except Exception as e:
             try:
@@ -557,6 +601,24 @@ class ControlServer:
                 conn.close()
             except Exception:
                 pass
+
+    def authorise_and_dispatch(self, line: str) -> Dict[str, Any]:
+        """The token check, then the command. A browser page can only send HTTP (`POST /...`), which was refused by accident
+        before (an unknown command); it is refused on purpose now, with or without a token."""
+        first = line.split(" ", 1)[0].upper()
+        if first in ("GET", "POST", "PUT", "HEAD", "OPTIONS", "DELETE", "PATCH", "CONNECT") or "HTTP/" in line[:200]:
+            return {"ok": False, "error": "this is not a web server"}
+        if self.token:
+            import hmac
+            if not line.startswith(_TOKEN_PREFIX):
+                return {"ok": False, "error": "the control token is required (state/control.token; ashctl sends it)"}
+            tok, _, rest = line[len(_TOKEN_PREFIX):].partition(" ")
+            if not hmac.compare_digest(tok.encode("utf-8", "replace"), self.token.encode("utf-8", "replace")):
+                return {"ok": False, "error": "wrong control token"}
+            line = rest.strip()
+        elif line.startswith(_TOKEN_PREFIX):
+            line = line[len(_TOKEN_PREFIX):].partition(" ")[2].strip()      # a client that sends one to a server with none
+        return self.dispatch(line)
 
     def dispatch(self, line: str) -> Dict[str, Any]:
         parts = line.split(" ", 1)
@@ -586,6 +648,12 @@ class ControlServer:
             rt.gate.mute(False)
             return {"ok": True, "muted": False}
         if cmd == "say":
+            if rt.alive():
+                # Through the loop, as a person typing would: not the brain called from this thread, past every rule.
+                got = rt.ask(arg)
+                if got is not None:
+                    return {"ok": True, **got}
+                return {"ok": False, "error": "ASH did not answer in time (it may be busy with the model); try again"}
             resp = rt.ash.think(arg)
             return {"ok": True, "text": resp.text, "pathway": resp.pathway.value}
         if cmd == "simulate":
@@ -711,6 +779,11 @@ class ControlServer:
                 lk.presence.clear()
                 return {"ok": True, "report": f"forgot {gone} visual entr{'y' if gone == 1 else 'ies'}"}
             return {"ok": True, "report": lk.listing(time.time()), "status": lk.status()}
+        if cmd == "game":
+            g = getattr(rt, "game", None)
+            if g is None:
+                return {"ok": False, "error": "game mode is not enabled (daemon.json: game_mode.enabled)"}
+            return {"ok": True, "report": g.report(), "status": g.status()}
         if cmd == "profile":
             t = getattr(rt, "taste", None)
             if t is None:
@@ -725,7 +798,7 @@ class ControlServer:
             return {"ok": True, "stopping": True}
         return {"ok": False, "error": f"unknown command {cmd!r}",
                 "commands": ["status", "pause", "resume", "mute", "unmute", "say",
-                             "why", "history", "sleep", "rollup", "sensors", "hud", "face", "wonders", "wonder", "activity", "profile", "vision", "asks", "followups", "corrections", "routines", "briefing", "watches", "review",
+                             "why", "history", "sleep", "rollup", "sensors", "hud", "face", "wonders", "wonder", "activity", "profile", "game", "vision", "asks", "followups", "corrections", "routines", "briefing", "watches", "review",
                              "enable", "disable", "simulate", "shutdown"]}
 
     # ------------------------------------------------------------------
@@ -847,12 +920,18 @@ class ControlServer:
 
 
 def control_client(cmd: str, host: str = "127.0.0.1", port: int = 8787,
-                   timeout: Optional[float] = None) -> Dict[str, Any]:
+                   timeout: Optional[float] = None, token: Optional[str] = None) -> Dict[str, Any]:
     """Used by `ashctl`. With no timeout given, one is chosen from the
-    command: see CTL_TIMEOUT and SLOW_COMMANDS above."""
+    command: see CTL_TIMEOUT and SLOW_COMMANDS above. The token is read from state/control.token unless given."""
+    if token is None:
+        try:
+            with open(control_token_path(), "r", encoding="utf-8") as fh:
+                token = fh.read().strip() or None
+        except OSError:
+            token = None
     with socket.create_connection(
             (host, port), timeout=ctl_timeout(cmd) if timeout is None else timeout) as s:
-        s.sendall((cmd + "\n").encode())
+        s.sendall(((_TOKEN_PREFIX + token + " " if token else "") + cmd + "\n").encode())
         buf = b""
         while not buf.endswith(b"\n"):
             chunk = s.recv(65536)
@@ -923,7 +1002,50 @@ class Watchdog:
                 logger.exception("Watchdog itself failed")
 
 
-def install_signal_handlers(on_shutdown: Callable[[], None]):
+_CONSOLE_HANDLER = None
+
+
+class Stopper:
+    """Runs the shutdown once, however many threads ask for it, and makes the others wait until it has finished.
+
+    A window being closed arrives on a thread of its own while the main thread is in its loop; when that loop ended it called
+    the same shutdown, found it "already running", returned, and the process exited under the thread that was still saving.
+    Now whoever comes second waits (up to `wait_s`, which is about what Windows gives a closing console) for the first."""
+
+    def __init__(self, work: Callable[[bool], None], wait_s: float = 8.0):
+        self.work, self.wait_s = work, wait_s
+        self.finished = threading.Event()
+        self._lock = threading.Lock()
+        self._started = False
+
+    def __call__(self, quick: bool = False):
+        with self._lock:
+            first = not self._started
+            self._started = True
+        if not first:
+            self.finished.wait(self.wait_s)
+            return
+        try:
+            self.work(quick)
+        finally:
+            self.finished.set()
+
+
+def console_event_handler(on_close: Callable[[], None]):
+    """The function Windows calls for a console control event: 2 (window closed), 5 (log-off), 6 (shutdown) stop ASH cleanly."""
+    def handler(ctrl_type):
+        if ctrl_type in (2, 5, 6):
+            logger.warning("Console event %s (window closed or logging off) -- shutting down", ctrl_type)
+            try:
+                on_close()
+            except Exception:
+                logger.exception("Shutdown from a console event failed")
+            return 1
+        return 0
+    return handler
+
+
+def install_signal_handlers(on_shutdown: Callable[[], None], on_console_close: Optional[Callable[[], None]] = None):
     def _handler(signum, _frame):
         logger.warning("Received signal %s -- shutting down", signum)
         on_shutdown()
@@ -940,3 +1062,17 @@ def install_signal_handlers(on_shutdown: Callable[[], None]):
             signal.signal(signal.SIGBREAK, _handler)
         except Exception:
             pass
+    # Closing the console window, logging off and shutting down arrive as console control events, which Python's signal
+    # module never sees: ASH was simply killed, with nothing saved and no clean end recorded -- the "10 unexpected
+    # shutdowns" in its own report were mostly this. The handler gets a few seconds from Windows, so it does the stop
+    # and does not return until it is done.
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            handler_type = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_uint)
+
+            global _CONSOLE_HANDLER                           # keep a reference, or it is collected and Windows calls nothing
+            _CONSOLE_HANDLER = handler_type(console_event_handler(on_console_close or on_shutdown))
+            ctypes.windll.kernel32.SetConsoleCtrlHandler(_CONSOLE_HANDLER, True)
+        except Exception:
+            logger.debug("Could not install the console close handler", exc_info=True)

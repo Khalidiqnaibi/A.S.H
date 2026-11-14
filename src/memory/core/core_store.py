@@ -1,9 +1,12 @@
 # core_store.py
 
-import json
+import logging
 from typing import Dict, List, Optional
 from .core_model import CoreRule
 from ..paths import memory_file
+from ..atomic import load_json, log_io_failure, write_json
+
+logger = logging.getLogger("ash.memory.core")
 
 
 class CoreStore:
@@ -14,21 +17,21 @@ class CoreStore:
         self._load()
 
     def _load(self):
-        try:
-            with open(self.path, "r") as f:
-                raw = json.load(f)
-                for rid, data in raw.items():
-                    self.rules[rid] = CoreRule(**data)
-        except FileNotFoundError:
-            self.rules = {}
+        raw = load_json(self.path, default=None, logger=logger)
+        self.rules = {}
+        if not isinstance(raw, dict):
+            return
+        for rid, data in raw.items():
+            try:
+                self.rules[rid] = CoreRule(**data)
+            except Exception:
+                logger.warning("Skipped a core rule it could not read (%s)", rid)
 
     def _save(self):
-        with open(self.path, "w") as f:
-            json.dump(
-                {rid: vars(rule) for rid, rule in self.rules.items()},
-                f,
-                indent=2,
-            )
+        try:
+            write_json(self.path, {rid: vars(rule) for rid, rule in self.rules.items()}, indent=2)
+        except OSError as e:
+            log_io_failure(logger, "core memory", e)
 
     def add(self, rule: CoreRule):
         self.rules[rule.rule_id] = rule

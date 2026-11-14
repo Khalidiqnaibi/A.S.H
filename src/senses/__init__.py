@@ -108,6 +108,7 @@ def build_periphery(config: dict, tts_engine=None, registry=None) -> PeripheryRe
         describe=shot_cfg.get("describe", True),
         read_text_every_s=shot_cfg.get("read_text_every_s", 120.0),
         ocr_threads=shot_cfg.get("ocr_threads", 2),
+        min_repeat_s=shot_cfg.get("min_repeat_s", 120.0),
     ))
 
     mic_cfg = s.get("microphone", {})
@@ -127,6 +128,7 @@ def build_periphery(config: dict, tts_engine=None, registry=None) -> PeripheryRe
         speculative=bool(mic_cfg.get("speculative", True)),
         barge=(BargeIn() if mic_cfg.get("barge_in", True) else None),
         wake=wake,
+        local_only=bool(priv.get("require_local_asr", True)),
     )
     reg.add_sensor(mic)
 

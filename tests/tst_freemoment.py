@@ -168,7 +168,7 @@ def f2_builtins():
           m.hear("what's the weather", T0 + 10) is None and m.mood() is None)
     m._awaiting = ("mood_check", T0)
     r = m.hear("honestly exhausted", T0 + 10)
-    check("a low answer is read, answered kindly, and remembered", r and "Sorry" in r and m.mood(T0 + 10) < -0.3, str(r))
+    check("a low answer is read, answered kindly, and remembered", r and "rough" in r and m.mood(T0 + 10) < -0.3, str(r))
     m.t[0] = T0 + 100
     m._last_by.clear()
     check("with a recent reading it does not ask again", m.pick(Environment(**FREE)) is None)
@@ -290,9 +290,14 @@ def f4_runtime():
 
     n = len(h.ash.calls)
     h.step(5, 5.0)
+    said_before = len(h.said())
+    h.say("switched to terrible awful failed build (was on exhausted for 40s)", source="active_window", addressed=False)
+    check("a window switch is not an answer: sensor text never answers the mood question (found live: "
+          "it was read as the user feeling bad)",
+          len(h.said()) == said_before and h.rt.moments.mood(h.clock[0]) is None, str(h.said()))
     h.say("pretty tired honestly", source="microphone", addressed=False)
     check("the answer is spent on the mood check, not sent to the model",
-          len(h.ash.calls) == n and "Sorry" in h.said()[-1], str(h.said()))
+          len(h.ash.calls) == n and "rough" in h.said()[-1], str(h.said()))
     check("the mood is now known", h.rt.moments.mood(h.clock[0]) < -0.3)
     check("and the wonderer's environment reads it", h.rt._wonder_env(h.clock[0], 30.0).mood < -0.3)
 

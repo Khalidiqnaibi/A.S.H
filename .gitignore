@@ -29,3 +29,11 @@ data/embeddings_intents.pkl
 
 # ASH tabs extension: written by ASH at start-up, holds the local token
 extension/ash-tabs/config.json
+
+# crash-safe saves (src/memory/atomic.py): the previous good copy, and a damaged file set aside
+*.json.bak
+*.json.bad
+*.runs.bak
+*.runs.bad
+*.jsonl.bak
+*.jsonl.bad

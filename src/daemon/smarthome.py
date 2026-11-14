@@ -33,7 +33,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 logger = logging.getLogger("ash.daemon.smarthome")
 
 SAFE_DOMAINS = ("light", "switch", "fan", "input_boolean")
-NEVER = re.compile(r"\b(?:lock|locks|door|doors|garage|gate|alarm|security|camera|oven|stove|heater)\b", re.I)
+NEVER = re.compile(r"\b(?:lock|locks|unlock|door|doors|garage|gate|alarm|security|camera|oven|stove|heater|boiler|"
+                       r"pump|valve|furnace|siren|sprinklers?)\b", re.I)
 
 _ON_OFF = re.compile(r"^\s*(?:please\s+|can you\s+|could you\s+)?(?:turn|switch|put)\s+(?P<a>on|off)\s+(?:the\s+|my\s+)?"
                      r"(?P<t>[\w '\-]{2,40}?)\s*(?:please)?\s*[.!]?\s*$"
@@ -100,6 +101,7 @@ class SmartHome:
         self._states: List[Dict[str, Any]] = []
         self._states_at = -1e18
         self.stats = {"done": 0, "refused": 0, "errors": 0}
+        self.last_choices: List[str] = []
 
     NOT_SET_UP = ("I'm not connected to your smart home yet. Add your Home Assistant address and token in the console's "
                   "settings (smarthome.url and smarthome.token), and I'll switch things for you.")
@@ -129,6 +131,7 @@ class SmartHome:
         if not want:
             return None, "unknown"
         best, best_score = None, 0.0
+        tied: List[Dict[str, Any]] = []
         for s in self.states():
             dom = s["entity_id"].split(".", 1)[0]
             fname = str((s.get("attributes") or {}).get("friendly_name") or s["entity_id"].split(".", 1)[1])
@@ -139,13 +142,25 @@ class SmartHome:
                 have.add("fan")
             score = len(want & have) / len(want)
             if score > best_score:
-                best, best_score = s, score
+                best, best_score, tied = s, score, [s]
+            elif score == best_score and score >= 0.99:
+                tied.append(s)
         if best is None or best_score < 0.99:
             return None, "unknown"
-        if best["entity_id"].split(".", 1)[0] not in SAFE_DOMAINS or NEVER.search(
-                str((best.get("attributes") or {}).get("friendly_name") or "")):
+        # "turn off the light" with five lights switched whichever came first. Two that fit equally well are asked about.
+        safe_tied = [t for t in tied if t["entity_id"].split(".", 1)[0] in SAFE_DOMAINS and not self._never(t)]
+        if len(safe_tied) > 1:
+            self.last_choices = [str((t.get("attributes") or {}).get("friendly_name") or t["entity_id"]) for t in safe_tied][:4]
+            return None, "ambiguous"
+        # The name the person said, the friendly name AND the entity id ("switch.garage_door_opener" is "Opener" to a person).
+        if best["entity_id"].split(".", 1)[0] not in SAFE_DOMAINS or self._never(best):
             return None, "refused"
         return best, ""
+
+    @staticmethod
+    def _never(s: Dict[str, Any]) -> bool:
+        ident = s["entity_id"].split(".", 1)[1].replace("_", " ")
+        return bool(NEVER.search(ident) or NEVER.search(str((s.get("attributes") or {}).get("friendly_name") or "")))
 
     def hear(self, text: str) -> Optional[str]:
         """A device command or question: what to say back, or None."""
@@ -173,8 +188,15 @@ class SmartHome:
         if why == "refused":
             self.stats["refused"] += 1
             return f"I don't operate {name.strip()} by voice. Use Home Assistant for that one."
+        if why == "ambiguous":
+            a = self.last_choices
+            return "Which one -- " + ", ".join(a[:-1]) + (" or " if len(a) > 1 else "") + a[-1] + "?"
         if ent is None:
-            return None if not m and not d else f"I couldn't find anything called {name.strip()} in Home Assistant."
+            if not m and not d:
+                return None
+            if not _DEVICE.search(name):
+                return None                 # "turn off the monitor", "turn off the wifi": not a home device, not for this
+            return f"I couldn't find anything called {name.strip()} in Home Assistant."
         friendly = (ent.get("attributes") or {}).get("friendly_name") or ent["entity_id"]
         if q:
             return f"{friendly} is {ent.get('state', 'unknown')}."

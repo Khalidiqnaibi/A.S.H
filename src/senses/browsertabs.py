@@ -263,6 +263,16 @@ class BrowserTabSensor(Sensor):
         for site in [s for s in self._bg if s not in here]:
             self._close_bg(site, now)
 
+    def drop(self, site: str = "", category: str = "", everything: bool = False):
+        """Forget what is in flight. "Never track youtube" and "forget my browsing" deleted the ledger's rows, but the visit
+        being timed at that moment (and a tab playing in the background) was written a moment later by the next close."""
+        c = self._cur
+        if c is not None and (everything or (site and c.get("site") == site) or (category and c.get("category") == category)):
+            self._cur = None
+        for name in list(self._bg):
+            if everything or (site and name == site) or (category and self._bg[name].get("category") == category):
+                self._bg.pop(name, None)
+
     def _close_bg(self, site: str, end: float):
         b = self._bg.pop(site, None)
         if b is None or end - b["start"] < self.bg_min_s or self.ledger is None:
@@ -438,7 +448,8 @@ class BrowserTabSensor(Sensor):
                 if 0 < n <= MAX_BODY:
                     body = self.rfile.read(n)             # read what was sent before answering, or the client sees a reset
                 ok = (self.path == "/tabs" and self._origin_ok()
-                      and hmac.compare_digest(self.headers.get("X-ASH-Token", ""), sensor.token))
+                      and hmac.compare_digest(self.headers.get("X-ASH-Token", "").encode("utf-8", "replace"),
+                                              str(sensor.token).encode("utf-8", "replace")))
                 if not ok:
                     sensor.stats["rejected"] += 1
                     self.send_response(403)

@@ -68,9 +68,31 @@ def _safe_print(text: str, **kwargs):
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Every numeric library (torch, onnx, numpy's BLAS, the tokenizers) defaults to one thread per core. ASH is a background
+# assistant on someone's own machine -- a game, an editor, a browser -- so it asks for a few and leaves the rest. Set
+# before anything imports them; ASH_THREADS=n to change it, or the variables themselves to override.
+_N = str(max(1, int(os.environ.get("ASH_THREADS", "2") or 2)))
+for _v in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
+    os.environ.setdefault(_v, _N)
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+
+
+def _background_priority():
+    """Run below normal priority: what the user is doing comes first, always. ASH_PRIORITY=normal to opt out."""
+    if os.environ.get("ASH_PRIORITY", "").strip().lower() in ("normal", "default"):
+        return
+    try:
+        import psutil
+        psutil.Process().nice(psutil.BELOW_NORMAL_PRIORITY_CLASS if os.name == "nt" else 10)
+    except Exception:
+        pass
+
+
+_background_priority()
+
 from src.daemon import (  # noqa: E402
     AmbientConfig, AmbientRuntime, AttentionGate, ControlServer, Journal,
-    PrivacyPolicy, SingleInstance, Watchdog, install_signal_handlers,
+    PrivacyPolicy, SingleInstance, Stopper, Watchdog, install_signal_handlers, load_or_create_control_token,
     load_config, setup_logging,
 )
 
@@ -240,12 +262,23 @@ def main() -> int:
                 except Exception:
                     ok = False
                 logger.info("Model preload %s (%.1fs)", "done" if ok else "skipped", time.time() - t1)
+                if not ok and llm is not None and getattr(llm, "_mode", "") == "ollama":
+                    # Said once, plainly, at the start, instead of the first question finding out 60 seconds later.
+                    logger.warning("The language model did not answer at %s (model %s). Is Ollama running? ASH works "
+                                   "without it -- by rule -- and picks it up again on the first question once it is.",
+                                   getattr(llm, "_ollama_url", "?"), getattr(llm, "_ollama_model", "?"))
             threading.Thread(target=_warm, name="ash-preload", daemon=True).start()
             _light = str((cfg.get("llm") or {}).get("light_model", "") or "")
             if _light and hasattr(getattr(ash, "llm", None), "set_light_model"):
                 ash.llm.set_light_model(_light)
                 threading.Thread(target=lambda: logger.info("Small-talk model %s: %s", _light, "ready" if ash.llm.warm(light=True) else "not loaded"),
                                  name="ash-preload-light", daemon=True).start()
+
+        try:                                          # torch, if it is loaded, gets the same few threads
+            if "torch" in sys.modules:
+                sys.modules["torch"].set_num_threads(int(_N))
+        except Exception:
+            pass
 
         # ---- periphery ------------------------------------------------------
         from src.senses import build_periphery  # noqa: E402
@@ -355,6 +388,8 @@ def main() -> int:
                 activity_path=os.path.join(os.getcwd(), "state", "activity", "topics.json"),
                 taste=bool(cfg.get("taste", {}).get("enabled", True)),
                 taste_cfg=cfg.get("taste", {}),
+                game_mode=bool(cfg.get("game_mode", {}).get("enabled", True)),
+                game_cfg=cfg.get("game_mode", {}),
                 corrections=bool(cfg.get("corrections", {}).get("enabled", True)),
                 remarks_dir=(os.path.join(os.getcwd(), "state", "remarks")
                              if cfg.get("remarks", {}).get("enabled", True) else None),
@@ -362,7 +397,7 @@ def main() -> int:
                 cheer=bool(cfg.get("cheer", {}).get("enabled", True)),
                 care=bool(cfg.get("care", {}).get("enabled", True)),
                 story_path=os.path.join(os.getcwd(), "state", "story.json"),
-                game_voice=str(cfg.get("play", {}).get("voice", "bm_george") or ""),
+                game_voice=str(cfg.get("play", {}).get("voice", "") or ""),
                 cheer_path=os.path.join(os.getcwd(), "state", "cheer.json"),
                 crashes=bool(cfg.get("crashes", {}).get("enabled", True)),
                 crashes_path=os.path.join(os.getcwd(), "state", "crashes.json"),
@@ -510,7 +545,8 @@ def main() -> int:
         ccfg = cfg.get("control", {})
         if ccfg.get("enabled", True) and not args.no_control:
             control = ControlServer(runtime, ccfg.get("host", "127.0.0.1"),
-                                    int(ccfg.get("port", 8787)))
+                                    int(ccfg.get("port", 8787)),
+                                    token=load_or_create_control_token() if ccfg.get("require_token", True) else None)
 
         watchdog = Watchdog(runtime)
 
@@ -520,17 +556,16 @@ def main() -> int:
         # below ends and runs the same shutdown as Ctrl-C.
         runtime.request_shutdown = lambda: threading.Timer(3.0, quit_requested.set).start()
 
-        def shutdown():
-            if done.is_set():
-                return                    # the signal handler and the main loop both get here
-            done.set()
-            try:
-                face = getattr(runtime, "face", None)
-                if face is not None:
-                    face.on_shutdown()
-                    face.player.shutdown(play_outro=True)
-            except Exception:
-                pass
+        def _shutdown(quick: bool = False):
+            # quick: the window is being closed and Windows allows a few seconds -- save first, skip the goodbye sound.
+            if not quick:
+                try:
+                    face = getattr(runtime, "face", None)
+                    if face is not None:
+                        face.on_shutdown()
+                        face.player.shutdown(play_outro=True)
+                except Exception:
+                    pass
             try:
                 watchdog.stop()
                 if console:
@@ -541,7 +576,9 @@ def main() -> int:
             finally:
                 lock.release()
 
-        install_signal_handlers(shutdown)
+        # The signal handler, the console-close handler and the main loop all get here; one does the work and the others wait.
+        shutdown = Stopper(_shutdown)
+        install_signal_handlers(shutdown, on_console_close=lambda: shutdown(quick=True))
 
         runtime.start()
         if control:

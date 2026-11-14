@@ -40,13 +40,19 @@ class EpisodeStore:
                 self._migrate_legacy_json(legacy_path)
             return
 
-        with open(self.path, "r", encoding="utf-8") as f:
+        bad = 0
+        with open(self.path, "r", encoding="utf-8", errors="replace") as f:
             for line in f:
                 line = line.strip()
                 if not line:
                     continue
-                data = json.loads(line)
-                self._add_from_dict(data)
+                try:
+                    self._add_from_dict(json.loads(line))
+                except Exception:               # a line torn by a crash or a full disk: skip it, keep the rest
+                    bad += 1
+        if bad:
+            import logging
+            logging.getLogger("ash.memory.episodic").warning("Skipped %d unreadable line(s) in %s", bad, self.path)
 
     def _add_from_dict(self, data: dict):
         # Filter to known Episode fields only, so a schema change (a
@@ -76,17 +82,29 @@ class EpisodeStore:
         """Full rewrite -- one JSON object per line. Used by prune()
         (which is removing rows and must rewrite anyway) and by the
         legacy migration above. NOT used by add() -- see append()."""
-        tmp_path = self.path + ".tmp"
-        with open(tmp_path, "w", encoding="utf-8") as f:
+        from ..atomic import write_with
+
+        def _rows(f):
             for ep in self.episodes.values():
                 f.write(json.dumps(asdict(ep)) + "\n")
-        os.replace(tmp_path, self.path)  # atomic on POSIX and Windows
+        write_with(self.path, _rows, "w")          # temp + fsync + replace
 
     def add(self, episode: Episode):
         """O(1): append one line, no full re-read/re-write."""
         self.episodes[episode.episode_id] = episode
-        with open(self.path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(asdict(episode)) + "\n")
+        try:
+            lead = ""
+            if os.path.exists(self.path) and os.path.getsize(self.path) > 0:
+                with open(self.path, "rb") as r:        # a torn last line has no newline: do not glue this one to it
+                    r.seek(-1, os.SEEK_END)
+                    if r.read(1) != b"\n":
+                        lead = "\n"
+            with open(self.path, "a", encoding="utf-8") as f:
+                f.write(lead + json.dumps(asdict(episode)) + "\n")
+        except OSError as e:
+            from ..atomic import log_io_failure
+            import logging
+            log_io_failure(logging.getLogger("ash.memory.episodic"), "an episode", e)
 
     def mark_accessed(self, episodes: List[Episode]):
         """Episodes are already mutated in place by the caller

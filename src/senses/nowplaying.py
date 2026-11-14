@@ -284,7 +284,13 @@ class NowPlayingSensor(Sensor):
             if ws is not None and ws.is_blocked(title):
                 return True
             from .screen import is_private_content, looks_private
-            return bool(looks_private(title, process) or is_private_content(title, process))
+            if looks_private(title, process) or is_private_content(title, process):
+                return True
+            # What the browser-tab sensor would never record is not recorded here either: a video watched for ten minutes
+            # became "likes <title>" in the profile, fed to the model and mirrored into entity memory -- a health, divorce or
+            # adult title included.
+            from src.daemon.pagekind import SENSITIVE_TITLE
+            return bool(SENSITIVE_TITLE.search(title or ""))
         except Exception:
             return True                  # can't tell: leave it out
 

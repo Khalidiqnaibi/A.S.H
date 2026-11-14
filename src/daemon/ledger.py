@@ -79,6 +79,7 @@ class Ledger:
         if self.path != ":memory:":
             os.makedirs(os.path.dirname(os.path.abspath(self.path)) or ".", exist_ok=True)
         self.db = sqlite3.connect(self.path, check_same_thread=False)
+        self.db.execute("PRAGMA secure_delete=ON")        # "forget github.com" overwrites the rows, it does not just unlink them
         self.db.executescript(_SCHEMA)
         # A ledger from before daily_site existed: its per-category totals have no site; keep them as "(older)".
         self.db.execute("INSERT OR IGNORE INTO daily_site(day,site,category,seconds,episodes) "

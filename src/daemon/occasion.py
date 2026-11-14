@@ -42,10 +42,30 @@ _GROUPS = {
     "working": "excel powerpnt outlook onenote teams ms-teams slack zoom msteams",
     "reading": "acrobat acrord32 sumatrapdf foxitreader kindle calibre ebook-viewer",
     "designing": "figma photoshop illustrator blender inkscape gimp xd indesign afterfx premiere",
-    "gaming": """steam epicgameslauncher valorant-win64-shipping leagueclient fortniteclient-win64-shipping cs2 csgo dota2
-        robloxplayerbeta eldenring gta5 minecraft javaw riotclientservices battle.net""",
 }
+# Games and their launchers, by program name. A name with spaces is how the program itself is called
+# ("League of Legends.exe"), so this is a list, not a split string.
+GAME_PROCS = frozenset("""steam steamwebhelper epicgameslauncher battle.net riotclientservices riotclientux leagueclient
+    leagueclientux leagueclientuxrender league of legends leagueoflegends valorant valorant-win64-shipping
+    fortniteclient-win64-shipping fortniteclient-win64-shipping_be cs2 csgo dota2 robloxplayerbeta robloxstudiobeta
+    eldenring gta5 gtav minecraft minecraftlauncher overwatch overwatch2 r5apex apex rocketleague destiny2 cod
+    modernwarfare warzone helldivers2 palworld-win64-shipping marvelrivals-win64-shipping bg3 bg3_dx11 baldursgate3
+    witcher3 cyberpunk2077 hogwartslegacy starfield genshinimpact yuanshen starrail zenlesszonezero pubg tslgame
+    hearthstone wow worldofwarcraft diablo iv diablo4 d4 fallout4 skyrimse eldenring nightreign sekiro darksouls3
+    fifa23 eafc24 eafc25 fc25 nba2k24 nba2k25 rdr2 godofwar terraria stardewvalley amongus fallguys rustclient rust
+    escapefromtarkov tarkov pathofexile pathofexile_x64 lostark kovaaks aimlab valheim satisfactory
+    cities2 eu4 ck3 hoi4 stellaris""".split() + ["league of legends", "league of legends (tm) client"]) - {"of", "iv", "league", "legends", "diablo"}
 ACTIVITY_OF = {p: act for act, procs in _GROUPS.items() for p in procs.split()}
+ACTIVITY_OF.update({p: "gaming" for p in GAME_PROCS})
+# Launchers and stores: "gaming" for who is free to talk, but not a game running behind everything.
+# (The League client is open for hours before and after a match, and so is Steam: neither is "a game is running".)
+LAUNCHERS = frozenset("""steam steamwebhelper epicgameslauncher battle.net riotclientservices riotclientux minecraftlauncher
+    leagueclient leagueclientux leagueclientuxrender""".split())
+
+
+def is_known_game(stem: str, launchers: bool = True) -> bool:
+    s = (stem or "").strip().lower()
+    return s in GAME_PROCS and (launchers or s not in LAUNCHERS)
 
 
 BROWSERS = frozenset({"chrome", "msedge", "firefox", "brave", "opera", "vivaldi", "chromium", "arc"})
@@ -76,6 +96,7 @@ class Occasion:
         self._segs: Deque[Tuple[float, float, str]] = deque()      # (start, end, activity), closed
         self._cur: Optional[Tuple[float, str]] = None               # (since, activity) still going
         self._page = ""                                             # the activity of the browser tab in front, if any
+        self._front = ""                                            # the activity of what is in front now, running or not
         self._browser_front = False
         self._leisure = False                                       # the tab in front is video, social, news...
         self._lock = threading.Lock()
@@ -90,6 +111,7 @@ class Occasion:
             if not self._browser_front:
                 self._leisure = False
             act = "" if blocked else (activity_of(process) or (self._page if self._browser_front else ""))
+            self._front = act
             if self._cur is not None and self._cur[1] == act:
                 return
             self._close(now)
@@ -103,11 +125,13 @@ class Occasion:
             if stopped:
                 self._page, self._leisure = "", False
                 if self._browser_front:                 # only if a browser is still what is in front: a late
+                    self._front = ""
                     self._close(now)                    # "stopped" must not end what an editor started since
                 self._browser_front = False
                 return
             act = page_activity(category)
             self._page, self._browser_front = act, True
+            self._front = act
             self._leisure = (category or "").strip().lower() in LEISURE_PAGES
             if self._cur is not None and self._cur[1] == act:
                 return
@@ -120,6 +144,10 @@ class Occasion:
         with self._lock:
             if self._cur is not None and idle_s is not None and idle_s >= self.idle_cut_s:
                 self._close(max(self._cur[0], now - idle_s))        # it ended when they went quiet
+            elif self._cur is None and self._front and (idle_s is None or idle_s < self.idle_cut_s):
+                # Back from a break, to the same window: window() only fires when the title changes, so without this a
+                # coffee break ended "coding" until the next time the title changed.
+                self._cur = (now, self._front)
             while self._segs and now - self._segs[0][1] > self.keep_s:
                 self._segs.popleft()
 

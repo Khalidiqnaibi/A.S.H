@@ -14,8 +14,9 @@ function logAdd(txt , from = "ai") {
   if (from === "user") logEntry.classList.add('user-entry');
   if (from === "system") logEntry.classList.add('sys-entry');
 
-  // Convert markdown to HTML
-  logEntry.innerHTML = marked.parse(txt);
+  // Convert markdown to HTML -- through safehtml.js: a reply can carry text from files, OCR or the web, and raw HTML in it
+  // used to run in the page.
+  logEntry.innerHTML = safeMarkdown(txt, marked, document);
 
   chatLog.appendChild(logEntry);
   chatLog.scrollTop = chatLog.scrollHeight;

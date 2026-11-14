@@ -193,7 +193,7 @@ def g6_runtime():
     say("hint", source="microphone", addressed=False)
     check("a hint heard without the name", out[-1].startswith("Hint:"))
     say("a towel", source="microphone", addressed=False)
-    check("solved (a hint is not a try)", out[-1] == "Yes! It's a towel.", str(out[-1:]))
+    check("solved (a hint is not a try), and it offers another", out[-1] == "Yes! It's a towel. Another one?", str(out[-1:]))
     check("the free-moment offers are there", {"daily_trivia", "riddle"} <= set(rt.moments.activities))
     check("no model asked at all", ash.calls == [])
 
