@@ -110,11 +110,12 @@ def crops_of(bgr: np.ndarray, tiles: bool = True) -> List[Tuple[np.ndarray, Tupl
 class ClassifierObjects(ObjectBackend):
     """Things from an ImageNet classifier over crops. `classify` is injectable (tests pass a scripted one)."""
 
-    min_conf = 0.15
-    sure_conf = 0.50
+    min_conf = 0.30
+    sure_conf = 0.55
+    tile_conf = 0.45
 
-    def __init__(self, classify: Optional[Classifier] = None, name: str = MODEL_NAME, min_conf: float = 0.15,
-                 sure_conf: float = 0.50, probe_s: float = 60.0, clock: Callable[[], float] = time.time):
+    def __init__(self, classify: Optional[Classifier] = None, name: str = MODEL_NAME, min_conf: float = 0.30,
+                 sure_conf: float = 0.55, probe_s: float = 60.0, clock: Callable[[], float] = time.time):
         self._classify = classify
         self.name = name
         self.min_conf, self.sure_conf = float(min_conf), float(sure_conf)
@@ -173,6 +174,8 @@ class ClassifierObjects(ObjectBackend):
             for rank, (raw, p) in enumerate(top[:2]):
                 if p < self.min_conf or (rank == 1 and src != "centre"):
                     continue                                   # a second guess only for the middle, where it matters
+                if src != "centre" and p < self.tile_conf:
+                    continue                                   # the edges of a room: a tile must be sure, or it is clutter (harmonica, ski mask...)
                 person = is_worn(raw)
                 label = "person" if person else plain_label(raw)
                 score = float(p) * (0.8 if person else 1.0)

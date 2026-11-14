@@ -164,7 +164,7 @@ class LookingConfig:
     # The ImageNet classifier (the brain's own ViT, from the local cache) when there is no YOLO file: no download.
     classifier: bool = True
     classifier_model: str = "google/vit-base-patch16-224"
-    classifier_min_conf: float = 0.15     # a classifier's probabilities are lower than a detector's: its own floor ...
+    classifier_min_conf: float = 0.30     # a classifier's probabilities are lower than a detector's: its own floor ...
     classifier_sure_conf: float = 0.50    # ... and its own "I'm sure". object_conf / sure_conf above are for YOLO.
     # Reacting to what the camera sees change ("you picked up a watch"). Only ever from the camera SENSOR's own frames, so
     # only while sensors.camera is on; never in privacy mode or kids mode.
