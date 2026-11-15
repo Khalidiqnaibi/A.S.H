@@ -348,6 +348,13 @@ def l10_real_cancel():
     rt3.ash_.go.set()
     th3.join(10)
     check("and its answer is not said", "A long answer." not in rt3.out)
+    rt4 = rig()
+    th4, ok4 = busy(rt4)
+    check("the console's button drops it without saying anything aloud (in a lecture)",
+          rt4.cancel_thinking(speak=False) is True and rt4._cancelled and not any("dropped it" in o for o in rt4.out), str(rt4.out))
+    rt4.ash_.go.set()
+    th4.join(10)
+    check("...and its answer is not said either", "A long answer." not in rt4.out)
 
 
 def l7_started():

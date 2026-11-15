@@ -4198,7 +4198,7 @@ class AmbientRuntime:
             return True
         return False
 
-    def cancel_thinking(self) -> bool:
+    def cancel_thinking(self, speak: bool = True) -> bool:
         """"Never mind" (said, or the button): the answer being worked out is abandoned NOW -- the request to the model is
         cut loose so the loop is free at once, nothing is said when it ends, and saying it twice says nothing twice."""
         with self._cancel_lock:
@@ -4218,7 +4218,8 @@ class AmbientRuntime:
                 sp.stop()
             except Exception:
                 logger.debug("stopping speech failed", exc_info=True)
-        self._speech_say("Okay -- dropped it.", "cancel")
+        if speak:                                         # the console's button is its own answer: nothing said aloud (a lecture)
+            self._speech_say("Okay -- dropped it.", "cancel")
         return True
 
     @staticmethod
