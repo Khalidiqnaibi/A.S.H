@@ -167,6 +167,25 @@ def r4_persist():
     check("a broken file is set aside", Reminders(path=p).items == {} and os.path.exists(p + ".bad"))
 
 
+def r6_wording():
+    print("\n=== R6. My is your; and asking what is set ===")
+    r = rig()
+    s = r.hear("remind me to call my mom in 20 minutes")
+    check("my becomes your, in the answer", s == "Okay, I'll remind you to call your mom at 14:20.", s)
+    check("...and in what is said when it goes off", r.tick(T0 + 21 * MIN) == ["Reminder: call your mom."], str(r.status()))
+    r = rig()
+    s = r.hear("remind me in an hour to tell Sam I'm late and that I've left my keys")
+    check("I'm, I've, my", s == "Okay, I'll remind you to tell Sam you're late and that you've left your keys at 15:00.", s)
+    r = rig()
+    r.hear("remind me in 10 minutes to email the professor")
+    for q in ("do I have reminders", "do I have any reminders", "what reminders do I have", "what reminders are set",
+              "show my reminders", "check my reminders", "list my reminders"):
+        check(f"{q!r} lists them", "email the professor" in (r.hear(q) or ""), str(r.hear(q)))
+    check("none set says so", "any reminders" in rig().hear("do I have reminders"))
+    for q in ("do I have time", "what is a reminder", "remind"):
+        check(f"{q!r} is not a list request", "email the professor" not in (r.hear(q) or ""), str(r.hear(q)))
+
+
 def r5_runtime():
     print("\n=== R5. The runtime ===")
     clock = [T0]
@@ -209,7 +228,7 @@ def r5_runtime():
 
 
 if __name__ == "__main__":
-    for fn in (r1_setting, r2_firing, r3_controls, r4_persist, r5_runtime):
+    for fn in (r1_setting, r2_firing, r3_controls, r4_persist, r5_runtime, r6_wording):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

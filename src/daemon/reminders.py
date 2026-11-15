@@ -65,8 +65,24 @@ _TIME_PHRASES = [re.compile(p, re.I) for p in (
     r"\bat\s+(?:noon|midday|midnight)\b",
     r"\b(?:next week|next month|next weekend)\b",
 )]
-_LIST = re.compile(r"\b(?:what(?:'s| are| is)?|list|any)\s+(?:my\s+)?(?:reminders?|timers?|alarms?)\b"
-                   r"|\bdo i have any (?:reminders?|timers?|alarms?)\b", re.I)
+_LIST = re.compile(r"\b(?:what(?:'s| are| is)?|list|any|show|check)\s+(?:of\s+)?(?:my\s+|the\s+)?(?:upcoming\s+)?(?:reminders?|timers?|alarms?)\b"
+                   r"|\b(?:do i have|have i got)\s+(?:any\s+|got\s+any\s+)?(?:upcoming\s+)?(?:reminders?|timers?|alarms?)\b"
+                   r"|\bwhat\s+(?:reminders?|timers?|alarms?)\s+(?:do i have|have i got|are (?:set|there)|did i set)\b"
+                   r"|\b(?:reminders?|timers?|alarms?)\s+(?:do i have|have i (?:got|set))\b", re.I)
+
+# "Remind me to call my mom": said back and spoken later to the person, so my is your.
+_FLIP = [(re.compile(p, re.I), r) for p, r in (
+    (r"\bI'm\b", "you're"), (r"\bI've\b", "you've"), (r"\bI'll\b", "you'll"), (r"\bI'd\b", "you'd"),
+    (r"\bmyself\b", "yourself"), (r"\bmine\b", "yours"), (r"\bmy\b", "your"),
+    (r"\bme\b", "you"), (r"\bI\b", "you"))]
+
+
+def to_second_person(text: str) -> str:
+    """"call my mom and tell her I'm late" -> "call your mom and tell her you're late"."""
+    out = text
+    for rx, r in _FLIP:
+        out = rx.sub(r, out)
+    return out
 
 
 def is_request(text: str) -> bool:
@@ -212,6 +228,7 @@ class Reminders:
             what = re.sub(r"\s+", " ", what).strip(" ,.")
             what = re.sub(r"^(?:to|that|about|of)\s+", "", what, flags=re.I)
             what = re.sub(r"\s+(?:to|that|about)$", "", what, flags=re.I).strip(" ,.")
+            what = to_second_person(what)
             if not what:
                 return "What should I remind you about?"
             when_s = datetime.fromtimestamp(w.start).strftime("%H:%M")
