@@ -1973,7 +1973,7 @@ class AmbientRuntime:
         if honest.asks_capabilities(text):
             say = honest.capabilities(self)
         else:
-            say = honest.limit_reply(text)
+            say = honest.quiet_modes_reply(text) or honest.limit_reply(text)
         if not say:
             return False
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())

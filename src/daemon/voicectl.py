@@ -55,7 +55,7 @@ _RULES = [
     ("screen_off", r"(?:turn|switch)\s+off\s+(?:the\s+)?screen\s*(?:capture|shots?|reading)|(?:disable|stop)\s+(?:the\s+)?"
                    r"screen\s*(?:capture|shots?|reading)|(?:turn|switch)\s+(?:the\s+)?screen\s*(?:capture|shots?|reading)\s+off"
                    r"|screen\s*(?:capture|shots?)\s+off"),
-    ("sleep", r"go\s+to\s+sleep|(?:time\s+to\s+)?sleep\s+now|take\s+a\s+nap|quiet\s+mode|do\s+not\s+disturb|"
+    ("sleep", r"mute(?:\s+(?:yourself|ash))?|go\s+to\s+sleep|(?:time\s+to\s+)?sleep\s+now|take\s+a\s+nap|quiet\s+mode|do\s+not\s+disturb|"
               r"be\s+quiet\s+for\s+a\s+(?:while|bit)|stop\s+talking\s+for\s+a\s+while"),
     ("wake", r"wake\s+up|you\s+can\s+talk\s+again|un-?mute(?:\s+yourself)?|end\s+quiet\s+mode"),
     ("shutdown", r"(?:turn|shut|power)\s+(?:yourself\s+)?(?:off|down)|shut\s*down|go\s+offline|switch\s+(?:yourself\s+)?off"),

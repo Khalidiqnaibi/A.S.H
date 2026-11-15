@@ -294,8 +294,24 @@ def h7_cleanup():
     check("an empty folder is fine", mc.main(["--dir", empty]) == 0)
 
 
+def h8_quiet_modes():
+    print("\n=== H8. Ways to make it quieter, and 'mute' ===")
+    for q in ("What modes do you have for minimum interventions?", "how do I make you quieter", "how can I stop you interrupting",
+              "what ways are there to make you interrupt less"):
+        check(f"{q!r} gets the list of what exists", "mute" in (honest.quiet_modes_reply(q) or "") and "focus" in honest.quiet_modes_reply(q),
+              str(honest.quiet_modes_reply(q)))
+    for q in ("what modes does a camera have", "how do I make you laugh", "what ways are there to cook rice", "mute the music"):
+        check(f"{q!r} is not that question", honest.quiet_modes_reply(q) is None)
+    rt = rig()
+    rt.say("what modes do you have for minimum interventions?")
+    check("in the runtime: answered by rule, no model", rt.out[-1].startswith("These make me quieter") and rt.ash_.calls == [], rt.out[-1])
+    from src.daemon.voicectl import parse
+    check("'mute' and 'mute yourself' are quiet mode; muting the music is not", parse("mute").name == "sleep"
+          and parse("mute yourself").name == "sleep" and parse("mute the music") is None)
+
+
 if __name__ == "__main__":
-    for fn in (h1_capabilities, h2_limits, h3_sanitize, h4_runtime, h5_small, h6_cache, h7_cleanup):
+    for fn in (h1_capabilities, h2_limits, h3_sanitize, h4_runtime, h5_small, h6_cache, h7_cleanup, h8_quiet_modes):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

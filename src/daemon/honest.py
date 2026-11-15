@@ -57,6 +57,28 @@ _BUY = re.compile(_A + r"(?:(?:order|buy|purchase|book|reserve)\s+(?:me\s+)?(?:a
                   r"(?:\s+\S+){0,5}?\s+(?:online|from\s+\w+|on\s+(?:amazon|ebay|talabat|uber)|for\s+me|delivered)\b"
                   r"|order\s+(?:me\s+)?(?:a\s+|some\s+)?(?:pizza|food|dinner|lunch|coffee|taxi|uber|ride)\b)", re.I)
 
+# "What modes do you have for minimum interventions?", "how do I make you quieter?": the answer is a list of what exists,
+# not something for the language model to make up.
+_QUIET_Q = re.compile(_A + r"(?:what|which)\s+(?:\w+\s+){0,2}?(?:modes?|settings?|options?|ways)\b[^.?!]{0,70}?"
+                      r"\b(?:interventions?|interrupt\w*|bothering|disturb\w*|quiet(?:er)?|silen\w+|mute|muting)\b[^.?!]{0,40}"
+                      r"|how\s+(?:do|can|could)\s+i\s+(?:make|get|have)\s+you\s+(?:to\s+)?(?:be\s+|talk\s+|speak\s+)?"
+                      r"(?:quiet(?:er)?|less|fewer|shut\s+up|stop\s+(?:talking|interrupting|bothering)|not\s+(?:interrupt|bother|talk))"
+                      r"|how\s+(?:do|can|could)\s+i\s+(?:stop|reduce|limit|minimi[sz]e)\s+(?:you\s+|your\s+)?(?:interruptions?|interventions?|"
+                      r"interrupting|talking|chatter)" + _Z, re.I)
+
+QUIET_MODES = ("These make me quieter: \"mute\" or \"go to sleep\" (I stop volunteering until you say \"wake up\"), \"quiet for an "
+               "hour\" or \"quiet until 9\", \"focus for 45 minutes\" or \"do not disturb\" (and I tell you in one line what I held "
+               "back), \"shh\" to cut off what I'm saying, and \"go private\" to turn the mic, camera and screen off. Reminders you "
+               "set still go off, except while I'm muted. I also go quiet by myself when you're gaming.")
+
+
+def quiet_modes_reply(text: str) -> Optional[str]:
+    t = (text or "").strip()
+    if not t or len(t) > 120:
+        return None
+    return QUIET_MODES if _QUIET_Q.match(t) else None
+
+
 _LIMITS = (
     (_WEB, "I can't browse the web or show you things from it -- I don't have a browser tool. I can open Chrome for "
            "you if you say “open Chrome”, and I can look up a term in your own files."),
