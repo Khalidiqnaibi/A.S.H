@@ -116,6 +116,11 @@ class PlasticityConfig:
     # always-on concept forms strong timing edges to literally everything.
     adaptation_strength: float = 0.92
 
+    # A concept that already has many wires coming in is a harder target for one more: past `hub_free_inputs` each extra
+    # input halves the rate again at `hub_free_inputs` more. Without it a concept everything points at ("wew" had 96 of
+    # 131 concepts wiring to it) says nothing about any one of them, and spreading activation floods through it.
+    hub_free_inputs: int = 12
+
     # --- Schema fast-track -------------------------------------------------
     # An association consistent with existing structure consolidates in far
     # fewer exposures than one that stands alone (Tse et al. 2007).
@@ -191,6 +196,11 @@ class Plasticity:
         if self.neuromod is not None:
             g *= self.neuromod.plasticity_gain()
         return g
+
+    def hub_scale(self, dst: int) -> float:
+        """1.0 for a concept with up to `hub_free_inputs` wires in, then falling: 1/(1 + extra/hub_free_inputs)."""
+        extra = len(self.net._in.get(dst, ())) - self.cfg.hub_free_inputs
+        return 1.0 if extra <= 0 else 1.0 / (1.0 + extra / float(max(1, self.cfg.hub_free_inputs)))
 
     def adapted(self, cid: int, a: float) -> float:  # noqa: D401
         """Activation as plasticity sees it, after habituation.
@@ -306,7 +316,7 @@ class Plasticity:
                     # Oja: Hebbian term minus post * w. The subtraction is
                     # what bounds the weight -- as w grows, the update shrinks
                     # and reaches equilibrium instead of diverging.
-                    lr = self.cfg.eta_fast * gain * syn.rules()["lr"]
+                    lr = self.cfg.eta_fast * gain * syn.rules()["lr"] * self.hub_scale(d)
                     if live:
                         # Sliding threshold: a unit that has been busy lately
                         # is harder to potentiate further.
@@ -374,7 +384,7 @@ class Plasticity:
 
                     fwd = self.net.synapse(pre_id, post_id)
                     if not fwd.frozen:
-                        d = self.cfg.stdp_potentiation * scale * pre_a * post_a
+                        d = self.cfg.stdp_potentiation * scale * pre_a * post_a * self.hub_scale(post_id)
                         fwd.w_fast += d
                         fwd.order_evidence = min(2.0, fwd.order_evidence + 0.8 * d)
                         if (fwd.order_evidence >= self.cfg.causal_threshold

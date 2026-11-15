@@ -3,6 +3,7 @@ tst_conceptlearn.py -- what the mind page found wrong with the concept graph, an
 
   C1  time and running strength survive a restart (created, last fired, activation sum; edge creation and last use)
   C2  a concept that has taken far more than its share is held back (conscience), unless it truly is the best match
+  C3  a concept that everything already points at is a harder target for one more wire
 
 Everything runs on a small made-up network in a temp folder; no saved graph of the user's is read or written.
 
@@ -130,8 +131,39 @@ def c2_conscience():
     check("a normal perceive still works and grows nothing for a perfect match", act.grown is None and len(r.concepts) == 1)
 
 
+def c3_hub_inputs():
+    print("\n=== C3. A concept everything points at learns fewer wires ===")
+    from src.concepts.plasticity import Plasticity
+    n = net()
+    ids = [n.add_concept(rnd(i), seed_text="c%d" % i).id for i in range(70)]
+    pl = Plasticity(n)
+    hub, plain = ids[0], ids[1]
+    for s_ in ids[2:60]:
+        n.synapse(s_, hub)
+    for s_ in ids[2:6]:
+        n.synapse(s_, plain)
+    check("setup: the hub has 58 wires in, the plain one 4", len(n.inputs(hub)) == 58 and len(n.inputs(plain)) == 4)
+    check("a concept with few inputs is learned at the full rate", pl.hub_scale(plain) == 1.0)
+    check("a hub is learned at a fraction of it", 0.15 < pl.hub_scale(hub) < 0.35, str(pl.hub_scale(hub)))
+    check("the rate keeps falling as inputs pile up", pl.hub_scale(hub) < pl.hub_scale(ids[60]) or pl.hub_scale(hub) < 1.0)
+    from src.concepts.model import Activation
+    a, b = ids[60], ids[61]
+    for x in (hub, plain):
+        n.concepts[x].activations = 3
+    n.cycles = 50
+    pl.replay_mode, pl.stdp_enabled = True, False        # the plain Hebbian rule, the same gate for both
+    for _ in range(30):
+        n.concepts[a].activations = n.concepts[b].activations = 3
+        pl.potentiate(Activation(initial={a: 0.9, hub: 0.9}, spread={a: 0.9, hub: 0.9}))
+        pl.potentiate(Activation(initial={b: 0.9, plain: 0.9}, spread={b: 0.9, plain: 0.9}))
+    to_hub = n.synapses.get((a, hub))
+    to_plain = n.synapses.get((b, plain))
+    check("the same evidence builds a smaller wire into the hub than into the plain concept",
+          (to_hub is None) or (to_plain is not None and abs(to_hub.w_fast) < abs(to_plain.w_fast)), "%s vs %s" % (to_hub and to_hub.w_fast, to_plain and to_plain.w_fast))
+
+
 if __name__ == "__main__":
-    for fn in (c1_time_survives, c2_conscience):
+    for fn in (c1_time_survives, c2_conscience, c3_hub_inputs):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)
