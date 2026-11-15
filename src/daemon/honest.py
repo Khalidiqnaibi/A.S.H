@@ -126,9 +126,41 @@ INVENTED_SAY = ("I can't do that, and I shouldn't have sounded as if I had -- I 
                 "“What can you do?” says what I really can.")
 
 
+# "I'll make sure to remember that", "I'm remembering that for you": nothing was stored by saying so.
+_FAKE_MEMORY = re.compile(r"\bi(?:'ll|\s+will|'m|\s+am)\s+(?:now\s+)?(?:make\s+sure\s+(?:to\s+|i\s+)?)?(?:remember(?:ing)?|memori[sz]ing|"
+                          r"keep(?:ing)?\s+(?:that|this)\s+in\s+mind|stor(?:e|ing)\s+(?:that|this|it))\b|\bi'?ve\s+(?:stored|memori[sz]ed|"
+                          r"saved\s+(?:that|this|it))\b", re.I)
+NOT_STORED = ("I haven't stored that -- I only keep what you tell me as \"remember that ...\". Say it that way and I will.")
+
+# What to say to "that's wrong", "you're making stuff up": the model, asked to explain itself, invented a "version 10.1.2" and a
+# "software 8.7.8" to defend an answer it had made up.
+_DISPUTE = re.compile(
+    _A + r"(?:(?:no|nope|but|well|wait|hold on|actually|bro)[,\s]+)*(?:"
+    r"(?:that'?s|that\s+is|that\s+was|this\s+is|it'?s|what\s+you\s+(?:just\s+)?said\s+(?:is|was)|all\s+of\s+(?:this|that|it)\s+(?:is|was)|"
+    r"everything\s+you\s+(?:just\s+)?said\s+(?:is|was)|that\s+answer\s+(?:is|was))\s+(?:all\s+|totally\s+|completely\s+|just\s+|so\s+|"
+    r"actually\s+)*(?:wrong|incorrect|false|not\s+true|untrue|made\s+up|a\s+lie|nonsense|bs|bullshit)"
+    r"|you(?:'re|\s+are)\s+(?:just\s+|totally\s+|completely\s+|all\s+)*(?:wrong|lying|making\s+(?:(?:things|stuff|it|that|all\s+of\s+it)\s+up|up\s+(?:things|stuff|facts|answers)))"
+    r"|you\s+(?:just\s+)?made\s+(?:that|it|this|all\s+of\s+(?:that|it)|that\s+all)\s+up|you\s+(?:just\s+)?(?:made|make)\s+(?:stuff|things)\s+up"
+    r"|that\s+never\s+happened|i\s+never\s+said\s+that)(?:\s+(?:actually|bro|man|dude|mate))?(?:[.,!\s]+(?:you(?:'re|\s+are)\s+"
+    r"(?:just\s+)?making\s+(?:stuff|things)\s+up|you\s+made\s+(?:it|that)\s+up))?" + _Z, re.I)
+DISPUTE_FIRST = ("You're right to doubt it -- I can't back that up, so please ignore what I just said. Tell me what's right and I'll "
+                 "keep it, or ask me again and I'll say if I don't know.")
+DISPUTE_AGAIN = "Okay. I won't defend it. Tell me what the right answer is, or leave it, and I'll leave it."
+
+
+def disputes_last_answer(text: str) -> bool:
+    t = (text or "").strip()
+    if not t or len(t) > 160:
+        return False
+    parts = [x.strip() for x in re.split(r"(?<=[.!?])\s+", t) if x.strip()]
+    return bool(parts) and all(_DISPUTE.match(x) for x in parts)       # "All of this is wrong. You are making stuff up."
+
+
 def invented_reply(reply: str) -> Optional[str]:
     """If a model answer pretends to an action or a result ASH cannot produce, what to say instead."""
     r = reply or ""
+    if _FAKE_MEMORY.search(r):
+        return NOT_STORED
     if not _INVENTED.search(r):
         return None
     return QUIET_MODES if _MODEISH.search(r) else INVENTED_SAY

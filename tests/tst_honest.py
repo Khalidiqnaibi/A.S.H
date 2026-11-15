@@ -343,8 +343,35 @@ def h9_invented():
     check("...and a places question is answered by rule, never reaches the model", "can't look up places" in rt.out[-1] and rt.ash_.calls == [], rt.out[-1])
 
 
+def h10_disputes():
+    print("\n=== H10. 'That's wrong' is not an invitation to invent a defence ===")
+    for q in ("That's wrong.", "What you just said is wrong.", "All of this is wrong actually. You are just making up stuff.", "you made that up",
+              "You're wrong", "no that's not true", "that is totally false bro"):
+        check(f"{q!r} is a dispute", honest.disputes_last_answer(q), q)
+    for q in ("what's wrong with my pc", "that's wrong, I meant the other one", "it's not wrong", "you are making a sandwich", "wrong"):
+        check(f"{q!r} is not", not honest.disputes_last_answer(q), q)
+    rt = rig("Version 10.1.2.")
+    rt.say("what version are you")
+    n = len(rt.ash_.calls)
+    rt.say("what you just said is wrong")
+    check("by rule, no model: it says it cannot back it up and asks for the right one", rt.out[-1] == honest.DISPUTE_FIRST and len(rt.ash_.calls) == n,
+          rt.out[-1])
+    rt.say("all of this is wrong actually. you are just making up stuff")
+    check("said again about the same answer: it does not defend it, and does not repeat itself", rt.out[-1] == honest.DISPUTE_AGAIN and len(rt.ash_.calls) == n,
+          rt.out[-1])
+    rt2 = rig()
+    rt2.say("that's wrong")
+    check("with nothing just said, it is left to the others", rt2.out[-1:] != [honest.DISPUTE_FIRST], str(rt2.out[-1:]))
+    for t in ("I'm remembering that for you, Immortal.", "I'll make sure to remember that you're on port 8788."):
+        check(f"{t[:40]!r}: nothing was stored, so it is not said", honest.invented_reply(t) == honest.NOT_STORED, t)
+    check("'I remember that day' is just talk", honest.invented_reply("I remember that day fondly.") is None)
+    rt3 = rig("I'll make sure to remember that you're on port 8-7-8.")
+    rt3.say("so what port am I on")
+    check("in the runtime, the pretend memory is replaced", rt3.out[-1] == honest.NOT_STORED, rt3.out[-1])
+
+
 if __name__ == "__main__":
-    for fn in (h1_capabilities, h2_limits, h3_sanitize, h4_runtime, h5_small, h6_cache, h7_cleanup, h8_quiet_modes, h9_invented):
+    for fn in (h1_capabilities, h2_limits, h3_sanitize, h4_runtime, h5_small, h6_cache, h7_cleanup, h8_quiet_modes, h9_invented, h10_disputes):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

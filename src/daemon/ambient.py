@@ -834,6 +834,7 @@ class AmbientRuntime:
         self._thinking = 0
         self._think_started = 0.0               # when the answer in progress began
         self._think_query = ""
+        self._last_dispute_of = None            # the answer "that's wrong" was last said about
         self._cancelled = False                 # "never mind" said while it was in progress
         self._cancel_lock = threading.Lock()    # the loop and the fast lane both touch _cancelled and the model's block
         self._waiters: List[Any] = []           # queues of callers of ask(): what ASH says next, handed to them
@@ -2055,6 +2056,23 @@ class AmbientRuntime:
         if not say:
             return False
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
+    def _dispute_request(self, ev, now: float) -> bool:
+        """"That's wrong", "what you just said is wrong", "you're making stuff up", said soon after an answer: by rule, never
+        to the model -- asked to explain itself it invents a justification ("I meant version 10.1.2"). It says it cannot back the
+        answer up and asks for the right one."""
+        if not self._user_source(ev) or not self._meant_for_ash(ev):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        if not honest.disputes_last_answer(text):
+            return False
+        if self._last_out_at is None or now - self._last_out_at > 15 * 60:
+            return False                                  # nothing was just said: "that's wrong" is about something else
+        say = honest.DISPUTE_AGAIN if self._last_dispute_of == self._last_out else honest.DISPUTE_FIRST
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_dispute_of = self._last_out                 # what it said just now, to know a second dispute of the same thing
+        self._last_why = {"kind": "correction"}
         return True
 
     def _known_text(self) -> str:
@@ -3507,6 +3525,8 @@ class AmbientRuntime:
         if self._crash_request(ev, now):
             return True
         if not loose and self._facts_request(ev, now):
+            return True
+        if not loose and self._dispute_request(ev, now):
             return True
         if not loose and self._honest_request(ev, now):
             return True
