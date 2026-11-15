@@ -194,7 +194,22 @@ class Constitution:
     def _norm(s: str) -> str:
         """Collapse underscores/hyphens so an intent tag written `format_disk`
         matches a rule written "format disk" and vice versa."""
-        return re.sub(r"[\s_\-]+", " ", (s or "").lower()).strip()
+        s = re.sub(r"[\u2019']", "", (s or "").lower())            # don't / don’t -> dont, can't -> cant
+        return re.sub(r"[\s_\-]+", " ", s).strip()
+
+    _PROHIBIT = re.compile(r"\b(?:never|must not|mustnt|do not|dont|does not|doesnt|cannot|cant|can not|shall not|"
+                           r"should not|shouldnt|will not|wont|forbidden|refuse|prohibited|not allowed)\b")
+
+    @staticmethod
+    def _names(tag: str, rule_text: str) -> bool:
+        """Does the rule mention this intent or tool as a whole word (or its plural or -ing form)? "format" is in
+        "information", and "read" is in "already", but neither is a rule about them."""
+        words = tag.split()
+        if not words:
+            return False
+        gap = r"\s+(?:(?:the|a|an|any|all|my|your|their|its)\s+)?"        # "format the disk" is "format disk"
+        pat = r"\b" + gap.join(re.escape(w) for w in words) + r"(?:s|es|ing|ting|ed|d)?\b"
+        return bool(re.search(pat, rule_text))
 
     def vote(self, proposal: ActionProposal, bundle: PerceptBundle) -> Optional[Vote]:
         """Only ever returns a blocking vote or None. Never endorses."""
@@ -206,12 +221,9 @@ class Constitution:
                 continue
             # A hard rule phrased as a prohibition ("never ...", "must not ...")
             # blocks any proposal whose intent tag or tool name appears in it.
-            prohibitive = any(
-                m in rt for m in ("never", "must not", "do not", "dont", "forbidden", "refuse")
-            )
-            if not prohibitive:
+            if not self._PROHIBIT.search(rt):
                 continue
-            if (tag and tag in rt) or (tool and tool in rt):
+            if self._names(tag, rt) or self._names(tool, rt):
                 return Vote(
                     member="constitution", support=-1.0, confidence=1.0,
                     veto=True, absolute=True,
