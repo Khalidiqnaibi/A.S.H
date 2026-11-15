@@ -44,6 +44,15 @@ SENTENCE_STARTERS = {
     "let", "given", "answering", "task", "system", "entertainment", "smile", "turn", "nope", "good", "today",
     "here", "now", "sure", "okay", "yes", "no", "thanks", "hello", "please", "also", "again", "just", "maybe",
 }
+# Words that were read as names but are readings of the machine, parts of speech or phrases from a model's answer.
+JUNK_WORDS = {
+    "cpu_percent", "operation", "words", "sentiment", "users", "desktop", "based", "tomorrow", "august", "runner", "ram", "episodic",
+    "top recommendation", "also worth considering", "semantic trap", "the semantic trap", "backend", "developer", "software engineer",
+    "ai software engineer", "planfollower",
+}
+# Never dropped for being seen once: the user, ASH, and the places and people said about them.
+LONELY_DAYS = 3.0
+ALWAYS_KEEP = {"a.s.h", "ash", "khalid", "immortal", "immortal0ne", "khalid iqnaibi", "khalid afif iqnaibi", "hebron", "palestine"}
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 _PHONE = re.compile(r"\+?\d[\d\s().-]{7,}\d|\+\d+\s*X{3,}")
 
@@ -72,6 +81,71 @@ def junk_entity(e: Dict[str, Any]) -> str:
     if low in SENTENCE_STARTERS:
         return "a word that only starts a sentence"
     return ""
+
+
+def lonely_entity(e: Dict[str, Any], mentions: int, protect: set) -> str:
+    """Why an entity with nothing known about it but its name should go: it was seen in fewer than two sentences (the rule that
+    memory_router now applies before it makes one), and it is not someone ASH was told about."""
+    a = e.get("attributes") or {}
+    if set(a) - {"canonical_name", "last_seen_context", "source", "updated_at"} or e.get("secondary_identifiers"):
+        return ""
+    low = re.sub(r"\s+", " ", _name(e).lower()).strip(" :-")
+    if low in ALWAYS_KEEP or low in protect:
+        return ""
+    if low in JUNK_WORDS:
+        return "a reading of the machine or a phrase, not a thing"
+    if mentions < 2:
+        # Only what the last few days put there: an older one may be a project or a place that was said once and is still true.
+        updated = a.get("updated_at")
+        try:
+            fresh = updated is not None and (time.time() - float(updated)) <= LONELY_DAYS * 86400.0
+        except (TypeError, ValueError):
+            fresh = False
+        if fresh:
+            return "seen once in the last few days, with nothing known about it but its name"
+    return ""
+
+
+_DIRECTIVE_TASTE = re.compile(r"(?:^|\s)(?:keep that in mind|keep this in mind|remember that|remember this|don'?t forget|note that|"
+                              r"you know|please)\s*$", re.I)
+_FILLER_DEF = re.compile(r"^(?:(?:yeah|yes|yep|oh|well|um+|uh+|so)[,\s]+(?:(?:man|bro|dude|mate|boy)\s+)?(?:is\s+)?(?=\w)|(?:man|bro|dude|mate|boy)\s+is\s+)", re.I)
+
+
+def plan_knowledge(directory: str) -> Dict[str, Any]:
+    """What a wrong answer or a mis-heard sentence left in state/wonder: tastes that are the request to keep one ("shows keep that
+    in mind"), a definition that starts with the filler the recogniser lost the comma after ("man is a friend"), and a question closed
+    as answered whose answer was never kept (a father's name "answered" with "You")."""
+    wdir = os.path.join(directory, "state", "wonder")
+    kpath, wpath = os.path.join(wdir, "knowledge.json"), os.path.join(wdir, "wonders.json")
+    out: Dict[str, Any] = {"kpath": kpath, "wpath": wpath, "k": None, "w": None, "changes": []}
+    if os.path.exists(kpath):
+        with open(kpath, "r", encoding="utf-8") as fh:
+            k = json.load(fh)
+        for uk, u in (k.get("tastes") or {}).items():
+            for ik in list((u.get("items") or {})):
+                if _DIRECTIVE_TASTE.search(ik):
+                    out["changes"].append(f"taste {ik!r} is a request to keep something, not a liking")
+                    del u["items"][ik]
+        for tk, t in (k.get("terms") or {}).items():
+            d = str(t.get("definition") or "")
+            nd = _FILLER_DEF.sub("", d)
+            if nd != d:
+                out["changes"].append(f"definition of {t.get('term', tk)!r}: {d!r} -> {nd!r}")
+                t["definition"] = nd
+        out["k"] = k
+    if os.path.exists(wpath) and out["k"] is not None:
+        with open(wpath, "r", encoding="utf-8") as fh:
+            w = json.load(fh)
+        roles = set((out["k"].get("roles") or {}))
+        for key in list((w.get("closed") or {})):
+            if key.startswith("role:") and (w["closed"][key] or {}).get("s") == "answered" and key[5:] not in roles:
+                out["changes"].append(f"question {key!r} was closed as answered but nobody is on record for it: asked again")
+                del w["closed"][key]
+                for x in (list(w["wonders"].values()) if isinstance(w.get("wonders"), dict) else (w.get("wonders") or [])):
+                    if x.get("key") == key and x.get("status") == "answered":
+                        x["status"], x["not_before"], x["closed_at"] = "pending", 0.0, 0.0
+        out["w"] = w
+    return out
 
 
 def own_reply(ep: Dict[str, Any]) -> bool:
@@ -109,8 +183,31 @@ def plan(directory: str) -> Dict[str, Any]:
             ents, shape = raw["entities"], "dict"
         elif isinstance(raw, dict):
             ents, shape = list(raw.values()), "values"
-    drop_ents = [(e, junk_entity(e)) for e in ents if isinstance(e, dict) and junk_entity(e)]
-    return {"ep_path": ep_path, "en_path": en_path, "episodes": eps, "drop_episodes": drop_eps,
+    counts: Dict[str, int] = {}
+    for ep in eps:
+        for r in ep.get("related_entities") or []:
+            counts[str(r)] = counts.get(str(r), 0) + 1
+    protect = set()
+    kn = os.path.join(directory, "state", "wonder", "knowledge.json")
+    try:
+        with open(kn, "r", encoding="utf-8") as fh:
+            k = json.load(fh)
+        for key, v in (k.get("people") or {}).items():
+            protect.add(str(key))
+            protect.add(str(v.get("name", "")).lower())
+            protect.update(str(b) for b in (v.get("between") or {}))
+        protect.update(str(n).lower() for n in (k.get("roles") or {}).values())
+        protect.update(str((v or {}).get("name", "")).lower() for v in (k.get("tastes") or {}).values())
+    except Exception:
+        pass
+    drop_ents = []
+    for e in ents:
+        if not isinstance(e, dict):
+            continue
+        why = junk_entity(e) or lonely_entity(e, counts.get(str(e.get("entity_id")), 0), protect)
+        if why:
+            drop_ents.append((e, why))
+    return {"knowledge": plan_knowledge(directory), "ep_path": ep_path, "en_path": en_path, "episodes": eps, "drop_episodes": drop_eps,
             "entities": ents, "drop_entities": drop_ents, "shape": shape}
 
 
@@ -125,6 +222,10 @@ def apply(p: Dict[str, Any]) -> Tuple[str, str]:
         shutil.copy2(p["en_path"], b2)
     drop_ids = {id(e) for e in p["drop_episodes"]}
     kept = [e for e in p["episodes"] if id(e) not in drop_ids]
+    gone = {str(e.get("entity_id")) for e, _ in p["drop_entities"]}
+    for e in kept:                                           # an episode must not point at an entity that is gone
+        if "_raw" not in e and e.get("related_entities"):
+            e["related_entities"] = [r for r in e["related_entities"] if str(r) not in gone]
     tmp = p["ep_path"] + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         for e in kept:
@@ -146,6 +247,15 @@ def apply(p: Dict[str, Any]) -> Tuple[str, str]:
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(raw, fh, indent=2, ensure_ascii=False)
         os.replace(tmp, p["en_path"])
+    kn = p.get("knowledge") or {}
+    if kn.get("changes"):
+        for path, data in ((kn["kpath"], kn["k"]), (kn["wpath"], kn["w"])):
+            if data is not None and os.path.exists(path):
+                shutil.copy2(path, path + ".bak-" + stamp)
+                tmp = path + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as fh:
+                    json.dump(data, fh, indent=1, ensure_ascii=False)
+                os.replace(tmp, path)
     return b1, b2
 
 
@@ -165,6 +275,10 @@ def main(argv=None) -> int:
     print(f"\nEntities that are not things: {len(p['drop_entities'])}")
     for e, why in p["drop_entities"][:15]:
         print(f"   {_name(e)[:40]!r:44} {why}")
+    kn = p["knowledge"]
+    print(f"\nWhat wrong answers left in what ASH knows: {len(kn['changes'])}")
+    for c in kn["changes"]:
+        print("   " + c[:150])
     if not a.apply:
         print("\nNothing was changed. Run again with --apply (with ASH stopped) to back up and clean.")
         return 0
