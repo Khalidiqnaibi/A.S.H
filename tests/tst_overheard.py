@@ -190,11 +190,32 @@ def o5_games():
         check(f"still a refusal: {t!r}", yesno.is_no(t))
 
 
+def o6_unlearned():
+    print("\n=== O6. A lecture is heard, not learned from ===")
+    from src.daemon.availability import Avail
+    seen = []
+
+    class Trace:
+        percepts = {"novelty": 0.5}
+    rt = make()
+    rt.brain.observe = lambda **k: (seen.append(k.get("text")), Trace())[1]
+    rt.hear("a dimension is an embedding keyword", addressed=False)
+    ordinary = len(seen)
+    rt._avail = Avail("call", False, 0.0, "in a call")
+    rt.hear("the lecturer says a vector is a keyword embedding", addressed=False)
+    rt.hear("and then a shard is a partition key", addressed=False, guest=True)
+    check("in a call or lecture, room speech is not taken into the brain", len(seen) == ordinary
+          and rt.stats.get("room_unlearned", 0) == 2, f"{seen} {rt.stats.get('room_unlearned')}")
+    rt.hear("remember that my port is 8788", addressed=True)
+    check("what is said to ASH still is", rt.stats.get("room_unlearned", 0) == 2)
+
+
 if __name__ == "__main__":
     o1_overheard()
     o2_meant()
     o3_guest()
     o4_confirm()
     o5_games()
+    o6_unlearned()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

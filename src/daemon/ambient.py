@@ -3240,6 +3240,12 @@ class AmbientRuntime:
             last = self._observed_at.get(key)
             if last is not None and now - last < self.cfg.observe_repeat_s:
                 return                  # the same thing again: already taken in
+            if (ev.source == "microphone" and not getattr(ev, "addressed", False)
+                    and ((self._avail is not None and self._avail.state in ("call", "presenting")) or self._is_guest(ev))):
+                # A lecturer, a classmate, a video: not the user, and not for ASH. Heard, never learned from -- or the concept
+                # graph fills with "dimension / embedding / keyword" from a class.
+                self.stats["room_unlearned"] = self.stats.get("room_unlearned", 0) + 1
+                return
             self._observed_at[key] = now
             if len(self._observed_at) > 200:
                 for k in [k for k, t in self._observed_at.items() if now - t > self.cfg.observe_repeat_s]:
