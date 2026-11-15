@@ -451,6 +451,19 @@ def t8_this_song():
     check("a guest's voice is not told what you are playing", not rt.out[-1].startswith("That's"), rt.out[-1])
 
 
+def t9_asked_to_keep():
+    print("\n=== T9. 'Keep that in mind' is not a taste ===")
+    for said, want in [("I like marvel movies and shows, keep that in mind.", {"marvel movies", "shows"}),
+                       ("I love pizza, remember that", {"pizza"}), ("I like chess, keep that in mind please", {"chess"}),
+                       ("I like marvel movies and shows keep that in mind", {"marvel movies", "shows"}), ("I like jazz", {"jazz"}),
+                       ("I like jazz, you know", {"jazz"})]:
+        kb = kb_with()
+        t = taste(kb)
+        t.observe(said, "console", NOW)
+        items = set(kb.tastes.get("khalid", {}).get("items", {}))
+        check(f"{said!r} -> {sorted(want)}", items == want, str(sorted(items)))
+
+
 if __name__ == "__main__":
     t1_reading()
     t2_keeping()
@@ -461,5 +474,6 @@ if __name__ == "__main__":
     t6b_said_to_ash()
     t7_manual_and_control()
     t8_this_song()
+    t9_asked_to_keep()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

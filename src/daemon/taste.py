@@ -516,6 +516,12 @@ class Taste:
             # "remember that I like coffee" / "note that Ali hates cilantro": the same statement, asked to be kept.
             sent = re.sub(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:remember|note|keep\s+in\s+mind|don'?t\s+forget)\s+that\s+",
                           "", sent, flags=re.I)
+            # "I like marvel movies and shows, keep that in mind": the request to keep it is not one more thing liked.
+            sent = re.sub(r"[,;.\s]+(?:(?:please\s+)?(?:keep\s+(?:that|this|it)\s+in\s+mind|remember\s+(?:that|this|it)|"
+                          r"don'?t\s+forget(?:\s+(?:that|this|it))?|note\s+(?:that|this|it)|write\s+(?:that|this|it)\s+down|"
+                          r"make\s+a\s+note(?:\s+of\s+(?:that|this|it))?)(?:\s+please)?|please|you\s+know|ok(?:ay)?|got\s+it)\s*[.!]*\s*$",
+                          "", sent, flags=re.I)
+            sent = re.sub(r"\s+(?:keep\s+(?:that|this|it)\s+in\s+mind|remember\s+(?:that|this|it))\s*[.!]*\s*$", "", sent, flags=re.I)
             # "this song" always means the song that is on. A bare "I hate this" only does if the track has only just
             # started: with music going in the background, frustration at a bug is not a verdict on the song.
             mt = _THIS.search(sent) if (playing and playing.get("item")) else None
