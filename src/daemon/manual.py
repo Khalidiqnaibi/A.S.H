@@ -70,6 +70,12 @@ ENTRIES: List[Tuple[str, int, str]] = [
      "arrived; if not, the text stays on your clipboard. \"Add X to my Groceries Samsung note\" works only for plain text "
      "notes with one match. Never into a PDF, handwritten or picture note. \"List/read/find ... in my Samsung notes\" "
      "reads the app's database, read-only. Your own voice only."),
+    ("timetable", 5,
+     "ASH manual, your timetable. Tell it once: \"my NoSQL class is on Sunday and Tuesday from 10 to 11:30\" (or \"I have "
+     "databases every Monday at 2pm for 2 hours\"). Then \"when is my next class?\", \"when is my NoSQL class?\", \"do I have "
+     "class tomorrow?\", \"how long until my class?\", \"what's my timetable?\". It says so 10 minutes before a class starts, "
+     "stays quiet while you are in one, and never guesses a class time it was not told. \"Remove my NoSQL class\" or "
+     "\"clear my timetable\" take them off."),
     ("home_devices", 4,
      "ASH manual, lights and plugs. \"Turn on the living room lights\" works through Home Assistant, and only if a Home "
      "Assistant address is set up in daemon.json; otherwise ASH can't. A guest's voice can't do this."),

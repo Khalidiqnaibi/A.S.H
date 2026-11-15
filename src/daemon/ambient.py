@@ -71,6 +71,7 @@ from . import remember as remembering
 from .calendar_ics import Calendar, CalendarConfig
 from .smarthome import SmartHome, SmartHomeConfig
 from .samsungnotes import SamsungNotes
+from .timetable import Timetable
 from .voiceid import VoiceID, VoiceIDConfig
 from . import voiceid as voiceid_mod
 from .reminders import Reminders
@@ -328,6 +329,10 @@ class AmbientConfig:
     # Samsung Notes (samsungnotes.py): read from its database, write through the app. Off on a bare runtime.
     samsung: bool = False
     samsung_cfg: Optional[Dict[str, Any]] = None
+    # A weekly timetable said aloud (timetable.py): "when is my class?" from what you told it. Off on a bare runtime.
+    timetable: bool = False
+    timetable_path: Optional[str] = None
+    timetable_cfg: Optional[Dict[str, Any]] = None
     # Voice match (voiceid.py): off unless asked, and even then nothing is
     # compared until the user says "learn my voice".
     voice: bool = False
@@ -572,6 +577,10 @@ class AmbientRuntime:
         self.smarthome: Optional[SmartHome] = None
         if self.cfg.smarthome:
             self.smarthome = SmartHome(SmartHomeConfig.from_dict(self.cfg.smarthome_cfg), clock=lambda: self.clock())
+        self.timetable: Optional[Timetable] = None
+        if self.cfg.timetable:
+            self.timetable = Timetable(self.cfg.timetable_path, clock=lambda: self.clock(),
+                                       lead_min=int((self.cfg.timetable_cfg or {}).get("lead_min", 10)))
         self.samsung: Optional[SamsungNotes] = None
         if self.cfg.samsung:
             sc = self.cfg.samsung_cfg or {}
@@ -860,14 +869,21 @@ class AmbientRuntime:
             logger.info("Dropped an answer the user cancelled: %r", text[:80])
             return None
         av = self._avail
-        if (text and not meta.get("addressed") and av is not None and av.state in ("call", "presenting")
+        in_class = None
+        if text and not meta.get("addressed") and self.timetable is not None:
+            try:
+                in_class = self.timetable.in_class(self.clock())
+            except Exception:
+                logger.exception("Timetable in_class failed")
+        if (text and not meta.get("addressed") and ((av is not None and av.state in ("call", "presenting")) or in_class)
                 and meta.get("source") not in ("reminder", "watch", "guard", "cue", "control")):
             # In a call, a lecture or a presentation nothing is volunteered, whoever thought of it (a routine suggestion,
             # a joke, "you keep switching windows"). A reminder or a watch they asked for still gets through.
             self.stats["held_busy"] = self.stats.get("held_busy", 0) + 1
             if self.focus is not None:
                 self.focus.hold(str(meta.get("source") or "remark"))
-            logger.info("Held a remark while the user is %s: %r", av.why, text[:80])
+            logger.info("Held a remark while the user is %s: %r", (av.why if av is not None and av.state in ("call", "presenting")
+                                                                    else f"in {in_class['name']}"), text[:80])
             return None
         kids = getattr(self, "kids", None)
         if text and kids is not None and kids.active:
@@ -1719,6 +1735,7 @@ class AmbientRuntime:
                 or watch_cancel(t) is not None
                 or (self.reminders is not None and reminders_mod.is_request(t))
                 or (self.samsung is not None and self.samsung.mentions(t))
+                or (self.timetable is not None and self.timetable.is_request(t))
                 or any(rx.match(t) for rx in (_OPEN, _CLOSE, _SWITCH, _ROUTINE, _ON_OFF, _DIM, _PHOTO))
                 or (self.calendar is not None and self.calendar._ASK.search(t)))
         if not acts:
@@ -1801,6 +1818,11 @@ class AmbientRuntime:
                 self._reminder_pending.extend(self.arrivals.tick(now))
             except Exception:
                 logger.exception("Arrival check failed")
+        if self.timetable is not None:
+            try:
+                self._reminder_pending.extend(self.timetable.tick(now))     # "NoSQL starts in 8 minutes"
+            except Exception:
+                logger.exception("Timetable tick failed")
         r = self.reminders
         if r is None:
             if self._reminder_pending and not (self.gate.muted or self.privacy.paused):
@@ -1937,6 +1959,23 @@ class AmbientRuntime:
         if not say:
             return False
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
+    def _timetable_request(self, ev, now: float) -> bool:
+        """"My NoSQL class is on Sunday and Tuesday from 10 to 11:30", "when is my next class", "do I have class tomorrow":
+        from the timetable the person said aloud. Only their own line."""
+        tt = self.timetable
+        if tt is None or not self._user_source(ev) or not self._meant_for_ash(ev) or self._is_guest(ev):
+            return False
+        try:
+            say = tt.hear(str(getattr(ev, "text", "") or ""), now)
+        except Exception:
+            logger.exception("Timetable request failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "asked", "query": "your timetable"}
         return True
 
     def _samsung_request(self, ev, now: float) -> bool:
@@ -3427,6 +3466,8 @@ class AmbientRuntime:
             return True
         if self._samsung_request(ev, now):
             return True
+        if self._timetable_request(ev, now):
+            return True
         if not loose and self._research_request(ev, now):
             return True
         if self._calendar_request(ev, now):
@@ -4581,6 +4622,7 @@ class AmbientRuntime:
             "calendar": self.calendar.status() if self.calendar else None,
             "smarthome": self.smarthome.status() if self.smarthome else None,
             "samsung_notes": self.samsung.status() if self.samsung else None,
+            "timetable": self.timetable.status() if self.timetable else None,
             "voice": self.voice.status() if self.voice else None,
             "reminders": self.reminders.status() if self.reminders else None,
             "arrivals": self.arrivals.status() if self.arrivals else None,

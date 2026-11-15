@@ -306,6 +306,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # Samsung Notes: reads your notes from the app's own database (never changes it); writing a new note, or adding to a
     # plain text one, goes through the app after a read-back and a yes, and is checked in the database afterwards.
     "samsung_notes": {"enabled": True, "write": True},
+    # A weekly timetable you say aloud ("my NoSQL class is on Sunday and Tuesday from 10 to 11:30"): answers "when is my
+    # next class", says so lead_min minutes before one starts, and keeps quiet while you are in one.
+    "timetable": {"enabled": True, "lead_min": 10},
     # Reminders, timers and alarms that actually go off ("remind me to call
     # mom in 20 minutes", "set a timer for 5 minutes", "wake me up at 7"),
     # snoozable, kept across restarts, and listed in the morning briefing.

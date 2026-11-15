@@ -199,6 +199,8 @@ def capabilities(rt) -> str:
         can.append("play games and tell stories")
     if on("research") is not None:
         can.append("look things up in the background")
+    if on("timetable") is not None:
+        can.append("tell you when your next class is")
     s = on("samsung")
     if s is not None:
         can.append("read your Samsung notes and write a new one")

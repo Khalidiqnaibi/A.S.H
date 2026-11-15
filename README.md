@@ -647,6 +647,18 @@ Samsung Notes has no API and keeps its notes in a format ASH must never touch, s
 
 Settings: `samsung_notes.enabled`, `samsung_notes.write` (false = read only) in `daemon.json`.
 
+## Your timetable (`src/daemon/timetable.py`, `tst_timetable.py`)
+
+Tell it once, aloud: "my NoSQL class is on Sunday and Tuesday from 10 to 11:30", "I have databases every Monday at 2pm for 2
+hours", "add a class called Algorithms on weekdays 9 to 10". Times without am/pm are a student's day (8-11 morning, 12 noon,
+1-7 afternoon). Then "when is my next class?", "when is my NoSQL class?", "do I have class tomorrow?", "how long until my
+class?", "what's my timetable?", "remove my NoSQL class", "clear my timetable".
+
+It says so ten minutes before a class starts (once, through the reminder queue, so a mute holds it) and stays quiet while you
+are in one: nothing is volunteered, only reminders and watches you set get through. It never guesses a class time it was not
+told ("I don't have your timetable yet" is the answer with nothing in it). A single "I have an exam on Monday" is not a weekly
+class. Kept in `state/timetable.json`; `timetable.enabled` and `timetable.lead_min` in `daemon.json`.
+
 ## Voice match
 
 `voice` in `daemon.json`, `src/daemon/voiceid.py`. Nothing happens until you
