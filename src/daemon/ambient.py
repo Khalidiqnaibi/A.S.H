@@ -4063,6 +4063,9 @@ class AmbientRuntime:
                     return self._control_say(ev, "I can't switch myself off from here -- use the console's stop, or "
                                                  "Ctrl-C where I'm running.")
                 self._control_say(ev, "Shutting down. Bye.")
+                with self._cancel_lock:                  # an answer still being worked out is not said after "Bye."
+                    if self._thinking:
+                        self._cancelled = True
                 try:
                     req()
                 except Exception:

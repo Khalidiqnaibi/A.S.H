@@ -190,6 +190,15 @@ def v3_who():
 
 def v4_shutdown():
     print("\n=== V4. Shutting down ===")
+    import threading
+    rt = rig()
+    rt.request_shutdown = lambda: None
+    rt.say("Ash turn off.")
+    rt._thinking, rt._respond_thread = True, threading.current_thread()          # a slow answer is still being worked out
+    n = len(rt.out)
+    rt.say("yes")
+    rt.response_sink("You've shut down all the applications.", {"addressed": True, "pathway": "slow"})
+    check("an answer still being worked out is not said after 'Bye.'", rt.out[n:] == ["Shutting down. Bye."], str(rt.out[n:]))
     rt = rig()
     asked = []
     rt.request_shutdown = lambda: asked.append(1)
