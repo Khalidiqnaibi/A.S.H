@@ -35,10 +35,8 @@ def rnd(seed):
 
 
 def is_telemetry():
-    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "brain", "brain.py"), encoding="utf-8").read()
-    ns = {}
-    exec("import re\n" + src[src.index("_TELEMETRY_TEXT = re.compile("):src.index("class Brain:")], ns)   # the function alone: brain.py pulls in the classifier stack
-    return ns["is_telemetry"]
+    from src.concepts.telemetry import is_telemetry as f
+    return f
 
 
 def t1_what():
@@ -77,7 +75,7 @@ def t3_brain():
     print("\n=== T3. The ambient path ===")
     src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "brain", "brain.py"), encoding="utf-8").read()
     check("Brain.observe hands telemetry to the concept layer as telemetry",
-          re.search(r"self\._conceive\(bundle, telemetry=is_telemetry\(text, source\)\)", src) is not None)
+          re.search(r"self\._conceive\(bundle, telemetry=is_telemetry\(text, source\)\)", src) is not None and "from src.concepts.telemetry import is_telemetry" in src)
 
 
 if __name__ == "__main__":

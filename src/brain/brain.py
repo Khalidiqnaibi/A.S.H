@@ -49,6 +49,7 @@ from typing import Any, Callable, Deque, Dict, List, Optional
 
 import numpy as np
 
+from src.concepts.telemetry import is_telemetry
 from .executive import ExecutiveCore
 from .gist import build_gist, readable as _words
 from .homeostasis import HomeostaticModulator
@@ -144,21 +145,6 @@ def _fmt_tool_output(out: Any) -> str:
             return f"That didn't work: {err}" if err else "That didn't work out."
         return ", ".join(f"{k}: {v}" for k, v in out.items() if k != "ok")
     return str(out)
-
-
-_TELEMETRY_TEXT = re.compile(
-    r"\b(?:memory|cpu|ram|disk|gpu|battery|temperature)\b[^.]{0,24}?\d+(?:\.\d+)?\s*%|^\s*battery\b|\bscreen changed\b|"
-    r"\bmotion in camera view\b|^\s*switched to\b.{0,120}?\(was on\b|^\s*(?:idle|away) for \d+|\bunplugged\b", re.I)
-_TELEMETRY_SOURCES = frozenset({"system", "resources", "battery", "idle", "screen", "camera", "window"})
-
-
-def is_telemetry(text: str, source: str = "") -> bool:
-    """A reading of the machine or the room (memory at 93%, battery, a window switch, "screen changed", motion): not
-    something to grow concepts from. A person's words never are, whatever source carries them."""
-    if str(source or "").lower() in ("microphone", "console", "voice", "user", "chat", "wonder"):
-        return False
-    t = str(text or "")
-    return bool(_TELEMETRY_TEXT.search(t)) or (str(source or "").lower() in _TELEMETRY_SOURCES and len(t.split()) <= 14)
 
 
 class Brain:
