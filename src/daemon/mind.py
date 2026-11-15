@@ -146,7 +146,18 @@ def concept_name(c: Dict[str, Any]) -> str:
 
 
 def is_system(c: Dict[str, Any]) -> bool:
-    return c.get("origin") in ("grown", "merged") and bool(_SYSTEM_RX.search(str(c.get("seed_text") or "")))
+    """A concept grown from a reading of the machine or the room: the shared telemetry rule (src/concepts/telemetry.py,
+    the one the brain uses to refuse to grow them) or one of the extra words this page also flags."""
+    if c.get("origin") not in ("grown", "merged"):
+        return False
+    text = str(c.get("seed_text") or "")
+    try:
+        from src.concepts.telemetry import is_telemetry
+        if is_telemetry(text, ""):
+            return True
+    except Exception:
+        pass
+    return bool(_SYSTEM_RX.search(text))
 
 
 # ======================================================================
@@ -441,8 +452,8 @@ def findings(a: Dict[str, Any], mem: Dict[str, Any]) -> List[Dict[str, Any]]:
             out.append(_f("bad", "telemetry", "System telemetry is being learned as if it were knowledge",
                           f"{len(sysn)} of {len(grown)} grown concepts are battery, memory, power or screen messages "
                           f"({sum(c['act'] for c in sysn):,} activations). They are readings, not ideas.",
-                          "Send telemetry to a separate state vector (homeostasis) and keep it out of the concept "
-                          "network; keep the concepts for what you said, what ASH said, and what you did.",
+                          "New readings no longer grow concepts (src/concepts/telemetry.py). Take the ones already there "
+                          "out with `python tools/concept_cleanup.py` (a look first, then --apply with ASH stopped).",
                           [c["name"] for c in sorted(sysn, key=lambda c: -c["act"])[:5]]))
         if grown:
             unnamed = [c for c in grown if not c["label"]]
