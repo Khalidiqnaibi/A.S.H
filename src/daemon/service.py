@@ -303,6 +303,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # token (your HA profile -> Security). Lights, switches and fans only;
     # locks, doors, garages, alarms and heaters are never operated by voice.
     "smarthome": {"enabled": True, "url": "", "token": ""},
+    # Samsung Notes: reads your notes from the app's own database (never changes it); writing a new note, or adding to a
+    # plain text one, goes through the app after a read-back and a yes, and is checked in the database afterwards.
+    "samsung_notes": {"enabled": True, "write": True},
     # Reminders, timers and alarms that actually go off ("remind me to call
     # mom in 20 minutes", "set a timer for 5 minutes", "wake me up at 7"),
     # snoozable, kept across restarts, and listed in the morning briefing.

@@ -630,6 +630,23 @@ helpers are touched; locks, doors, garages, alarms, heaters and covers are
 never operated by voice -- that belongs in Home Assistant, not with a
 speech recogniser that can mishear.
 
+## Samsung Notes (`src/daemon/samsungnotes.py`, `tst_samsungnotes.py`)
+
+Samsung Notes has no API and keeps its notes in a format ASH must never touch, so:
+
+- **Reading** ("list my Samsung notes", "read my last Samsung note", "what's in my Groceries Samsung note", "find cassandra in
+  my Samsung notes") reads the app's own database, read-only. Handwriting the app has recognised is searched too.
+- **Writing** ("new Samsung note called Lecture 5 saying hash tables are fast", "write buy milk in Samsung Notes", or
+  "start a Samsung note" and dictate until "that's the note") goes through the app: ASH reads back what it will put where,
+  and waits for a yes. Then it drives the app for a few seconds (it takes the mouse and pastes through the clipboard, which
+  it puts back) and **checks the database afterwards** that the note really arrived. If it can't confirm, it says so and the
+  text is left on the clipboard and in `state/samsung_backup/`, so the fix is one paste.
+- **Adding to an existing note** works only for a plain text note with exactly one match; a PDF, handwritten or picture
+  note is never touched (a new note is offered next to it instead).
+- Your own voice only: not a guest, not speech from the room.
+
+Settings: `samsung_notes.enabled`, `samsung_notes.write` (false = read only) in `daemon.json`.
+
 ## Voice match
 
 `voice` in `daemon.json`, `src/daemon/voiceid.py`. Nothing happens until you

@@ -39,6 +39,7 @@ effects at all.
 from __future__ import annotations
 
 import logging
+import os
 import re
 import queue
 import sys
@@ -69,6 +70,7 @@ from .explain import asked_why, asks_source, explain, source_reply
 from . import remember as remembering
 from .calendar_ics import Calendar, CalendarConfig
 from .smarthome import SmartHome, SmartHomeConfig
+from .samsungnotes import SamsungNotes
 from .voiceid import VoiceID, VoiceIDConfig
 from . import voiceid as voiceid_mod
 from .reminders import Reminders
@@ -323,6 +325,9 @@ class AmbientConfig:
     # url and token are set. Off on a bare runtime.
     smarthome: bool = False
     smarthome_cfg: Optional[Dict[str, Any]] = None
+    # Samsung Notes (samsungnotes.py): read from its database, write through the app. Off on a bare runtime.
+    samsung: bool = False
+    samsung_cfg: Optional[Dict[str, Any]] = None
     # Voice match (voiceid.py): off unless asked, and even then nothing is
     # compared until the user says "learn my voice".
     voice: bool = False
@@ -567,6 +572,11 @@ class AmbientRuntime:
         self.smarthome: Optional[SmartHome] = None
         if self.cfg.smarthome:
             self.smarthome = SmartHome(SmartHomeConfig.from_dict(self.cfg.smarthome_cfg), clock=lambda: self.clock())
+        self.samsung: Optional[SamsungNotes] = None
+        if self.cfg.samsung:
+            sc = self.cfg.samsung_cfg or {}
+            self.samsung = SamsungNotes(write=bool(sc.get("write", True)), clock=lambda: self.clock(),
+                                        backup_dir=os.path.join(os.getcwd(), "state", "samsung_backup"))
         self.voice: Optional[VoiceID] = None
         if self.cfg.voice:
             self.voice = VoiceID(VoiceIDConfig.from_dict(self.cfg.voice_cfg), path=self.cfg.voice_path)
@@ -1693,6 +1703,7 @@ class AmbientRuntime:
                 or wants_undo(t) or wants_forget(t) is not None
                 or watch_cancel(t) is not None
                 or (self.reminders is not None and reminders_mod.is_request(t))
+                or (self.samsung is not None and self.samsung.mentions(t))
                 or any(rx.match(t) for rx in (_OPEN, _CLOSE, _SWITCH, _ROUTINE, _ON_OFF, _DIM, _PHOTO))
                 or (self.calendar is not None and self.calendar._ASK.search(t)))
         if not acts:
@@ -1911,6 +1922,28 @@ class AmbientRuntime:
         if not say:
             return False
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
+    def _samsung_request(self, ev, now: float) -> bool:
+        """"Write this in Samsung Notes", "what's in my Groceries note": read from the app's database, written through
+        the app after a read-back and a yes. Only the person's own line; while a read-back or a dictation is open, their
+        next line is for it even when it is not addressed."""
+        s = self.samsung
+        if s is None or not self._user_source(ev) or self._is_guest(ev):
+            return False
+        if not (self._meant_for_ash(ev) or s.pending is not None or s.dictating is not None):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        s.notify = lambda say, ev=ev: self._said_later.put((ev, say, text))
+        try:
+            say = s.hear(text, now)
+        except Exception:
+            logger.exception("Samsung Notes request failed")
+            return False
+        if say is None:
+            return False
+        if say:                                       # "" = taken down quietly (dictation)
+            self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
 
     def _cheer_request(self, ev, now: float) -> bool:
@@ -3357,6 +3390,8 @@ class AmbientRuntime:
             return True
         if self._smarthome_request(ev, now):
             return True
+        if self._samsung_request(ev, now):
+            return True
         if not loose and self._research_request(ev, now):
             return True
         if self._calendar_request(ev, now):
@@ -4506,6 +4541,7 @@ class AmbientRuntime:
             "research": self.research.status() if self.research else None,
             "calendar": self.calendar.status() if self.calendar else None,
             "smarthome": self.smarthome.status() if self.smarthome else None,
+            "samsung_notes": self.samsung.status() if self.samsung else None,
             "voice": self.voice.status() if self.voice else None,
             "reminders": self.reminders.status() if self.reminders else None,
             "arrivals": self.arrivals.status() if self.arrivals else None,

@@ -423,6 +423,8 @@ def main() -> int:
                 reminders_path=os.path.join(os.getcwd(), "state", "reminders.json"),
                 smarthome=bool(cfg.get("smarthome", {}).get("enabled", True)),
                 smarthome_cfg=cfg.get("smarthome", {}),
+                samsung=bool(cfg.get("samsung_notes", {}).get("enabled", True)),
+                samsung_cfg=cfg.get("samsung_notes", {}),
                 voice=bool(cfg.get("voice", {}).get("enabled", True)),
                 voice_cfg=cfg.get("voice", {}),
                 voice_path=os.path.join(os.getcwd(), "state", "voice.json"),

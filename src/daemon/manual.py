@@ -63,6 +63,13 @@ ENTRIES: List[Tuple[str, int, str]] = [
      "the meeting, open the agenda and set a 25 minute timer\" keeps it as a named task. Or just do it, then say \"save that as start work\" (or \"save the last three things as "
      "quiet desk\") and it keeps what you just did; saying the name later shows the plan and asks once. \"What tasks do "
      "you know?\" lists them, \"forget start work\" removes one. Only steps it can already do."),
+    ("samsung", 4,
+     "ASH manual, Samsung Notes. Say: \"new Samsung note called Lecture 5 saying hash tables are fast\", \"write buy milk "
+     "in Samsung Notes\", or \"start a Samsung note\" and dictate until \"that's the note\". ASH reads back what it will "
+     "write and waits for a yes, then drives the app for a few seconds (it takes the mouse) and checks the note really "
+     "arrived; if not, the text stays on your clipboard. \"Add X to my Groceries Samsung note\" works only for plain text "
+     "notes with one match. Never into a PDF, handwritten or picture note. \"List/read/find ... in my Samsung notes\" "
+     "reads the app's database, read-only. Your own voice only."),
     ("home_devices", 4,
      "ASH manual, lights and plugs. \"Turn on the living room lights\" works through Home Assistant, and only if a Home "
      "Assistant address is set up in daemon.json; otherwise ASH can't. A guest's voice can't do this."),
