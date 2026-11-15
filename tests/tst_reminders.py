@@ -186,6 +186,31 @@ def r6_wording():
         check(f"{q!r} is not a list request", "email the professor" not in (r.hear(q) or ""), str(r.hear(q)))
 
 
+def r7_snooze_words():
+    print("\n=== R7. Asking for it again, said naturally ===")
+    for said, mins in [("again in 10 minutes", 10), ("remind me again in 15 minutes", 15), ("give me five more minutes", 5),
+                       ("10 more minutes", 10), ("just 3 minutes", 3), ("later", 5), ("not now", 5), ("remind me later", 5),
+                       ("okay, ten minutes", 10), ("no, again in 20 min", 20)]:
+        r = rig()
+        r.hear("remind me to call mom in 5 minutes")
+        r.t[0] += 5 * MIN
+        r.tick()
+        s = r.hear(said)
+        check(f"{said!r} snoozes {mins} minutes", s == f"Okay, again in {mins} minutes." and due(r) == [r.t[0] + mins * MIN], str(s))
+    r = rig()
+    check("with nothing gone off, 'later' and 'ten minutes' are nobody's business", r.hear("later") is None and r.hear("ten minutes") is None
+          and r.hear("not now") is None)
+    r = rig()
+    r.hear("remind me to call mom in 5 minutes")
+    r.t[0] += 5 * MIN
+    r.tick()
+    r.hear("snooze")
+    check("once snoozed, 'later' does not snooze it a second time", r.hear("later") is None)
+    r = rig()
+    s = r.hear("remind me again in 10 minutes to call mom")
+    check("'remind me again in ...' with a thing to do is still a new reminder", s is not None and "call mom" in s, str(s))
+
+
 def r5_runtime():
     print("\n=== R5. The runtime ===")
     clock = [T0]
@@ -228,7 +253,7 @@ def r5_runtime():
 
 
 if __name__ == "__main__":
-    for fn in (r1_setting, r2_firing, r3_controls, r4_persist, r5_runtime, r6_wording):
+    for fn in (r1_setting, r2_firing, r3_controls, r4_persist, r5_runtime, r6_wording, r7_snooze_words):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

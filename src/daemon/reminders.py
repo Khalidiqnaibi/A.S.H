@@ -37,6 +37,7 @@ from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional
 
 from .followups import resolve_when
+from .numwords import digits
 from .phrasing import Fresh
 
 logger = logging.getLogger("ash.daemon.reminders")
@@ -50,6 +51,13 @@ _TIMER_N = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+|can you\s+)?(?
 _ALARM = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+|can you\s+)?(?:wake me(?: up)?|set (?:an |a )?alarm"
                     r"(?: for)?)\s+(?P<rest>.+)$", re.I)
 _SNOOZE = re.compile(r"^\s*snooze(?:\s+(?:for\s+)?(?P<n>\d{1,3})\s*(?:min(?:ute)?s?))?\s*[.!]?\s*$", re.I)
+# More ways to ask for it again, said right after one goes off: "again in 10", "give me five more minutes", "remind me again in
+# ten", "later", "not now".
+_SNOOZE_MORE = re.compile(
+    r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:ok(?:ay)?|yeah|yes|no|not now|sorry)[,\s]+)?(?:please\s+)?"
+    r"(?:(?:remind|ask|ping|tell)\s+me\s+)?(?:(?:give|gimme|i\s+need|i'?ll\s+need|just|another)\s+(?:me\s+)?)?"
+    r"(?:(?:again|later)\s+(?:in\s+|after\s+)?(?P<n1>\d{1,3})\s*(?:min(?:ute)?s?)|(?P<n2>\d{1,3})\s*(?:more\s+)?min(?:ute)?s?(?:\s+more)?|"
+    r"(?:a\s+)?(?:few|bit)\s+more\s+min(?:ute)?s?|later|not\s+now|in\s+a\s+bit|remind\s+me\s+(?:again\s+)?later)\s*[.!]*\s*$", re.I)
 _CANCEL = re.compile(r"^\s*(?:cancel|delete|stop|clear|never ?mind)\s+(?:the\s+|my\s+|all\s+(?:my\s+)?)?"
                      r"(?P<k>timers?|alarms?|reminders?)\b", re.I)
 # The time words, taken out of a reminder to leave what it is about.
@@ -182,6 +190,12 @@ class Reminders:
         m = _SNOOZE.match(t)
         if m:
             return self.snooze(int(m.group("n")) * 60 if m.group("n") else None, now)
+        m = _SNOOZE_MORE.match(digits(t))
+        if m and self._last_fired:
+            n = m.group("n1") or m.group("n2")
+            say = self.snooze(int(n) * 60 if n else None, now)
+            if say:
+                return say
         m = _CANCEL.match(t)
         if m:
             return self.cancel(m.group("k").lower().rstrip("s"), now)
