@@ -203,6 +203,10 @@ def f4_where_you_are():
     check("...and nothing is volunteered", len(h.out) == n, str(h.said()[n:]))
     h.say("I'm done")
     check("...until 'I'm done', which gives the one-line summary", h.said()[-1].startswith("Focus done ("), h.said()[-1])
+    h = rt_rig()
+    h.say("Stop Ash, I'm in lecture")
+    check("'Stop Ash, I'm in lecture' is quiet, not a music key", "quiet for your lecture" in h.said()[-1] and "playing" not in h.said()[-1],
+          h.said()[-1])
 
 
 if __name__ == "__main__":

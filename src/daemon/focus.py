@@ -38,7 +38,7 @@ _OFF = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:i'?m\s+done\s+focusing|done\
 # Saying where you are is asking to be left alone: "I'm in lecture", "I have an exam", "I'm driving", "stop interrupting me".
 # value = how long it lasts when no time is given (minutes).
 _PLACE = re.compile(
-    r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:ok(?:ay)?|so|right)[,\s]+)?"
+    r"^\s*(?:stop[,\s]+)?(?:(?:hey\s+)?ash[,\s]+)?(?:(?:ok(?:ay)?|so|right)[,\s]+)?"
     r"(?:(?:i'?m|i\s+am|we'?re|i'?m\s+currently|i'?m\s+now)\s+(?:in|at|starting|going\s+(?:in)?to)\s+(?:a\s+|an\s+|the\s+|my\s+|our\s+)?"
     r"(?P<what>lectures?|class(?:room)?|meeting|exam|test|quiz|interview|seminar|lab|tutorial|presentation|webinar|"
     r"stand-?up|call|lesson|session|study\s+session)"
