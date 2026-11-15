@@ -57,6 +57,19 @@ def _l2(v: np.ndarray) -> np.ndarray:
     return v / n if n > 1e-9 else v
 
 
+def _load_npz(path: str):
+    """A saved model, without unpickling anything. Files written before the names were saved as text hold an object array
+    and cannot be read that way: those are read once with pickle (they are ASH's own file, in its own state folder) and
+    rewritten in the safe form by the next save."""
+    try:
+        with np.load(path, allow_pickle=False) as f:
+            return {k: f[k] for k in f.files}               # read now: an object array only fails when it is touched
+    except ValueError:
+        logger.warning("%s is in the old format; reading it once with pickle and rewriting it", path)
+        with np.load(path, allow_pickle=True) as f:
+            return {k: f[k] for k in f.files}
+
+
 class LatentForwardModel:
     """s_{t+1} ~= W_s @ s_t + W_a @ a_t + b, trained online by SGD.
 
@@ -96,19 +109,37 @@ class LatentForwardModel:
         the cycle without a prediction."""
         return s is not None and getattr(s, "shape", (None,))[0] == self.dim
 
+    def _reset(self):
+        """Back to the near-identity prior: what a model whose weights went to NaN or infinity starts from again."""
+        rng = np.random.default_rng(7)
+        self.W_s = np.eye(self.dim, dtype=np.float32) + 0.01 * rng.standard_normal((self.dim, self.dim)).astype(np.float32)
+        self.W_a = 0.01 * rng.standard_normal((self.action_dim, self.dim)).astype(np.float32)
+        self.b = np.zeros(self.dim, dtype=np.float32)
+
+    def healthy(self) -> bool:
+        return bool(np.isfinite(self.W_s).all() and np.isfinite(self.W_a).all() and np.isfinite(self.b).all())
+
     def predict(self, s: np.ndarray, intent: Optional[str]) -> Optional[np.ndarray]:
-        if not self.accepts(s):
+        if not self.accepts(s) or not np.isfinite(s).all():
             return None
         a = self.action_vec(intent)
-        return _l2(s @ self.W_s + a @ self.W_a + self.b)
+        out = _l2(s @ self.W_s + a @ self.W_a + self.b)
+        return out if np.isfinite(out).all() else None
 
     def learn(self, s: np.ndarray, intent: Optional[str], s_next: np.ndarray) -> float:
         """One SGD step. Returns the pre-update cosine error (0..2)."""
         if not (self.accepts(s) and self.accepts(s_next)):
             return 0.0
+        if not (np.isfinite(s).all() and np.isfinite(s_next).all()):
+            return 0.0                              # one bad frame must not put NaN into every weight for good
+        if not self.healthy():
+            self._reset()
         a = self.action_vec(intent)
         pred = s @ self.W_s + a @ self.W_a + self.b
         pred_n = _l2(pred)
+        if not np.isfinite(pred_n).all():
+            self._reset()
+            return 0.0
         err_vec = pred_n - s_next
         cos_err = float(1.0 - np.dot(pred_n, s_next))
 
@@ -122,16 +153,18 @@ class LatentForwardModel:
     def state_dict(self) -> Dict[str, Any]:
         return {
             "W_s": self.W_s, "W_a": self.W_a, "b": self.b,
-            "actions": np.array(list(self.action_table.keys()), dtype=object),
+            "actions": np.array(list(self.action_table.keys()), dtype=str),
             "action_vecs": (np.stack(list(self.action_table.values()))
                             if self.action_table else np.zeros((0, self.action_dim), dtype=np.float32)),
             "steps": self.steps,
         }
 
     def load_state(self, d: Dict[str, Any]):
-        self.W_s = d["W_s"].astype(np.float32)
-        self.W_a = d["W_a"].astype(np.float32)
-        self.b = d["b"].astype(np.float32)
+        W_s, W_a, b = (d[k].astype(np.float32) for k in ("W_s", "W_a", "b"))
+        if (W_s.shape != (self.dim, self.dim) or W_a.shape != (self.action_dim, self.dim) or b.shape != (self.dim,)
+                or not (np.isfinite(W_s).all() and np.isfinite(W_a).all() and np.isfinite(b).all())):
+            raise ValueError("saved predictive weights are the wrong shape or not finite")
+        self.W_s, self.W_a, self.b = W_s, W_a, b
         keys = list(d["actions"])
         vecs = d["action_vecs"]
         self.action_table = {str(k): vecs[i].astype(np.float32) for i, k in enumerate(keys)}
@@ -489,7 +522,7 @@ class PredictiveModel:
             write_json(self.outcome_path, {k: [v.alpha, v.beta] for k, v in self.outcomes.items()}, indent=2)
             if self.goal_protos:
                 keys = list(self.goal_protos.keys())
-                intents = np.array(keys, dtype=object)
+                intents = np.array(keys, dtype=str)
                 protos = np.stack([self.goal_protos[k] for k in keys])
                 counts = np.array([self.goal_counts.get(k, 0) for k in keys], dtype=np.int64)
                 write_with(self.goal_path, lambda f: np.savez_compressed(f, intents=intents, protos=protos, counts=counts), "wb")
@@ -499,16 +532,16 @@ class PredictiveModel:
     def _load(self):
         try:
             if os.path.exists(self.path):
-                d = np.load(self.path, allow_pickle=True)
+                d = _load_npz(self.path)
                 if d["W_s"].shape[0] == self.dim:
-                    self.forward.load_state({k: d[k] for k in d.files})
+                    self.forward.load_state(d)
                     logger.info("Predictive model restored (%d steps)", self.forward.steps)
             if os.path.exists(self.outcome_path):
                 with open(self.outcome_path, "r", encoding="utf-8") as fh:
                     for k, (a, b) in json.load(fh).items():
                         self.outcomes[k] = _BetaCounts(alpha=float(a), beta=float(b))
             if os.path.exists(self.goal_path):
-                g = np.load(self.goal_path, allow_pickle=True)
+                g = _load_npz(self.goal_path)
                 if g["protos"].ndim == 2 and g["protos"].shape[1] == self.dim:
                     for i, k in enumerate(g["intents"]):
                         self.goal_protos[str(k)] = g["protos"][i].astype(np.float32)
