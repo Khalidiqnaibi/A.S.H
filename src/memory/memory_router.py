@@ -107,6 +107,7 @@ class MemoryRouter:
         config: Optional[Dict[str, Any]] = None,
     ):
         self.core = core_mem
+        self._candidates: Dict[str, List[Any]] = {}      # mention -> [[time, sentence hash], ...]
         self.entity = entity_mem
         self.episodic = episodic_mem
         self.ner = ner or NERExtractor()
@@ -118,6 +119,12 @@ class MemoryRouter:
             # Caller-asserted importance at/above this always stores as core,
             # even if the text doesn't otherwise look like a directive.
             "core_force_importance": 0.9,
+
+            # A name or thing the language tagger found becomes an entity only once it has come up in this many different
+            # sentences (within entity_candidate_days). One-off capitalised words -- a lecturer's "Dimension", "Embedding",
+            # a heading -- were 309 of 362 entities, all name and nothing else. A known entity is always updated.
+            "entity_min_mentions": 2,
+            "entity_candidate_days": 30.0,
 
             # --- retrieval tuning ---
             # How big a candidate pool to pull from core/episodic before we
@@ -245,6 +252,13 @@ class MemoryRouter:
                     linked_entities.append(known[0].entity_id)
                 continue
             try:
+                known = self.entity.find_matching_entities([mention])
+            except Exception:
+                known = []
+            if not known and not self._recurs(mention, text):
+                continue                                  # seen once: remembered as a candidate, not yet an entity
+            entity_payload["attributes"]["last_seen_context"] = text[:200]
+            try:
                 # Let your specialized manager execute resolution, matching, or creation safely
                 resolved_ent = self.entity.ingest(entity_payload)
                 linked_entities.append(resolved_ent.entity_id)
@@ -270,6 +284,24 @@ class MemoryRouter:
 
         result["time"] = time.time() - start
         return result
+
+    def _recurs(self, mention: str, text: str) -> bool:
+        """Count this mention (once per different sentence) and say whether it has now been seen enough to keep."""
+        need = int(self.config.get("entity_min_mentions", 2))
+        if need <= 1:
+            return True
+        now = time.time()
+        horizon = now - float(self.config.get("entity_candidate_days", 30.0)) * 86400.0
+        key = re.sub(r"\s+", " ", mention.lower()).strip()
+        h = hash(re.sub(r"\s+", " ", text.lower()).strip()[:200])
+        seen = [e for e in self._candidates.get(key, []) if e[0] >= horizon]
+        if not any(e[1] == h for e in seen):
+            seen.append([now, h])
+        self._candidates[key] = seen
+        if len(self._candidates) > 2000:                  # forget the oldest candidates
+            for k in sorted(self._candidates, key=lambda k: self._candidates[k][-1][0] if self._candidates[k] else 0)[:500]:
+                del self._candidates[k]
+        return len(seen) >= need
 
     # ----------------------
     # Helpers
