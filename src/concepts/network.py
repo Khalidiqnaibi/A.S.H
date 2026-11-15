@@ -79,6 +79,9 @@ class ConceptNetwork:
         prime_decay: float = 0.55,     # per-cycle carryover of activation
         max_concepts: int = 4096,
         persist: bool = True,
+        conscience: float = 1.0,       # how hard a concept that already takes more than its share is held back
+        conscience_cap: float = 0.25,  # the most similarity it can lose to that
+        conscience_warmup: int = 300,  # total activations before shares mean anything
     ):
         self.dim = dim
         self.k = k
@@ -91,6 +94,9 @@ class ConceptNetwork:
         self.prime_decay = prime_decay
         self.max_concepts = max_concepts
         self.persist = persist
+        self.conscience = conscience
+        self.conscience_cap = conscience_cap
+        self.conscience_warmup = conscience_warmup
 
         self.concepts: Dict[int, Concept] = {}
         self.synapses: Dict[Tuple[int, int], Synapse] = {}
@@ -230,13 +236,31 @@ class ConceptNetwork:
         best = float(sims.max()) if sims.size else 0.0
 
         k = min(self.k, sims.shape[0])
-        idx = np.argpartition(-sims, k - 1)[:k]
+        # Conscience (competitive learning's classic cure for a unit that wins everything): a learned concept that has
+        # already taken far more than its share of all activation is ranked lower, so one that matches nearly as well
+        # gets in instead. The similarity reported is untouched, and a concept that really is the best match still wins.
+        rank = sims - self._conscience_penalty()
+        idx = np.argpartition(-rank, k - 1)[:k]
         out: Dict[int, float] = {}
         for i in idx:
             s = float(sims[i])
             if s >= self.activation_floor:
                 out[self._ids[int(i)]] = s
         return out, best
+
+    def _conscience_penalty(self) -> np.ndarray:
+        """Per-concept amount of similarity to take off when ranking: 0 for a concept at or under three times its fair
+        share of all activations so far (and for anything that came with ASH), growing with the excess up to the cap."""
+        n = len(self._ids)
+        if not self.conscience or n < 8:
+            return 0.0
+        acts = np.fromiter((self.concepts[i].activations for i in self._ids), dtype=np.float64, count=n)
+        total = float(acts.sum())
+        if total < self.conscience_warmup:
+            return 0.0
+        grown = np.fromiter((self.concepts[i].origin not in PROTECTED_ORIGINS for i in self._ids), dtype=bool, count=n)
+        excess = np.maximum(0.0, acts / total - 3.0 / n)
+        return np.where(grown, np.minimum(self.conscience_cap, self.conscience * excess), 0.0).astype(np.float32)
 
     def _spread(self, seed: Dict[int, float],
                 perceived: Optional[Dict[int, float]] = None) -> Dict[int, float]:
