@@ -859,6 +859,16 @@ class AmbientRuntime:
             self.stats["cancelled"] = self.stats.get("cancelled", 0) + 1
             logger.info("Dropped an answer the user cancelled: %r", text[:80])
             return None
+        av = self._avail
+        if (text and not meta.get("addressed") and av is not None and av.state in ("call", "presenting")
+                and meta.get("source") not in ("reminder", "watch", "guard", "cue", "control")):
+            # In a call, a lecture or a presentation nothing is volunteered, whoever thought of it (a routine suggestion,
+            # a joke, "you keep switching windows"). A reminder or a watch they asked for still gets through.
+            self.stats["held_busy"] = self.stats.get("held_busy", 0) + 1
+            if self.focus is not None:
+                self.focus.hold(str(meta.get("source") or "remark"))
+            logger.info("Held a remark while the user is %s: %r", av.why, text[:80])
+            return None
         kids = getattr(self, "kids", None)
         if text and kids is not None and kids.active:
             text = kids.filter(text)                 # nothing grown-up said to a child, whoever wrote it
