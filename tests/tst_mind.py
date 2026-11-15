@@ -8,6 +8,7 @@ Everything is read-only and rule-based; the graphs here are made up in temp fold
   M4  the rest of memory: entities, episodes, core rules, outcomes; missing files are fine
   M5  the live network and the saved files give the same picture; nothing is written
   M6  the page, the server routes, and the offline export
+  M7  the later audits: causal both ways, a concept at the centre of everything, orphans, one skill, stale concepts, no route wires
 
 Run:  PYTHONIOENCODING=utf-8 python tests/tst_mind.py
 """
@@ -326,8 +327,72 @@ def m6_page():
         check("no placeholder is left", "{{" not in h and "/*{{DATA}}*/" not in h)
 
 
+def m7_more_audits():
+    print("\n=== M7. More that can be wrong with the concepts ===")
+    now = time.time()
+
+    def con(i, origin="grown", act=10, **kw):
+        d = {"id": i, "label": kw.pop("label", None), "origin": origin, "intent": None, "activations": act, "mean_activation": 0.1,
+             "age_h": float(i), "frozen": False, "seed_text": "thing %d" % i, "rate": 0.1, "plasticity": 0.08, "created": now - i * 3600.0,
+             "last_active": now - 3600.0}
+        d.update(kw)
+        return d
+
+    def run(cons, syn, protos=None):
+        n = len(cons)
+        pr = protos if protos is not None else np.stack([unit(100 + i) for i in range(n)])
+        a = mind.analyze_graph({"concepts": cons, "synapses": syn, "protos": pr, "live": False, "cycles": 1})
+        return {f["id"]: f for f in mind.findings(a, {})}
+
+    def edge(s_, d_, kind="assoc", order=0.0, w=0.1):
+        return {"src": s_, "dst": d_, "kind": kind, "w": w, "slow": w, "fast": 0.0, "order": order, "n": 5, "frozen": False}
+
+    # causal both ways
+    cons = [con(i) for i in range(14)]
+    syn = []
+    for i in range(0, 12, 2):
+        syn += [edge(i, i + 1, "causal", 1.9), edge(i + 1, i, "causal", 1.8)]
+    f = run(cons, syn)
+    check("causal arrows in both directions are called out, with the count", "causal_both_ways" in f and "6 pairs" in f["causal_both_ways"]["detail"])
+    f = run(cons, [edge(i, i + 1, "causal", 1.9) for i in range(0, 12, 2)])
+    check("one-way arrows are not", "causal_both_ways" not in f)
+    # orphans
+    cons = [con(i) for i in range(15)]
+    f = run(cons, [edge(0, 1), edge(1, 2)])
+    check("learned concepts with no wires at all are called out", "orphans" in f and len(f["orphans"]["examples"]) > 0)
+    f = run(cons, [edge(i, (i + 1) % 15) for i in range(15)])
+    check("a connected graph has no orphans", "orphans" not in f)
+    # a busy concept at the centre of everything
+    base = [unit(200 + i) for i in range(14)]
+    centre = np.mean(np.stack(base), axis=0)
+    centre = (centre / np.linalg.norm(centre)).astype(np.float32)
+    cons = [con(i, act=10) for i in range(14)] + [con(14, act=400)]
+    f = run(cons, [edge(i, (i + 1) % 15) for i in range(15)], np.stack(base + [centre]))
+    check("a busy concept at the average of all of them is called out", "centroid" in f and "thing 14" in f["centroid"]["examples"][0])
+    cons[14]["activations"] = 10
+    f = run(cons, [edge(i, (i + 1) % 15) for i in range(15)], np.stack(base + [centre]))
+    check("a quiet one at the centre is not", "centroid" not in f)
+    # one skill
+    cons = [con(i, origin="intent", act=a_, label="s%d" % i, intent="s%d" % i) for i, a_ in enumerate((900, 30, 20, 10))] + [con(4 + i) for i in range(10)]
+    f = run(cons, [edge(i, i + 1) for i in range(13)])
+    check("one skill that gets nearly all the skill activation is called out", "one_skill" in f and "s0" in f["one_skill"]["detail"])
+    cons[0]["activations"] = 40
+    check("an even spread is not", "one_skill" not in run(cons, [edge(i, i + 1) for i in range(13)]))
+    # stale
+    cons = [con(i, act=50, last_active=now - 40 * 86400) for i in range(14)]
+    f = run(cons, [edge(i, i + 1) for i in range(13)])
+    check("concepts that have not fired in three weeks are called out", "stale" in f)
+    check("a saved graph with no times is not accused of staleness", "stale" not in run([con(i, act=50, last_active=0.0) for i in range(14)], [edge(i, i + 1) for i in range(13)]))
+    # route wires
+    f = run([con(i) for i in range(14)], [edge(i, i + 1) for i in range(13)])
+    check("no route wires: told it fills in as skills work, nothing to do by hand", "no_route" in f and "fills in" in f["no_route"]["fix"])
+    f = run([con(i) for i in range(14)], [edge(i, i + 1, "route") for i in range(13)])
+    check("with route wires it is not told", "no_route" not in f)
+    check("the inhibit note is accurate: only for a rule that names a skill", "no_inhibit" in f and "names a skill" in f["no_inhibit"]["detail"])
+
+
 if __name__ == "__main__":
-    for fn in (m1_map, m2_findings, m3_learned, m4_memory, m5_live_and_readonly, m6_page):
+    for fn in (m1_map, m2_findings, m3_learned, m4_memory, m5_live_and_readonly, m6_page, m7_more_audits):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

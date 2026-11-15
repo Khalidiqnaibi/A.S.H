@@ -196,6 +196,9 @@ def analyze_graph(g: Dict[str, Any]) -> Dict[str, Any]:
                       "slow": round(float(s.get("slow", 0.0)), 4), "fast": round(float(s.get("fast", 0.0)), 4),
                       "o": round(float(s.get("order", 0.0)), 3), "n": int(s.get("n", 0)), "fz": bool(s.get("frozen")),
                       "cos": round(cos, 3)})
+    mean_vec = u.mean(axis=0) if n else np.zeros(1)
+    mean_vec = mean_vec / max(float(np.linalg.norm(mean_vec)), 1e-9)
+    centre_sim = u @ mean_vec if n else np.zeros(0)       # how close each concept sits to the middle of everything
     acts = np.array([max(0, int(c.get("activations", 0))) for c in cons], dtype=float)
     total_act = float(acts.sum()) or 1.0
 
@@ -211,6 +214,8 @@ def analyze_graph(g: Dict[str, Any]) -> Dict[str, Any]:
         concepts.append({
             "i": i, "id": int(c["id"]), "name": concept_name(c), "label": c.get("label"), "origin": c.get("origin"),
             "intent": c.get("intent"), "seed": str(c.get("seed_text") or "")[:160],
+            "born": float(c.get("created") or 0.0), "last": float(c.get("last_active") or 0.0),
+            "centre": round(float(centre_sim[i]), 3),
             "named": bool(c.get("exemplars")), "exemplars": [str(e[1])[:120] for e in (c.get("exemplars") or []) if len(e) == 2],
             "x": round(float(xy[i, 0]), 4), "y": round(float(xy[i, 1]), 4), "cluster": int(cl[i]),
             "act": int(acts[i]), "share": round(float(acts[i]) / total_act, 4),
@@ -521,17 +526,59 @@ def findings(a: Dict[str, Any], mem: Dict[str, Any]) -> List[Dict[str, Any]]:
                           "Scale each incoming wire by how many wires the target already has (a degree penalty), "
                           "so a concept can only be a hub if it earns it.",
                           [f"{cs[i]['name']} (in {cs[i]['in']})" for i in hubs[:3]]))
-        for kind, why in (("route", "concept to skill"), ("inhibit", "never-do rules")):
-            if not kinds.get(kind):
-                out.append(_f("warn" if kind == "route" else "info", f"no_{kind}",
-                              f"The graph has no {kind} wires",
-                              f"There are no {kind} edges ({why}). "
-                              + ("Without them the graph cannot nominate a skill on its own, only the classifier can."
-                                 if kind == "route" else
-                                 "Core rules are enforced elsewhere, not wired into what the graph can reach."),
-                              "Seed route wires from concepts to intents when a request is routed correctly and the "
-                              "tool succeeds; seed frozen inhibit wires from each hard core rule." if kind == "route" else
-                              "Wire frozen inhibit edges from each hard core rule to the intents it forbids."))
+        if not kinds.get("route"):
+            out.append(_f("warn", "no_route", "No concept has been wired to a skill yet",
+                          "There are no route edges (concept to skill). Without them the graph cannot nominate a skill "
+                          "on its own, only the classifier can.",
+                          "Nothing to do by hand: a route wire is made when what you said was handled by a skill and "
+                          "the skill worked, so this fills in as ASH is used."))
+        if not kinds.get("inhibit"):
+            out.append(_f("info", "no_inhibit", "No core rule is wired to stop a skill",
+                          "There are no inhibit edges. A frozen one is made only for a hard rule that names a skill "
+                          "(\u201cnever delete_file\u201d); the rules ASH has are about behaviour (\u201cmust not invent "
+                          "facts\u201d) and are enforced elsewhere.",
+                          "Only worth doing if you write a rule that names a skill; then it is seeded by itself."))
+        both = sum(1 for e in edges if e["k"] == "causal" and e["s"] < e["d"] and any(
+            r["k"] == "causal" and r["s"] == e["d"] and r["d"] == e["s"] for r in edges))
+        if both >= 5:
+            out.append(_f("warn", "causal_both_ways", "Pairs of concepts each claim to cause the other",
+                          f"{both} pairs have a causal arrow in both directions, which is adjacency in a log, not cause.",
+                          "The sleep pass now takes the direction away from these; if the count stays high after a "
+                          "sleep, ASH has not slept since."))
+        if n >= 12:
+            idle = [c for c in cs if c["origin"] in ("grown", "merged") and c["out"] + c["in"] == 0]
+            if len(idle) >= max(3, 0.1 * n):
+                out.append(_f("info", "orphans", "Concepts with no wires at all",
+                              f"{len(idle)} learned concepts connect to nothing, so nothing can reach them by association.",
+                              "They are either too new or never co-fire with anything; the sleep pass prunes the unused.",
+                              [c["name"] for c in idle[:4]]))
+            centred = [c for c in cs if c["origin"] in ("grown", "merged") and c["centre"] >= 0.55 and c["share"] >= max(0.03, 3.0 / n)]
+            if centred:
+                out.append(_f("warn", "centroid", "A busy concept sits in the middle of everything",
+                              f"{len(centred)} busy learned concepts are close to the average of all concepts, so they "
+                              "match almost any sentence a little; competitive learning pulls a winner toward its "
+                              "inputs until it is that average.",
+                              "The conscience rule now holds them back; if they stay busy, merge or split them.",
+                              [f"{c['name']} ({c['centre']:.0%} like the average, {c['share']:.0%} of activity)" for c in centred[:3]]))
+            top_c = sorted(a["clusters"], key=lambda k: -k["act"])
+            tot = sum(k["act"] for k in a["clusters"]) or 1
+            if len(top_c) >= 3 and top_c[0]["act"] / tot >= 0.6:
+                out.append(_f("info", "one_topic", "Most activity is about one topic",
+                              f"\u201c{top_c[0]['name']}\u201d and what is near it take {top_c[0]['act'] / tot:.0%} of all activation.",
+                              "Check that it is a real interest and not a hub; the map's Topic colouring shows where it sits."))
+            ints = sorted((c for c in cs if c["origin"] in ("intent", "tool")), key=lambda c: -c["act"])
+            itot = sum(c["act"] for c in ints) or 1
+            if len(ints) >= 4 and ints[0]["act"] / itot >= 0.7 and itot >= 100:
+                out.append(_f("warn", "one_skill", "One skill answers almost everything",
+                              f"\u201c{ints[0]['name']}\u201d took {ints[0]['act'] / itot:.0%} of the activation that skills got.",
+                              "Either it is genuinely what you ask for, or it has become a default that other skills lose to."))
+            stale = [c for c in cs if c["origin"] in ("grown", "merged") and c["last"] and c["act"] > 20
+                     and time.time() - c["last"] > 21 * 86400]
+            if len(stale) >= max(3, 0.15 * n):
+                out.append(_f("info", "stale", "Learned concepts that have not fired in three weeks",
+                              f"{len(stale)} concepts that once mattered have been silent for 21 days or more.",
+                              "Let them fade (the sleep pass decays unused wires); nothing to do unless one should not.",
+                              [c["name"] for c in sorted(stale, key=lambda c: -c["act"])[:4]]))
         pending = [e for e in edges if e["fast"] > 0.05 and e["fast"] > 2 * max(e["slow"], 1e-4)]
         if len(pending) > 25:
             out.append(_f("info", "unconsolidated", "A lot of learning is waiting for sleep",
