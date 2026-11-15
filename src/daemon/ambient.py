@@ -4164,10 +4164,14 @@ class AmbientRuntime:
         from src.senses.mic import MicrophoneSensor
         text = MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or ""))
         pend = getattr(self, "_shutdown_asked", None)
+        if pend is not None and now - pend > 30.0:
+            self._shutdown_asked = pend = None                      # too late to say yes
+        elif pend is not None and not self._meant_for_ash(ev):
+            pend = None            # a line from the room in between (a TV, a classmate) neither confirms nor cancels it
         if pend is not None:
             self._shutdown_asked = None
             confirmed = False
-            if now - pend <= 30.0 and self._meant_for_ash(ev):
+            if self._meant_for_ash(ev):
                 from . import yesno
                 cmd0 = voicectl.parse(text)
                 # any ordinary yes, or saying "shut down" again
