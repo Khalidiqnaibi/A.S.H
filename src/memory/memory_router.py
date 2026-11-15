@@ -269,11 +269,13 @@ class MemoryRouter:
         # Always store an episodic record for the event
         try:
             summary = self._summarize_for_episode(text, ents, actor)
+            active = list(getattr(self, "active_concepts", None) or [])   # set by the brain after it perceives the input
             ep = self.episodic.add_episode(
                 summary=summary,
                 event_type="interaction",
                 related_entities=linked_entities,
-                importance=importance
+                importance=importance,
+                **({"concepts": active} if active else {})
             )
             result["routed_as"] = "episodic"
             result["details"] = {"episode_id": ep.episode_id, "linked_entities": linked_entities}

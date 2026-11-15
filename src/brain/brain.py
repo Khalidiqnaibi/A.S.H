@@ -250,6 +250,10 @@ class Brain:
                 bundle.fused_embedding, text=bundle.text, learn=learn,
                 novelty=bundle.novelty, surprise=surprise,
                 urgency=d.urgency, fatigue=d.fatigue, telemetry=telemetry)
+            try:   # the episode this input becomes remembers which concepts it lit (the five strongest)
+                self.memory.router.active_concepts = [cid for cid, _a in act.top(5)]
+            except Exception:
+                pass
             return act, self.concepts.net.latent(act, dim=self.concept_latent_dim)
         except Exception:
             logger.exception("Concept layer failed; falling back to raw embedding")

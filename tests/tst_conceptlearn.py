@@ -7,6 +7,7 @@ tst_conceptlearn.py -- what the mind page found wrong with the concept graph, an
   C4  a learned concept keeps its three most typical sentences, is named by the best, and keeps them across a restart
   C5  at sleep an arrow that has no ordering behind it, or goes both ways, goes back to a plain association
   C6  the concepts that led to a skill that worked get a route wire to it (outcome-confirmed, capped, never invented by failure)
+  C7  an episode remembers the concepts that were most active when it was laid down (and old ones still load)
 
 Everything runs on a small made-up network in a temp folder; no saved graph of the user's is read or written.
 
@@ -283,8 +284,56 @@ def c6_route_wires():
     check("the graph's own status counts them", b.status()["by_synapse_type"].get("route") == 1)
 
 
+def c7_episodes_know_concepts():
+    print("\n=== C7. An episode remembers which concepts it lit ===")
+    import json
+    from types import SimpleNamespace
+    from src.memory.episodic.episode_model import Episode
+    from src.memory.episodic.episodic_manager import EpisodicMemory
+
+    class Emb:
+        def encode(self, texts, **kw):
+            return np.stack([rnd(abs(hash(t)) % 1000) for t in texts])
+
+    e = Episode.create("hello", "interaction", concepts=[3, 5, 8])
+    check("an episode carries concept ids (ints, at most eight)", e.concepts == [3, 5, 8] and len(Episode.create("x", "y", concepts=list(range(20))).concepts) == 8)
+    check("without any it is an empty list, as for every older episode", Episode.create("x", "y").concepts == [])
+    path = os.path.join(tempfile.mkdtemp(), "ep.jsonl")
+    m = EpisodicMemory(Emb(), path=path)
+    m.add_episode("a talk about jazz", "interaction", importance=0.5, concepts=[1, 2])
+    m.add_episode("no concepts here", "interaction")
+    rows = [json.loads(x) for x in open(path, encoding="utf-8") if x.strip()]
+    check("the ids are written to the episode file", rows[0]["concepts"] == [1, 2] and rows[1]["concepts"] == [])
+    with open(path, "a", encoding="utf-8") as f:     # a row written before this field existed
+        f.write(json.dumps({"episode_id": "old", "timestamp": 1.0, "summary": "old", "event_type": "interaction"}) + "\n")
+    again = EpisodicMemory(Emb(), path=path)
+    got = {ep.summary: ep.concepts for ep in again.store.all()}
+    check("they come back after a restart, and an old row still loads with none", got.get("a talk about jazz") == [1, 2] and got.get("old") == [])
+    from src.brain.brain import Brain
+    from src.concepts.model import Activation
+    b = Brain.__new__(Brain)
+    act = Activation(initial={4: 0.9}, spread={4: 0.9, 7: 0.6, 9: 0.3, 11: 0.2, 12: 0.1, 13: 0.05})
+    b.concepts = SimpleNamespace(perceive=lambda *a, **k: act, net=SimpleNamespace(latent=lambda a, dim: np.zeros(dim)))
+    b.homeostasis = SimpleNamespace(drives=SimpleNamespace(urgency=0.1, fatigue=0.1))
+    b.memory = SimpleNamespace(router=SimpleNamespace())
+    b.concept_latent_dim = 8
+    bundle = SimpleNamespace(fused_embedding=rnd(1), text="hi", novelty=0.1)
+    b._conceive(bundle)
+    check("the brain hands the router the five strongest concepts after it perceives", b.memory.router.active_concepts == [4, 7, 9, 11, 12])
+    b.memory = SimpleNamespace()
+    check("a brain whose memory has no router is not broken by it", b._conceive(bundle)[0] is act)
+    from src.daemon import mind
+    root = tempfile.mkdtemp()
+    ep_path = os.path.join(root, "episodic_memory.jsonl")
+    with open(ep_path, "w") as f:
+        for i in range(60):
+            f.write(json.dumps({"episode_id": str(i), "timestamp": 1.0e9 + i, "summary": "s", "event_type": "interaction", "concepts": [1] if i < 30 else []}) + "\n")
+    M = mind.memory_overview("x", ep_path, "x", "x")
+    check("the mind page counts the episodes that know their concepts", M["episodes"]["concept_linked"] == 30)
+
+
 if __name__ == "__main__":
-    for fn in (c1_time_survives, c2_conscience, c3_hub_inputs, c4_exemplars, c5_causal_audit, c6_route_wires):
+    for fn in (c1_time_survives, c2_conscience, c3_hub_inputs, c4_exemplars, c5_causal_audit, c6_route_wires, c7_episodes_know_concepts):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

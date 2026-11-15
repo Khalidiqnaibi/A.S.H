@@ -26,12 +26,13 @@ class EpisodicMemory:
     # Add Episode
     # ---------------------
 
-    def add_episode(self, summary, event_type, related_entities=None, importance=0.5):
+    def add_episode(self, summary, event_type, related_entities=None, importance=0.5, concepts=None):
         ep = Episode.create(
             summary=summary,
             event_type=event_type,
             related_entities=related_entities,
-            importance=importance
+            importance=importance,
+            concepts=concepts,
         )
         self.store.add(ep)
         
