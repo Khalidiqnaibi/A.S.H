@@ -162,6 +162,11 @@ class Concept:
             "seed_text": self.seed_text[:80],
             "rate": round(self.rate, 5),
             "rate_cycle": self.rate_cycle,
+            # Real time, kept across restarts: when it was made, when it last fired, and its running strength, so
+            # "new this week", "not touched in a month" and mean activation survive a restart.
+            "created": round(self.created, 1),
+            "last_active": round(float(self.last_active or 0.0), 1),
+            "activation_sum": round(self.activation_sum, 4),
         }
 
 
@@ -203,6 +208,7 @@ class Synapse:
             "slow": round(self.w_slow, 4), "fast": round(self.w_fast, 4),
             "order": round(self.order_evidence, 3),
             "n": self.potentiations, "frozen": self.frozen,
+            "created": round(self.created, 1), "last": round(float(self.last_potentiated or 0.0), 1),
         }
 
 

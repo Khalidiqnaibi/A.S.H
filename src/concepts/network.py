@@ -478,6 +478,12 @@ class ConceptNetwork:
                     rate=float(m.get("rate", 0.0)),
                     rate_cycle=int(m.get("rate_cycle", 0)),
                 )
+                # Time and running strength (saved since the mind page found they were not). Older files have none:
+                # then the creation time stays "now" and the totals start over, as before.
+                if m.get("created"):
+                    c.created = float(m["created"])
+                c.last_active = float(m.get("last_active", 0.0) or 0.0)
+                c.activation_sum = float(m.get("activation_sum", 0.0) or 0.0)
                 self.concepts[cid] = c
                 if c.label:
                     self._by_label[c.label] = cid
@@ -491,6 +497,9 @@ class ConceptNetwork:
                 syn.frozen = bool(s.get("frozen", False))
                 syn.potentiations = int(s.get("n", 0))
                 syn.order_evidence = float(s.get("order", 0.0))
+                if s.get("created"):
+                    syn.created = float(s["created"])
+                syn.last_potentiated = float(s.get("last", 0.0) or 0.0)
                 try:
                     syn.kind = SynType(s.get("kind", "assoc"))
                 except ValueError:
