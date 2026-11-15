@@ -12,8 +12,8 @@ class JSONHandler(BaseHandler):
 
     def _extract_text(self, path: str) -> Optional[str]:
         try:
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
-                return f.read()
+            from tools.file_manager import read_text_capped
+            return read_text_capped(path)
         except Exception as e:
             logger.warning("JSONHandler failed to read %s: %s", path, e)
             return None

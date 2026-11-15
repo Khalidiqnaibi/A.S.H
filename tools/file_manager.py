@@ -37,6 +37,24 @@ MAX_PREVIEW_CHARS = int(os.environ.get("ASH_FILE_MAX_PREVIEW_CHARS", 8000))
 MAX_LIST_ENTRIES = 200
 MAX_SEARCH_RESULTS = 25
 MAX_SEARCH_FILES_SCANNED = 500
+# How much of one file is ever read into memory (a multi-gigabyte log must not be loaded to show 8000 characters of it).
+MAX_READ_BYTES = int(os.environ.get("ASH_FILE_MAX_READ_BYTES", 8 * 1024 * 1024))
+
+
+def read_text_capped(path: str, max_bytes: Optional[int] = None) -> str:
+    """The start of a text file, at most `max_bytes` of it (decoded, undecodable bytes replaced)."""
+    cap = MAX_READ_BYTES if max_bytes is None else max_bytes
+    with open(path, "rb") as f:
+        raw = f.read(cap)
+    return raw.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")   # as text mode reads it
+
+
+def is_truncated_by_cap(path: str) -> bool:
+    try:
+        return os.path.getsize(path) > MAX_READ_BYTES
+    except OSError:
+        return False
+
 
 def _error(op: str, path: str, message: str, **extra) -> Dict[str, Any]:
     logger.warning("[%s] %s -> %s", op, path, message)
@@ -81,7 +99,7 @@ class BaseHandler:
         structure = self._structure(path, text)
         if text is None:
             return FileHandlerResult(kind=self.kind, preview=None, structure=structure)
-        truncated = len(text) > max_chars
+        truncated = len(text) > max_chars or is_truncated_by_cap(path)
         return FileHandlerResult(kind=self.kind, preview=text[:max_chars], structure=structure, truncated=truncated)
 
     def search(self, path: str, query: str, max_chars: int = MAX_PREVIEW_CHARS) -> List[Dict[str, Any]]:
@@ -108,8 +126,7 @@ class TextHandler(BaseHandler):
 
     def _extract_text(self, path: str) -> Optional[str]:
         try:
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
-                return f.read()
+            return read_text_capped(path)
         except Exception as e:
             logger.warning("TextHandler failed to read %s: %s", path, e)
             return None
