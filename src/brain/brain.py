@@ -149,6 +149,8 @@ def _fmt_tool_output(out: Any) -> str:
 class Brain:
     """Full cognitive runtime. `ASH` owns one of these."""
 
+    PERSIST_MIN_GAP_S = 60.0                  # system 1 and the predictive model are written at most this often
+
     def __init__(
         self,
         *,
@@ -1001,7 +1003,13 @@ class Brain:
         if pathway != Pathway.OBSERVE:
             self.answer_history.append(trace)       # kept apart: observations would push these out
         self.sensory.save_requests()        # small (<=64 vectors), and losing it costs a slow restart
-        if self.cycles % 20 == 0:
+        self._unsaved_cycles = getattr(self, "_unsaved_cycles", 0) + 1
+        now = time.monotonic()
+        # Every 20 cycles AND at most once a minute: an always-on ASH runs hundreds of ambient cycles an hour, and each save
+        # rewrites the whole forward model. A clean stop saves again (ambient._save_learning), so nothing is lost by waiting.
+        if self._unsaved_cycles >= 20 and now - getattr(self, "_last_persist", 0.0) >= self.PERSIST_MIN_GAP_S:
+            self._unsaved_cycles = 0
+            self._last_persist = now
             self.system1.save()
             self.predictive.save()
 

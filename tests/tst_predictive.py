@@ -109,9 +109,31 @@ def p3_no_pickle():
         check("...and rewritten in the safe form", f["intents"].dtype.kind == "U")
 
 
+def p4_save_gap():
+    print("\n=== P4. Saving is not every twenty cycles of ambient noise ===")
+    from types import SimpleNamespace
+    from collections import deque
+    from src.brain.brain import Brain
+    from src.brain.signals import Pathway
+    saves = []
+    fake = SimpleNamespace(
+        pathway_counts={}, trace_history=deque(maxlen=8), answer_history=deque(maxlen=8), last_trace=None, _last_cycle_cost=0,
+        sensory=SimpleNamespace(save_requests=lambda: None), system1=SimpleNamespace(save=lambda: saves.append("s1")),
+        predictive=SimpleNamespace(save=lambda: saves.append("pred")), PERSIST_MIN_GAP_S=Brain.PERSIST_MIN_GAP_S, cycles=0)
+    trace = SimpleNamespace(pathway=None)
+    for _ in range(100):
+        Brain._finish_cycle(fake, Pathway.OBSERVE, trace)
+    check("100 cycles in a burst write the models once, not five times", saves == ["s1", "pred"], str(saves))
+    fake._last_persist -= Brain.PERSIST_MIN_GAP_S + 1
+    for _ in range(20):
+        Brain._finish_cycle(fake, Pathway.OBSERVE, trace)
+    check("a minute later, the next twenty cycles write again", saves == ["s1", "pred", "s1", "pred"], str(saves))
+
+
 if __name__ == "__main__":
     p1_bad_input()
     p2_refused()
     p3_no_pickle()
+    p4_save_gap()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)
