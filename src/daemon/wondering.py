@@ -183,8 +183,6 @@ FACT_NOUNS: Dict[str, str] = {"birthday": "When is your birthday?",
 # Capitalised words that are not somebody's name.
 NOT_PERSON = frozenset("""
 i i'm i'll i've i'd ill im ash a.s.h okay ok yes no yeah yep nope hi hey hello thanks thank please sorry
-you your yours you're you'll you've you'd he she they we it me my him her them us his hers their our this that these those
-there here what who which whose bro dude man mate oh um uh well so anyway actually honestly basically like hmm ah
 monday tuesday wednesday thursday friday saturday sunday
 january february march april may june july august september october november december
 english arabic french german spanish italian chinese japanese russian turkish hebrew hindi urdu korean
@@ -202,6 +200,13 @@ god sir madam mr mrs ms dr
 the this that there then they them their these those what when where which while who whom whose why how
 and but for nor yet so because although though however also again still just only even
 today tomorrow yesterday tonight now soon later morning evening afternoon night
+""".split())
+# What a person's name is never: the above, and the words that answer a question about one (taste.py reads "he" and "she" as subjects,
+# so it uses NOT_PERSON_BASE).
+NOT_PERSON_BASE = NOT_PERSON
+NOT_PERSON = NOT_PERSON_BASE | frozenset("""
+you your yours you're you'll you've you'd he she they we it me my him her them us his hers their our this that these those
+there here what who which whose bro dude man mate oh um uh well so anyway actually honestly basically like hmm ah
 """.split())
 
 _COMMON_ACRONYMS = frozenset("""

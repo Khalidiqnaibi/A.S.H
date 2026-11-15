@@ -40,7 +40,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
-from .wondering import NOT_PERSON, ROLE_CANON, norm
+from .wondering import NOT_PERSON_BASE as NOT_PERSON, ROLE_CANON, norm
 
 logger = logging.getLogger("ash.daemon.taste")
 

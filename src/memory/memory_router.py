@@ -287,6 +287,8 @@ class MemoryRouter:
 
     def _recurs(self, mention: str, text: str) -> bool:
         """Count this mention (once per different sentence) and say whether it has now been seen enough to keep."""
+        if not hasattr(self, "_candidates"):                 # a router built without __init__ (a test double)
+            self._candidates = {}
         need = int(self.config.get("entity_min_mentions", 2))
         if need <= 1:
             return True

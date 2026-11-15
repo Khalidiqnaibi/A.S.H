@@ -124,6 +124,7 @@ def s4_entities():
     r.route_utterance("Omar and Entertainment", source="ash")
     check("ASH's reply: nothing created", made == [], str(made))
     check("...but the known one is linked", linked[-1] == ["known-1"], str(linked))
+    r.config["entity_min_mentions"] = 1                  # this test is about WHO may create one (see tst_entitygate for how often)
     r._classify_core_candidate = lambda text: None
     r.route_utterance("Omar and Entertainment", source="chat")
     check("the user's words still create", made == ["omar", "entertainment"], str(made))
