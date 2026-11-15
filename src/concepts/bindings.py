@@ -457,6 +457,12 @@ class ConceptSystem:
         """Episodic recall by pattern completion. Works from one exposure."""
         return self.hippocampus.recall(vec, n=n)
 
+    def route(self, act: Optional[Activation], intent: Optional[str], success: Optional[bool]) -> int:
+        """See ConceptNetwork.route: the concepts that led to a skill that worked get a route wire to it."""
+        if not self.enabled:
+            return 0
+        return self.net.route(act, intent, success)
+
     def reward(self, td_error: float):
         if not self.enabled:
             return

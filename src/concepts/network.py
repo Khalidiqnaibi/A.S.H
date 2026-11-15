@@ -51,7 +51,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 import numpy as np
 
 from .model import (
-    Activation, Concept, Origin, PROTECTED_ORIGINS, Synapse,
+    Activation, Concept, Origin, PROTECTED_ORIGINS, Synapse, SynType,
 )
 
 logger = logging.getLogger("ash.concepts.network")
@@ -406,6 +406,41 @@ class ConceptNetwork:
             if c is not None and c.intent:
                 out[c.intent] = max(out.get(c.intent, 0.0), a)
         return out
+
+    def route(self, act: Activation, intent: Optional[str], success: Optional[bool],
+              rate: float = 0.12, cap: float = 0.8, floor_act: float = 0.3) -> int:
+        """Outcome-confirmed route wires: concept -> skill.
+
+        When an input was handled by `intent` and it worked, each learned concept that was matched by the input gets a
+        ROUTE wire to that skill's concept, stronger the better it matched; when it did not work, an existing route
+        wire is weakened (never created). Route wires are the way perception reaches action that something confirmed,
+        as opposed to the associative wires that only mean "these fired together", and the saved graph had none.
+        Only learned or entity concepts route: a skill concept is the target, a core rule never is a source.
+        Returns how many wires were touched.
+        """
+        target = self.by_intent(intent) if intent else None
+        if target is None or act is None or success is None:
+            return 0
+        n = 0
+        for cid, a in act.initial.items():
+            c = self.concepts.get(cid)
+            if c is None or cid == target.id or c.intent or c.origin == Origin.CORE or a < floor_act:
+                continue
+            syn = self.synapses.get((cid, target.id))
+            if syn is not None and syn.frozen:
+                continue
+            if success:
+                syn = syn or self.synapse(cid, target.id)
+                syn.kind = SynType.ROUTE
+                syn.w_slow = min(cap, max(0.0, syn.w_slow) + rate * float(a))
+            elif syn is not None and syn.kind == SynType.ROUTE:
+                syn.w_slow = max(0.0, syn.w_slow - rate * float(a))
+            else:
+                continue
+            syn.potentiations += 1
+            syn.last_potentiated = time.time()
+            n += 1
+        return n
 
     def neighbours(self, cid: int, n: int = 8) -> List[Tuple[int, float]]:
         edges = self._out.get(cid, {})

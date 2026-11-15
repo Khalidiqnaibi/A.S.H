@@ -6,6 +6,7 @@ tst_conceptlearn.py -- what the mind page found wrong with the concept graph, an
   C3  a concept that everything already points at is a harder target for one more wire
   C4  a learned concept keeps its three most typical sentences, is named by the best, and keeps them across a restart
   C5  at sleep an arrow that has no ordering behind it, or goes both ways, goes back to a plain association
+  C6  the concepts that led to a skill that worked get a route wire to it (outcome-confirmed, capped, never invented by failure)
 
 Everything runs on a small made-up network in a temp folder; no saved graph of the user's is read or written.
 
@@ -239,8 +240,51 @@ def c5_causal_audit():
     check("the sleep pass runs it and reports it", "uncaused" in rep and rep["uncaused"] == 0)
 
 
+def c6_route_wires():
+    print("\n=== C6. What led to a skill that worked is wired to it ===")
+    from src.concepts.model import Activation, SynType
+    n = net()
+    skill = n.add_concept(rnd(1), label="play_media", origin=Origin.INTENT, intent="play_media")
+    other = n.add_concept(rnd(2), label="get_time", origin=Origin.INTENT, intent="get_time")
+    rule = n.add_concept(rnd(3), label="rule:x", origin=Origin.CORE)
+    heard = n.add_concept(rnd(4), seed_text="put on some jazz")
+    weak = n.add_concept(rnd(5), seed_text="something faint")
+    act = Activation(initial={heard.id: 0.9, weak.id: 0.1, rule.id: 0.9, skill.id: 0.9}, spread={heard.id: 0.9, weak.id: 0.1, rule.id: 0.9, skill.id: 0.9})
+    k = n.route(act, "play_media", True)
+    s = n.synapses.get((heard.id, skill.id))
+    check("a concept that matched the input gets a route wire to the skill that worked", s is not None and s.kind == SynType.ROUTE and s.w_slow > 0.05 and k == 1)
+    check("a faint match, a core rule and the skill itself get none", (weak.id, skill.id) not in n.synapses and (rule.id, skill.id) not in n.synapses and (skill.id, skill.id) not in n.synapses)
+    w1 = s.w_slow
+    for _ in range(3):
+        n.route(act, "play_media", True)
+    check("repeated success strengthens it, up to a cap", w1 < s.w_slow <= 0.8)
+    for _ in range(30):
+        n.route(act, "play_media", True)
+    check("the cap holds", abs(s.w_slow - 0.8) < 1e-6)
+    before = s.w_slow
+    n.route(act, "play_media", False)
+    check("a failure weakens an existing route wire", s.w_slow < before)
+    n.route(act, "get_time", False)
+    check("a failure never creates one", (heard.id, other.id) not in n.synapses)
+    check("an unknown skill, no outcome, or no activation does nothing", n.route(act, "nope", True) == 0 and n.route(act, "play_media", None) == 0 and n.route(None, "play_media", True) == 0)
+    fz = n.synapse(heard.id, other.id)
+    fz.frozen, fz.kind, fz.w_slow = True, SynType.INHIBIT, -1.0
+    n.route(act, "get_time", True)
+    check("a frozen wire is never touched", fz.kind == SynType.INHIBIT and fz.w_slow == -1.0)
+    folder = tempfile.mkdtemp()
+    a = ConceptNetwork(dim=DIM)
+    p = a.add_concept(rnd(1), label="play_media", origin=Origin.INTENT, intent="play_media")
+    h = a.add_concept(rnd(4), seed_text="put on some jazz")
+    a.route(Activation(initial={h.id: 0.9}, spread={h.id: 0.9}), "play_media", True)
+    a.save(folder)
+    b = ConceptNetwork(dim=DIM)
+    b.load(folder)
+    check("route wires survive a restart as route wires", b.synapses[(h.id, p.id)].kind == SynType.ROUTE)
+    check("the graph's own status counts them", b.status()["by_synapse_type"].get("route") == 1)
+
+
 if __name__ == "__main__":
-    for fn in (c1_time_survives, c2_conscience, c3_hub_inputs, c4_exemplars, c5_causal_audit):
+    for fn in (c1_time_survives, c2_conscience, c3_hub_inputs, c4_exemplars, c5_causal_audit, c6_route_wires):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

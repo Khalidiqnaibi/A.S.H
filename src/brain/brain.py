@@ -1110,6 +1110,8 @@ class Brain:
             if proposal is not None:
                 r += 0.4 * float(np.clip(proposal.value, -1.0, 1.0))
             self.concepts.reward(r)
+            if proposal is not None and tool_success is not None:
+                self.concepts.route(activation, proposal.intent, bool(tool_success))
 
             if summary:
                 self.concepts.index.index(f"ep{self.cycles}", summary, activation)
