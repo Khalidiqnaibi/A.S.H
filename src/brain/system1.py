@@ -67,12 +67,19 @@ _IRREVERSIBLE_HINTS = {
     "delete", "remove", "purge", "drop", "send", "email", "post", "publish",
     "buy", "purchase", "pay", "transfer", "format", "wipe", "kill", "shutdown",
     "reboot", "overwrite", "deploy", "merge", "push",
+    # found in review: a tool called eraseDisk, terminate, uninstall, reset, restart... matched nothing here and fell through
+    # to "retrieval, reversible" -- the fast path, a reflex, autonomous plan steps.
+    "erase", "terminate", "uninstall", "reset", "restart", "execute", "unlock", "truncate", "revoke", "destroy", "shred",
+    "logout", "signout", "unsubscribe",
 }
 _PHYSICAL_HINTS = {
     "motor", "servo", "actuate", "move", "drive", "arm", "gripper", "led",
     "relay", "gpio", "camera", "pan", "tilt", "door", "lock", "valve", "pump",
+    "siren", "alarm", "heater", "boiler", "garage", "gate",
 }
-_MUTATION_HINTS = {"write", "save", "create", "update", "set", "rename", "append", "edit"}
+_MUTATION_HINTS = {"write", "save", "create", "update", "set", "rename", "append", "edit",
+                   "install", "clear", "stop", "cancel", "run", "launch", "open", "close", "toggle", "trigger", "enable",
+                   "disable", "start", "insert", "add", "upload", "download", "copy", "paste", "click", "type", "press"}
 _RETRIEVAL_HINTS = {"read", "list", "search", "find", "get", "show", "info", "stats", "lookup"}
 _COMPUTE_HINTS = {"calc", "calculate", "math", "convert", "count", "sum"}
 
@@ -93,14 +100,24 @@ def classify_action(intent: Optional[str], shape: Optional[Dict[str, Any]] = Non
             except ValueError:
                 logger.warning("Unknown action_class %r in shape; inferring instead", declared)
 
-    tag = (intent or "").lower()
+    # camelCase and snake_case are split BEFORE lowercasing: "deleteFile" and "eraseDisk" used to become one word that matched
+    # nothing. A long hint also counts inside a fused word ("deletefile", "shutdownnow").
+    spaced = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", intent or "")
+    tag = spaced.lower()
     words = set(re.findall(r"[a-z]+", tag))
+    fused = [w for w in words if len(w) >= 7]
 
-    if words & _IRREVERSIBLE_HINTS:
+    def hit(hints) -> bool:
+        return bool(words & hints) or any(h in w for w in fused for h in hints if len(h) >= 5)
+
+    if hit(_IRREVERSIBLE_HINTS):
         return ActionClass.IRREVERSIBLE, False
-    if words & _PHYSICAL_HINTS:
+    if hit(_PHYSICAL_HINTS):
         return ActionClass.PHYSICAL, False
-    if words & _MUTATION_HINTS:
+    order = re.findall(r"[a-z]+", tag)
+    if order and order[0] in _RETRIEVAL_HINTS and not (words & _MUTATION_HINTS & {"set", "write", "save", "create", "update"}):
+        return ActionClass.RETRIEVAL, True          # "listOpenTabs", "get_running_apps": it starts with what it does
+    if hit(_MUTATION_HINTS):
         return ActionClass.MUTATION, True
     if words & _COMPUTE_HINTS:
         return ActionClass.COMPUTE, True
