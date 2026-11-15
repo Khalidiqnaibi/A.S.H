@@ -121,6 +121,9 @@ _WHO_IS = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:but|so|and|ok(?:ay)?)\
 def who_is(kb, text: str, user: str = "") -> Optional[str]:
     """"Who is Linda?" for someone ASH has on record: what it was told, in its own words. None for anyone else (a famous
     person goes to Wikipedia, as before) -- so a sister is never looked up, and never "I don't actually know Linda"."""
+    said = role_is(kb, text)
+    if said:
+        return said
     m = _WHO_IS.match(text or "")
     if m is None or kb is None:
         return None
@@ -148,6 +151,28 @@ def who_is(kb, text: str, user: str = "") -> Optional[str]:
     if not bits:
         return None
     return ". ".join(b[:1].upper() + b[1:] for b in bits) + "."
+
+
+_ROLE_Q = re.compile(
+    r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:but|so|and|ok(?:ay)?)\s+)?(?:please\s+)?(?:(?:what|who)(?:\s+is|\s*['\u2019]?s|\s+was)|"
+    r"do\s+you\s+(?:know|remember)|you\s+(?:already\s+)?(?:know|remember)|tell\s+me)\s+my\s+(?P<r>" + _ROLES + r")(?:\s*['\u2019]?s\s+name|"
+    r"\s+name|\s+called)?(?:\s+is)?(?:\s+(?:name|called))?\s*(?:\bbro\b|\bman\b|\bmate\b)?\s*[.!?]*\s*$", re.I)
+
+
+def role_is(kb, text: str) -> Optional[str]:
+    """"What's my dad's name?" / "do you know my father's name": from the role on record -- or an honest "I don't have it", never a name
+    the language model makes up (it once answered with the user's own first name)."""
+    m = _ROLE_Q.match(text or "")
+    if m is None or kb is None:
+        return None
+    role = ROLE_CANON.get(m.group("r").lower(), m.group("r").lower())
+    try:
+        name = kb.role_name(role)
+    except Exception:
+        return None
+    if name:
+        return f"Your {role} is {name}."
+    return f"I don't have your {role}'s name written down. Tell me once -- \"my {role} is ...\" -- and I'll keep it."
 
 
 def who_am_i(kb, user: str = "") -> str:

@@ -1181,9 +1181,50 @@ def w12_fuzz():
         check(f"non-text input {bad!r} is survived", ok)
 
 
+def w13_answered_any_way():
+    print("\n=== W13. A question answered any way leaves the list ===")
+    from src.daemon import remember
+
+    def asked():
+        w = rig()
+        w.observe("my dad's clinic is near Hebron")
+        ask(w, **FREE)
+        return w
+    w = asked()
+    r = w.hear("You already know that.", w.t[0] + 5)
+    check("'you already know that' is not a name: nothing stored, and it says what is true", w.kb.role_name("father") is None
+          and "don't have your father's name written down" in r.say and [x["kind"] for x in w.pending()] == ["role"], r.say)
+    check("...never 'Got it -- You is your father'", "Got it" not in r.say)
+    w = asked()
+    w.hear("You already know my father's name bro.", w.t[0] + 5)
+    check("the same, said another way", w.kb.role_name("father") is None)
+    for reply in ("His name is Afif", "Afif", "my dad's name is Afif", "Oh, my dad Afif is at the clinic today so I'll drive him",
+                  "so anyway my father, Afif, called me earlier", "Well, Afif"):
+        w = asked()
+        w.hear(reply, w.t[0] + 5)
+        check(f"{reply[:48]!r} answers it", w.kb.role_name("father") == "Afif" and w.pending() == [], str(w.kb.role_name("father")))
+    w = asked()
+    w.observe("my dad's name is Afif", "console", w.t[0] + 5)
+    check("said in passing (not as a reply): the list is updated too", w.kb.role_name("father") == "Afif" and w.pending() == [])
+    w = asked()
+    remember.remember(w.kb, "remember Afif is my dad", "Khalid")
+    check("told with 'remember ...', which never passes through the question: still leaves the list", w.pending() == [])
+    check("...and it is not asked", ask(w, **FREE) is None)
+    for pron in ("You", "He", "Him", "It", "Oh", "Bro"):
+        w = asked()
+        w.hear(pron, w.t[0] + 5)
+        check(f"{pron!r} is never taken for a name", w.kb.role_name("father") is None)
+    w = rig()
+    check("what the model once said was my father's name: the role question is answered from the record, never invented",
+          remember.role_is(w.kb, "what's my dad's name").startswith("I don't have your father's name written down"))
+    w.kb.store_relation("Afif", role="father")
+    for q in ("what's my dad's name", "do you know my father's name", "You already know my father's name bro.", "who is my dad"):
+        check(f"{q!r} -> Afif", remember.role_is(w.kb, q) == "Your father is Afif.", str(remember.role_is(w.kb, q)))
+
+
 if __name__ == "__main__":
     for fn in (w1_detectors, w2_statements, w3_queue, w4_when, w5_answers, w6_never_twice, w7_persistence,
-               w8_switches, w9_knowledge, w10_runtime, w11_control, w12_fuzz):
+               w8_switches, w9_knowledge, w10_runtime, w11_control, w12_fuzz, w13_answered_any_way):
         fn()
     print("\n" + ("ALL PASS" if OK else "FAILURES"))
     sys.exit(0 if OK else 1)

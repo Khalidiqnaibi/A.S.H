@@ -183,6 +183,8 @@ FACT_NOUNS: Dict[str, str] = {"birthday": "When is your birthday?",
 # Capitalised words that are not somebody's name.
 NOT_PERSON = frozenset("""
 i i'm i'll i've i'd ill im ash a.s.h okay ok yes no yeah yep nope hi hey hello thanks thank please sorry
+you your yours you're you'll you've you'd he she they we it me my him her them us his hers their our this that these those
+there here what who which whose bro dude man mate oh um uh well so anyway actually honestly basically like hmm ah
 monday tuesday wednesday thursday friday saturday sunday
 january february march april may june july august september october november december
 english arabic french german spanish italian chinese japanese russian turkish hebrew hindi urdu korean
@@ -226,6 +228,10 @@ _NON_ANSWER_START = re.compile(
     r"should|shall|please|open|play|set|remind|search|turn|show|tell|find|look|check|start|stop|close|"
     r"launch|run|send|add|remove|delete|go|take|make|give|let|call|text|read|write|translate|calculate)\b",
     re.I)
+_ALREADY_TOLD = re.compile(
+    r"\b(?:you\s+(?:already\s+)?(?:know|knew|remember)(?:\s+(?:that|this|it|him|her|them|my\s+\w+))?|(?:i|we)\s+(?:already\s+)?(?:told|said|"
+    r"mentioned)\s+(?:you|that)|(?:i|we)\s+(?:just\s+)?told\s+you|you\s+should\s+know|already\s+(?:told|said|answered)|"
+    r"i\s+said\s+(?:it\s+)?already)\b", re.I)
 _DONT_KNOW = re.compile(
     r"\b(?:don'?t know|do not know|no idea|not sure|unsure|nobody|no one|none|n/a|skip|never ?mind|"
     r"forget it|doesn'?t matter|does not matter|not important|whatever|can'?t say|can'?t remember)\b", re.I)
@@ -790,7 +796,7 @@ def extract_people(text: str, ignore: Iterable[str] = ()) -> List[Mention]:
 
 _NAME = r"([A-Z][a-z]{1,19}(?:\s[A-Z][a-z]{1,19})?)"
 _RE_MY_ROLE_NAME = re.compile(
-    r"(?i:\bmy\s+(" + _ROLE_ALT + r")\b\s*(?:,|is|was|named|called|is named|is called)?\s*(?:named|called)?)\s*" + _NAME)
+    r"(?i:\bmy\s+(" + _ROLE_ALT + r")\b(?:\s*(?:'s|\u2019s)\s+name\b)?\s*(?:,|is|was|named|called|is named|is called)?\s*(?:named|called)?)\s*" + _NAME)
 _RE_NAME_IS_MY_ROLE = re.compile(
     _NAME + r"(?i:\s*(?:,|is|'s|’s|was|are)?\s*(?:is\s+)?my\s+(" + _ROLE_ALT + r")\b)")
 _RE_NAME_IS_POSS_ROLE = re.compile(
@@ -1423,6 +1429,17 @@ class Wonderer:
         if _NOT_NOW.search(text) and len(text.split()) <= 8 and not late:
             return self._defer(w, now)
 
+        # "You already know that." / "I already told you.": not a name. ASH does not have it written down, and says so
+        # instead of storing "You" -- and the question stays open for the real answer.
+        if not late and len(text.split()) <= 10 and _ALREADY_TOLD.search(text):
+            if w.kind == "role":
+                msg = f"I don't have your {w.data.get('role', 'family member')}'s name written down. Tell me once and I'll keep it."
+            else:
+                msg = "I don't have that written down. Tell me once and I'll keep it."
+            w.asked_at = now
+            self._touch()
+            return Reply(True, msg, "followup", w.id)
+
         # "I don't know" / "never mind"
         if len(text.split()) <= 8 and _DONT_KNOW.search(text) and not late:
             self._close(w, "dismissed", now)
@@ -1494,6 +1511,9 @@ class Wonderer:
         return t.strip(" ,.")
 
     def _parse_name(self, text: str) -> str:
+        m0 = _RE_MY_ROLE_NAME.search(text)                   # "Oh, my dad Afif is at the clinic": the name after "my dad"
+        if m0 and m0.group(2).split()[0].lower() not in NOT_PERSON and m0.group(2).split()[0].lower() not in ROLE_CANON:
+            return m0.group(2)
         t = self._strip_lead(text)
         m = re.match(r"^" + _NAME + r"\b", t)
         if m and m.group(1).split()[0].lower() not in NOT_PERSON:
@@ -1766,9 +1786,41 @@ class Wonderer:
     # ==================================================================
     # asking
     # ==================================================================
+    def reconcile(self, now: Optional[float] = None) -> int:
+        """Close every open question whose answer is now in what ASH knows, however it got there: said to a question, said in
+        passing, or told with "remember ..." (which writes to the store without ever passing through the question). Without
+        this the list went on asking for what it already had."""
+        now = self.clock() if now is None else now
+        n = 0
+        with self._lock:
+            for w in list(self.wonders.values()):
+                if w.status not in OPEN:
+                    continue
+                k = w.key or ""
+                known = False
+                try:
+                    if k.startswith("role:"):
+                        known = bool(self.kb.role_name(k[5:]))
+                    elif k.startswith("person:"):
+                        p = self.kb.people.get(k[7:]) or {}
+                        known = bool(p.get("relation") or p.get("desc"))
+                    elif k.startswith("fact:"):
+                        known = bool(self.kb.fact(k[5:]))
+                    elif k.startswith("term:"):
+                        known = self.kb.term_known(k[5:])
+                except Exception:
+                    known = False
+                if known:
+                    self._close(w, "answered", now)
+                    n += 1
+            if n:
+                self._touch()
+        return n
+
     def housekeeping(self, now: Optional[float] = None):
         """Expire the old; let go of questions that went unanswered."""
         now = self.clock() if now is None else now
+        self.reconcile(now)
         with self._lock:
             changed = False
             for w in list(self.wonders.values()):
@@ -2025,6 +2077,7 @@ class Wonderer:
     # inspection and control
     # ==================================================================
     def pending(self) -> List[Dict[str, Any]]:
+        self.reconcile()
         with self._lock:
             rows = sorted((w for w in self.wonders.values() if w.status in OPEN),
                           key=lambda w: (-w.priority, w.created))
