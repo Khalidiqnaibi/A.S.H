@@ -306,6 +306,16 @@ def h8_quiet_modes():
     rt.say("what modes do you have for minimum interventions?")
     check("in the runtime: answered by rule, no model", rt.out[-1].startswith("These make me quieter") and rt.ash_.calls == [], rt.out[-1])
     from src.daemon.voicectl import parse
+    rt.ports = {"console": 8788, "control": 8787, "tabs": 47831}
+    rt.say("what port are you on?")
+    check("'what port are you on' comes from its own ports, no model", "console is on port 8788" in rt.out[-1] and "8787" in rt.out[-1]
+          and "47831" in rt.out[-1] and "this computer only" in rt.out[-1].lower(), rt.out[-1])
+    rt.ports = {}
+    rt.say("what port are you on")
+    check("with none open it says so", "not listening" in rt.out[-1], rt.out[-1])
+    check("'what tools do you have' is the capability list", honest.asks_capabilities("what tools do you have")
+          and honest.asks_capabilities("What abilities do you have?"))
+    check("'what port is the printer on' is not its business", honest.ports_reply(rt, "what port is the printer on") is None)
     check("'mute' and 'mute yourself' are quiet mode; muting the music is not", parse("mute").name == "sleep"
           and parse("mute yourself").name == "sleep" and parse("mute the music") is None)
 

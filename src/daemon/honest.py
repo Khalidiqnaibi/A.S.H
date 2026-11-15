@@ -38,6 +38,7 @@ _A = (r"^\s*(?:(?:hey|hi|ok(?:ay)?)\s+)?(?:ash[,\s]+)?"
 _Z = r"(?:[,\s]+(?:ash|please|now|for\s+me|right\s+now|for\s+now|today))*\s*[.!?]*\s*$"
 
 _CAPS = re.compile(_A + r"(?:what\s+(?:can|could|do)\s+you\s+(?:do|help\s+(?:me\s+)?with|know\s+how\s+to\s+do)"
+                   r"|what\s+(?:tools|abilities|powers|functions|skills|features)\s+(?:do\s+you\s+(?:have|use|got)|can\s+you\s+use|are\s+available)"
                    r"|what\s+are\s+(?:all\s+)?(?:your|the)\s+(?:capabilities|abilities|features|skills|commands)"
                    r"|what\s+can\s+i\s+(?:ask|say\s+to|tell)\s+you|what\s+(?:are\s+)?you\s+(?:good|able)\s+(?:at|to\s+do)"
                    r"|what\s+(?:are|is)\s+your\s+(?:limits|limitations|restrictions|weaknesses)|what\s+can'?t\s+you\s+do"
@@ -77,6 +78,29 @@ def quiet_modes_reply(text: str) -> Optional[str]:
     if not t or len(t) > 120:
         return None
     return QUIET_MODES if _QUIET_Q.match(t) else None
+
+
+# "What port are you on?": from the ports it really opened.
+_PORT_Q = re.compile(_A + r"(?:what|which)\s+(?:(?:tcp\s+|network\s+|local\s+)?ports?|address|url)\s+(?:are\s+you\s+(?:on|using|running\s+on|"
+                     r"listening\s+on)|is\s+(?:the\s+)?(?:console|control|ui|dashboard|server|daemon|ash)\s+(?:on|at|running\s+on|using)|"
+                     r"do\s+you\s+(?:use|listen\s+on|run\s+on))" + _Z, re.I)
+
+
+def ports_reply(rt, text: str) -> Optional[str]:
+    t = (text or "").strip()
+    if not t or len(t) > 100 or not _PORT_Q.match(t):
+        return None
+    p = getattr(rt, "ports", None) or {}
+    parts = []
+    if p.get("console"):
+        parts.append(f"the console is on port {p['console']}")
+    if p.get("control"):
+        parts.append(f"the control socket is on {p['control']}")
+    if p.get("tabs"):
+        parts.append(f"the browser-tabs listener is on {p['tabs']}")
+    if not parts:
+        return "I'm not listening on any port right now."
+    return "On this computer only: " + ", ".join(parts[:-1]) + (" and " if len(parts) > 1 else "") + parts[-1] + "."
 
 
 _LIMITS = (
@@ -142,6 +166,9 @@ def capabilities(rt) -> str:
         can.append("play games and tell stories")
     if on("research") is not None:
         can.append("look things up in the background")
+    s = on("samsung")
+    if s is not None:
+        can.append("read your Samsung notes and write a new one")
     can.append("calculate, convert units and read files")
     controls = ("turn the microphone, camera or screen capture on and off, go private, go quiet, change my face, "
                 "and tell you how the computer is doing")

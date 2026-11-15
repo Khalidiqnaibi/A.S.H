@@ -550,6 +550,12 @@ def main() -> int:
                                     int(ccfg.get("port", 8787)),
                                     token=load_or_create_control_token() if ccfg.get("require_token", True) else None)
 
+        # What ASH answers when asked "what port are you on?" (honest.ports_reply): its own settings, not a guess.
+        runtime.ports = {"console": console.port if console is not None else None,
+                         "control": int(ccfg.get("port", 8787)) if control is not None else None,
+                         "tabs": int(cfg.get("sensors", {}).get("browser_tabs", {}).get("port", 47831))
+                         if cfg.get("sensors", {}).get("browser_tabs", {}).get("enabled") else None}
+
         watchdog = Watchdog(runtime)
 
         done = threading.Event()
