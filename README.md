@@ -1909,6 +1909,21 @@ HTML file from the saved files and needs no daemon). Read-only and rule-based: n
   telemetry stored as knowledge, causal arrows from mere adjacency, entities that are only names, episodes not linked to
   concepts, creation times not saved) and ranked ideas, each tied to the finding that argues for it.
 
+**What the mind page found, and what changed** (`tst_conceptlearn.py`, one commit each):
+
+* A concept's creation time, last use and running strength (and an edge's creation and last use) are saved and restored.
+* *Conscience*: a learned concept that has taken far more than its share of all activation is ranked lower when concepts
+  compete, so a hub stops winning everything (skills that came with ASH, and a true best match, are untouched).
+* A concept that already has many wires coming in learns each further one more slowly.
+* Every learned concept keeps its three most typical sentences and is named by the best one.
+* At sleep, a causal arrow with almost no ordering behind it, or one that goes both ways, goes back to a plain association.
+* The learned concepts that led to a skill that worked get an outcome-confirmed *route* wire to it.
+* Episodes remember the five concepts that were most active when they were laid down.
+* The mind page also flags arrows both ways, a busy concept at the average of everything, orphans, one skill answering
+  everything and concepts silent for three weeks. Telemetry concepts are cleaned with `tools/concept_cleanup.py`.
+
+Concepts already in a saved graph improve as they are used again; nothing rewrites the saved graph or your memory files.
+
 ## Follow-ups to the browsing profile (`tst_followups.py`)
 
 Each of these is its own commit, with its own section in `tst_followups.py`.
