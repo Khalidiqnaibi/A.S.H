@@ -114,6 +114,42 @@ def remember(kb, text: str, user: str = "") -> Optional[Tuple[str, Any]]:
     return f"Got it -- {name} is your {role}.", undo
 
 
+_WHO_IS = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:but|so|and|ok(?:ay)?)\s+)?(?:please\s+)?(?:do\s+you\s+(?:know|remember)\s+)?"
+                     r"who\s*(?:is|was|'s|’s)\s+(?P<n>" + _NAME + r")\s*\??\s*$", re.I)
+
+
+def who_is(kb, text: str, user: str = "") -> Optional[str]:
+    """"Who is Linda?" for someone ASH has on record: what it was told, in its own words. None for anyone else (a famous
+    person goes to Wikipedia, as before) -- so a sister is never looked up, and never "I don't actually know Linda"."""
+    m = _WHO_IS.match(text or "")
+    if m is None or kb is None:
+        return None
+    name = m.group("n").strip()
+    if not _ok_name(name):
+        return None
+    try:
+        with kb._lock:
+            p = dict(kb.people.get(norm(name)) or {})
+    except Exception:
+        return None
+    if not p:
+        return None
+    shown = p.get("name") or _title(name)
+    rel = (p.get("relation") or "").strip()
+    desc = (p.get("desc") or "").strip().rstrip(".")
+    between = p.get("between") or {}
+    bits = []
+    if rel:
+        bits.append(f"{shown} is your {rel}")
+    if desc:
+        bits.append(desc if bits else f"{shown}: {desc}")
+    for other, label in list(between.items())[:2]:
+        bits.append(str(label))
+    if not bits:
+        return None
+    return ". ".join(b[:1].upper() + b[1:] for b in bits) + "."
+
+
 def who_am_i(kb, user: str = "") -> str:
     """The user, as ASH knows them: the name, and the people on record."""
     user = (user or "").strip()

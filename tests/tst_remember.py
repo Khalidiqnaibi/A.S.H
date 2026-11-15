@@ -339,6 +339,26 @@ def r13_reasoning():
         L.requests.post = orig
 
 
+def r14_who_is():
+    print("\n=== R14. Who is someone on record ===")
+    rt = rig()
+    try:
+        rt.say("remember linda is my sister")
+        rt.say("remember omar is sara's cousin")
+        n = len(rt.ash.calls)
+        rt.say("who is linda?")
+        check("a person on record is answered from memory, no model, no lookup", rt.out[-1] == "Linda is your sister." and len(rt.ash.calls) == n,
+              rt.out[-1])
+        rt.say("who's Omar")
+        check("a tie between two people is said", "Omar is Sara's cousin" in rt.out[-1] and len(rt.ash.calls) == n, rt.out[-1])
+        rt.say("who is messi")
+        check("anyone else still goes the way it did", len(rt.ash.calls) == n + 1, str(rt.ash.calls[-1:]))
+        rt.say("who is linda", source="microphone", addressed=False)
+        check("said to the room, not to ASH: not answered by the rule", rt.out[-1] != "Linda is your sister.", rt.out[-1])
+    finally:
+        te.stop_all(rt)
+
+
 if __name__ == "__main__":
     r1_parse()
     r2_r3_stored()
@@ -352,5 +372,6 @@ if __name__ == "__main__":
     r11_observe()
     r12_keepalive()
     r13_reasoning()
+    r14_who_is()
     print("\nALL PASS" if tw.OK else "\nSOME FAILED")
     sys.exit(0 if tw.OK else 1)

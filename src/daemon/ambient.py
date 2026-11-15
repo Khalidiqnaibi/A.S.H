@@ -2596,6 +2596,18 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
 
+    def _who_is_request(self, ev, now: float) -> bool:
+        """"Who is Linda?" for a person ASH was told about: answered from what it holds, never looked up."""
+        w = self.wonder
+        if w is None or not self._user_source(ev) or not self._meant_for_ash(ev):
+            return False
+        say = remembering.who_is(w.kb, str(getattr(ev, "text", "") or ""), str(getattr(self.brain, "user", "") or ""))
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "memory"}
+        return True
+
     def _recent_people(self, now: float) -> List[str]:
         """Names that came up lately, newest last: who "he" and "she" are."""
         c = getattr(self, "context", None)
@@ -3360,6 +3372,8 @@ class AmbientRuntime:
         if not loose and self._remember_request(ev, now):
             return True
         if not loose and self._identity_request(ev, now):
+            return True
+        if not loose and self._who_is_request(ev, now):
             return True
         if not loose and self._feelings_request(ev, now):
             return True
