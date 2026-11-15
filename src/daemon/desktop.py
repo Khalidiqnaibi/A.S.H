@@ -33,6 +33,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from .phrasing import Fresh
+
 logger = logging.getLogger("ash.daemon.desktop")
 
 # spoken name -> (what to start, the process it runs as). Several processes
@@ -181,6 +183,7 @@ class Desktop:
         self.ex = executor or Executor()
         self.kb = knowledge                       # wondering's Knowledge, for routines
         self.clock = clock
+        self.fresh = Fresh()                      # the same acknowledgement twice in a row changes its opening word
         self._pending: Optional[Tuple[str, str, float]] = None   # (name, process, asked at)
         self.stats = {"opened": 0, "closed": 0, "switched": 0, "routines": 0, "failed": 0}
         self.apps: Dict[str, Tuple[str, str]] = dict(APPS)
@@ -240,7 +243,8 @@ class Desktop:
             app = self._app(m.group("t"))
             if app is None:
                 return None
-            return f"Opening {app[0]}." if self._open_one(m.group("t")) else f"I couldn't open {app[0]}."
+            return (self.fresh.apply(f"Opening {app[0]}.", self.clock()) if self._open_one(m.group("t"))
+                    else f"I couldn't open {app[0]}.")
         m = _SWITCH.match(t)
         if m:
             app = self._app(m.group("t"))
@@ -251,7 +255,8 @@ class Desktop:
                 return f"{app[0]} isn't open. Want me to open it? Say \"open {app[0]}\"."
             ok = self.ex.focus(proc)
             self.stats["switched" if ok else "failed"] += 1
-            return f"Switching to {app[0]}." if ok else f"I couldn't bring {app[0]} to the front."
+            return (self.fresh.apply(f"Switching to {app[0]}.", self.clock()) if ok
+                    else f"I couldn't bring {app[0]} to the front.")
         m = _CLOSE.match(t)
         if m:
             app = self._app(m.group("t"))
@@ -283,7 +288,7 @@ class Desktop:
     def _do_close(self, name: str, process: str) -> str:
         ok = self.ex.close(process)
         self.stats["closed" if ok else "failed"] += 1
-        return f"Closing {name}." if ok else f"I couldn't close {name}."
+        return self.fresh.apply(f"Closing {name}.", self.clock()) if ok else f"I couldn't close {name}."
 
     def status(self) -> Dict[str, Any]:
         return {"enabled": self.cfg.enabled, "apps": len(self.apps), **self.stats}

@@ -60,7 +60,17 @@ def drig(**cfg):
     kb = Knowledge()
     d = Desktop(DesktopConfig.from_dict(cfg), executor=ex, knowledge=kb, clock=lambda: t[0])
     d.t, d.ex_, d.kb_ = t, ex, kb
+    d.fresh.window_s = -1                         # these tests open app after app in one instant: exact words (see tst_phrasing)
     return d
+
+
+def d0_variety():
+    print("\n=== D0. The same acknowledgement twice ===")
+    d = drig()
+    d.fresh.window_s = 120.0
+    a = d.hear("open Outlook")
+    b = d.hear("open Word")
+    check("the first is plain, the second opens differently", a == "Opening Outlook." and b != "Opening Word." and b.endswith("Word."), f"{a} / {b}")
 
 
 def d1_open():
@@ -224,7 +234,7 @@ def d6_executor():
 
 
 if __name__ == "__main__":
-    for fn in (d1_open, d2_switch, d3_close, d4_routines, d5_runtime, d6_executor):
+    for fn in (d0_variety, d1_open, d2_switch, d3_close, d4_routines, d5_runtime, d6_executor):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

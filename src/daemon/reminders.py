@@ -37,6 +37,7 @@ from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional
 
 from .followups import resolve_when
+from .phrasing import Fresh
 
 logger = logging.getLogger("ash.daemon.reminders")
 
@@ -125,6 +126,7 @@ class Reminders:
                  enabled: bool = True, snooze_s: float = 300.0, snooze_window_s: float = 180.0):
         self.path = path
         self.clock = clock
+        self.fresh = Fresh()                       # the same kind of acknowledgement twice: a different opening word
         self.enabled = enabled
         self.snooze_s = snooze_s
         self.snooze_window_s = snooze_window_s
@@ -243,7 +245,7 @@ class Reminders:
             self.items[r.id] = r
             self.stats["set"] += 1
             self.save()
-        return say
+        return self.fresh.apply(say, now)
 
     def cancel(self, kind: str, now: float) -> str:
         with self._lock:

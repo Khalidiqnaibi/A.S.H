@@ -132,6 +132,7 @@ def k4_runtime():
     rt.clock = lambda: clock[0]
     ex = td.FakeEx()
     rt.desktop.ex = ex
+    rt.desktop.fresh.window_s = -1                # exact words: these tests open the same app again and again
 
     def say(text):
         clock[0] += 3
