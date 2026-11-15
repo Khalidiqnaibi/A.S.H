@@ -98,6 +98,11 @@ class PlasticityConfig:
     stdp_depression: float = 0.032     # asymmetric: depression is weaker,
                                        # or every edge decays to zero
     causal_threshold: float = 0.55     # order_evidence above this -> CAUSAL
+    # At sleep an arrow has to still deserve its direction: below `causal_keep` it goes back to a plain association,
+    # and when A->B and B->A are both causal the one with less ordering behind it goes back (nothing causes its own
+    # cause; events that merely follow each other in a log read as both). 49% of the saved graph's wires were causal.
+    causal_keep: float = 0.35
+    causal_both_ways_margin: float = 0.4
 
     # --- Development ------------------------------------------------------
     # Plasticity starts high and anneals with experience. A newborn cortex
@@ -387,8 +392,10 @@ class Plasticity:
                         d = self.cfg.stdp_potentiation * scale * pre_a * post_a * self.hub_scale(post_id)
                         fwd.w_fast += d
                         fwd.order_evidence = min(2.0, fwd.order_evidence + 0.8 * d)
+                        back = self.net.synapses.get((post_id, pre_id))
+                        clear = back is None or fwd.order_evidence - back.order_evidence > self.cfg.causal_both_ways_margin
                         if (fwd.order_evidence >= self.cfg.causal_threshold
-                                and fwd.kind == SynType.ASSOC):
+                                and fwd.kind == SynType.ASSOC and clear):
                             fwd.kind = SynType.CAUSAL
                             logger.debug("Edge %s->%s promoted to CAUSAL",
                                          self.net.describe(pre_id),
@@ -486,6 +493,7 @@ class Plasticity:
         report["scaled"] = self._homeostatic_scaling()
         report["pruned"] = self._prune()
         report["merged"] = self._merge_converged()
+        report["uncaused"] = self._audit_causal()
 
         self.traces.clear()
         self.credited.clear()
@@ -513,6 +521,24 @@ class Plasticity:
         self.last_report = report
         logger.info("Concept consolidation: %s", report)
         return report
+
+    def _audit_causal(self) -> int:
+        """Take the direction away from arrows that no longer earn it (see `causal_keep`). Returns how many."""
+        drop = []                                    # decide first, then apply: the order of the edges must not matter
+        for (s, d), syn in self.net.synapses.items():
+            if syn.kind != SynType.CAUSAL or syn.frozen:
+                continue
+            if syn.order_evidence < self.cfg.causal_keep:
+                drop.append(syn)
+                continue
+            rev = self.net.synapses.get((d, s))
+            if rev is not None and rev.kind == SynType.CAUSAL and not rev.frozen:
+                gap = syn.order_evidence - rev.order_evidence
+                if abs(gap) <= self.cfg.causal_both_ways_margin or gap < 0:
+                    drop.append(syn)                 # no clear direction: both go; clear: only the weaker
+        for syn in drop:
+            syn.kind = SynType.ASSOC
+        return len(drop)
 
     def _commit_traces(self, schema_lookup=None) -> int:
         """Move accumulated co-activation into the persistent weight.

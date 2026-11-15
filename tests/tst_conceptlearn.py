@@ -5,6 +5,7 @@ tst_conceptlearn.py -- what the mind page found wrong with the concept graph, an
   C2  a concept that has taken far more than its share is held back (conscience), unless it truly is the best match
   C3  a concept that everything already points at is a harder target for one more wire
   C4  a learned concept keeps its three most typical sentences, is named by the best, and keeps them across a restart
+  C5  at sleep an arrow that has no ordering behind it, or goes both ways, goes back to a plain association
 
 Everything runs on a small made-up network in a temp folder; no saved graph of the user's is read or written.
 
@@ -201,8 +202,45 @@ def c4_exemplars():
     check("the mind page names the concept by it", an["concepts"][0]["name"].startswith(ca.exemplars[0][1][:20]) and an["concepts"][0]["named"])
 
 
+def c5_causal_audit():
+    print("\n=== C5. An arrow has to keep earning its direction ===")
+    from src.concepts.model import SynType
+    from src.concepts.plasticity import Plasticity
+    n = net()
+    ids = [n.add_concept(rnd(i), seed_text="c%d" % i).id for i in range(10)]
+    a, b, c, d, e, f, g, h, i_, j = ids
+
+    def edge(s, t, ev, kind=SynType.CAUSAL, frozen=False):
+        x = n.synapse(s, t)
+        x.kind, x.order_evidence, x.w_slow, x.frozen = kind, ev, 0.1, frozen
+        return x
+
+    ab = edge(a, b, 1.9)
+    cd = edge(c, d, 0.1)
+    ef, fe = edge(e, f, 1.8), edge(f, e, 1.7)
+    gh, hg = edge(g, h, 1.9), edge(h, g, 0.9)
+    fz = edge(i_, j, 0.0, frozen=True)
+    rt = edge(j, a, 0.0, kind=SynType.ROUTE)
+    pl = Plasticity(n)
+    k = pl._audit_causal()
+    check("a clear one-way arrow with real ordering keeps its direction", ab.kind == SynType.CAUSAL)
+    check("an arrow with almost no ordering behind it goes back to a plain association", cd.kind == SynType.ASSOC)
+    check("two arrows both ways with about the same evidence both go back", ef.kind == SynType.ASSOC and fe.kind == SynType.ASSOC)
+    check("both ways but clearly one stronger: the weaker goes, the stronger stays", gh.kind == SynType.CAUSAL and hg.kind == SynType.ASSOC)
+    check("a frozen edge and a route are never touched", fz.kind == SynType.CAUSAL and rt.kind == SynType.ROUTE)
+    check("it says how many it took the direction from", k == 4, str(k))
+    check("a second pass changes nothing", pl._audit_causal() == 0)
+    check("the weights are untouched, only the kind", abs(ab.w_slow - 0.1) < 1e-9 and abs(cd.w_slow - 0.1) < 1e-9)
+    n2 = net()
+    for q in range(6):
+        n2.add_concept(rnd(70 + q))
+    p2 = Plasticity(n2)
+    rep = p2.consolidate()
+    check("the sleep pass runs it and reports it", "uncaused" in rep and rep["uncaused"] == 0)
+
+
 if __name__ == "__main__":
-    for fn in (c1_time_survives, c2_conscience, c3_hub_inputs, c4_exemplars):
+    for fn in (c1_time_survives, c2_conscience, c3_hub_inputs, c4_exemplars, c5_causal_audit):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)
