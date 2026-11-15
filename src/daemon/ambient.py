@@ -881,6 +881,11 @@ class AmbientRuntime:
             # "I've sent the email": nothing was sent. A tool that really ran is exempt.
             logger.info("Model claimed something it did not do -- replaced: %r", text[:120])
             text = honest.NOT_DONE
+        elif (text and meta.get("addressed") and str(meta.get("pathway", "")).lower() == "slow"
+                and not getattr(self, "_last_tool_used", False) and honest.invented_reply(text)):
+            # "Minimum interventions mode activated", "here are some cat pictures", "(pause)": made up.
+            logger.info("Model invented an action or a result -- replaced: %r", text[:120])
+            text = honest.invented_reply(text)
         if (text and (meta.get("addressed") or str(meta.get("pathway", "")).lower() == "offer")
                 and str(meta.get("pathway", "")).lower() in ("slow", "offer") and not meta.get("degraded")):
             try:

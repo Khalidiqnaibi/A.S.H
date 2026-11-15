@@ -320,8 +320,31 @@ def h8_quiet_modes():
           and parse("mute yourself").name == "sleep" and parse("mute the music") is None)
 
 
+def h9_invented():
+    print("\n=== H9. Made-up actions, results and places ===")
+    for t in ("Minimum interventions mode activated. I'll mute notifications.", "Sure! Here are some cat pictures (pause) enjoy",
+              "I found a few restaurants near your dad's clinic: Cafe X and Y.", "Focus mode enabled."):
+        check(f"caught: {t[:50]!r}", honest.invented_reply(t) is not None, t)
+    for t in ("Sure, I can open Chrome for you.", "Here is the answer: 42.", "I found your note on that.", "The game mode kicks in when you play."):
+        check(f"left alone: {t[:50]!r}", honest.invented_reply(t) is None, t)
+    check("a pretend mode gets the real list of ways to be quiet", honest.invented_reply("Minimum interventions mode activated.") == honest.QUIET_MODES)
+    check("pretend pictures get 'I have no tool'", "no tool" in honest.invented_reply("Here are some cat pictures"))
+    for q in ("Restaurants near my dad's clinic", "find me a good pharmacy near me", "show me restaurants near the university"):
+        check(f"{q!r}: no invented names, an honest 'I can't'", "can't look up places" in (honest.limit_reply(q) or ""), str(honest.limit_reply(q)))
+    check("talk about restaurants is left to the model", honest.limit_reply("tell me about restaurants") is None)
+    rt = rig("Minimum interventions mode activated. I'll mute notifications.")
+    rt.say("do the thing for the minimum interventions please")
+    check("in the runtime, the pretend answer is replaced before it is said", rt.out[-1].startswith("These make me quieter"), rt.out[-1])
+    rt = rig("Here are some cat pictures (pause) enjoy")
+    rt.say("show me something cute")
+    check("...pictures too", "no tool" in rt.out[-1], rt.out[-1])
+    rt = rig()
+    rt.say("restaurants near my dad's clinic")
+    check("...and a places question is answered by rule, never reaches the model", "can't look up places" in rt.out[-1] and rt.ash_.calls == [], rt.out[-1])
+
+
 if __name__ == "__main__":
-    for fn in (h1_capabilities, h2_limits, h3_sanitize, h4_runtime, h5_small, h6_cache, h7_cleanup, h8_quiet_modes):
+    for fn in (h1_capabilities, h2_limits, h3_sanitize, h4_runtime, h5_small, h6_cache, h7_cleanup, h8_quiet_modes, h9_invented):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

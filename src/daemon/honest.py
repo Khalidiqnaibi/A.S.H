@@ -103,7 +103,40 @@ def ports_reply(rt, text: str) -> Optional[str]:
     return "On this computer only: " + ", ".join(parts[:-1]) + (" and " if len(parts) > 1 else "") + parts[-1] + "."
 
 
+_PLACES = re.compile(_A + r"(?:(?:find|show|get|give|recommend|suggest|search\s+for|look\s+for|what(?:'s|\s+is|\s+are)?)\s*(?:me\s+)?"
+                    r"(?:the\s+|some\s+|a\s+|any\s+)?(?:good\s+|best\s+|nearest\s+|closest\s+|nearby\s+|cheap\s+)*"
+                    r"(?:restaurants?|cafes?|caf\u00e9s?|coffee\s+shops?|pharmac(?:y|ies)|hospitals?|clinics?|shops?|stores?|supermarkets?|"
+                    r"gas\s+stations?|petrol\s+stations?|atms?|banks?|hotels?|bars?|gyms?|barbers?|salons?|bakeries|bakery|mosques?|"
+                    r"places\s+to\s+eat)\b[^.?!]{0,50}\b(?:near|around|close\s+to|next\s+to|by|nearby)\b"
+                    r"|(?:restaurants?|cafes?|pharmac(?:y|ies)|shops?|hotels?|clinics?)\s+(?:near|around|close\s+to|nearby)\b)", re.I)
+
+# Things a model says that ASH has no way to do, and so did not: a mode that does not exist, pictures it cannot fetch,
+# a stage direction, places it cannot look up.
+_INVENTED = re.compile(
+    r"\b(?:[\w-]+\s+){0,3}mode\s+(?:is\s+now\s+)?(?:activated|enabled|engaged|initiated|on|active)\b"
+    r"|\bi'?ll\s+(?:now\s+)?(?:mute|silence|disable|turn\s+off)\s+(?:all\s+|your\s+)?(?:the\s+)?(?:notifications?|alerts?)\b"
+    r"|\bhere\s+(?:are|is)\s+(?:some|a\s+few|a|the|your)\s+(?:[\w-]+\s+){0,3}(?:pictures?|photos?|images?|videos?|memes?|links?|results?|"
+    r"restaurants?|options)\b"
+    r"|\(\s*(?:pause|pauses|beat|sighs?|smiles?|laughs?|chuckles?|clears\s+throat|typing|searching)\s*\)"
+    r"|\bi\s+(?:found|see|have\s+found)\s+(?:a\s+few|some|\d+|two|three|four|five)\s+(?:[\w-]+\s+){0,2}(?:restaurants?|places|cafes?|"
+    r"shops?|options|results|pharmac\w+|hotels?)\b", re.I)
+_MODEISH = re.compile(r"\bmode\s+(?:is\s+now\s+)?(?:activated|enabled|engaged|initiated|on|active)\b|\b(?:mute|silence|disable|turn\s+off)\s+"
+                      r"(?:all\s+|your\s+)?(?:the\s+)?(?:notifications?|alerts?)\b", re.I)
+INVENTED_SAY = ("I can't do that, and I shouldn't have sounded as if I had -- I have no tool for it. "
+                "“What can you do?” says what I really can.")
+
+
+def invented_reply(reply: str) -> Optional[str]:
+    """If a model answer pretends to an action or a result ASH cannot produce, what to say instead."""
+    r = reply or ""
+    if not _INVENTED.search(r):
+        return None
+    return QUIET_MODES if _MODEISH.search(r) else INVENTED_SAY
+
+
 _LIMITS = (
+    (_PLACES, "I can't look up places or their numbers -- I have no map or search tool, so I'd only be guessing names. "
+              "Search for it in Maps, and I can open Chrome for you if you say “open Chrome”."),
     (_WEB, "I can't browse the web or show you things from it -- I don't have a browser tool. I can open Chrome for "
            "you if you say “open Chrome”, and I can look up a term in your own files."),
     (_MSG, "I can only read your email, not send it, and I can't send messages or texts to anyone."),
