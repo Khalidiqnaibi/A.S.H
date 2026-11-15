@@ -32,6 +32,7 @@ def v1_judge():
         (dict(process="zoom.exe", subject="Zoom", idle_s=40), "call", False),
         (dict(process="Teams.exe", subject="Weekly sync | Microsoft Teams", idle_s=40), "call", False),
         (dict(process="msedge.exe", subject="Standup - Google Meet", idle_s=40), "call", False),
+        (dict(process="chrome.exe", subject="Meet - abc-defg-hij - Google Chrome", idle_s=40), "call", False),
         (dict(process="chrome.exe", subject="Design meeting notes - Google Docs", idle_s=40), "free", True),
         (dict(process="steam.exe", subject="Steam", idle_s=40), "gaming", False),
         (dict(process="eldenring.exe", subject="ELDEN RING", idle_s=30), "gaming", False),

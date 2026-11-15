@@ -37,7 +37,7 @@ from typing import Optional
 from .occasion import ACTIVITY_OF, BROWSERS
 
 _CALL_APPS = frozenset("zoom teams ms-teams msteams webex skype lync whereby bluejeans slack-huddle facetime".split())
-_CALL_TITLE = re.compile(r"\b(?:meeting|on a call|video call|huddle|zoom meeting|google meet|meet -|teams call|webinar|interview)\b", re.I)
+_CALL_TITLE = re.compile(r"\b(?:meeting|on a call|video call|huddle|zoom meeting|google meet|teams call|webinar|interview)\b|\bmeet\s+-\s", re.I)
 _PRESENT = frozenset("powerpnt keynote slideshow impress".split())
 _PRESENT_TITLE = re.compile(r"\b(?:slide show|slideshow|presenting|presenter view)\b", re.I)
 _VIDEO_APPS = frozenset("vlc mpc-hc mpc-hc64 mpv potplayer potplayermini64 wmplayer netflix primevideo disneyplus kodi plex".split())
