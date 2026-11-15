@@ -1504,7 +1504,10 @@ class Wonderer:
     @staticmethod
     def _strip_lead(text: str) -> str:
         t = text.strip().rstrip(".!")
-        t = re.sub(r"^(?:well|um+|uh+|oh|so|yeah|yes|yep|ah|hmm+)[,\s]+", "", t, flags=re.I)
+        t2 = re.sub(r"^(?:well|um+|uh+|oh|so|yeah|yes|yep|ah|hmm+)[,\s]+", "", t, flags=re.I)
+        if t2 != t:                                        # "Yeah man is a friend": the recogniser lost the comma after "man"
+            t2 = re.sub(r"^(?:man|bro|dude|mate|boy)\s+(?=(?:is|are|it|that|this|he|she|they)\b)", "", t2, flags=re.I)
+        t = t2
         t = re.sub(r"^(?:(?:his|her|their|its)\s+name(?:'s| is)|it'?s|it is|that'?s|that is|he'?s|she'?s|they'?re|"
                    r"they are|he is|she is|(?:he|she|they)(?:'s| is| are)? (?:called|named)|(?:called|named)|"
                    r"his name'?s|her name'?s|its name is|i think (?:it'?s|its|that'?s))\s+", "", t, flags=re.I)

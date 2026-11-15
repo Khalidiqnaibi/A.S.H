@@ -359,6 +359,27 @@ def r14_who_is():
         te.stop_all(rt)
 
 
+def r15_ask_about():
+    print("\n=== R15. 'What do you know about ...' ===")
+    rt = rig()
+    try:
+        check("'what do you know about me, Ash?' is the identity answer", remembering_wants("What do you know about me, Ash?"))
+        rt.say("remember linda iqnaibi is my sister")
+        n = len(rt.ash.calls)
+        rt.say("what do you know about Linda Iqnaibi?")
+        check("about a person on record: what ASH holds, not 'you haven't told me anything'", rt.out[-1] == "Linda Iqnaibi is your sister."
+              and len(rt.ash.calls) == n, rt.out[-1])
+        rt.say("what do you know about Linda?")
+        check("by first name, when only one has it", rt.out[-1] == "Linda Iqnaibi is your sister.", rt.out[-1])
+    finally:
+        te.stop_all(rt)
+
+
+def remembering_wants(t):
+    from src.daemon import remember
+    return remember.wants_identity(t)
+
+
 if __name__ == "__main__":
     r1_parse()
     r2_r3_stored()
@@ -373,5 +394,6 @@ if __name__ == "__main__":
     r12_keepalive()
     r13_reasoning()
     r14_who_is()
+    r15_ask_about()
     print("\nALL PASS" if tw.OK else "\nSOME FAILED")
     sys.exit(0 if tw.OK else 1)

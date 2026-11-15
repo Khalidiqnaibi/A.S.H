@@ -51,7 +51,7 @@ _WHO_AM_I = re.compile(
     r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:but|so|and|ok(?:ay)?)\s+)?(?:please\s+)?"
     r"(?:who\s+am\s+i|who(?:\s+is|\s*['’]?s)\s+(?:the\s+)?user|who(?:\s+is|\s*['’]?s)\s+(?:this|me)|"
     r"do\s+you\s+(?:know|remember)\s+who\s+i\s+am|what(?:'s|\s+is)\s+my\s+name|what\s+do\s+you\s+know\s+about\s+me|"
-    r"who\s+do\s+you\s+think\s+i\s+am|tell\s+me\s+(?:who\s+i\s+am|about\s+me))\s*\??\s*$", re.I)
+    r"who\s+do\s+you\s+think\s+i\s+am|tell\s+me\s+(?:who\s+i\s+am|about\s+me))(?:\s*,?\s*(?:ash|please|now|bro|man))*\s*[.!?]*\s*$", re.I)
 
 
 def wants_identity(text: str) -> bool:
@@ -115,7 +115,8 @@ def remember(kb, text: str, user: str = "") -> Optional[Tuple[str, Any]]:
 
 
 _WHO_IS = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:but|so|and|ok(?:ay)?)\s+)?(?:please\s+)?(?:do\s+you\s+(?:know|remember)\s+)?"
-                     r"who\s*(?:is|was|'s|’s)\s+(?P<n>" + _NAME + r")\s*\??\s*$", re.I)
+                     r"(?:who\s*(?:is|was|'s|’s)|what\s+do\s+you\s+(?:know|remember)\s+about|tell\s+me\s+(?:about|more\s+about)|"
+                     r"(?:do\s+you\s+)?know\s+(?:about|who\s+is))\s+(?P<n>" + _NAME + r")(?:\s*,?\s*ash)?\s*[.!?]*\s*$", re.I)
 
 
 def who_is(kb, text: str, user: str = "") -> Optional[str]:
@@ -133,6 +134,10 @@ def who_is(kb, text: str, user: str = "") -> Optional[str]:
     try:
         with kb._lock:
             p = dict(kb.people.get(norm(name)) or {})
+            if not p and " " not in name.strip():                 # "Linda" for "Linda Iqnaibi", when only one person has it
+                hits = [v for k, v in kb.people.items() if k.split()[:1] == [norm(name)]]
+                if len(hits) == 1:
+                    p = dict(hits[0])
     except Exception:
         return None
     if not p:

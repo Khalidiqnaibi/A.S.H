@@ -1222,9 +1222,25 @@ def w13_answered_any_way():
         check(f"{q!r} -> Afif", remember.role_is(w.kb, q) == "Your father is Afif.", str(remember.role_is(w.kb, q)))
 
 
+def w14_asr_noise():
+    print("\n=== W14. What the recogniser does to an answer ===")
+    w = rig()
+    for _ in range(2):
+        w.observe("you keep going back to @ItzYman")
+    w.wonders.clear()
+    w2 = rig()
+    w2.observe("I keep opening ItzYman")
+    w2.observe("I keep opening ItzYman again")
+    from src.daemon.wondering import Wonderer
+    check("'Yeah man is a friend' loses the filler", Wonderer._strip_lead("Yeah man is a friend and muting is something else.")
+          == "is a friend and muting is something else", Wonderer._strip_lead("Yeah man is a friend and muting is something else."))
+    check("a real 'man' later in the sentence is left alone (only the lead-in is stripped)", Wonderer._strip_lead("Yeah he is a man") == "a man")
+    check("without a filler first, nothing is stripped", Wonderer._strip_lead("man is wise") == "man is wise")
+
+
 if __name__ == "__main__":
     for fn in (w1_detectors, w2_statements, w3_queue, w4_when, w5_answers, w6_never_twice, w7_persistence,
-               w8_switches, w9_knowledge, w10_runtime, w11_control, w12_fuzz, w13_answered_any_way):
+               w8_switches, w9_knowledge, w10_runtime, w11_control, w12_fuzz, w13_answered_any_way, w14_asr_noise):
         fn()
     print("\n" + ("ALL PASS" if OK else "FAILURES"))
     sys.exit(0 if OK else 1)
