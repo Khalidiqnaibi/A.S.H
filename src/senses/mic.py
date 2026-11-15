@@ -43,7 +43,7 @@ import math
 import re
 import threading
 import time
-from typing import Any, Deque, Dict, List, Optional, Tuple
+from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
 
 from . import address
 from .base import Capability, Modality, Sensor, SensorEvent, State
@@ -184,6 +184,9 @@ class MicrophoneSensor(Sensor):
         self.max_frames = int(max_utterance_s * 1000 // FRAME_MS)
         self.keep_audio = keep_audio
         self._transcriber = transcriber
+        # Words worth hearing right: names of people, classes, ports. Handed to the LOCAL recogniser only, as the start of its
+        # prompt (it makes "Linda" likelier than "Lender" and "port" than "board"); never to an online service.
+        self.hint_words: Callable[[], List[str]] = lambda: []
 
         self._backend: Optional[str] = None
         self._vad = None
@@ -475,6 +478,22 @@ class MicrophoneSensor(Sensor):
         stripped = _TRAILING_WAKE.sub("", _LEADING_WAKE.sub("", text or "")).strip()
         return stripped or (text or "")
 
+    def prompt_hint(self) -> str:
+        """"Talking to Ash, my assistant. Words I use: Khalid, Linda, NoSQL." -- short, because the recogniser reads it all."""
+        base = "Talking to Ash, my assistant."
+        try:
+            words = [str(w).strip() for w in (self.hint_words() or []) if str(w).strip()]
+        except Exception:
+            logger.debug("hint words failed", exc_info=True)
+            words = []
+        seen, keep = set(), []
+        for w in words:
+            k = w.lower()
+            if k not in seen and len(w) <= 24:
+                seen.add(k)
+                keep.append(w)
+        return base if not keep else base + " Words I use: " + ", ".join(keep[:25]) + "."
+
     def transcribe(self, audio) -> str:
         """Pluggable ASR. Whisper if installed, then Google via
         speech_recognition, then nothing. A custom callable can be injected
@@ -498,7 +517,7 @@ class MicrophoneSensor(Sensor):
             # heard as "Ass system status" and ignored.
             segs, _ = self._whisper.transcribe(audio.astype(np.float32) / 32768.0,
                                                language="en", vad_filter=True,
-                                               initial_prompt="Talking to Ash, my assistant.",
+                                               initial_prompt=self.prompt_hint(),
                                                # each phrase is read on its own: carrying the last one
                                                # forward is how whisper invents words from room noise
                                                condition_on_previous_text=False)

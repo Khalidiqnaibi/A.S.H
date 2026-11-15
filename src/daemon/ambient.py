@@ -958,7 +958,31 @@ class AmbientRuntime:
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
+    def vocab_hint(self) -> List[str]:
+        """Words the recogniser should lean towards: the user's name, the people ASH was told about, the classes on the
+        timetable, and the few technical words that were misheard ("port" for "board")."""
+        words: List[str] = []
+        user = str(getattr(self.brain, "user", "") or "").strip()
+        if user and user.lower() not in ("user", "the user"):
+            words.append(user)
+        try:
+            w = self.wonder
+            if w is not None:
+                with w.kb._lock:
+                    words += [str(p.get("name") or "") for p in list(w.kb.people.values())[:15]]
+        except Exception:
+            logger.debug("vocabulary from people failed", exc_info=True)
+        if self.timetable is not None:
+            words += [c["name"] for c in self.timetable.classes[:10]]
+        return words + ["ASH", "port", "console"]
+
+    def _hint_the_microphone(self):
+        mic = getattr(self.periphery, "sensors", {}).get("microphone")
+        if mic is not None and hasattr(mic, "hint_words"):
+            mic.hint_words = self.vocab_hint
+
     def start(self):
+        self._hint_the_microphone()
         # Clear the stop flag *before* the already-alive check, not only in
         # the branch that spawns a new thread. If the previous ash-ambient
         # thread is still blocked inside a slow synchronous call (an
