@@ -419,8 +419,13 @@ class ConceptSystem:
     # ------------------------------------------------------------------
     def perceive(self, vec, text: str = "", learn: bool = True,
                  novelty: Optional[float] = None, surprise: float = 0.0,
-                 urgency: float = 0.3, fatigue: float = 0.0) -> Activation:
-        act = self.net.perceive(vec, text=text)
+                 urgency: float = 0.3, fatigue: float = 0.0, telemetry: bool = False) -> Activation:
+        # Telemetry (memory at 93%, battery, "screen changed", window switches) is the body, not a thing to have a concept
+        # of: it is perceived, so it can still be explained and still moves the neuromodulators, but it never grows a new
+        # concept or drags an existing one's prototype toward it.
+        act = self.net.perceive(vec, text=text, allow_growth=not telemetry, learn_prototypes=not telemetry)
+        if telemetry:
+            learn = False
 
         self.neuromod.update(
             novelty=act.novelty if novelty is None else novelty,

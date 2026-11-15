@@ -146,6 +146,21 @@ def _fmt_tool_output(out: Any) -> str:
     return str(out)
 
 
+_TELEMETRY_TEXT = re.compile(
+    r"\b(?:memory|cpu|ram|disk|gpu|battery|temperature)\b[^.]{0,24}?\d+(?:\.\d+)?\s*%|^\s*battery\b|\bscreen changed\b|"
+    r"\bmotion in camera view\b|^\s*switched to\b.{0,120}?\(was on\b|^\s*(?:idle|away) for \d+|\bunplugged\b", re.I)
+_TELEMETRY_SOURCES = frozenset({"system", "resources", "battery", "idle", "screen", "camera", "window"})
+
+
+def is_telemetry(text: str, source: str = "") -> bool:
+    """A reading of the machine or the room (memory at 93%, battery, a window switch, "screen changed", motion): not
+    something to grow concepts from. A person's words never are, whatever source carries them."""
+    if str(source or "").lower() in ("microphone", "console", "voice", "user", "chat", "wonder"):
+        return False
+    t = str(text or "")
+    return bool(_TELEMETRY_TEXT.search(t)) or (str(source or "").lower() in _TELEMETRY_SOURCES and len(t.split()) <= 14)
+
+
 class Brain:
     """Full cognitive runtime. `ASH` owns one of these."""
 
@@ -232,7 +247,7 @@ class Brain:
     # ==================================================================
     # Associative layer
     # ==================================================================
-    def _conceive(self, bundle, learn: bool = True, surprise: float = 0.0):
+    def _conceive(self, bundle, learn: bool = True, surprise: float = 0.0, telemetry: bool = False):
         """Present the fused percept to the concept graph.
 
         Returns (activation, latent). The latent replaces the raw embedding
@@ -248,7 +263,7 @@ class Brain:
             act = self.concepts.perceive(
                 bundle.fused_embedding, text=bundle.text, learn=learn,
                 novelty=bundle.novelty, surprise=surprise,
-                urgency=d.urgency, fatigue=d.fatigue)
+                urgency=d.urgency, fatigue=d.fatigue, telemetry=telemetry)
             return act, self.concepts.net.latent(act, dim=self.concept_latent_dim)
         except Exception:
             logger.exception("Concept layer failed; falling back to raw embedding")
@@ -1050,7 +1065,7 @@ class Brain:
         self.vla.note_perception(bundle)
         trace.percepts = bundle.as_dict()
 
-        activation, latent = self._conceive(bundle)
+        activation, latent = self._conceive(bundle, telemetry=is_telemetry(text, source))
         if activation is not None:
             trace.concepts = self.concepts.net.explain(activation)
 
