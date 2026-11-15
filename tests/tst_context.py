@@ -178,6 +178,7 @@ def c7_runtime():
     rt.clock = lambda: clock[0]
     ex = td.FakeEx()
     rt.desktop.ex = ex
+    rt.desktop.fresh.window_s = -1                # exact words (see tst_phrasing)
 
     def say(text):
         clock[0] += 3
