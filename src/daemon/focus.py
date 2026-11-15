@@ -35,6 +35,29 @@ _ON = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:i'?m\s+(?:going to\s+)?focus(
 _OFF = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:i'?m\s+done\s+focusing|done\s+focusing|focus\s+(?:mode\s+)?off|"
                   r"end\s+(?:the\s+)?focus|stop\s+focus(?:ing)?|turn\s+off\s+(?:focus|do\s+not\s+disturb|dnd)|"
                   r"(?:focus|dnd)\s+over|you\s+can\s+talk\s+(?:again|now))\b", re.I)
+# Saying where you are is asking to be left alone: "I'm in lecture", "I have an exam", "I'm driving", "stop interrupting me".
+# value = how long it lasts when no time is given (minutes).
+_PLACE = re.compile(
+    r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:ok(?:ay)?|so|right)[,\s]+)?"
+    r"(?:(?:i'?m|i\s+am|we'?re|i'?m\s+currently|i'?m\s+now)\s+(?:in|at|starting|going\s+(?:in)?to)\s+(?:a\s+|an\s+|the\s+|my\s+|our\s+)?"
+    r"(?P<what>lectures?|class(?:room)?|meeting|exam|test|quiz|interview|seminar|lab|tutorial|presentation|webinar|"
+    r"stand-?up|call|lesson|session|study\s+session)"
+    r"|i\s+have\s+(?:a\s+|an\s+|my\s+)?(?P<what2>exam|test|quiz|interview|lecture|class|presentation)\s+(?:now|right\s+now|in\s+a\s+(?:bit|minute|moment))"
+    r"|i'?m\s+(?P<what3>driving|presenting|praying|sleeping|studying|in\s+(?:lecture|class|a\s+meeting)))"
+    r"(?P<rest>(?:\s+(?:now|right\s+now|today|for\s+a\s+(?:while|bit)|for\s+.+|until\s+.+|till\s+.+|at\s+.+))?)\s*[.!]*\s*$", re.I)
+_STOP_BOTHERING = re.compile(
+    r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:stop\s+(?:interrupting|bothering|disturbing|pestering)(?:\s+me)?|"
+    r"stop\s+with\s+(?:all\s+)?the\s+(?:interrupts?|interruptions?|interventions?)|"
+    r"(?:minimum|minimal|fewer|no)\s+(?:interventions?|interruptions?)(?:\s+mode)?|"
+    r"(?:i\s+want|give\s+me)\s+(?:minimum|minimal|no)\s+(?:interventions?|interruptions?))"
+    r"(?:\s+(?:please|now|right\s+now))?\s*[.!]*\s*$", re.I)
+_DONE = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:i'?m\s+(?:done|out|finished|back)(?:\s+now)?|(?:the\s+|my\s+)?"
+                   r"(?:lecture|class|meeting|exam|test|interview|seminar|call|session)\s+(?:is\s+)?(?:over|done|finished|ended)|"
+                   r"(?:lecture|class|meeting|exam)\s+ended|we'?re\s+done)\s*[.!]*\s*$", re.I)
+_PLACE_MIN = {"lecture": 90, "lectures": 90, "class": 90, "classroom": 90, "lesson": 60, "seminar": 90, "lab": 120, "tutorial": 60,
+              "exam": 120, "test": 90, "quiz": 45, "interview": 60, "meeting": 60, "presentation": 45, "webinar": 60,
+              "stand-up": 20, "standup": 20, "call": 45, "driving": 60, "presenting": 45, "praying": 20, "sleeping": 480,
+              "studying": 90, "session": 60, "study session": 90}
 
 
 class Focus:
@@ -70,10 +93,25 @@ class Focus:
                 return "Focus wasn't on."
             self.until = now
             return None                      # the caller says the summary
-        m = _ON.match(t)
-        if not m:
+        if _DONE.match(t):                   # "I'm done", "the lecture is over": ends it, but only if it is on
+            if not self.active(now):
+                return None
+            self.until = now
             return None
-        rest = m.group("rest") or ""
+        place = _PLACE.match(t)
+        bother = None if place else _STOP_BOTHERING.match(t)
+        m = _ON.match(t)
+        if not m and not place and not bother:
+            return None
+        rest = ""
+        if m:
+            rest = m.group("rest") or ""
+        elif place:
+            rest = place.group("rest") or ""
+        what = ""
+        if place:
+            what = re.sub(r"^in\s+(?:a\s+)?", "", (place.group("what") or place.group("what2") or place.group("what3") or "").lower()).strip()
+            what = {"lectures": "lecture", "classroom": "class"}.get(what, what)
         until = None
         mm = re.search(r"\bfor\s+(.+)$", rest, re.I)
         if mm:
@@ -88,15 +126,20 @@ class Focus:
             if w and w.clock and w.start > now:
                 until = w.start
         if until is None:
-            if rest.strip(" .!") and not re.fullmatch(r"\s*(?:mode|now|please|for a while|for a bit)\s*[.!]?\s*",
+            if rest.strip(" .!") and not re.fullmatch(r"\s*(?:mode|now|right now|today|please|for a while|for a bit)\s*[.!]?\s*",
                                                        rest, re.I):
                 return None                  # "I'm focusing on the report" is not a request
-            until = now + self.default_s
+            until = now + (_PLACE_MIN.get(what, self.default_s / 60.0) * 60.0 if place else self.default_s)
         until = min(until, now + self.max_s)
         self.until, self.started = until, now
         self.held = Counter()
         self.stats["sessions"] += 1
-        return (f"Focus mode until {datetime.fromtimestamp(until).strftime('%H:%M')}. I'll keep to myself; "
+        hm = datetime.fromtimestamp(until).strftime('%H:%M')
+        if place or bother:
+            for_what = ("while you're " + what if what in ("driving", "presenting", "praying", "sleeping", "studying") else f"for your {what}") if what else ""
+            return (f"Okay -- quiet {for_what + ', ' if for_what else ''}till {hm}. Say \"I'm done\" when it's over. "
+                    f"Reminders still go off.")
+        return (f"Focus mode until {hm}. I'll keep to myself; "
                 f"reminders still go off.")
 
     def summary(self, extra: List[str]) -> str:

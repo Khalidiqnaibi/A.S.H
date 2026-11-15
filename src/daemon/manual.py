@@ -76,7 +76,8 @@ ENTRIES: List[Tuple[str, int, str]] = [
     ("quiet", 6,
      "ASH manual, quiet and focus. \"Quiet for an hour\", \"quiet for forty five minutes\", \"quiet until 9\", \"go to sleep\" (wake up ends it): ASH stops "
      "volunteering but still answers you. \"Focus for 45 minutes\", \"do not disturb until 3\", \"I'm done focusing\": "
-     "same, and it tells you in one line what it held back. Reminders and watches still go off. It silences itself "
+     "same, and it tells you in one line what it held back. So does saying where you are (\"I'm in lecture\", \"I'm in a "
+     "meeting\", \"I have an exam\", \"I'm driving\") or \"stop interrupting me\"; \"I'm done\" ends it. Reminders and watches still go off. It silences itself "
      "only, not other apps' notifications."),
     ("scenes", 5,
      "ASH manual, scenes. \"Work mode\" (quiet 90 minutes, curious face), \"wind down\" (quiet 2 hours, sleepy), \"break "

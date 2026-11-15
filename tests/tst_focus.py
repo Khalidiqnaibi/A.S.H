@@ -172,8 +172,41 @@ def f3_runtime():
     check("status carries focus", h.rt.status()["focus"]["sessions"] == 1)
 
 
+def f4_where_you_are():
+    print("\n=== F4. Saying where you are means quiet ===")
+    for q, want in [("I'm in lecture", "your lecture, till 15:30"), ("I'm in a meeting", "while you're meeting" if False else "your meeting, till 15:00"),
+                    ("I am in class now", "your class, till 15:30"), ("I have an exam right now", "your exam, till 16:00"),
+                    ("I'm driving", "while you're driving, till 15:00"), ("I'm in lecture for 2 hours", "your lecture, till 16:00"),
+                    ("stop interrupting me", "quiet till 15:00"), ("minimum interventions", "quiet till 15:00"),
+                    ("stop with the interrupts", "quiet till 15:00")]:
+        f = frig()
+        s = f.hear(q)
+        check(f"{q!r} -> quiet", s is not None and want in s and f.active(), str(s))
+    for q in ("I'm in love", "I'm in a hurry", "I'm focusing on the report", "I'm in the kitchen", "I have an exam tomorrow"):
+        check(f"{q!r} is not a request", frig().hear(q) is None)
+    f = frig()
+    f.hear("I'm in lecture")
+    f.hear("I'm done")
+    check("'I'm done' ends it", not f.active())
+    f = frig()
+    check("'I'm done' with nothing on is left to others", f.hear("I'm done") is None and f.hear("I'm done with my homework") is None)
+    f = frig()
+    f.hear("I'm in lecture")
+    f.hear("the lecture is over")
+    check("'the lecture is over' ends it", not f.active())
+    h = rt_rig()
+    h.say("I'm in lecture")
+    check("in the runtime: quiet, said without the model", "quiet for your lecture" in h.said()[-1] and not h.ash.calls, str(h.said()[-1:]))
+    n = len(h.out)
+    for _ in range(3):
+        h.free()
+    check("...and nothing is volunteered", len(h.out) == n, str(h.said()[n:]))
+    h.say("I'm done")
+    check("...until 'I'm done', which gives the one-line summary", h.said()[-1].startswith("Focus done ("), h.said()[-1])
+
+
 if __name__ == "__main__":
-    for fn in (f1_on_off, f2_summary, f3_runtime):
+    for fn in (f1_on_off, f2_summary, f3_runtime, f4_where_you_are):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)
