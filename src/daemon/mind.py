@@ -141,7 +141,8 @@ def clusters(protos: np.ndarray, k: Optional[int] = None, iters: int = 14) -> np
 def concept_name(c: Dict[str, Any]) -> str:
     if c.get("label"):
         return str(c["label"])
-    seed = re.sub(r"\s+", " ", str(c.get("seed_text") or "")).strip()
+    ex = c.get("exemplars") or []
+    seed = re.sub(r"\s+", " ", str(ex[0][1] if ex and len(ex[0]) == 2 else c.get("seed_text") or "")).strip()
     return (seed[:44] + ("..." if len(seed) > 44 else "")) if seed else f"c{c.get('id')}"
 
 
@@ -210,6 +211,7 @@ def analyze_graph(g: Dict[str, Any]) -> Dict[str, Any]:
         concepts.append({
             "i": i, "id": int(c["id"]), "name": concept_name(c), "label": c.get("label"), "origin": c.get("origin"),
             "intent": c.get("intent"), "seed": str(c.get("seed_text") or "")[:160],
+            "named": bool(c.get("exemplars")), "exemplars": [str(e[1])[:120] for e in (c.get("exemplars") or []) if len(e) == 2],
             "x": round(float(xy[i, 0]), 4), "y": round(float(xy[i, 1]), 4), "cluster": int(cl[i]),
             "act": int(acts[i]), "share": round(float(acts[i]) / total_act, 4),
             "rate": round(float(c.get("rate", 0.0)), 4), "plasticity": round(float(c.get("plasticity", 0.0)), 3),
@@ -456,13 +458,13 @@ def findings(a: Dict[str, Any], mem: Dict[str, Any]) -> List[Dict[str, Any]]:
                           "out with `python tools/concept_cleanup.py` (a look first, then --apply with ASH stopped).",
                           [c["name"] for c in sorted(sysn, key=lambda c: -c["act"])[:5]]))
         if grown:
-            unnamed = [c for c in grown if not c["label"]]
+            unnamed = [c for c in grown if not c["label"] and not c.get("named")]
             if len(unnamed) / len(grown) > 0.6:
                 out.append(_f("warn", "unnamed", "Almost every learned concept has no name",
                               f"{len(unnamed)} of {len(grown)} grown concepts are known only by the sentence that "
                               "created them, so ASH cannot say what it has learned in its own words.",
-                              "Name a concept from its top exemplars (the three most typical sentences) and keep those "
-                              "exemplars with it; re-name when the leading exemplars change.",
+                              "From now on every concept keeps its three most typical sentences and is named by the "
+                              "best one; concepts already in the graph gain them as they are used again.",
                               [c["name"] for c in unnamed[:4]]))
         if a.get("_sim") is not None and n > 1:
             sim = a["_sim"]

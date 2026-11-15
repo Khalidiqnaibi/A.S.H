@@ -121,6 +121,10 @@ class Concept:
 
     frozen: bool = False                      # exempt from all learning
 
+    # The three most typical sentences that fired it (by similarity at the time): what a concept is *about*, as opposed
+    # to `seed_text`, which is only the first thing that happened to create it. Names a grown concept.
+    exemplars: List[Tuple[float, str]] = field(default_factory=list)
+
     # Sliding-window activity (metaplasticity). `rate` is an exponential
     # average of how strongly this unit has fired recently, and `rate_cycle`
     # is the network cycle it was last brought up to date at, so decay can be
@@ -146,6 +150,25 @@ class Concept:
         if n > 1e-9:
             self.prototype = (p / n).astype(np.float32)
 
+    def note_exemplar(self, text: str, sim: float, keep: int = 3) -> bool:
+        """Remember `text` if it is one of the `keep` best matches so far. True if the leading exemplar changed."""
+        t = " ".join(str(text or "").split())[:120]
+        if not t or sim < 0.6 or any(t == e[1] for e in self.exemplars):
+            return False
+        before = self.exemplars[0][1] if self.exemplars else None
+        self.exemplars.append((round(float(sim), 3), t))
+        self.exemplars.sort(key=lambda e: -e[0])
+        del self.exemplars[keep:]
+        return bool(self.exemplars) and self.exemplars[0][1] != before
+
+    def title(self) -> str:
+        """What to call it: its label if it has one, else its most typical sentence, else the sentence that made it."""
+        if self.label:
+            return self.label
+        if self.exemplars:
+            return self.exemplars[0][1]
+        return self.seed_text[:120] if self.seed_text else f"c{self.id}"
+
     def name(self) -> str:
         return self.label or f"c{self.id}"
 
@@ -167,6 +190,7 @@ class Concept:
             "created": round(self.created, 1),
             "last_active": round(float(self.last_active or 0.0), 1),
             "activation_sum": round(self.activation_sum, 4),
+            "exemplars": [[s, t] for s, t in self.exemplars],
         }
 
 

@@ -4,6 +4,7 @@ tst_conceptlearn.py -- what the mind page found wrong with the concept graph, an
   C1  time and running strength survive a restart (created, last fired, activation sum; edge creation and last use)
   C2  a concept that has taken far more than its share is held back (conscience), unless it truly is the best match
   C3  a concept that everything already points at is a harder target for one more wire
+  C4  a learned concept keeps its three most typical sentences, is named by the best, and keeps them across a restart
 
 Everything runs on a small made-up network in a temp folder; no saved graph of the user's is read or written.
 
@@ -162,8 +163,46 @@ def c3_hub_inputs():
           (to_hub is None) or (to_plain is not None and abs(to_hub.w_fast) < abs(to_plain.w_fast)), "%s vs %s" % (to_hub and to_hub.w_fast, to_plain and to_plain.w_fast))
 
 
+def c4_exemplars():
+    print("\n=== C4. A concept is named by what is typical of it ===")
+    n = net(k=3)
+    base = rnd(1)
+    n.perceive(base, "play some jazz")                                     # grows a concept from its first sentence
+    cid = next(iter(n.concepts))
+    c = n.concepts[cid]
+    check("a new concept starts with the sentence that made it", c.exemplars and c.exemplars[0][1] == "play some jazz" and c.title() == "play some jazz")
+    n.perceive(rnd(2, base=base, noise=0.05), "put on jazz please")
+    n.perceive(rnd(3, base=base, noise=0.05), "jazz music now")
+    n.perceive(rnd(4, base=base, noise=0.05), "some jazz")
+    check("it keeps the three best, no more", 1 <= len(c.exemplars) <= 3 and len({t for _s, t in c.exemplars}) == len(c.exemplars))
+    check("they are ordered, best first", [s_ for s_, _t in c.exemplars] == sorted((s_ for s_, _t in c.exemplars), reverse=True))
+    check("the title is the best one", c.title() == c.exemplars[0][1])
+    before = list(c.exemplars)
+    n.perceive(rnd(5, base=base, noise=0.05), "")
+    n.perceive(rnd(6, base=base, noise=0.05), "   ")
+    check("an empty sentence is never an exemplar", c.exemplars == before)
+    check("a weak match (under 0.6) is not an exemplar", c.note_exemplar("far away", 0.4) is False and ("far away" not in [t for _s, t in c.exemplars]))
+    check("the same sentence twice is kept once", c.note_exemplar(c.exemplars[0][1], 0.99) is False)
+    labelled = net()
+    lab = labelled.add_concept(rnd(9), label="get_time")
+    check("a labelled concept keeps its label as its title", lab.title() == "get_time")
+    check("describe() names an unlabelled concept by its best exemplar", n.describe(cid).startswith("c%d<" % cid) and c.exemplars[0][1][:20] in n.describe(cid))
+    folder = tempfile.mkdtemp()
+    a = ConceptNetwork(dim=DIM)
+    a.perceive(base, "play some jazz")
+    a.perceive(rnd(2, base=base, noise=0.05), "put on jazz please")
+    a.save(folder)
+    b = ConceptNetwork(dim=DIM)
+    b.load(folder)
+    ca, cb = next(iter(a.concepts.values())), next(iter(b.concepts.values()))
+    check("the exemplars survive a restart", ca.exemplars and [t for _s, t in cb.exemplars] == [t for _s, t in ca.exemplars])
+    from src.daemon import mind
+    an = mind.analyze_graph(mind.graph_from_files(folder))
+    check("the mind page names the concept by it", an["concepts"][0]["name"].startswith(ca.exemplars[0][1][:20]) and an["concepts"][0]["named"])
+
+
 if __name__ == "__main__":
-    for fn in (c1_time_survives, c2_conscience, c3_hub_inputs):
+    for fn in (c1_time_survives, c2_conscience, c3_hub_inputs, c4_exemplars):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

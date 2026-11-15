@@ -343,6 +343,7 @@ class ConceptNetwork:
                 continue
             c.touch(a, now)
             if learn_prototypes and cid in initial:
+                c.note_exemplar(text, float(initial[cid]))
                 # Only bottom-up winners drift. A concept reached purely by
                 # association should not move toward an input it never matched.
                 c.adapt(vec, strength=a)
@@ -422,6 +423,8 @@ class ConceptNetwork:
             return f"<missing c{cid}>"
         if c.label:
             return c.label
+        if c.exemplars:                       # named by what it is most typically about
+            return f"c{cid}<{c.exemplars[0][1][:40]}>"
         nb = [self.concepts[d].name() for d, _ in self.neighbours(cid, 3)
               if d in self.concepts]
         if nb:
@@ -508,6 +511,7 @@ class ConceptNetwork:
                     c.created = float(m["created"])
                 c.last_active = float(m.get("last_active", 0.0) or 0.0)
                 c.activation_sum = float(m.get("activation_sum", 0.0) or 0.0)
+                c.exemplars = [(float(e[0]), str(e[1])) for e in (m.get("exemplars") or []) if len(e) == 2][:3]
                 self.concepts[cid] = c
                 if c.label:
                     self._by_label[c.label] = cid

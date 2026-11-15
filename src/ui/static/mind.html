@@ -241,6 +241,7 @@ function select(i) {
   }
   const c = CS[i];
   s.append(el("h3", {}, c.name), el("div", {}, el("span", { class: "tag" }, c.origin), " ", c.system ? el("span", { class: "tag" }, "system reading") : null, " ", c.intent ? el("span", { class: "tag" }, "skill: " + c.intent) : null, c.frozen ? el("span", { class: "tag" }, "frozen") : null));
+  if (c.exemplars && c.exemplars.length) s.append(el("h2", { style: "margin-top:10px" }, "Most typical of it"), el("ul", { class: "l" }, c.exemplars.map((t) => el("li", {}, "“" + t + "”"))));
   if (c.seed) s.append(el("p", { class: "muted" }, "Born from: “" + c.seed + "”"));
   s.append(el("h2", { style: "margin-top:10px" }, "Facets"),
     bar("Busyness", Math.log10(c.act + 1) / 5.2, c.act.toLocaleString() + "×"), bar("Share of all", Math.min(1, c.share * 4), pct(c.share)),
