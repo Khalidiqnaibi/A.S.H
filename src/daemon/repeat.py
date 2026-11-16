@@ -63,12 +63,14 @@ class RepeatGuard:
             return text
         recent = self._recent(now)
         fresh, dropped = [], 0
+        seen_here: List[tuple] = []                  # one answer saying the same sentence three times (a small model stuck in a loop)
         for s in sents:
             w = _words(s)
-            if any(_same(w, r) for r in recent):
+            if any(_same(w, r) for r in recent) or any(_same(w, r) for r in seen_here):
                 dropped += 1
             else:
                 fresh.append(s)
+                seen_here.append(w)
         if not dropped:
             for s in sents:
                 self._said.append((now, _words(s)))

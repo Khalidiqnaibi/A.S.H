@@ -70,6 +70,27 @@ NOISE_PROB = 0.5          # chance the phrase is not speech at all...
 NOISE_LOGPROB = -0.6      # ...and it is not sure of the words either
 
 
+def is_loop(text: str) -> bool:
+    """Whisper stuck in a loop, on noise: the same few words said again and again ("I'm not sure if I'm going to work with Ash,
+    I'm not sure if I'm going to work with Ash, ..."). A person does not say one phrase three times running as a request, and
+    the lines were answered as if they were."""
+    w = re.findall(r"[a-z0-9']+", (text or "").lower())
+    if len(w) < 6:
+        return False
+    for n in range(2, len(w) // 3 + 1):
+        for i in range(0, len(w) - 3 * n + 1):
+            unit = w[i:i + n]
+            if w[i + n:i + 2 * n] == unit and w[i + 2 * n:i + 3 * n] == unit:
+                run = 3 * n
+                j = i + 3 * n
+                while w[j:j + n] == unit:
+                    run += n
+                    j += n
+                if run >= 0.6 * len(w):
+                    return True
+    return False
+
+
 def trusted_text(segs) -> str:
     """The text of whisper's phrases, leaving out the ones it is unsure of."""
     keep = []
@@ -88,8 +109,15 @@ def trusted_text(segs) -> str:
                 and (len(text.split()) >= 3 or lp < -0.9)):
             logger.info("Mic: dropped a phrase that is probably not speech (%.2f, %.2f): %r", ns, lp, text)
             continue
+        if is_loop(text):
+            logger.info("Mic: dropped a phrase that is whisper repeating itself: %r", text[:100])
+            continue
         keep.append(text)
-    return " ".join(keep).strip()
+    out = " ".join(keep).strip()
+    if is_loop(out):                                 # the loop can run across phrases
+        logger.info("Mic: dropped a transcript that is whisper repeating itself: %r", out[:100])
+        return ""
+    return out
 
 
 _MISHEARD = re.compile(r"^(\s*(?:hey|hi|ok|okay)?[\s,]*)(?:ass|asch|ashe)(?=[\s,]+\w)", re.I)
