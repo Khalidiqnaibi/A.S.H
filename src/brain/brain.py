@@ -261,6 +261,8 @@ class Brain:
                 for rank, c in enumerate(top):
                     wm[c] = max(wm.get(c, 0.0), 1.0 - 0.1 * rank)
                 self._topic = wm
+                from src.concepts.gist import entities_of
+                self.memory.router.concept_entities = entities_of(self.concepts.net, top)
             except Exception:
                 pass
             return act, self.concepts.net.latent(act, dim=self.concept_latent_dim)

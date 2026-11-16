@@ -125,6 +125,10 @@ class Concept:
     # to `seed_text`, which is only the first thing that happened to create it. Names a grown concept.
     exemplars: List[Tuple[float, str]] = field(default_factory=list)
 
+    # Entities (ids in entity memory) that keep turning up in the episodes this concept was active for -- compiled in sleep and
+    # naps (src/concepts/gist.py), so activating the concept brings them up. id -> how many episodes had it.
+    entities: Dict[str, int] = field(default_factory=dict)
+
     # Sliding-window activity (metaplasticity). `rate` is an exponential
     # average of how strongly this unit has fired recently, and `rate_cycle`
     # is the network cycle it was last brought up to date at, so decay can be
@@ -191,6 +195,7 @@ class Concept:
             "last_active": round(float(self.last_active or 0.0), 1),
             "activation_sum": round(self.activation_sum, 4),
             "exemplars": [[s, t] for s, t in self.exemplars],
+            "entities": dict(self.entities),
         }
 
 

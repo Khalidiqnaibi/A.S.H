@@ -680,6 +680,13 @@ class MemoryRouter:
                         candidates[eid] = ent
                         match_scores[eid] = max(match_scores.get(eid, 0.0), score)
 
+        # 3a) What the active concepts have learned about who/what is involved (compiled in sleep from their episodes).
+        for eid in (getattr(self, "concept_entities", None) or [])[:3]:
+            ent = entities_by_id.get(eid)
+            if eid not in candidates and ent is not None:
+                candidates[eid] = ent
+                match_scores[eid] = max(match_scores.get(eid, 0.0), 0.5)
+
         # 3) Cross-layer recall: entities tied to episodes we already deemed
         # relevant, so grounding surfaces even when the query doesn't name
         # the entity directly (e.g. "how's that going?").
