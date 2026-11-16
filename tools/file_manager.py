@@ -215,6 +215,21 @@ _DIR_BEFORE_RE = re.compile(r'\b([\w.\-]+)\s+(?:directory|folder|dir)\b', re.IGN
 _LEADING_COMMAND_RE = re.compile(r'^(search|find|look)\s+(for\s+)?', re.IGNORECASE)
 
 
+def _spaced_windows_path(tail: str) -> Optional[str]:
+    r"""A Windows path with spaces in it (C:\Users\pc\Desktop\kb\papers\Mortality of nurom\mortal ai paper.pdf), which the
+    token pattern cut at the first space (...\Mortality). The longest run of words that is a real path wins; failing that, up to the
+    last thing that ends like a file name."""
+    words = tail.split()
+    for k in range(len(words), 0, -1):
+        cand = " ".join(words[:k]).rstrip(",.;:!?\"'")
+        if " " in cand and os.path.exists(cand):
+            return cand
+    m = re.match(r"([A-Za-z]:[\\/][^\"'\n]*?\.[A-Za-z0-9]{1,6})(?=[\s,;:!?)]|$)", tail)
+    if m and " " in m.group(1):
+        return m.group(1)
+    return None
+
+
 def _extract_path(text: str) -> Optional[str]:
     if not text:
         return None
@@ -222,6 +237,10 @@ def _extract_path(text: str) -> Optional[str]:
     if m:
         return m.group(1) or m.group(2)
     m = _PATH_TOKEN_RE.search(text)
+    if m and re.match(r"[A-Za-z]:[\\/]", m.group(0)):
+        spaced = _spaced_windows_path(text[m.start():])
+        if spaced:
+            return spaced
     if m:
         # Trailing punctuation only: strip() on both ends turned "./tools/x.py"
         # into "/tools/x.py".
