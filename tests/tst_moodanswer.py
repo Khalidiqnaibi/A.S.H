@@ -27,7 +27,7 @@ def m1_rule():
               "Can you check my calendar for tomorrow?", "Tell me about Samsung Notes", "good morning"]:
         check(f"not an answer: {t!r}", f(t))
     for t in ["pretty tired honestly", "fine thanks", "not great", "I'm good", "bit stressed about the exam", "how about you?",
-              "how are you?", "tired, you?"]:
+              "how are you?", "tired, you?", "yeah"]:
         check(f"an answer (or turning it round): {t!r}", not f(t))
 
 
@@ -46,8 +46,23 @@ def m2_runtime():
     check("the answer is still taken afterwards", "rough" in h.said()[-1], str(h.said()))
 
 
+def m3_statement():
+    print("\n=== M3. A statement about something else is not a mood ===")
+    from src.daemon.freemoment import MoodCheck
+    fm = FreeMoments.__new__(FreeMoments)
+    fm.read = lambda t: 0.9                       # the sentiment model finds nearly everything 'positive'
+    fm.set_mood = lambda v, now: None
+    mc = MoodCheck(fm)
+    check("'My dad's name is Afif' is not an answer", mc.hear("My dad's name is Afif", 0.0) is None)
+    check("'I have an exam on Sunday at ten' is not", mc.hear("I have an exam on Sunday at ten", 0.0) is None)
+    check("'pretty tired honestly' is", mc.hear("pretty tired honestly", 0.0) is not None)
+    check("'fine thanks' is", mc.hear("fine thanks", 0.0) is not None)
+    check("'good' is", mc.hear("good", 0.0) is not None)
+
+
 if __name__ == "__main__":
     m1_rule()
     m2_runtime()
+    m3_statement()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

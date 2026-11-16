@@ -442,7 +442,18 @@ class MoodCheck(Activity):
             return None                 # already has a recent reading
         return Candidate(self.name, "How are you holding up today?", 0.4)
 
+    _FEELING = re.compile(
+        r"\b(?:good|great|fine|ok|okay|alright|all\s+right|well|bad|not\s+bad|so[- ]so|meh|tired|exhausted|sleepy|stressed|anxious|nervous|"
+        r"worried|happy|sad|down|low|rough|awful|terrible|horrible|wonderful|amazing|excellent|busy|swamped|overwhelmed|bored|excited|"
+        r"sick|ill|unwell|relaxed|calm|chill|drained|burnt\s+out|burned\s+out|hanging\s+in|holding\s+up|surviving|struggling|lousy|crap|shit)\b", re.I)
+
     def hear(self, text, now):
+        t = str(text or "")
+        words = t.split()
+        # An answer to "how are you holding up?" is short and says how they are. "My dad's name is Afif" was read as one (it is
+        # positive enough) and answered "Good. Hold onto that."
+        if len(words) > 10 or not (self._FEELING.search(t) or len(words) <= 2):
+            return None
         m = self.moments.read(text)
         if m is None:
             return None                 # not an answer; handle it as any utterance
