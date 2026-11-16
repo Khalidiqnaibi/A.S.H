@@ -27,6 +27,7 @@ dropped; only a number and a time are kept, in memory, never written out.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -245,12 +246,28 @@ class FreeMoments:
             except Exception:
                 logger.exception("free-moment activity %s failed on spoken", name)
 
+    _NOT_AN_ANSWER = re.compile(
+        r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:hello|hi|hey|yo|good\s+(?:morning|evening|afternoon))\b|(?:who|what|what's|whats|when|where|why|how|which|"
+        r"can|could|will|would|do|does|did|is|are|am|tell|show|read|open|remind|set|find|search|create|make|play|stop|start)\b)", re.I)
+
+    @classmethod
+    def is_not_an_answer(cls, text: str) -> bool:
+        """A greeting, a question, or an instruction is something said TO ASH, not how the user feels: "Who is Linda" was taken
+        as an answer to "how are you holding up?" and answered "Ah, that sounds rough". "how are you?" / "how about you" are the
+        exception: they are the user turning the question round, and are left to the activity."""
+        t = str(text or "").strip()
+        if re.match(r"^\s*(?:and\s+)?how\s+(?:about\s+you|are\s+you|'?s\s+it\s+going|'?re\s+you)\b", t, re.I):
+            return False
+        return bool(cls._NOT_AN_ANSWER.match(t)) or (t.endswith("?") and len(t.split()) >= 4)
+
     def hear(self, text: str, now: Optional[float] = None) -> Optional[str]:
         """An utterance right after a free-moment remark. Returns a reply line
         if the activity took it as an answer; None leaves it to others."""
         now = self.clock() if now is None else now
         if self._awaiting is None:
             return None
+        if self.is_not_an_answer(text):
+            return None                                       # said to ASH, not an answer: the remark stays open, the line goes on
         name, t = self._awaiting
         if now - t > self.cfg.answer_window_s:
             self._awaiting = None
