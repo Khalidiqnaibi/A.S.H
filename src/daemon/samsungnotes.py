@@ -109,6 +109,18 @@ class NotesDB:
             r = self._rows("select DisplayName from CategoryDB where UUID=?", (category_uuid,))
         return (r[0][0] if r and r[0][0] else "")
 
+    def in_folder(self, folder: str, limit: int = 12) -> List[Dict[str, Any]]:
+        """Notes in the folder whose name holds `folder` (any folder, newest first)."""
+        q = f"%{(folder or '').strip()}%"
+        cats = self._rows("select UUID from CategoryTreeDB where DisplayName like ?", (q,)) \
+            or self._rows("select UUID from CategoryDB where DisplayName like ?", (q,))
+        out: List[Dict[str, Any]] = []
+        for (cu,) in cats:
+            rows = self._rows("select UUID, Title, CategoryUUID, LastModifiedAt, CreatedAt from NoteDB "
+                              "where DeletedStatus=0 and CategoryUUID=? order by LastModifiedAt desc limit ?", (cu, limit))
+            out += [self._note(r) for r in rows]
+        return out[:limit]
+
     def find_title(self, query: str, limit: int = 8) -> List[Dict[str, Any]]:
         q = f"%{(query or '').strip()}%"
         rows = self._rows("select UUID, Title, CategoryUUID, LastModifiedAt, CreatedAt from NoteDB "
@@ -405,6 +417,18 @@ _LIST = re.compile(_LEAD + r"(?:list|what|which|show)\s+(?:me\s+)?(?:my\s+)?(?:r
                    r"(?:\s+(?:do\s+i\s+have|are\s+there))?\s*\??\s*[.!?]*\s*$", re.I)
 
 
+_FOLDER = re.compile(_LEAD + r"(?:what|which|list|show|tell\s+me)\s+(?:me\s+)?(?:the\s+)?(?:my\s+)?(?:notes?\s+)?(?:do\s+i\s+have\s+|are\s+there\s+)?"
+                     r"(?:notes?\s+)?(?:in|inside|under|from)\s+(?:the\s+|my\s+)?(?P<f>[\w .'\-]{1,40}?)\s+folder(?:\s+(?:in|on|of)\s+(?:my\s+)?" + _SN +
+                     r")?\s*\??\s*[.!?]*\s*$|" + _LEAD + r"(?:what|which|list|show)\s+(?:me\s+)?(?:the\s+)?(?:my\s+)?notes?\s+(?:do\s+i\s+have\s+)?"
+                     r"(?:in|inside|under)\s+(?:the\s+|my\s+)?(?P<f2>[\w .'\-]{1,40}?)\s+(?:folder\s+)?(?:in|on|of)\s+(?:my\s+)?" + _SN +
+                     r"\s*\??\s*[.!?]*\s*$", re.I)
+_CAN = re.compile(_LEAD + r"(?:what\s+(?:can|do)\s+you\s+(?:do|know)\s+(?:with|about|in)|what\s+are\s+you\s+able\s+to\s+do\s+(?:with|in)|can\s+you\s+(?:use|work\s+with|write\s+(?:in|to|into)|read|access)|do\s+you\s+(?:have|support|work\s+with)|are\s+you\s+(?:able\s+to\s+use|connected\s+to))"
+                  r"\s+(?:my\s+)?" + _SN + r"\s*\?\s*$", re.I)
+CAPABILITY = ("With Samsung Notes I can read your notes (the last one, one by title, a search, the list, or what's in a folder) from the "
+              "app's own database, and write: a new note, or text added to the end of a plain text note. Writing takes over the mouse "
+              "for a few seconds and I read it back and wait for a yes first.")
+
+
 def _clean(s: Optional[str]) -> str:
     return re.sub(r"\s+", " ", (s or "").strip(" \t\"'“”.,;:")).strip()
 
@@ -483,6 +507,9 @@ class SamsungNotes:
         if not self.mentions(t) and not _START.match(t):
             return None
 
+        if _CAN.match(t):
+            return CAPABILITY + ("" if self.write else " (Writing is switched off right now.)")
+
         m = _START.match(t) or _START2.match(t)
         if m:
             self.dictating = {"title": _clean(m.groupdict().get("title")), "parts": [], "last": now}
@@ -511,6 +538,9 @@ class SamsungNotes:
                 return "Go ahead -- I'll take it down. Say \"that's the note\" when you're done."
             return self._ask({"kind": "new", "title": _clean(m.group("title")), "body": body}, now)
 
+        m = _FOLDER.match(t)
+        if m:
+            return self._folder(_clean(m.group("f") or m.group("f2")))
         if _READ_LAST.match(t):
             return self._read_last()
         m = _FIND.match(t)
@@ -561,6 +591,18 @@ class SamsungNotes:
         text = self.db.text_of(n["uuid"])
         clean = re.sub(r"_[0-9a-f]{20,}$", "", n["title"])
         return (f"\"{clean}\": {self._speak_text(text)}" if text else f"\"{clean}\" has no text I can read -- it may be handwriting or a PDF.")
+
+    def _folder(self, name: str) -> str:
+        if (m := self._need_db()):
+            return m
+        self.stats["read"] += 1
+        found = self.db.in_folder(name)
+        if not found:
+            return f"I can't find any notes in a Samsung Notes folder called {name}."
+        folder = found[0].get("folder") or name
+        titles = _say_list([f["title"] for f in found[:8]])
+        more = "" if len(found) <= 8 else f" and {len(found) - 8} more"
+        return f"In {folder} you have {len(found)} note{'s' if len(found) != 1 else ''}: {titles}{more}."
 
     def _find(self, q: str) -> str:
         if (m := self._need_db()):
