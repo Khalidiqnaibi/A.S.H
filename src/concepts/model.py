@@ -129,6 +129,18 @@ class Concept:
     # naps (src/concepts/gist.py), so activating the concept brings them up. id -> how many episodes had it.
     entities: Dict[str, int] = field(default_factory=dict)
 
+    # How the user has felt when this was what they were talking about: a running average of their sentiment, -1 (bad) .. +1
+    # (good), and how many readings it rests on. A topic that keeps coming up with a bad mood is a sore one.
+    valence: float = 0.0
+    valence_n: int = 0
+
+    def feel(self, reading: float, weight: float = 1.0):
+        """Fold in one sentiment reading (-1..1). The first few count more, then it settles into a slow average."""
+        r = max(-1.0, min(1.0, float(reading)))
+        self.valence_n += 1
+        rate = max(0.08, 1.0 / (self.valence_n + 1)) * max(0.0, min(1.0, float(weight)))
+        self.valence += rate * (r - self.valence)
+
     # Sliding-window activity (metaplasticity). `rate` is an exponential
     # average of how strongly this unit has fired recently, and `rate_cycle`
     # is the network cycle it was last brought up to date at, so decay can be
@@ -196,6 +208,8 @@ class Concept:
             "activation_sum": round(self.activation_sum, 4),
             "exemplars": [[s, t] for s, t in self.exemplars],
             "entities": dict(self.entities),
+            "valence": round(self.valence, 4),
+            "valence_n": self.valence_n,
         }
 
 

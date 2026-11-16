@@ -324,6 +324,7 @@ class Brain:
         timings["conceive"] = (time.perf_counter() - t0) * 1000.0
         if activation is not None:
             trace.concepts = self.concepts.net.explain(activation)
+            self._feel(activation, sentiment)
 
         # --- 4. Predict ------------------------------------------------
         t0 = time.perf_counter()
@@ -936,6 +937,36 @@ class Brain:
     # ==================================================================
     # Helpers
     # ==================================================================
+    _SENTIMENT_VALUE = {"positive": 1.0, "negative": -1.0, "neutral": 0.0}
+
+    def _feel(self, activation, sentiment: Dict[str, Any]):
+        """The user's mood as they said this goes to the concepts it lit (the three strongest): their valence."""
+        try:
+            v = self._SENTIMENT_VALUE.get(str((sentiment or {}).get("sentiment", "")).lower())
+            if v is None:
+                return
+            conf = float((sentiment or {}).get("confidence", 0.0) or 0.0)
+            for cid, _a in activation.top(3):
+                c = self.concepts.net.concepts.get(cid)
+                if c is not None and not c.frozen:
+                    c.feel(v, weight=conf)
+        except Exception:
+            logger.debug("valence not updated", exc_info=True)
+
+    def topic_valence(self) -> float:
+        """How the user has felt about what they are talking about now: the mean valence of the concepts the conversation holds
+        (src: `_topic`), weighted by how present each is. 0 when there is no history to go on."""
+        try:
+            tot = wsum = 0.0
+            for cid, w in (getattr(self, "_topic", None) or {}).items():
+                c = self.concepts.net.concepts.get(cid)
+                if c is not None and c.valence_n >= 3:
+                    tot += w * c.valence
+                    wsum += w
+            return round(tot / wsum, 3) if wsum else 0.0
+        except Exception:
+            return 0.0
+
     def _sentiment(self, query: str) -> Dict[str, Any]:
         """The sentiment model's reading of what the user just said. The last
         one is kept (with when) so the daemon can follow the user's mood from
