@@ -35,6 +35,8 @@ import sys
 import time
 from typing import Any, Dict, List, Tuple
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 HEADINGS = {
     "contents", "summary", "contact", "phone", "email", "location", "education", "experience", "projects", "skills",
     "technical skills", "background", "profile", "objective", "references", "languages", "certifications",
