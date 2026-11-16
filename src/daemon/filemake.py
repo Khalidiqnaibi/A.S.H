@@ -42,6 +42,18 @@ def parse(text: str) -> Optional[dict]:
     return {"place": place, "name": name or "new file", "ext": ext}
 
 
+_WHERE = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:and|so|but)\s+)?where\s+(?:did\s+you\s+(?:put|create|make|save)|is|was|'?s)\s+(?:the\s+|that\s+|my\s+)?(?:new\s+)?(?:file|it)"
+                    r"(?:\s+you\s+(?:just\s+)?(?:created|made|put))?\b", re.I)
+last = {"path": "", "at": 0.0}
+
+
+def where(text: str, now: float) -> Optional[str]:
+    """"Where did you create the file?" -- answered from what was really made (the model said "in the current active window")."""
+    if not _WHERE.match(text or "") or not last["path"] or now - last["at"] > 3600:
+        return None
+    return f"It's at {last['path']}."
+
+
 def _home() -> str:
     return os.path.expanduser("~")
 
@@ -61,4 +73,6 @@ def make(spec: dict, write: Optional[Callable] = None) -> str:
     res = write(path, "", False) or {}
     if not res.get("ok") or not os.path.exists(path):
         return f"I couldn't create it: {res.get('error') or 'the file is not there afterwards'}."
+    import time as _t
+    last["path"], last["at"] = path, _t.time()
     return f"Done -- {os.path.basename(path)} is in your {where} folder, empty."

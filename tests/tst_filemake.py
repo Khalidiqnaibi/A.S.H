@@ -49,6 +49,11 @@ def f2_make():
         check("an extension is added", os.path.isfile(os.path.join(home, "Desktop", "b.txt")), say)
         say = filemake.make(filemake.parse("create a file in my documents"))
         check("a folder that does not exist falls back to the home folder", os.path.isfile(os.path.join(home, "new file.txt")), say)
+        filemake.make(filemake.parse("create a text file called where1"))
+        w = filemake.where("Where did you create the file? I don't see it.", __import__("time").time())
+        check("where it was made is answered from what was made", w and w.endswith("where1.txt.") and "Desktop" in w, str(w))
+        check("another question is not it", filemake.where("where is my phone", __import__("time").time()) is None)
+        check("an hour later it is not remembered", filemake.where("where did you create the file", __import__("time").time() + 7200) is None)
         say = filemake.make(filemake.parse("create a file called c.txt"), write=lambda p, c, o: {"ok": False, "error": "disk full"})
         check("a failure is told, not claimed", "couldn't create" in say and "disk full" in say, say)
     finally:

@@ -2133,6 +2133,11 @@ class AmbientRuntime:
         """"Create a new empty desktop text file called notes.txt": made with the file tool and checked, never claimed."""
         if not self._user_source(ev) or self._is_guest(ev) or not self._meant_for_ash(ev):
             return False
+        said = filemake.where(str(getattr(ev, "text", "") or ""), time.time())
+        if said:
+            self._wonder_say(ev, type("R", (), {"say": said, "outcome": "desktop"})())
+            self._last_why = {"kind": "file_where"}
+            return True
         spec = filemake.parse(str(getattr(ev, "text", "") or ""))
         if spec is None:
             return False
