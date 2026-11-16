@@ -3551,6 +3551,8 @@ class AmbientRuntime:
             return True
         if not loose and self._fun_request(ev, now):
             return True
+        if self._samsung_request(ev, now):
+            return True
         if self._notes_request(ev, now):
             return True
         if self._playing_request(ev, now):
@@ -3596,8 +3598,6 @@ class AmbientRuntime:
         if self._ritual_request(ev, now):
             return True
         if self._smarthome_request(ev, now):
-            return True
-        if self._samsung_request(ev, now):
             return True
         if self._timetable_request(ev, now):
             return True

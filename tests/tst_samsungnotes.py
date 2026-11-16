@@ -301,6 +301,12 @@ def s6_runtime():
                           salience=0.9, urgency=0.6))
     rt._tick()
     check("speech from the room (not meant for ASH) does not start a write", not sn.pending)
+    rt2 = te.rig(notes=True, notes_path=os.path.join(tempfile.mkdtemp(), "notes.json"))
+    rt2.samsung = rig()
+    rt2.say("remember that Samsung Notes is my favorite note taking app and I keep my lectures on it", source="console")
+    rt2.say("What can you do with Samsung Notes?", source="console")
+    check("a remembered remark about Samsung Notes does not answer 'what can you do with it' (the notes rule used to come first)",
+          "read your notes" in rt2.out[-1] and "You told me" not in rt2.out[-1], rt2.out[-1])
     ids = {e[0]: e[2] for e in manual.ENTRIES}
     check("the manual in core memory has it", "samsung" in ids and "new Samsung note" in ids["samsung"] and "Never into a PDF" in ids["samsung"], str(list(ids)))
     check("...and fits", len(ids["samsung"]) < 760, str(len(ids.get("samsung", ""))))
