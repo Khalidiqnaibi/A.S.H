@@ -1920,8 +1920,10 @@ class Wonderer:
             if changed:
                 self._touch()
 
-    def can_ask(self, env: Environment, now: Optional[float] = None) -> Tuple[bool, str]:
-        """The rules about WHEN, as one inspectable verdict."""
+    def can_ask(self, env: Environment, now: Optional[float] = None, invited: bool = False) -> Tuple[bool, str]:
+        """The rules about WHEN, as one inspectable verdict. `invited`: the user asked what there is for a free moment -- the
+        waiting rules (a conversation open, busy, caps, the gap) are set aside; off, told to stop, muted, privacy, quiet hours, a
+        plan and speaking still hold."""
         now = self.clock() if now is None else now
         c = self.cfg
         if not c.enabled or self.off:
@@ -1938,6 +1940,8 @@ class Wonderer:
             return False, "following a plan"
         if env.speaking:
             return False, "already speaking"
+        if invited:
+            return (False, "still waiting for an answer") if self.awaiting(now) is not None else (True, "invited")
         if env.conversation_open:
             return False, "mid-conversation"
         if env.idle_s is None:
@@ -1958,11 +1962,11 @@ class Wonderer:
             return False, "asked too recently"
         return True, "ok"
 
-    def eligible(self, now: Optional[float] = None) -> List[Wonder]:
+    def eligible(self, now: Optional[float] = None, invited: bool = False) -> List[Wonder]:
         now = self.clock() if now is None else now
         out = []
         for w in self.wonders.values():
-            if w.status != "pending" or now < w.not_before:
+            if w.status != "pending" or (now < w.not_before and not invited):      # invited: the wait is for the user's sake, and they asked
                 continue
             if self._subject_muted(w.subjects):
                 continue
@@ -1975,7 +1979,7 @@ class Wonderer:
             out.append(w)
         return out
 
-    def next_question(self, env: Environment, now: Optional[float] = None) -> Optional[Wonder]:
+    def next_question(self, env: Environment, now: Optional[float] = None, invited: bool = False) -> Optional[Wonder]:
         """The wonder to ask now, or None. Does not mark it asked.
 
         Urgent ones may be asked at any ordinary pause; the rest are kept
@@ -1985,15 +1989,15 @@ class Wonderer:
         now = self.clock() if now is None else now
         with self._lock:
             self.housekeeping(now)
-            ok, _why = self.can_ask(env, now)
+            ok, _why = self.can_ask(env, now, invited)
             if not ok:
                 return None
-            cands = self.eligible(now)
+            cands = self.eligible(now, invited)
             if not cands:
                 return None
             scored = []
             for w in cands:
-                if w.urgency < self.cfg.urgent_at and not env.free_moment:
+                if w.urgency < self.cfg.urgent_at and not env.free_moment and not invited:
                     continue                     # saved for a free moment
                 f = self.fit(w, env)
                 if f > 0:

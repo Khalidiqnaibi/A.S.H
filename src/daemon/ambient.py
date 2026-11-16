@@ -1441,7 +1441,7 @@ class AmbientRuntime:
         return ("I ran into some internal errors recently. Nothing you need to do, "
                 "but the logs have the details.", 0.5)
 
-    def _moment_step(self, now: float, idle_s: Optional[float]) -> bool:
+    def _moment_step(self, now: float, idle_s: Optional[float], invited: bool = False) -> bool:
         """In a free moment, pick the best thing to do with it and offer it.
         True if something was submitted."""
         m = self.moments
@@ -1449,19 +1449,19 @@ class AmbientRuntime:
             return False
         try:
             env = self._wonder_env(now, idle_s)
-            c = m.pick(env, now)
+            c = m.pick(env, now, invited=invited)
             if c is None:
                 return False
             q = c.data.get("wonder")
             if q is not None:
                 self._wonder_inflight = q.id
                 self.stats["wonders_asked"] += 1
-                meta = {"offer": "wonder", "offer_strength": round(0.7 + 0.15 * q.urgency, 3),
+                meta = {"offer": "wonder", "offer_strength": round(0.7 + 0.15 * q.urgency, 3), "invited": invited,
                         "say": c.text, "wonder_id": q.id, "topic": q.kind,
                         "accept_context": f"You had just asked the user: {c.text}"}
             else:
                 self._moment_inflight = c.activity
-                meta = {"offer": "moment", "offer_strength": round(0.5 + 0.2 * c.score, 3),
+                meta = {"offer": "moment", "offer_strength": round(0.5 + 0.2 * c.score, 3), "invited": invited,
                         "say": c.text, "moment": c.activity, "topic": c.activity,
                         "accept_context": f"You had just said: {c.text}"}
             self.submit(SensorEvent(source="flow", modality=Modality.TEXT, text=c.text,
@@ -2088,6 +2088,44 @@ class AmbientRuntime:
         if not say:
             return False
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
+    _FREE_Q = re.compile(
+        r"\b(?:free\s+(?:moment|time|minute)|spare\s+(?:moment|time|minute)|got\s+a\s+(?:minute|moment)|i'?m\s+free(?:\s+now)?|"
+        r"i\s+am\s+free(?:\s+now)?|nothing\s+to\s+do)\b", re.I)
+    _FREE_ASK = re.compile(
+        r"\b(?:what|anything|something|any\s+questions?|got\s+any|do\s+you\s+have|have\s+you\s+got|in\s+store|for\s+me|ask\s+me|"
+        r"tell\s+me|say)\b", re.I)
+
+    def _free_moment_request(self, ev, now: float) -> bool:
+        """"What do you have in store for me for a free moment? This is a free moment." / "I'm free, ask me something": the user
+        has opened the moment themselves, so what ASH has been saving for one (a question, a remark, a briefing) is offered now --
+        the waiting rules do not apply. If there is nothing, it says so, and what is held back."""
+        if not self._user_source(ev) or not self._meant_for_ash(ev):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        if not self._FREE_Q.search(text) or not self._FREE_ASK.search(text) or len(text.split()) > 30:
+            return False
+        if self._moment_inflight is not None or self._wonder_inflight is not None:
+            return False                                   # one is already on its way
+        self._free_until = now + (self.wonder.cfg.free_moment_s if self.wonder else 180.0)
+        idle = self._idle_seconds()
+        idle_s = 30.0 if idle is None else max(idle, 30.0)
+        if self._moment_step(now, idle_s, invited=True) or self._wonder_step(now, idle_s, invited=True):
+            self._last_why = {"kind": "free_moment_invited"}
+            return True
+        held = []
+        try:
+            held = self.wonder.pending() if self.wonder is not None else []
+        except Exception:
+            logger.debug("could not list the held questions", exc_info=True)
+        if held:
+            say = (f"Nothing I can bring up right now -- {len(held)} question{'s' if len(held) != 1 else ''} saved up, but "
+                   f"I'm not allowed to ask them yet (muted, quiet hours, or told to stop).")
+        else:
+            say = "Nothing saved up for a free moment: no open questions, and nothing I want to bring up. Ask me something instead."
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
+        self._last_why = {"kind": "free_moment_none"}
         return True
 
     def _dispute_request(self, ev, now: float) -> bool:
@@ -3073,14 +3111,14 @@ class AmbientRuntime:
             activity=(f"{getattr(flow, 'subject', '')} {getattr(flow, 'process', '')}".strip()
                       if flow is not None else ""))
 
-    def _wonder_step(self, now: float, idle_s: Optional[float]) -> bool:
+    def _wonder_step(self, now: float, idle_s: Optional[float], invited: bool = False) -> bool:
         """Submit the next question as an offer, if the moment allows. True if
         one was submitted."""
         w = self.wonder
         if w is None or self._wonder_inflight is not None:
             return False
         try:
-            q = w.next_question(self._wonder_env(now, idle_s), now)
+            q = w.next_question(self._wonder_env(now, idle_s), now, invited=invited)
             if q is None:
                 return False
             text = w.render(q, now)
@@ -3089,7 +3127,7 @@ class AmbientRuntime:
             self.submit(SensorEvent(
                 source="flow", modality=Modality.TEXT, text=text, salience=0.6, ts=now,
                 persistable=False,
-                meta={"offer": "wonder", "offer_strength": round(0.7 + 0.15 * q.urgency, 3),
+                meta={"offer": "wonder", "offer_strength": round(0.7 + 0.15 * q.urgency, 3), "invited": invited,
                       "say": text, "wonder_id": q.id, "topic": q.kind,
                       "accept_context": f"You had just asked the user: {text}"}))
             return True
@@ -3559,6 +3597,8 @@ class AmbientRuntime:
         if not loose and self._facts_request(ev, now):
             return True
         if not loose and self._dispute_request(ev, now):
+            return True
+        if not loose and self._free_moment_request(ev, now):
             return True
         if not loose and self._honest_request(ev, now):
             return True

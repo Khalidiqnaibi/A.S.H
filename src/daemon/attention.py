@@ -171,7 +171,8 @@ class AttentionGate:
         # answering a question is not volunteering. Arming it on an addressed
         # turn meant that asking ASH something would then suppress a genuine
         # alert for the next three minutes -- the exact opposite of useful.
-        if getattr(event, "addressed", False):
+        if getattr(event, "addressed", False) or (getattr(event, "meta", None) or {}).get("invited"):
+            # (An offer the user asked for -- "what do you have for a free moment?" -- is as good as addressed.)
             self.counts[Disposition.RESPOND.value] += 1
             return AttentionDecision(
                 disposition=Disposition.RESPOND, score=1.0, threshold=0.0,

@@ -155,32 +155,36 @@ class FreeMoments:
         return v if now - t <= self.cfg.mood_ttl_s else None
 
     # -- choosing -------------------------------------------------------
-    def _blocked(self, env: Environment) -> str:
+    def _blocked(self, env: Environment, invited: bool = False) -> str:
         if env.muted:
             return "muted"
         if env.quiet_hours:
             return "quiet hours"
         if env.paused:
             return "privacy pause"
-        if env.conversation_open:
+        if env.conversation_open and not invited:
             return "in conversation"
         if env.plan_active:
             return "plan active"
         if env.speaking:
             return "speaking"
-        if env.idle_s is None:
+        if env.idle_s is None and not invited:
             return "idle unknown"
-        if not env.free_moment:
+        if not env.free_moment and not invited:
             return "not a free moment"
         return ""
 
-    def can_speak(self, env: Environment, now: Optional[float] = None) -> Tuple[bool, str]:
+    def can_speak(self, env: Environment, now: Optional[float] = None, invited: bool = False) -> Tuple[bool, str]:
+        """`invited`: the user said it is a free moment and asked what there is -- the waiting rules (gap, hourly budget,
+        an unanswered remark, a conversation being open) do not apply; muted, quiet hours, a pause and a plan still do."""
         now = self.clock() if now is None else now
         if not self.cfg.enabled:
             return False, "off"
-        why = self._blocked(env)
+        why = self._blocked(env, invited)
         if why:
             return False, why
+        if invited:
+            return True, ""
         if self._spoken and now - self._spoken[-1] < self.cfg.min_gap_s:
             return False, "too soon after the last"
         if sum(1 for t in self._spoken if now - t <= 3600) >= self.cfg.max_per_hour:
@@ -200,9 +204,9 @@ class FreeMoments:
                 break
         return f
 
-    def pick(self, env: Environment, now: Optional[float] = None) -> Optional[Candidate]:
+    def pick(self, env: Environment, now: Optional[float] = None, invited: bool = False) -> Optional[Candidate]:
         now = self.clock() if now is None else now
-        ok, _ = self.can_speak(env, now)
+        ok, _ = self.can_speak(env, now, invited)
         if not ok:
             return None
         if env.mood is None:
