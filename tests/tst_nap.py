@@ -54,7 +54,7 @@ def s1_cycle():
     sc._rem = lambda: stages.append("r") or {}
     rep = sc.run(hours_since_last=0.2, light=True)
     check("a nap is one cycle", stages == ["n", "r"], str(stages))
-    check("no downscale, prune, scale or merge", not any(c in calls for c in ("downscale", "prune", "scale", "merge")), str(calls))
+    check("no downscale, prune or scale; near-duplicates are merged", "merge" in calls and not any(c in calls for c in ("downscale", "prune", "scale")), str(calls))
     check("the traces fade by the real time", ("decay", 0.2) in calls, str(calls))
     stages.clear(); calls.clear()
     sc.run(hours_since_last=8.0)

@@ -92,8 +92,8 @@ class SleepCycle:
         """One night. Returns a report of what changed.
 
         `light` is a nap: one cycle of replay, which only strengthens what the day connected, and the real time's worth of fading
-        of the fast traces. No downscaling, pruning or merging -- those are for a night, and doing them every quiet spell wore the
-        connections away."""
+        of the fast traces. No downscaling or pruning -- those are for a night, and doing them every quiet spell wore the connections
+        away. Concepts that have drifted together (50 near-copies of one nudge) are merged, which loses nothing."""
         t0 = time.perf_counter()
         self.nights += 1
         report: Dict[str, Any] = {"night": self.nights, "stages": []}
@@ -130,6 +130,7 @@ class SleepCycle:
             report["merged"] = self.plasticity._merge_converged()
         else:
             report["light"] = True
+            report["merged"] = self.plasticity._merge_converged()      # near-duplicates fold together: the one change a nap may make
         report["faded_traces"] = self.hpc.decay(hours=hours_since_last)
 
         if evaluator is not None and snapshot is not None:
