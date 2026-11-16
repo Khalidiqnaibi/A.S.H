@@ -1377,6 +1377,14 @@ class Wonderer:
                 return self._defer(aw, now)
             return Reply()
 
+        # An answer with an instruction on the end -- "Afif, stop asking", "my dad is Afif, you already know that": the answer is kept
+        # first, then the instruction is honoured. It used to be only the instruction, and the name was lost.
+        if aw is not None and text and len(text.split()) <= 20 and (_STOP_ABOUT.search(text) or _STOP_ALL.search(text)
+                                                                    or _ALREADY_TOLD.search(text)):
+            rep = self._answer_among(aw, text, now)
+            if rep is not None:
+                return rep
+
         # "start asking again"
         if _RESUME.search(text) and (self.off or self.paused_until > now):
             self.set_enabled(True)
@@ -1420,6 +1428,25 @@ class Wonderer:
         if rep.consumed and not rep.outcome.startswith("batch") and aw is not None:
             rep = self._batch_next(rep, now)
         return rep
+
+    def _answer_among(self, w: Wonder, text: str, now: float) -> Optional[Reply]:
+        """The answer inside a reply that also says "stop asking" / "you already know that". None if there is none."""
+        for clause in re.split(r"[,.;!?]+|\s+-\s+", text):
+            c = clause.strip()
+            if not c or _STOP_ALL.search(c) or _STOP_ABOUT.search(c) or _ALREADY_TOLD.search(c) or _NON_ANSWER_START.match(c) \
+                    or _DONT_KNOW.search(c) or _NOT_NOW.search(c) or re.match(r"^(?:don'?t|do not|never|quit|enough)\b", c, re.I):
+                continue
+            value = self._parse_answer(w, c)
+            if value is None:
+                continue
+            rep = self._answered(w, value, now)
+            if rep.consumed and (_STOP_ABOUT.search(text) or _STOP_ALL.search(text) or re.search(r"\b(?:ask|asking)\b", text, re.I)):
+                for s in w.subjects:
+                    self.muted_subjects[s] = now
+                rep.say = (rep.say + " I won't ask about that again.").strip()
+                self._touch()
+            return rep
+        return None
 
     def _hear_answer(self, text: str, now: float, aw: Optional[Wonder]) -> Reply:
         w = aw
