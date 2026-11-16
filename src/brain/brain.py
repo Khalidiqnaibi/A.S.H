@@ -50,6 +50,7 @@ from typing import Any, Callable, Deque, Dict, List, Optional
 import numpy as np
 
 from src.concepts.telemetry import is_telemetry
+from .salience import remembered_importance
 from .executive import ExecutiveCore
 from .gist import build_gist, readable as _words
 from .homeostasis import HomeostaticModulator
@@ -683,7 +684,9 @@ class Brain:
             self.system1.reflex_store(query, text, tool_out)
 
         self.memory.commit_turn(query, text, self.user, self.name,
-                                importance=importance, pathway=Pathway.SLOW,
+                                importance=remembered_importance(importance, prediction.effective_surprise(),
+                                                                 getattr(bundle, "novelty", 0.0)),
+                                pathway=Pathway.SLOW,
                                 grounded=(tool_ok is True))
         self.predictive.commit(latent if latent is not None else bundle.fused_embedding,
                                intent)
