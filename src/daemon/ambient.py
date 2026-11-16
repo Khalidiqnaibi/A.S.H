@@ -81,6 +81,7 @@ from .remarks import RemarkLog
 from .speech import SpeechControl, wants_brief, wants_cancel, wants_short, wants_stop
 from .tasks import Tasks
 from . import honest, voicectl
+from . import filemake
 from . import quiet as quiet_mod
 from .scenes import Scenes
 from .arrival import Arrivals
@@ -2128,6 +2129,22 @@ class AmbientRuntime:
         self._last_why = {"kind": "free_moment_none"}
         return True
 
+    def _filemake_request(self, ev, now: float) -> bool:
+        """"Create a new empty desktop text file called notes.txt": made with the file tool and checked, never claimed."""
+        if not self._user_source(ev) or self._is_guest(ev) or not self._meant_for_ash(ev):
+            return False
+        spec = filemake.parse(str(getattr(ev, "text", "") or ""))
+        if spec is None:
+            return False
+        try:
+            say = filemake.make(spec)
+        except Exception:
+            logger.exception("Creating a file failed")
+            say = "I couldn't create that file."
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "file_created"}
+        return True
+
     def _dispute_request(self, ev, now: float) -> bool:
         """"That's wrong", "what you just said is wrong", "you're making stuff up", said soon after an answer: by rule, never
         to the model -- asked to explain itself it invents a justification ("I meant version 10.1.2"). It says it cannot back the
@@ -3603,6 +3620,8 @@ class AmbientRuntime:
         if not loose and self._dispute_request(ev, now):
             return True
         if not loose and self._free_moment_request(ev, now):
+            return True
+        if not loose and self._filemake_request(ev, now):
             return True
         if not loose and self._honest_request(ev, now):
             return True
