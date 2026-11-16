@@ -64,9 +64,21 @@ def c3_nothing_active():
     check("an old episode without concepts is fine", r._by_concepts("hi") == [])
 
 
+def c4_topic():
+    print("\n=== C4. What the last turns were about counts too ===")
+    eps = [ep("a", "x clinic", [7, 8, 1], 100), ep("b", "x only the past", [7, 8, 9], 90)]
+    r = router(eps, [1, 2])
+    r.context_concepts = [7, 8]
+    got = [e.episode_id for e in r._by_concepts("and his number?")]
+    check("a follow-up finds the episode the earlier turns point at (one concept now, two before)", got == ["a"], str(got))
+    r.active_concepts = [50, 51]
+    check("with nothing in common now, the past alone brings nothing", r._by_concepts("zzz") == [])
+
+
 if __name__ == "__main__":
     c1_overlap()
     c2_order_and_cap()
     c3_nothing_active()
+    c4_topic()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

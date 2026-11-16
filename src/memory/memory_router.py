@@ -288,20 +288,23 @@ class MemoryRouter:
         return result
 
     def _by_concepts(self, query: str, limit: int = 2) -> List[Any]:
-        """Episodes that share concepts with what is active now (set by the brain after it perceives the input): at least two in
-        common, the most in common first, the newest first among equals. Never the episode that is this very input."""
+        """Episodes that share concepts with what is active now (set by the brain after it perceives the input) and, less, with
+        what the last few turns were about (`context_concepts`): at least two in common, one of them from now, the most in common
+        first, the newest first among equals. Never the episode that is this very input."""
         active = [int(c) for c in (getattr(self, "active_concepts", None) or [])]
-        if len(active) < 2:
+        context = [int(c) for c in (getattr(self, "context_concepts", None) or [])]
+        if len(active) + len(context) < 2 or not active:
             return []
-        want = set(active)
+        want, ctx = set(active), set(context)
         q = re.sub(r"\s+", " ", (query or "").lower()).strip()[:60]
         store = getattr(getattr(self, "episodic", None), "store", None)
         eps = getattr(store, "episodes", None) or {}
         found = []
         for ep in list(eps.values())[-4000:]:
             cs = getattr(ep, "concepts", None) or []
-            both = len(want.intersection(cs))
-            if both < 2:
+            now_n, then_n = len(want.intersection(cs)), len(ctx.intersection(cs))
+            both = 2 * now_n + then_n                       # what is lit now counts double what the last turns lit
+            if both < 2 or now_n < 1 or now_n + then_n < 2:
                 continue
             if q and q in re.sub(r"\s+", " ", (getattr(ep, "summary", "") or "").lower()):
                 continue

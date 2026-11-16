@@ -252,7 +252,15 @@ class Brain:
                 novelty=bundle.novelty, surprise=surprise,
                 urgency=d.urgency, fatigue=d.fatigue, telemetry=telemetry)
             try:   # the episode this input becomes remembers which concepts it lit (the five strongest)
-                self.memory.router.active_concepts = [cid for cid, _a in act.top(5)]
+                top = [cid for cid, _a in act.top(5)]
+                self.memory.router.active_concepts = top
+                # What the conversation is about: the concepts of the last few turns, fading -- working memory, held as concepts.
+                # Recall follows it too, so a follow-up ("and his number?") finds what the earlier turns were about.
+                wm = {c: w * 0.55 for c, w in getattr(self, "_topic", {}).items() if w * 0.55 > 0.1}
+                self.memory.router.context_concepts = [c for c, _w in sorted(wm.items(), key=lambda t: -t[1])[:6] if c not in top]
+                for rank, c in enumerate(top):
+                    wm[c] = max(wm.get(c, 0.0), 1.0 - 0.1 * rank)
+                self._topic = wm
             except Exception:
                 pass
             return act, self.concepts.net.latent(act, dim=self.concept_latent_dim)
