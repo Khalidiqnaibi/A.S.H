@@ -399,6 +399,17 @@ class MemoryRouter:
         best_category = max(category_hits, key=lambda c: category_hits[c])
         best_hits = category_hits[best_category]
 
+        # "Remember that." / "my favorite number is 4242, remember that": the user asking to be remembered, not a rule for ASH.
+        # It became a HARD constraint -- put in every prompt for ever, "Remember that." included -- and the prompts filled with them.
+        # With nothing in it, nothing is kept; with a fact in it, it is kept but not forced into every prompt.
+        only_remember = has_strong_directive and not has_word_directive and not has_definition and not any(
+            p in low for p in _CORE_DIRECTIVE_PHRASES if p not in ("remember that", "remember this"))
+        if only_remember:
+            body = re.sub(r"\b(?:please|ok|okay|and|just|you|know|that|this|remember|to|ash|hey)\b|[^a-z0-9 ]", " ", low)
+            if len(body.split()) < 2:
+                return None
+            return (best_category if best_hits >= 1 else "standard"), False
+
         # A strong directive phrase is enough on its own -- fall back to
         # "constraint" if it doesn't happen to overlap a category keyword.
         if has_strong_directive:
