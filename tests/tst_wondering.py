@@ -1244,6 +1244,34 @@ def w15_answer_with_an_instruction():
     check("with no answer in it, it is only the instruction (as before)", r.say == "Okay, I won't ask about that again." and w.kb.role_name("father") is None)
 
 
+def w16_already_in_memory():
+    print("\n=== W16. The answer is looked for in memory before the question is asked ===")
+
+    def fresh(texts):
+        w = rig()
+        w.memory_scan = lambda: texts
+        w.observe("my dad's clinic is near Hebron")
+        return w
+    for texts in (["Hi there", "my dad is Afif and he is a doctor"], ["Afif is my father."], ["my father's name is Afif"]):
+        w = fresh(texts)
+        q = ask(w, **FREE)
+        check(f"{texts[-1]!r} said long ago: not asked, kept", q is None and w.kb.role_name("father") == "Afif" and w.pending() == [], str(q))
+    w = fresh(["my dad's clinic is in Hebron", "Omar is my brother"])
+    q = ask(w, **FREE)
+    check("nothing about the father in memory: it asks", q is not None and q.question == "What's your father's name?")
+    w = fresh([])
+    w.memory_scan = None
+    check("with no memory to look in, it asks as before", ask(w, **FREE) is not None)
+    w = fresh(["my dad is Khalid"])
+    w.cfg.ignore_names = tuple(w.cfg.ignore_names) + ("Khalid",)
+    check("the user's own name is never taken as someone else's", ask(w, **FREE) is not None and w.kb.role_name("father") is None)
+    w = fresh(["my dad is Afif"])
+    ask(w, **FREE)
+    n = w.stats["learned"]
+    w.reconcile()
+    check("looked for once per question, not on every tick", w.stats["learned"] == n)
+
+
 def w14_asr_noise():
     print("\n=== W14. What the recogniser does to an answer ===")
     w = rig()
@@ -1262,7 +1290,7 @@ def w14_asr_noise():
 
 if __name__ == "__main__":
     for fn in (w1_detectors, w2_statements, w3_queue, w4_when, w5_answers, w6_never_twice, w7_persistence,
-               w8_switches, w9_knowledge, w10_runtime, w11_control, w12_fuzz, w13_answered_any_way, w14_asr_noise, w15_answer_with_an_instruction):
+               w8_switches, w9_knowledge, w10_runtime, w11_control, w12_fuzz, w13_answered_any_way, w14_asr_noise, w15_answer_with_an_instruction, w16_already_in_memory):
         fn()
     print("\n" + ("ALL PASS" if OK else "FAILURES"))
     sys.exit(0 if OK else 1)

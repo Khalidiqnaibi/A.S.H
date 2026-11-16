@@ -977,6 +977,29 @@ class AmbientRuntime:
             words += [c["name"] for c in self.timetable.classes[:10]]
         return words + ["ASH", "port", "console"]
 
+    def _user_sentences(self) -> List[str]:
+        """What the user has said that ASH still holds: their lines in episodic memory, and core memory. For the question
+        "is the answer already in memory?" asked before a question is put to them."""
+        out: List[str] = []
+        user = str(getattr(self.brain, "user", "") or "").strip().lower()
+        epi = getattr(getattr(self.ash, "episodic_memory", None), "store", None)
+        eps = getattr(epi, "episodes", None) or {}
+        for ep in list(eps.values())[-3000:]:
+            s = str(getattr(ep, "summary", "") or "")
+            head, _, rest = s.partition(":")
+            if rest and (head.strip().lower() == user or head.strip().lower() in ("user", "you")):
+                out.append(rest.strip())
+        core = getattr(self.ash, "core_memory", None)
+        try:
+            dump = core.dump_all() if hasattr(core, "dump_all") else {}
+            for it in (dump.values() if isinstance(dump, dict) else (dump or [])):
+                d = it if isinstance(it, dict) else getattr(it, "__dict__", {})
+                if d.get("text"):
+                    out.append(str(d["text"]))
+        except Exception:
+            logger.debug("core memory not readable for the scan", exc_info=True)
+        return out
+
     def _hint_the_microphone(self):
         mic = getattr(self.periphery, "sensors", {}).get("microphone")
         if mic is not None and hasattr(mic, "hint_words"):
@@ -984,6 +1007,8 @@ class AmbientRuntime:
 
     def start(self):
         self._hint_the_microphone()
+        if self.wonder is not None:
+            self.wonder.memory_scan = self._user_sentences
         # Clear the stop flag *before* the already-alive check, not only in
         # the branch that spawns a new thread. If the previous ash-ambient
         # thread is still blocked inside a slow synchronous call (an

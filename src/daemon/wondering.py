@@ -846,6 +846,10 @@ class Wonderer:
         self.path = path
         self.clock = clock
         self.scrub = scrub or (lambda s: s)
+        # Everything the user ever said that ASH still holds (episodes, core memory), as sentences: before a question is asked, the
+        # answer is looked for there too -- the user may have forgotten that they said it. Handed in by the runtime.
+        self.memory_scan: Optional[Callable[[], Iterable[str]]] = None
+        self._scanned_for: set = set()
         self.fits: List[FitFn] = [mood_fit, activity_fit]
         # Before asking what a term means, look it up (see lookup.py): a
         # function of the wonder returning {"guess", "question", "source"} or
@@ -1821,6 +1825,41 @@ class Wonderer:
     # ==================================================================
     # asking
     # ==================================================================
+    def _from_memory(self, w: Wonder, now: float) -> bool:
+        """A role question ("what's your father's name?") whose answer is already in what the user said before, anywhere in memory:
+        kept, and the question closed -- never asked. Only the user's own statements ("my dad is Afif", "Afif is my father")."""
+        scan = self.memory_scan
+        role = (w.key or "")[5:]
+        if scan is None or not role or (w.key, role) in self._scanned_for:
+            return False
+        self._scanned_for.add((w.key, role))                 # once per question and run: memory is long
+        try:
+            texts = list(scan())
+        except Exception:
+            logger.exception("Scanning memory for an answer failed")
+            return False
+        found = ""
+        for text in texts:
+            for sent in _sentences(_as_text(text))[:12]:
+                for m in _RE_MY_ROLE_NAME.finditer(sent):
+                    name = m.group(2)
+                    if ROLE_CANON.get(m.group(1).lower(), m.group(1).lower()) == role and name.split()[0].lower() not in NOT_PERSON \
+                            and name.split()[0].lower() not in ROLE_CANON:
+                        found = name
+                for m in _RE_NAME_IS_MY_ROLE.finditer(sent):
+                    if ROLE_CANON.get(m.group(2).lower(), m.group(2).lower()) == role and m.group(1).split()[0].lower() not in NOT_PERSON:
+                        found = m.group(1)
+        if not found:
+            return False
+        name = _title(found)
+        if norm(name) in {norm(x) for x in self.cfg.ignore_names}:
+            return False
+        self.kb.store_relation(name, role=role)
+        self.stats["learned"] += 1
+        self._close(w, "answered", now)
+        logger.info("A question was not asked: %s was already in memory (%s)", name, role)
+        return True
+
     def reconcile(self, now: Optional[float] = None) -> int:
         """Close every open question whose answer is now in what ASH knows, however it got there: said to a question, said in
         passing, or told with "remember ..." (which writes to the store without ever passing through the question). Without
@@ -1845,6 +1884,9 @@ class Wonderer:
                         known = self.kb.term_known(k[5:])
                 except Exception:
                     known = False
+                if not known and k.startswith("role:") and self._from_memory(w, now):
+                    n += 1
+                    continue
                 if known:
                     self._close(w, "answered", now)
                     n += 1
