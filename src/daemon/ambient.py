@@ -985,12 +985,13 @@ class AmbientRuntime:
         "is the answer already in memory?" asked before a question is put to them."""
         out: List[str] = []
         user = str(getattr(self.brain, "user", "") or "").strip().lower()
+        names = {user} | {str(a).strip().lower() for a in (getattr(self.ash, "user_aliases", None) or ())}
         epi = getattr(getattr(self.ash, "episodic_memory", None), "store", None)
         eps = getattr(epi, "episodes", None) or {}
         for ep in list(eps.values())[-3000:]:
             s = str(getattr(ep, "summary", "") or "")
             head, _, rest = s.partition(":")
-            if rest and (head.strip().lower() == user or head.strip().lower() in ("user", "you")):
+            if rest and (head.strip().lower() in names or head.strip().lower() in ("user", "you")):
                 out.append(rest.strip())
         core = getattr(self.ash, "core_memory", None)
         try:

@@ -102,7 +102,10 @@ from src.concepts import ConceptSystem
 #~ Immortal ~#
 ##############
 
-USER = "Immortal"
+from src.daemon.identity import default_user as _default_user, NameMixin as _NameMixin  # noqa: E402
+
+
+USER = _default_user()
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL")
@@ -202,13 +205,14 @@ def _candidate_fn(query: str, top_k: int = 4) -> List[Dict[str, Any]]:
         return []
 
 
-class ASH:
+class ASH(_NameMixin):
     """Thin runtime wrapper around the brain. Owns memory engines, the LLM
     handle, and the legacy state dict; delegates all cognition."""
 
     def __init__(self, llm=None, llm_temperature: float = DEFAULT_LLM_TEMPERATURE, name: str = "A.S.H"):
         self.name = name
         self.user = USER
+        self.user_aliases: set = set()            # names the person used before: their old episodes are headed with them
         self.start_time = datetime.now()
         self.status = "online"
 
