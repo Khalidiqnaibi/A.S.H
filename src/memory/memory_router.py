@@ -287,6 +287,28 @@ class MemoryRouter:
         result["time"] = time.time() - start
         return result
 
+    def _by_concepts(self, query: str, limit: int = 2) -> List[Any]:
+        """Episodes that share concepts with what is active now (set by the brain after it perceives the input): at least two in
+        common, the most in common first, the newest first among equals. Never the episode that is this very input."""
+        active = [int(c) for c in (getattr(self, "active_concepts", None) or [])]
+        if len(active) < 2:
+            return []
+        want = set(active)
+        q = re.sub(r"\s+", " ", (query or "").lower()).strip()[:60]
+        store = getattr(getattr(self, "episodic", None), "store", None)
+        eps = getattr(store, "episodes", None) or {}
+        found = []
+        for ep in list(eps.values())[-4000:]:
+            cs = getattr(ep, "concepts", None) or []
+            both = len(want.intersection(cs))
+            if both < 2:
+                continue
+            if q and q in re.sub(r"\s+", " ", (getattr(ep, "summary", "") or "").lower()):
+                continue
+            found.append((both, getattr(ep, "timestamp", 0.0) or 0.0, ep))
+        found.sort(key=lambda t: (t[0], t[1]), reverse=True)
+        return [t[2] for t in found[:limit]]
+
     def _recurs(self, mention: str, text: str) -> bool:
         """Count this mention (once per different sentence) and say whether it has now been seen enough to keep."""
         if not hasattr(self, "_candidates"):                 # a router built without __init__ (a test double)
@@ -565,9 +587,19 @@ class MemoryRouter:
             logger.warning("Failed to retrieve episodic memory: %s", e)
             return "", []
 
+        # What the words did not find, the concepts can: episodes laid down while the same concepts were active ("my dad's clinic"
+        # lights father/clinic/Hebron; an old episode that lit them too comes back though it shares no words).
+        have = {getattr(e, "episode_id", None) for e in recent_episodes}
+        associated = [e for e in self._by_concepts(query) if getattr(e, "episode_id", None) not in have]
+        recent_episodes = list(recent_episodes) + associated
+        assoc_ids = {getattr(e, "episode_id", None) for e in associated}
+
         always_importance = self.config["episodic_always_include_importance"]
         scored = []
         for ep in recent_episodes:
+            if getattr(ep, "episode_id", None) in assoc_ids:
+                scored.append((False, min_relevance + 0.01, getattr(ep, "importance", 0.5) or 0.5, ep))   # earned by association, not words
+                continue
             summary = getattr(ep, "summary", "") or ""
             score = self._score_item(query_tokens, summary, self._extract_native_score(ep))
             importance = getattr(ep, "importance", 0.5) or 0.5
