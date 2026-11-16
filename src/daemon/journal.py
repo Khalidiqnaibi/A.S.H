@@ -288,11 +288,13 @@ class Journal:
         rows = [r for d in sorted(days) for r in self.read_day(d) if r["ts"] >= cutoff]
         return rows[-limit:]
 
-    def context_block(self, seconds: float = 1800, limit: int = 12) -> str:
+    def context_block(self, seconds: float = 1800, limit: int = 12, skip_sources=()) -> str:
         """Compact text of what has been going on, for the LLM prompt."""
         rows = self.recent(seconds, limit * 3)
         lines = []
         for r in rows:
+            if r["source"] in skip_sources:
+                continue          # (the prompt skips what the user said: it is already in "Recent conversation")
             text = str(r["text"])
             m = _QUICK_SWITCH.search(text)
             if m and int(m.group(1)) < 20:

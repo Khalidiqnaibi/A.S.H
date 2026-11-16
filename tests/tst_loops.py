@@ -46,8 +46,23 @@ def l2_answer():
     check("a normal answer is untouched", g2.check("It is six. The weather is fine.") == "It is six. The weather is fine.")
 
 
+def l3_window():
+    print("\n=== L3. A stutter is replaced, an old answer asked again is not ===")
+    clock = [1000.0]
+    g = RepeatGuard(clock=lambda: clock[0])
+    s = "The sky looks blue because of how the air scatters sunlight."
+    g.check(s)
+    clock[0] += 30
+    check("the same answer 30 seconds later is a stutter", g.check(s) == "That's what I just said.")
+    g2 = RepeatGuard(clock=lambda: clock[0])
+    g2.check(s)
+    clock[0] += 300
+    check("five minutes later it is an answer to a new question", g2.check(s) == s)
+
+
 if __name__ == "__main__":
     l1_mic()
     l2_answer()
+    l3_window()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

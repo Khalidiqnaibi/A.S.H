@@ -3803,7 +3803,7 @@ class AmbientRuntime:
 
     def _respond(self, ev, decision):
         """Full cognitive cycle, with ambient context attached."""
-        context = self.journal.context_block(self.cfg.context_window_s)
+        context = self.journal.context_block(self.cfg.context_window_s, limit=8, skip_sources=("console", "microphone", "voice"))
         meta = getattr(ev, "meta", None) or {}
         # Certainly addressed, or route 1b's "probably". Both are replies to
         # the user and must be phrased as replies -- framing "what time is

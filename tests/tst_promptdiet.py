@@ -70,10 +70,42 @@ def d4_context():
     check("a real stretch (27s) and the user's line stay", "for 27s" in block and "haiku" in block, block)
 
 
+def d5_episodes():
+    print("\n=== D5. Episodes that repeat the conversation, or each other ===")
+    me = NS(wm=[WorkingSlot("user", "Tell me about Samsung Notes in two sentences", time.time())])
+    me.working_block = lambda max_chars=4000: MemoryEngine.working_block(me, max_chars)
+    block = ("[RELEVANT EPISODES]" + chr(10) + "- [2026-11-14 19:56] Immortal: explain recursion simply" + chr(10)
+             + "- [2026-11-14 19:57] Immortal: explain recursion simply" + chr(10)
+             + "- [2026-11-16 19:01] Immortal: Tell me about Samsung Notes in two sentences [mentions: Samsung Notes]" + chr(10)
+             + "- [2026-11-10 10:00] Immortal: my dad runs a clinic in Hebron")
+    out = MemoryEngine._without_what_is_already_said(me, block)
+    check("an exact repeat is said once", out.count("explain recursion simply") == 1, out)
+    check("an episode that is a line of the conversation is left out", "Samsung Notes" not in out, out)
+    check("a real earlier one stays", "clinic in Hebron" in out, out)
+    only = MemoryEngine._without_what_is_already_said(me, "[RELEVANT EPISODES]" + chr(10) + "- [2026-11-16 19:01] Immortal: Tell me about Samsung Notes in two sentences")
+    check("nothing left: no empty block", only == "", repr(only))
+
+
+def d6_context_sources():
+    print("\n=== D6. The prompt's activity block skips what the user said ===")
+    from src.daemon.journal import Journal
+    from src.senses.base import Modality, SensorEvent
+    j = Journal(tempfile.mkdtemp())
+    now = time.time()
+    for i, (src, text) in enumerate([("console", "write me a haiku"), ("microphone", "what time is it"), ("idle", "user went away from the machine")]):
+        j.append(SensorEvent(source=src, modality=Modality.TEXT, text=text, ts=now - 20 + i, salience=0.5))
+    j.flush()
+    block = j.context_block(seconds=600, skip_sources=("console", "microphone"))
+    check("what was said is not repeated there, what happened is", "haiku" not in block and "time is it" not in block and "went away" in block, block)
+    check("by default it is all there", "haiku" in j.context_block(seconds=600))
+
+
 if __name__ == "__main__":
     d1_overlap()
     d2_working()
     d3_note()
     d4_context()
+    d5_episodes()
+    d6_context_sources()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

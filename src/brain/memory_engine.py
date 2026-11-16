@@ -26,6 +26,7 @@ resolvable on the fast path without touching the stores.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -130,12 +131,33 @@ class MemoryEngine:
             logger.exception("Full retrieval failed")
             ctx = {"core": "", "episodic": "", "entity": ""}
 
+        ctx["episodic"] = self._without_what_is_already_said(ctx.get("episodic", ""))
         self._last_context = ctx
         self._last_context_ts = time.time()
         for k, v in ctx.items():
             if v:
                 self.push("retrieved", f"[{k}] {v[:200]}", salience=0.4)
         return ctx
+
+    def _without_what_is_already_said(self, block: str) -> str:
+        """Episodes that repeat a line in the recent conversation, and exact repeats of each other, are left out of the prompt:
+        "Immortal: explain recursion simply" twice, and the last five minutes' own turns, were taken as 'things that happened before'."""
+        if not block or not block.startswith("[RELEVANT EPISODES]"):
+            return block
+        said = self.working_block(max_chars=4000).lower()
+        out, seen = [], set()
+        for line in block.splitlines():
+            if not line.startswith("- "):
+                out.append(line)
+                continue
+            body = line.split("] ", 1)[-1]
+            body = re.sub(r"\s*\[[^\]]*\]\s*$", "", body.split(": ", 1)[-1]).lower().strip()      # (without "[mentions: ...]")
+            key = body[:120]
+            if key in seen or (len(key) > 12 and key[:80] in said):
+                continue
+            seen.add(key)
+            out.append(line)
+        return "\n".join(out) if len(out) > 1 else ""
 
     @staticmethod
     def hits(ctx: Dict[str, str]) -> int:

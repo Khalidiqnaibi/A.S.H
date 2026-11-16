@@ -23,6 +23,7 @@ from difflib import SequenceMatcher
 from typing import Callable, Deque, List, Optional, Tuple
 
 WINDOW_S = 600.0
+RECENT_S = 90.0               # "That's what I just said." only for a repeat of something said this minute or so ago
 SAME = 0.8                    # share of words two sentences have in common to count as the same
 KEEP = 40                     # sentences remembered
 NOTHING_NEW = "That's what I just said."
@@ -76,6 +77,8 @@ class RepeatGuard:
                 self._said.append((now, _words(s)))
             return text
         if not fresh:
+            if not any(now - t <= RECENT_S and _same(_words(s), w) for s in sents for t, w in self._said):
+                return text           # said ten minutes ago, asked again now: an answer, not a stutter
             self.stats["replaced"] += 1
             return NOTHING_NEW
         self.stats["trimmed"] += dropped
