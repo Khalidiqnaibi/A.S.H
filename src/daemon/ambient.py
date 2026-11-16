@@ -147,6 +147,8 @@ class AmbientConfig:
     tick_seconds: float = 1.0
     queue_limit: int = 256
     sleep_after_idle_s: float = 25 * 60
+    nap_after_idle_s: float = 10 * 60            # a light consolidation after this long quiet ...
+    nap_min_interval_s: float = 45 * 60          # ... at most this often
     sleep_min_interval_s: float = 60 * 60
     # The brain's own consolidation (replay, pruning) is a night's work: once
     # in this long, however often the machine goes quiet.
@@ -1067,6 +1069,11 @@ class AmbientRuntime:
                 self.activity.save(force=True)
             except Exception:
                 logger.exception("Could not flush activity memory")
+        try:                                                 # the last thing learned is consolidated before it is written down
+            if getattr(self, "brain", None) is not None and hasattr(self.brain, "nap"):
+                self.brain.nap()
+        except Exception:
+            logger.warning("Consolidation on stop failed", exc_info=True)
         self._save_learning()
         self.periphery.close_all()
         logger.info("Ambient runtime stopped. %s", self.stats)
@@ -4607,15 +4614,28 @@ class AmbientRuntime:
         the README always wanted 'sleep mode' to key off.
         """
         idle_for = now - self._last_activity
+        if self._user_busy > 0.3:
+            return
         if idle_for < self.cfg.sleep_after_idle_s:
+            if idle_for >= self.cfg.nap_after_idle_s and now - getattr(self, "_last_nap", 0.0) >= self.cfg.nap_min_interval_s \
+                    and now - self.last_sleep >= self.cfg.nap_min_interval_s:
+                self._last_nap = now
+                threading.Thread(target=self._nap, daemon=True, name="ash-nap").start()
             return
         if now - self.last_sleep < self.cfg.sleep_min_interval_s:
-            return
-        if self._user_busy > 0.3:
             return
         self.last_sleep = now
         threading.Thread(target=self._sleep_phase, daemon=True,
                          name="ash-sleep").start()
+
+    def _nap(self):
+        """The light consolidation (brain.nap): what was learned since the last one is replayed and written down."""
+        try:
+            rep = self.brain.nap(min_gap_s=self.cfg.nap_min_interval_s / 2)
+            self.stats["naps"] = self.stats.get("naps", 0) + 1
+            logger.info("Nap complete: %s", {k: v for k, v in rep.items() if k in ("light", "skipped", "persisted", "duration_ms")})
+        except Exception:
+            logger.exception("Nap failed")
 
     def _sleep_phase(self, force: bool = False):
         logger.info("Sleep phase starting")

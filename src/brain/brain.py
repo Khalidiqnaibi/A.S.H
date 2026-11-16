@@ -1154,6 +1154,17 @@ class Brain:
             "concepts": self.concepts.status() if self.concepts else None,
         }
 
+    def nap(self, min_gap_s: float = 0.0) -> Dict[str, Any]:
+        """A light consolidation: replay what has been learned since the last one, write it down, prune nothing. Cheap enough to
+        run in any ten quiet minutes and on every clean stop; a full `sleep` is still the night."""
+        now = time.time()
+        last = max(getattr(self, "_last_nap", 0.0), getattr(self, "_last_consolidation", 0.0))
+        if min_gap_s > 0 and last and now - last < min_gap_s:
+            return {"skipped": "napped recently", "replay": None}
+        from .consolidation import consolidate
+        self._last_nap = now
+        return consolidate(self, light=True)
+
     def sleep(self, seconds_idle: float = 1800.0, min_gap_s: float = 0.0) -> Dict[str, Any]:
         """Consolidation pass. Called by the maintenance scheduler and the
         ambient sleep phase. With `min_gap_s`, a pass is skipped if one ran

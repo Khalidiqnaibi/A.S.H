@@ -470,11 +470,12 @@ class ConceptSystem:
         self.plasticity.reward(self.neuromod.reward_signal())
 
     # ------------------------------------------------------------------
-    def sleep(self) -> Dict[str, Any]:
-        hours = max(0.5, (time.time() - self._last_sleep) / 3600.0)
+    def sleep(self, light: bool = False) -> Dict[str, Any]:
+        hours = (time.time() - self._last_sleep) / 3600.0
+        hours = max(0.01, hours) if light else max(0.5, hours)
         self._last_sleep = time.time()
         report = self.sleep_cycle.run(evaluator=self.evaluator.score,
-                                      hours_since_last=hours)
+                                      hours_since_last=hours, light=light)
         self.net.save()
         return report
 

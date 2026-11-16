@@ -32,9 +32,13 @@ from typing import Any, Dict
 logger = logging.getLogger("ash.brain.consolidation")
 
 
-def consolidate(brain, seconds_idle: float = 1800.0, epochs: int = 6) -> Dict[str, Any]:
+def consolidate(brain, seconds_idle: float = 1800.0, epochs: int = 6, light: bool = False) -> Dict[str, Any]:
+    """`light`: a nap -- replay the day's connections and persist, without the night's pruning, merging and clearing."""
     t0 = time.perf_counter()
     report: Dict[str, Any] = {"started": time.time()}
+    if light:
+        epochs = min(epochs, 2)
+        report["light"] = True
 
     # 1. Replay.
     try:
@@ -50,9 +54,20 @@ def consolidate(brain, seconds_idle: float = 1800.0, epochs: int = 6) -> Dict[st
     try:
         concepts = getattr(brain, "concepts", None)
         if concepts is not None:
-            report["concepts"] = concepts.sleep()
+            report["concepts"] = concepts.sleep(light=True) if light else concepts.sleep()
     except Exception:
         logger.exception("Consolidation: concept graph failed")
+
+    if light:
+        try:
+            brain.system1.save()
+            brain.predictive.save()
+            report["persisted"] = True
+        except Exception:
+            logger.exception("Consolidation: persist failed")
+            report["persisted"] = False
+        report["duration_ms"] = round((time.perf_counter() - t0) * 1000.0, 2)
+        return report
 
     # 2. Homeostatic recovery.
     try:
