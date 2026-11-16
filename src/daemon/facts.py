@@ -75,6 +75,15 @@ _PERSONAL = re.compile(r"\b(?:my|your|our|me|i|you|we|this|that|these|those|it|i
                        r"yesterday|now|current(?:ly)?|latest|weather|time|date|battery|disk|memory|cpu|screen)\b", re.I)
 
 
+_NUMBER_WORDS = (r"(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|sixty|seventy|eighty|"
+                 r"ninety|hundred|thousand|million)")
+_ARITH_OP = r"(?:plus|minus|times|multiplied\s+by|divided\s+by|over|squared|cubed|to\s+the\s+power|percent\s+of|modulo|mod)"
+_ARITHMETIC = re.compile(r"\b" + _NUMBER_WORDS + r"\b.*\b" + _ARITH_OP + r"\b|\b" + _ARITH_OP + r"\b.*\b" + _NUMBER_WORDS + r"\b|"
+                         r"\bsquare\s+root\b", re.I)
+_STYLE = re.compile(r"\b(?:in\s+(?:one|two|three|four|five|a\s+few|\d+)\s+(?:sentences?|words?|lines?|paragraphs?|points?)|in\s+short|"
+                    r"in\s+simple\s+terms|briefly|simply|like\s+i'?m\s+five|step\s+by\s+step)\b", re.I)
+
+
 def topic_of(text: str) -> Optional[str]:
     """The Wikipedia topic of a short "who/what is X" question, or None."""
     t = (text or "").strip()
@@ -95,6 +104,8 @@ def topic_of(text: str) -> Optional[str]:
         return None
     if re.search(r"\d", topic) or _PERSONAL.search(topic):
         return None
+    if _ARITHMETIC.search(topic) or _STYLE.search(topic):
+        return None                                  # "what is two plus two" is a sum; "tell me about X in two sentences" is for the model
     if re.search(r"[^\w\s.'&-]", topic):
         return None
     return topic

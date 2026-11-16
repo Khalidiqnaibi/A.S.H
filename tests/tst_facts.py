@@ -43,7 +43,9 @@ def f1_questions():
           "what is the capital of France", "what is the population of Jordan", "what is the best way to learn python",
           "what is wrong", "what is the meaning of life itself, really, tell me please", "who is that", "where is it",
           "where is my phone", "what is the score", "", None, "tell me a joke", "what is on my screen",
-          "what is today", "what's my battery at", "who was I talking to", "what is the cpu doing"]
+          "what is today", "what's my battery at", "who was I talking to", "what is the cpu doing",
+          "What is two plus two?", "what is ten divided by five", "what is the square root of nine", "tell me about Samsung Notes in two sentences",
+          "what is a hash map in simple terms", "tell me about Linux briefly"]
     for q in no:
         check(f"not a topic: {str(q)[:44]!r}", topic_of(q) is None, str(topic_of(q)))
 
