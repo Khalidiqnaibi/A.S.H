@@ -53,9 +53,27 @@ def d3_note():
     check("the deadlock note needs an intent", re.search(r"elif verdict2\.deadlocked and intent:\s*\n?\s*(?:#[^\n]*\n\s*)*note = \"Multiple interpretations", src) is not None)
 
 
+def d4_context():
+    print("\n=== D4. Window flicking is not context ===")
+    from src.daemon.journal import Journal
+    from src.senses.base import Modality, SensorEvent
+    j = Journal(tempfile.mkdtemp())
+    now = time.time()
+    for i, (src, text) in enumerate([("active_window", "switched to Stremio (was on Claude for 3s)"),
+                                     ("active_window", "switched to Claude (was on Stremio for 27s)"),
+                                     ("active_window", "switched to Stremio (was on Claude for 4s)"),
+                                     ("console", "write me a haiku about rain")]):
+        j.append(SensorEvent(source=src, modality=Modality.TEXT, text=text, ts=now - 30 + i, salience=0.5))
+    j.flush()
+    block = j.context_block(seconds=600)
+    check("the 3s and 4s flicks are gone", "for 3s" not in block and "for 4s" not in block, block)
+    check("a real stretch (27s) and the user's line stay", "for 27s" in block and "haiku" in block, block)
+
+
 if __name__ == "__main__":
     d1_overlap()
     d2_working()
     d3_note()
+    d4_context()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

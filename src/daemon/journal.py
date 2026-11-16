@@ -34,6 +34,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import threading
 import time
 from collections import Counter, defaultdict
@@ -48,6 +49,9 @@ JOURNAL_DIR = os.environ.get("ASH_JOURNAL_DIR", os.path.join(os.getcwd(), "state
 
 # Events closer together than this belong to the same activity block.
 BLOCK_GAP_SECONDS = 12 * 60
+
+
+_QUICK_SWITCH = re.compile(r"\(was on [^)]{1,80}? for (\d+)s\)")
 
 
 class Journal:
@@ -286,14 +290,16 @@ class Journal:
 
     def context_block(self, seconds: float = 1800, limit: int = 12) -> str:
         """Compact text of what has been going on, for the LLM prompt."""
-        rows = self.recent(seconds, limit)
-        if not rows:
-            return ""
+        rows = self.recent(seconds, limit * 3)
         lines = []
         for r in rows:
+            text = str(r["text"])
+            m = _QUICK_SWITCH.search(text)
+            if m and int(m.group(1)) < 20:
+                continue          # "switched to Claude (was on Stremio for 3s)": flicking between windows says nothing, and filled the prompt
             when = datetime.fromtimestamp(r["ts"]).strftime("%H:%M")
-            lines.append(f"{when} [{r['source']}] {r['text'][:120]}")
-        return "\n".join(lines)
+            lines.append(f"{when} [{r['source']}] {text[:120]}")
+        return "\n".join(lines[-limit:])
 
     def status(self) -> Dict[str, Any]:
         return {
