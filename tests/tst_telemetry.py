@@ -46,6 +46,8 @@ def t1_what():
                          ("screen changed while in Discord", "screen"), ("switched to Chrome (was on A.S.H for 480s)", "screen"),
                          ("motion in camera view (delta 0.16)", "camera")]:
         check(f"{text!r} from {source} is telemetry", f(text, source))
+    for text, source in [("You've been on Stremio for 15 minutes without typing.", "flow"), ("Want today's trivia question?", "flow")]:
+        check(f"ASH's own remark {text!r} from {source} grows nothing", f(text, source))
     for text, source in [("the lecturer said a vector is a keyword", "microphone"), ("what time is it", "console"),
                          ("memory at 93%", "microphone"), ("remind me to check memory usage", "console"),
                          ("I use 90% of my memory for tabs", "microphone")]:
