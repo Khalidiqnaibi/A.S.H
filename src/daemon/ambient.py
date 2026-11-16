@@ -3440,9 +3440,13 @@ class AmbientRuntime:
         self._think_started = time.time()
         self._think_query = str(getattr(ev, "text", "") or "")[:80]
         self._respond_thread = threading.current_thread()
+        turn_from = min(float(getattr(ev, "ts", 0.0) or self._think_started), self._think_started) - 1.0
         try:
             self._respond(ev, decision)
         finally:
+            cancelled_turn = bool(self._cancelled)
+            if cancelled_turn:
+                self._unwrite_turn(turn_from, str(getattr(ev, "text", "") or ""))
             with self._cancel_lock:
                 self._thinking -= 1
                 self._think_started = 0.0
@@ -4402,6 +4406,38 @@ class AmbientRuntime:
         if speak:                                         # the console's button is its own answer: nothing said aloud (a lecture)
             self._speech_say("Okay -- dropped it.", "cancel")
         return True
+
+    def _unwrite_turn(self, since: float, text: str):
+        """"Never mind" is a real undo: the episode the turn wrote, what wondering learned from it (people, tastes, facts, the
+        entities they made), the working-memory lines and the line kept for the honesty checks all go -- a cancelled turn used to
+        leave all of that behind, and the next answers were built on something the user had taken back."""
+        gone: Dict[str, int] = {}
+        try:
+            epi = getattr(self.ash, "episodic_memory", None)
+            if epi is not None and hasattr(epi, "forget_since"):
+                gone["episodes"] = epi.forget_since(since)
+        except Exception:
+            logger.exception("Could not forget the cancelled turn's episode")
+        try:
+            gone["learned"] = self.undo.undo_since(since)
+        except Exception:
+            logger.exception("Could not undo what the cancelled turn learned")
+        try:
+            wm = getattr(getattr(self.brain, "memory", None), "wm", None)
+            if wm is not None:
+                keep = [s for s in wm if getattr(s, "ts", 0.0) < since]
+                gone["working"] = len(wm) - len(keep)
+                wm.clear()
+                wm.extend(keep)
+        except Exception:
+            logger.exception("Could not clear the cancelled turn from working memory")
+        try:
+            if self._recent_user and str(self._recent_user[-1]) == text:
+                self._recent_user.pop()
+        except Exception:
+            logger.debug("recent_user not trimmed", exc_info=True)
+        self.stats["unwritten"] = self.stats.get("unwritten", 0) + 1
+        logger.info("A cancelled turn was unwritten: %s", gone)
 
     @staticmethod
     def _resume_model():

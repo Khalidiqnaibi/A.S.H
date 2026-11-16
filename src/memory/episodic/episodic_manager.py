@@ -63,6 +63,28 @@ class EpisodicMemory:
         return results
 
     # ---------------------
+    # Forget what was just written
+    # ---------------------
+
+    def forget_since(self, t: float) -> int:
+        """Remove every episode laid down at or after `t` (a turn the user cancelled: it must leave no trace). The file is
+        rewritten and the search index loses just those rows -- nothing is re-encoded. Returns how many went."""
+        gone = [eid for eid, ep in self.store.episodes.items() if ep.timestamp >= t]
+        if not gone:
+            return 0
+        goneset = set(gone)
+        for eid in gone:
+            del self.store.episodes[eid]
+        self.store._save_all()
+        idx = self.index
+        keep = [i for i, ep in enumerate(idx.episodes) if ep.episode_id not in goneset]
+        if len(keep) != len(idx.episodes):
+            if idx.vectors is not None and len(idx.vectors) == len(idx.episodes):
+                idx.vectors = idx.vectors[keep] if keep else None
+            idx.episodes = [idx.episodes[i] for i in keep]
+        return len(gone)
+
+    # ---------------------
     # Prune (maintenance-phase only)
     # ---------------------
 
