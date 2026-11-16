@@ -95,6 +95,8 @@ class MemoryEngine:
         for slot in self.wm:
             if not slot.active():
                 continue
+            if slot.role == "retrieved":
+                continue          # what memory returned is already in the prompt as its own blocks: said again here it was in three times
             parts.append(f"{slot.role}: {slot.text}")
         block = "\n".join(parts)
         return block[-max_chars:] if len(block) > max_chars else block

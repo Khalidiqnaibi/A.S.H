@@ -626,7 +626,9 @@ class Brain:
         if verdict2.vetoed_by:
             note = (f"An action was blocked by {', '.join(verdict2.vetoed_by)}. Tell the user "
                     "plainly that you did not take it and why, without apologizing excessively.")
-        elif verdict2.deadlocked:
+        elif verdict2.deadlocked and intent:
+            # Only when two ACTIONS tie. With no tool in play (plain conversation) the proposals all score the same, and the note
+            # made the model answer everything with "Do you mean ...?" -- "yes" to which was asked again, three times, live.
             note = "Multiple interpretations scored equally. Ask one clarifying question."
 
         gist = None

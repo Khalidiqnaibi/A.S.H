@@ -457,6 +457,15 @@ class MemoryRouter:
             if w not in _STOPWORDS and len(w) > 1
         }
 
+    def _enough_overlap(self, query_tokens: set, text: str) -> bool:
+        """A long memory that shares ONE word with a question of several words is not about it: "name three fruits that are red"
+        pulled in four paragraphs of the manual (routines, apps, home) because of the word "name". Short memories and short
+        questions are judged as before."""
+        if len(query_tokens) < 3:
+            return True
+        tt = self._tokenize(text)
+        return len(tt) <= 25 or len(query_tokens & tt) >= 2
+
     def _lexical_relevance(self, query_tokens: set, text: str) -> float:
         """Cheap, dependency-free relevance score in [0, 1].
 
@@ -569,7 +578,7 @@ class MemoryRouter:
             priority = getattr(rule, "priority", 0) or 0
             is_hard = bool(getattr(rule, "hard", False))
             always_keep = is_hard or priority >= always_priority
-            if always_keep or score >= min_relevance:
+            if always_keep or (score >= min_relevance and self._enough_overlap(query_tokens, text)):
                 scored.append((always_keep, priority, score, rule))
 
         if not scored:
