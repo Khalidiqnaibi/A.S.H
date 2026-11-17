@@ -265,6 +265,8 @@ class AmbientConfig:
     loose_commands: bool = True
     # "Remember that I parked on level 3" ... "where did I park?": kept and found by rule (notes.py).
     notes: bool = False
+    chooser_embed: Optional[Callable[[List[str]], Any]] = None   # the sentence encoder: with it, small decisions are made by meaning (chooser.py)
+    chooser_dir: Optional[str] = None                            # where what the choosers learned is kept
     arbiter: bool = False         # questions that can be answered from several places are decided, not hard-wired (arbiter.py)
     arbiter_path: Optional[str] = None
     courtesy: bool = False        # "thanks", "later", "good night" answered by rule, no model (courtesy.py)
@@ -786,6 +788,7 @@ class AmbientRuntime:
         if self.cfg.notes:
             from .notes import Notes
             self.notes = Notes(self.cfg.notes_path)
+        self._choosers: Dict[str, Any] = {}
         self.arbiter = None
         if self.cfg.arbiter:
             from .arbiter import Arbiter
@@ -2852,6 +2855,16 @@ class AmbientRuntime:
             return False
         self._wonder_say(ev, type("R", (), {"say": f"Got it -- {name} is you too.", "outcome": "desktop"})())
         return True
+
+    def chooser(self, name: str, seeds, accept: float = 0.6, margin: float = 0.05):
+        """The learned decider called `name` (chooser.py), made once; None when there is no sentence encoder, and then the caller's rules
+        stand. What it learns from corrections is kept in chooser_dir."""
+        c = self._choosers.get(name)
+        if c is None and self.cfg.chooser_embed is not None:
+            from .chooser import Chooser
+            path = os.path.join(self.cfg.chooser_dir, f"{name}.json") if self.cfg.chooser_dir else None
+            c = self._choosers[name] = Chooser(name, self.cfg.chooser_embed, seeds, path=path, accept=accept, margin=margin)
+        return c
 
     def _who_options(self, subject: str, text: str):
         """Every place "who is <subject>" could be answered from, each with how well it fits (cheap checks only; the one source that

@@ -387,6 +387,8 @@ def main() -> int:
                 filesearch_folders=list((cfg.get("filesearch") or {}).get("folders") or ["~/Documents", "~/Desktop", "~/Downloads"]),
                 filesearch_path=os.path.join(os.getcwd(), "state", "files.json"),
                 filesearch_embed=_file_embedder(),
+                chooser_embed=_file_embedder(),
+                chooser_dir=os.path.join(os.getcwd(), "state", "chooser"),
                 wonder=bool(cfg.get("wondering", {}).get("enabled", True)),
                 wonder_cfg=cfg.get("wondering", {}),
                 lookup=bool((cfg.get("wondering", {}).get("lookup") or {}).get("enabled", True)),
