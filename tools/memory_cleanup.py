@@ -35,6 +35,8 @@ import sys
 import time
 from typing import Any, Dict, List, Tuple
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 HEADINGS = {
     "contents", "summary", "contact", "phone", "email", "location", "education", "experience", "projects", "skills",
     "technical skills", "background", "profile", "objective", "references", "languages", "certifications",
@@ -167,11 +169,40 @@ def read_jsonl(path: str) -> List[Dict[str, Any]]:
     return out
 
 
+_BARE_REMEMBER = re.compile(r"^\s*(?:ash[,\s]+)?(?:please\s+)?remember\s+(?:that|this|it)?\s*[.!]*\s*$", re.I)
+_REMEMBER_FACT = re.compile(r"\bremember\s+(?:that|this)\b", re.I)
+_BEHAVIOUR = re.compile(r"\b(?:always|never|must|from now on|going forward|as a rule|as a policy|don'?t ever|do not ever)\b", re.I)
+
+
+def plan_core(directory: str) -> Dict[str, Any]:
+    """Core memory entries that a user's "remember that" turned into HARD constraints: one with nothing in it goes, one that is a
+    fact about the user stays but is no longer hard (so it is not put in every prompt)."""
+    path = os.path.join(directory, "core_memory.json")
+    out: Dict[str, Any] = {"path": path, "data": None, "drop": [], "soften": []}
+    if not os.path.exists(path):
+        return out
+    with open(path, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    out["data"] = data
+    if not isinstance(data, dict):
+        return out
+    for k, v in data.items():
+        if not isinstance(v, dict) or v.get("category") not in ("constraint", "standard") or not v.get("hard"):
+            continue
+        t = str(v.get("text") or "")
+        if _BARE_REMEMBER.match(t):
+            out["drop"].append(k)
+        elif _REMEMBER_FACT.search(t) and not _BEHAVIOUR.search(t) and not str(k).startswith("manual_"):
+            out["soften"].append(k)
+    return out
+
+
 def plan(directory: str) -> Dict[str, Any]:
     ep_path = os.path.join(directory, "episodic_memory.jsonl")
     en_path = os.path.join(directory, "entities.json")
     eps = read_jsonl(ep_path) if os.path.exists(ep_path) else []
-    drop_eps = [e for e in eps if "_raw" not in e and own_reply(e)]
+    from src.senses.mic import is_loop
+    drop_eps = [e for e in eps if "_raw" not in e and (own_reply(e) or is_loop(str(e.get("summary", "")).partition(":")[2]))]
     ents: List[Dict[str, Any]] = []
     shape = None
     if os.path.exists(en_path):
@@ -207,7 +238,7 @@ def plan(directory: str) -> Dict[str, Any]:
         why = junk_entity(e) or lonely_entity(e, counts.get(str(e.get("entity_id")), 0), protect)
         if why:
             drop_ents.append((e, why))
-    return {"knowledge": plan_knowledge(directory), "ep_path": ep_path, "en_path": en_path, "episodes": eps, "drop_episodes": drop_eps,
+    return {"core": plan_core(directory), "knowledge": plan_knowledge(directory), "ep_path": ep_path, "en_path": en_path, "episodes": eps, "drop_episodes": drop_eps,
             "entities": ents, "drop_entities": drop_ents, "shape": shape}
 
 
@@ -247,6 +278,18 @@ def apply(p: Dict[str, Any]) -> Tuple[str, str]:
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(raw, fh, indent=2, ensure_ascii=False)
         os.replace(tmp, p["en_path"])
+    core = p.get("core") or {}
+    if core.get("data") is not None and (core["drop"] or core["soften"]):
+        shutil.copy2(core["path"], core["path"] + ".bak-" + stamp)
+        for k in core["drop"]:
+            core["data"].pop(k, None)
+        for k in core["soften"]:
+            if k in core["data"]:
+                core["data"][k]["hard"] = False
+        tmp = core["path"] + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(core["data"], fh, indent=2, ensure_ascii=False)
+        os.replace(tmp, core["path"])
     kn = p.get("knowledge") or {}
     if kn.get("changes"):
         for path, data in ((kn["kpath"], kn["k"]), (kn["wpath"], kn["w"])):
@@ -275,6 +318,10 @@ def main(argv=None) -> int:
     print(f"\nEntities that are not things: {len(p['drop_entities'])}")
     for e, why in p["drop_entities"][:15]:
         print(f"   {_name(e)[:40]!r:44} {why}")
+    co = p["core"]
+    print(f"\nCore memory: {len(co['drop'])} empty 'remember that' rule(s) to remove, {len(co['soften'])} fact(s) to stop forcing into every prompt")
+    for k in co["drop"] + co["soften"]:
+        print("   " + k)
     kn = p["knowledge"]
     print(f"\nWhat wrong answers left in what ASH knows: {len(kn['changes'])}")
     for c in kn["changes"]:

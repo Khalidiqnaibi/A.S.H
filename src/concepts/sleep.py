@@ -88,8 +88,12 @@ class SleepCycle:
 
     # ==================================================================
     def run(self, evaluator: Optional[Callable[[], float]] = None,
-            hours_since_last: float = 8.0) -> Dict[str, Any]:
-        """One night. Returns a report of what changed."""
+            hours_since_last: float = 8.0, light: bool = False) -> Dict[str, Any]:
+        """One night. Returns a report of what changed.
+
+        `light` is a nap: one cycle of replay, which only strengthens what the day connected, and the real time's worth of fading
+        of the fast traces. No downscaling or pruning -- those are for a night, and doing them every quiet spell wore the connections
+        away. Concepts that have drifted together (50 near-copies of one nudge) are merged, which loses nothing."""
         t0 = time.perf_counter()
         self.nights += 1
         report: Dict[str, Any] = {"night": self.nights, "stages": []}
@@ -118,17 +122,21 @@ class SleepCycle:
             except Exception:
                 logger.exception("Pre-sleep evaluation failed; running unguarded")
 
-        for c in range(self.cfg.cycles):
+        for c in range(1 if light else self.cfg.cycles):
             nrem = self._nrem()
             report["stages"].append({"cycle": c, "stage": "NREM", **nrem})
             rem = self._rem()
             report["stages"].append({"cycle": c, "stage": "REM", **rem})
 
         # Downscaling happens AFTER all replay, once per night.
-        report["downscale"] = self._downscale()
-        report["pruned"] = self.plasticity._prune()
-        report["scaled"] = self.plasticity._homeostatic_scaling()
-        report["merged"] = self.plasticity._merge_converged()
+        if not light:
+            report["downscale"] = self._downscale()
+            report["pruned"] = self.plasticity._prune()
+            report["scaled"] = self.plasticity._homeostatic_scaling()
+            report["merged"] = self.plasticity._merge_converged()
+        else:
+            report["light"] = True
+            report["merged"] = self.plasticity._merge_converged()      # near-duplicates fold together: the one change a nap may make
         report["faded_traces"] = self.hpc.decay(hours=hours_since_last)
 
         if evaluator is not None and snapshot is not None:

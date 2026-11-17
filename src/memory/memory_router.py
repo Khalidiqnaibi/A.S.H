@@ -287,6 +287,31 @@ class MemoryRouter:
         result["time"] = time.time() - start
         return result
 
+    def _by_concepts(self, query: str, limit: int = 2) -> List[Any]:
+        """Episodes that share concepts with what is active now (set by the brain after it perceives the input) and, less, with
+        what the last few turns were about (`context_concepts`): at least two in common, one of them from now, the most in common
+        first, the newest first among equals. Never the episode that is this very input."""
+        active = [int(c) for c in (getattr(self, "active_concepts", None) or [])]
+        context = [int(c) for c in (getattr(self, "context_concepts", None) or [])]
+        if len(active) + len(context) < 2 or not active:
+            return []
+        want, ctx = set(active), set(context)
+        q = re.sub(r"\s+", " ", (query or "").lower()).strip()[:60]
+        store = getattr(getattr(self, "episodic", None), "store", None)
+        eps = getattr(store, "episodes", None) or {}
+        found = []
+        for ep in list(eps.values())[-4000:]:
+            cs = getattr(ep, "concepts", None) or []
+            now_n, then_n = len(want.intersection(cs)), len(ctx.intersection(cs))
+            both = 2 * now_n + then_n                       # what is lit now counts double what the last turns lit
+            if both < 2 or now_n < 1 or now_n + then_n < 2:
+                continue
+            if q and q in re.sub(r"\s+", " ", (getattr(ep, "summary", "") or "").lower()):
+                continue
+            found.append((both, getattr(ep, "timestamp", 0.0) or 0.0, ep))
+        found.sort(key=lambda t: (t[0], t[1]), reverse=True)
+        return [t[2] for t in found[:limit]]
+
     def _recurs(self, mention: str, text: str) -> bool:
         """Count this mention (once per different sentence) and say whether it has now been seen enough to keep."""
         if not hasattr(self, "_candidates"):                 # a router built without __init__ (a test double)
@@ -374,6 +399,17 @@ class MemoryRouter:
         best_category = max(category_hits, key=lambda c: category_hits[c])
         best_hits = category_hits[best_category]
 
+        # "Remember that." / "my favorite number is 4242, remember that": the user asking to be remembered, not a rule for ASH.
+        # It became a HARD constraint -- put in every prompt for ever, "Remember that." included -- and the prompts filled with them.
+        # With nothing in it, nothing is kept; with a fact in it, it is kept but not forced into every prompt.
+        only_remember = has_strong_directive and not has_word_directive and not has_definition and not any(
+            p in low for p in _CORE_DIRECTIVE_PHRASES if p not in ("remember that", "remember this"))
+        if only_remember:
+            body = re.sub(r"\b(?:please|ok|okay|and|just|you|know|that|this|remember|to|ash|hey)\b|[^a-z0-9 ]", " ", low)
+            if len(body.split()) < 2:
+                return None
+            return (best_category if best_hits >= 1 else "standard"), False
+
         # A strong directive phrase is enough on its own -- fall back to
         # "constraint" if it doesn't happen to overlap a category keyword.
         if has_strong_directive:
@@ -420,6 +456,15 @@ class MemoryRouter:
             w for w in _TOKEN_RE.findall(text.lower())
             if w not in _STOPWORDS and len(w) > 1
         }
+
+    def _enough_overlap(self, query_tokens: set, text: str) -> bool:
+        """A long memory that shares ONE word with a question of several words is not about it: "name three fruits that are red"
+        pulled in four paragraphs of the manual (routines, apps, home) because of the word "name". Short memories and short
+        questions are judged as before."""
+        if len(query_tokens) < 3:
+            return True
+        tt = self._tokenize(text)
+        return len(tt) <= 25 or len(query_tokens & tt) >= 2
 
     def _lexical_relevance(self, query_tokens: set, text: str) -> float:
         """Cheap, dependency-free relevance score in [0, 1].
@@ -533,7 +578,7 @@ class MemoryRouter:
             priority = getattr(rule, "priority", 0) or 0
             is_hard = bool(getattr(rule, "hard", False))
             always_keep = is_hard or priority >= always_priority
-            if always_keep or score >= min_relevance:
+            if always_keep or (score >= min_relevance and self._enough_overlap(query_tokens, text)):
                 scored.append((always_keep, priority, score, rule))
 
         if not scored:
@@ -565,9 +610,19 @@ class MemoryRouter:
             logger.warning("Failed to retrieve episodic memory: %s", e)
             return "", []
 
+        # What the words did not find, the concepts can: episodes laid down while the same concepts were active ("my dad's clinic"
+        # lights father/clinic/Hebron; an old episode that lit them too comes back though it shares no words).
+        have = {getattr(e, "episode_id", None) for e in recent_episodes}
+        associated = [e for e in self._by_concepts(query) if getattr(e, "episode_id", None) not in have]
+        recent_episodes = list(recent_episodes) + associated
+        assoc_ids = {getattr(e, "episode_id", None) for e in associated}
+
         always_importance = self.config["episodic_always_include_importance"]
         scored = []
         for ep in recent_episodes:
+            if getattr(ep, "episode_id", None) in assoc_ids:
+                scored.append((False, min_relevance + 0.01, getattr(ep, "importance", 0.5) or 0.5, ep))   # earned by association, not words
+                continue
             summary = getattr(ep, "summary", "") or ""
             score = self._score_item(query_tokens, summary, self._extract_native_score(ep))
             importance = getattr(ep, "importance", 0.5) or 0.5
@@ -644,6 +699,13 @@ class MemoryRouter:
                             continue
                         candidates[eid] = ent
                         match_scores[eid] = max(match_scores.get(eid, 0.0), score)
+
+        # 3a) What the active concepts have learned about who/what is involved (compiled in sleep from their episodes).
+        for eid in (getattr(self, "concept_entities", None) or [])[:3]:
+            ent = entities_by_id.get(eid)
+            if eid not in candidates and ent is not None:
+                candidates[eid] = ent
+                match_scores[eid] = max(match_scores.get(eid, 0.0), 0.5)
 
         # 3) Cross-layer recall: entities tied to episodes we already deemed
         # relevant, so grounding surfaces even when the query doesn't name

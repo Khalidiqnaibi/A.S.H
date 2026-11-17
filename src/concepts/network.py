@@ -583,6 +583,9 @@ class ConceptNetwork:
                 c.last_active = float(m.get("last_active", 0.0) or 0.0)
                 c.activation_sum = float(m.get("activation_sum", 0.0) or 0.0)
                 c.exemplars = [(float(e[0]), str(e[1])) for e in (m.get("exemplars") or []) if len(e) == 2][:3]
+                c.entities = {str(k): int(v) for k, v in (m.get("entities") or {}).items()}
+                c.valence = float(m.get("valence", 0.0) or 0.0)
+                c.valence_n = int(m.get("valence_n", 0) or 0)
                 self.concepts[cid] = c
                 if c.label:
                     self._by_label[c.label] = cid

@@ -34,6 +34,7 @@ PART = {
 
 # key -> (type, label, group). Types: bool, str, secret, list (comma separated).
 SETTINGS: Dict[str, Tuple[str, str, str]] = {
+    "identity.user_name": ("str", "Your name (what ASH calls you)", "You"),
     "wondering.enabled": ("bool", "Ask about things it doesn't know", "Talking"),
     "free_moments.enabled": ("bool", "Speak up at free moments", "Talking"),
     "follow_ups.enabled": ("bool", "Ask how things went", "Talking"),
@@ -97,6 +98,10 @@ def parse(key: str, raw: Any) -> Any:
     s = str(raw if raw is not None else "").strip()
     if len(s) > 400 or any(c in s for c in "\r\n\x00"):
         raise ValueError(f"{key}: too long or not one line")
+    if key == "identity.user_name":
+        s = " ".join(s.split())
+        if not s or len(s) > 40 or not all(c.isalpha() or c in " '.-" for c in s):
+            raise ValueError("a name: letters, up to 40 characters")
     if key == "smarthome.url" and s and not s.lower().startswith(("http://", "https://")):
         raise ValueError("the address starts with http:// or https://")
     return s
@@ -157,6 +162,8 @@ def current(runtime, key: str, saved: Optional[Dict[str, Any]] = None) -> Any:
     name = _name(key)
     part = _part(runtime, key)
     val: Any = None
+    if key == "identity.user_name":
+        return str(getattr(getattr(runtime, "ash", None), "user", "") or _saved(saved or {}, key) or "")
     if key == "llm.gpu":
         val = os.environ.get("ASH_OLLAMA_NUM_GPU", "").strip() != "0"
         if saved is not None and not os.environ.get("ASH_OLLAMA_NUM_GPU") and _saved(saved, key) is False:
@@ -193,6 +200,12 @@ def apply(runtime, key: str, value: Any) -> bool:
             os.environ.pop("ASH_OLLAMA_NUM_GPU", None)
         else:
             os.environ["ASH_OLLAMA_NUM_GPU"] = "0"
+        return True
+    if key == "identity.user_name":
+        a = getattr(runtime, "ash", None)
+        if a is None or not hasattr(a, "set_user_name"):
+            return False
+        a.set_user_name(value)
         return True
     section, name = key.split(".", 1)[0], _name(key)
     part = _part(runtime, key)
@@ -250,7 +263,7 @@ def listing(runtime, path: Optional[str]) -> List[Dict[str, Any]]:
         except Exception:
             val = None
         out.append({"key": key, "type": kind, "label": label, "group": group, "value": val,
-                    "live": _part(runtime, key) is not None or key == "llm.gpu"})
+                    "live": _part(runtime, key) is not None or key in ("llm.gpu", "identity.user_name")})
     return out
 
 
@@ -270,6 +283,10 @@ def change(runtime, path: Optional[str], key: str, raw: Any) -> Dict[str, Any]:
     if path:
         try:
             save(path, key, value)
+            if key == "identity.user_name":      # the names used before, so what was said under them is still found
+                aliases = sorted(getattr(getattr(runtime, "ash", None), "user_aliases", None) or [])
+                if aliases:
+                    save(path, "identity.previous_names", aliases)
             saved = True
         except Exception as e:
             logger.exception("Saving %s failed", key)

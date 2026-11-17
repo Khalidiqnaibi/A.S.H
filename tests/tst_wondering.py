@@ -1222,6 +1222,56 @@ def w13_answered_any_way():
         check(f"{q!r} -> Afif", remember.role_is(w.kb, q) == "Your father is Afif.", str(remember.role_is(w.kb, q)))
 
 
+def w15_answer_with_an_instruction():
+    print("\n=== W15. An answer with 'stop asking' on the end keeps the answer ===")
+
+    def asked():
+        w = rig()
+        w.observe("my dad's clinic is near Hebron")
+        ask(w, **FREE)
+        return w
+    for said in ("Afif, you already know that, stop asking me", "My dad is Afif, stop asking", "Afif. Don't ask me that again.",
+                 "Stop asking about my dad, it's Afif", "it's Afif, you know that already"):
+        w = asked()
+        r = w.hear(said, w.t[0] + 5)
+        check(f"{said!r}: the name is kept", w.kb.role_name("father") == "Afif" and r.say.startswith("Got it -- Afif is your father."), r.say)
+        check("...the question is answered, not dismissed", [x.status for x in w.wonders.values()] == ["answered"] and w.pending() == [])
+    w = asked()
+    r = w.hear("Afif, stop asking", w.t[0] + 5)
+    check("with 'stop asking' it also says it will not ask again, and does not", "won't ask about that again" in r.say and "father" in w.muted_subjects)
+    w = asked()
+    r = w.hear("You already know that, stop asking", w.t[0] + 5)
+    check("with no answer in it, it is only the instruction (as before)", r.say == "Okay, I won't ask about that again." and w.kb.role_name("father") is None)
+
+
+def w16_already_in_memory():
+    print("\n=== W16. The answer is looked for in memory before the question is asked ===")
+
+    def fresh(texts):
+        w = rig()
+        w.memory_scan = lambda: texts
+        w.observe("my dad's clinic is near Hebron")
+        return w
+    for texts in (["Hi there", "my dad is Afif and he is a doctor"], ["Afif is my father."], ["my father's name is Afif"]):
+        w = fresh(texts)
+        q = ask(w, **FREE)
+        check(f"{texts[-1]!r} said long ago: not asked, kept", q is None and w.kb.role_name("father") == "Afif" and w.pending() == [], str(q))
+    w = fresh(["my dad's clinic is in Hebron", "Omar is my brother"])
+    q = ask(w, **FREE)
+    check("nothing about the father in memory: it asks", q is not None and q.question == "What's your father's name?")
+    w = fresh([])
+    w.memory_scan = None
+    check("with no memory to look in, it asks as before", ask(w, **FREE) is not None)
+    w = fresh(["my dad is Khalid"])
+    w.cfg.ignore_names = tuple(w.cfg.ignore_names) + ("Khalid",)
+    check("the user's own name is never taken as someone else's", ask(w, **FREE) is not None and w.kb.role_name("father") is None)
+    w = fresh(["my dad is Afif"])
+    ask(w, **FREE)
+    n = w.stats["learned"]
+    w.reconcile()
+    check("looked for once per question, not on every tick", w.stats["learned"] == n)
+
+
 def w14_asr_noise():
     print("\n=== W14. What the recogniser does to an answer ===")
     w = rig()
@@ -1240,7 +1290,7 @@ def w14_asr_noise():
 
 if __name__ == "__main__":
     for fn in (w1_detectors, w2_statements, w3_queue, w4_when, w5_answers, w6_never_twice, w7_persistence,
-               w8_switches, w9_knowledge, w10_runtime, w11_control, w12_fuzz, w13_answered_any_way, w14_asr_noise):
+               w8_switches, w9_knowledge, w10_runtime, w11_control, w12_fuzz, w13_answered_any_way, w14_asr_noise, w15_answer_with_an_instruction, w16_already_in_memory):
         fn()
     print("\n" + ("ALL PASS" if OK else "FAILURES"))
     sys.exit(0 if OK else 1)

@@ -136,6 +136,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "use_default_blocklist": True,
         "protect_private_content": False,
     },
+    "identity": {"user_name": ""},
     "runtime": {
         "tick_seconds": 1.0,
         "sleep_after_idle_s": 1500,

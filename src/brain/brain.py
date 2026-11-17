@@ -50,6 +50,7 @@ from typing import Any, Callable, Deque, Dict, List, Optional
 import numpy as np
 
 from src.concepts.telemetry import is_telemetry
+from .salience import remembered_importance
 from .executive import ExecutiveCore
 from .gist import build_gist, readable as _words
 from .homeostasis import HomeostaticModulator
@@ -251,7 +252,17 @@ class Brain:
                 novelty=bundle.novelty, surprise=surprise,
                 urgency=d.urgency, fatigue=d.fatigue, telemetry=telemetry)
             try:   # the episode this input becomes remembers which concepts it lit (the five strongest)
-                self.memory.router.active_concepts = [cid for cid, _a in act.top(5)]
+                top = [cid for cid, _a in act.top(5)]
+                self.memory.router.active_concepts = top
+                # What the conversation is about: the concepts of the last few turns, fading -- working memory, held as concepts.
+                # Recall follows it too, so a follow-up ("and his number?") finds what the earlier turns were about.
+                wm = {c: w * 0.55 for c, w in getattr(self, "_topic", {}).items() if w * 0.55 > 0.1}
+                self.memory.router.context_concepts = [c for c, _w in sorted(wm.items(), key=lambda t: -t[1])[:6] if c not in top]
+                for rank, c in enumerate(top):
+                    wm[c] = max(wm.get(c, 0.0), 1.0 - 0.1 * rank)
+                self._topic = wm
+                from src.concepts.gist import entities_of
+                self.memory.router.concept_entities = entities_of(self.concepts.net, top)
             except Exception:
                 pass
             return act, self.concepts.net.latent(act, dim=self.concept_latent_dim)
@@ -313,6 +324,7 @@ class Brain:
         timings["conceive"] = (time.perf_counter() - t0) * 1000.0
         if activation is not None:
             trace.concepts = self.concepts.net.explain(activation)
+            self._feel(activation, sentiment)
 
         # --- 4. Predict ------------------------------------------------
         t0 = time.perf_counter()
@@ -614,7 +626,9 @@ class Brain:
         if verdict2.vetoed_by:
             note = (f"An action was blocked by {', '.join(verdict2.vetoed_by)}. Tell the user "
                     "plainly that you did not take it and why, without apologizing excessively.")
-        elif verdict2.deadlocked:
+        elif verdict2.deadlocked and intent:
+            # Only when two ACTIONS tie. With no tool in play (plain conversation) the proposals all score the same, and the note
+            # made the model answer everything with "Do you mean ...?" -- "yes" to which was asked again, three times, live.
             note = "Multiple interpretations scored equally. Ask one clarifying question."
 
         gist = None
@@ -683,7 +697,9 @@ class Brain:
             self.system1.reflex_store(query, text, tool_out)
 
         self.memory.commit_turn(query, text, self.user, self.name,
-                                importance=importance, pathway=Pathway.SLOW,
+                                importance=remembered_importance(importance, prediction.effective_surprise(),
+                                                                 getattr(bundle, "novelty", 0.0)),
+                                pathway=Pathway.SLOW,
                                 grounded=(tool_ok is True))
         self.predictive.commit(latent if latent is not None else bundle.fused_embedding,
                                intent)
@@ -923,6 +939,36 @@ class Brain:
     # ==================================================================
     # Helpers
     # ==================================================================
+    _SENTIMENT_VALUE = {"positive": 1.0, "negative": -1.0, "neutral": 0.0}
+
+    def _feel(self, activation, sentiment: Dict[str, Any]):
+        """The user's mood as they said this goes to the concepts it lit (the three strongest): their valence."""
+        try:
+            v = self._SENTIMENT_VALUE.get(str((sentiment or {}).get("sentiment", "")).lower())
+            if v is None:
+                return
+            conf = float((sentiment or {}).get("confidence", 0.0) or 0.0)
+            for cid, _a in activation.top(3):
+                c = self.concepts.net.concepts.get(cid)
+                if c is not None and not c.frozen:
+                    c.feel(v, weight=conf)
+        except Exception:
+            logger.debug("valence not updated", exc_info=True)
+
+    def topic_valence(self) -> float:
+        """How the user has felt about what they are talking about now: the mean valence of the concepts the conversation holds
+        (src: `_topic`), weighted by how present each is. 0 when there is no history to go on."""
+        try:
+            tot = wsum = 0.0
+            for cid, w in (getattr(self, "_topic", None) or {}).items():
+                c = self.concepts.net.concepts.get(cid)
+                if c is not None and c.valence_n >= 3:
+                    tot += w * c.valence
+                    wsum += w
+            return round(tot / wsum, 3) if wsum else 0.0
+        except Exception:
+            return 0.0
+
     def _sentiment(self, query: str) -> Dict[str, Any]:
         """The sentiment model's reading of what the user just said. The last
         one is kept (with when) so the daemon can follow the user's mood from
@@ -1153,6 +1199,17 @@ class Brain:
             "working_memory": len(self.memory.wm),
             "concepts": self.concepts.status() if self.concepts else None,
         }
+
+    def nap(self, min_gap_s: float = 0.0) -> Dict[str, Any]:
+        """A light consolidation: replay what has been learned since the last one, write it down, prune nothing. Cheap enough to
+        run in any ten quiet minutes and on every clean stop; a full `sleep` is still the night."""
+        now = time.time()
+        last = max(getattr(self, "_last_nap", 0.0), getattr(self, "_last_consolidation", 0.0))
+        if min_gap_s > 0 and last and now - last < min_gap_s:
+            return {"skipped": "napped recently", "replay": None}
+        from .consolidation import consolidate
+        self._last_nap = now
+        return consolidate(self, light=True)
 
     def sleep(self, seconds_idle: float = 1800.0, min_gap_s: float = 0.0) -> Dict[str, Any]:
         """Consolidation pass. Called by the maintenance scheduler and the

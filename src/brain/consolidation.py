@@ -32,9 +32,29 @@ from typing import Any, Dict
 logger = logging.getLogger("ash.brain.consolidation")
 
 
-def consolidate(brain, seconds_idle: float = 1800.0, epochs: int = 6) -> Dict[str, Any]:
+def _gist(brain, report: Dict[str, Any]):
+    """Episodes into concepts: what keeps turning up in a concept's episodes is learned by the concept (src/concepts/gist.py)."""
+    try:
+        concepts = getattr(brain, "concepts", None)
+        eps = getattr(getattr(brain.memory.router, "episodic", None), "store", None)
+        if concepts is None or eps is None:
+            return
+        from src.concepts.gist import compile_gist
+        n = compile_gist(concepts.net, list(eps.episodes.values())[-5000:])
+        report["gist"] = n
+        if n:
+            concepts.net.save()
+    except Exception:
+        logger.exception("Consolidation: compiling episodes into concepts failed")
+
+
+def consolidate(brain, seconds_idle: float = 1800.0, epochs: int = 6, light: bool = False) -> Dict[str, Any]:
+    """`light`: a nap -- replay the day's connections and persist, without the night's pruning, merging and clearing."""
     t0 = time.perf_counter()
     report: Dict[str, Any] = {"started": time.time()}
+    if light:
+        epochs = min(epochs, 2)
+        report["light"] = True
 
     # 1. Replay.
     try:
@@ -50,9 +70,23 @@ def consolidate(brain, seconds_idle: float = 1800.0, epochs: int = 6) -> Dict[st
     try:
         concepts = getattr(brain, "concepts", None)
         if concepts is not None:
-            report["concepts"] = concepts.sleep()
+            report["concepts"] = concepts.sleep(light=True) if light else concepts.sleep()
     except Exception:
         logger.exception("Consolidation: concept graph failed")
+
+    if light:
+        _gist(brain, report)
+        try:
+            brain.system1.save()
+            brain.predictive.save()
+            report["persisted"] = True
+        except Exception:
+            logger.exception("Consolidation: persist failed")
+            report["persisted"] = False
+        report["duration_ms"] = round((time.perf_counter() - t0) * 1000.0, 2)
+        return report
+
+    _gist(brain, report)
 
     # 2. Homeostatic recovery.
     try:

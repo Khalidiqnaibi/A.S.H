@@ -846,6 +846,10 @@ class Wonderer:
         self.path = path
         self.clock = clock
         self.scrub = scrub or (lambda s: s)
+        # Everything the user ever said that ASH still holds (episodes, core memory), as sentences: before a question is asked, the
+        # answer is looked for there too -- the user may have forgotten that they said it. Handed in by the runtime.
+        self.memory_scan: Optional[Callable[[], Iterable[str]]] = None
+        self._scanned_for: set = set()
         self.fits: List[FitFn] = [mood_fit, activity_fit]
         # Before asking what a term means, look it up (see lookup.py): a
         # function of the wonder returning {"guess", "question", "source"} or
@@ -1377,6 +1381,14 @@ class Wonderer:
                 return self._defer(aw, now)
             return Reply()
 
+        # An answer with an instruction on the end -- "Afif, stop asking", "my dad is Afif, you already know that": the answer is kept
+        # first, then the instruction is honoured. It used to be only the instruction, and the name was lost.
+        if aw is not None and text and len(text.split()) <= 20 and (_STOP_ABOUT.search(text) or _STOP_ALL.search(text)
+                                                                    or _ALREADY_TOLD.search(text)):
+            rep = self._answer_among(aw, text, now)
+            if rep is not None:
+                return rep
+
         # "start asking again"
         if _RESUME.search(text) and (self.off or self.paused_until > now):
             self.set_enabled(True)
@@ -1420,6 +1432,25 @@ class Wonderer:
         if rep.consumed and not rep.outcome.startswith("batch") and aw is not None:
             rep = self._batch_next(rep, now)
         return rep
+
+    def _answer_among(self, w: Wonder, text: str, now: float) -> Optional[Reply]:
+        """The answer inside a reply that also says "stop asking" / "you already know that". None if there is none."""
+        for clause in re.split(r"[,.;!?]+|\s+-\s+", text):
+            c = clause.strip()
+            if not c or _STOP_ALL.search(c) or _STOP_ABOUT.search(c) or _ALREADY_TOLD.search(c) or _NON_ANSWER_START.match(c) \
+                    or _DONT_KNOW.search(c) or _NOT_NOW.search(c) or re.match(r"^(?:don'?t|do not|never|quit|enough)\b", c, re.I):
+                continue
+            value = self._parse_answer(w, c)
+            if value is None:
+                continue
+            rep = self._answered(w, value, now)
+            if rep.consumed and (_STOP_ABOUT.search(text) or _STOP_ALL.search(text) or re.search(r"\b(?:ask|asking)\b", text, re.I)):
+                for s in w.subjects:
+                    self.muted_subjects[s] = now
+                rep.say = (rep.say + " I won't ask about that again.").strip()
+                self._touch()
+            return rep
+        return None
 
     def _hear_answer(self, text: str, now: float, aw: Optional[Wonder]) -> Reply:
         w = aw
@@ -1794,6 +1825,41 @@ class Wonderer:
     # ==================================================================
     # asking
     # ==================================================================
+    def _from_memory(self, w: Wonder, now: float) -> bool:
+        """A role question ("what's your father's name?") whose answer is already in what the user said before, anywhere in memory:
+        kept, and the question closed -- never asked. Only the user's own statements ("my dad is Afif", "Afif is my father")."""
+        scan = self.memory_scan
+        role = (w.key or "")[5:]
+        if scan is None or not role or (w.key, role) in self._scanned_for:
+            return False
+        self._scanned_for.add((w.key, role))                 # once per question and run: memory is long
+        try:
+            texts = list(scan())
+        except Exception:
+            logger.exception("Scanning memory for an answer failed")
+            return False
+        found = ""
+        for text in texts:
+            for sent in _sentences(_as_text(text))[:12]:
+                for m in _RE_MY_ROLE_NAME.finditer(sent):
+                    name = m.group(2)
+                    if ROLE_CANON.get(m.group(1).lower(), m.group(1).lower()) == role and name.split()[0].lower() not in NOT_PERSON \
+                            and name.split()[0].lower() not in ROLE_CANON:
+                        found = name
+                for m in _RE_NAME_IS_MY_ROLE.finditer(sent):
+                    if ROLE_CANON.get(m.group(2).lower(), m.group(2).lower()) == role and m.group(1).split()[0].lower() not in NOT_PERSON:
+                        found = m.group(1)
+        if not found:
+            return False
+        name = _title(found)
+        if norm(name) in {norm(x) for x in self.cfg.ignore_names}:
+            return False
+        self.kb.store_relation(name, role=role)
+        self.stats["learned"] += 1
+        self._close(w, "answered", now)
+        logger.info("A question was not asked: %s was already in memory (%s)", name, role)
+        return True
+
     def reconcile(self, now: Optional[float] = None) -> int:
         """Close every open question whose answer is now in what ASH knows, however it got there: said to a question, said in
         passing, or told with "remember ..." (which writes to the store without ever passing through the question). Without
@@ -1818,6 +1884,9 @@ class Wonderer:
                         known = self.kb.term_known(k[5:])
                 except Exception:
                     known = False
+                if not known and k.startswith("role:") and self._from_memory(w, now):
+                    n += 1
+                    continue
                 if known:
                     self._close(w, "answered", now)
                     n += 1
@@ -1851,8 +1920,10 @@ class Wonderer:
             if changed:
                 self._touch()
 
-    def can_ask(self, env: Environment, now: Optional[float] = None) -> Tuple[bool, str]:
-        """The rules about WHEN, as one inspectable verdict."""
+    def can_ask(self, env: Environment, now: Optional[float] = None, invited: bool = False) -> Tuple[bool, str]:
+        """The rules about WHEN, as one inspectable verdict. `invited`: the user asked what there is for a free moment -- the
+        waiting rules (a conversation open, busy, caps, the gap) are set aside; off, told to stop, muted, privacy, quiet hours, a
+        plan and speaking still hold."""
         now = self.clock() if now is None else now
         c = self.cfg
         if not c.enabled or self.off:
@@ -1869,6 +1940,8 @@ class Wonderer:
             return False, "following a plan"
         if env.speaking:
             return False, "already speaking"
+        if invited:
+            return (False, "still waiting for an answer") if self.awaiting(now) is not None else (True, "invited")
         if env.conversation_open:
             return False, "mid-conversation"
         if env.idle_s is None:
@@ -1889,11 +1962,11 @@ class Wonderer:
             return False, "asked too recently"
         return True, "ok"
 
-    def eligible(self, now: Optional[float] = None) -> List[Wonder]:
+    def eligible(self, now: Optional[float] = None, invited: bool = False) -> List[Wonder]:
         now = self.clock() if now is None else now
         out = []
         for w in self.wonders.values():
-            if w.status != "pending" or now < w.not_before:
+            if w.status != "pending" or (now < w.not_before and not invited):      # invited: the wait is for the user's sake, and they asked
                 continue
             if self._subject_muted(w.subjects):
                 continue
@@ -1906,7 +1979,7 @@ class Wonderer:
             out.append(w)
         return out
 
-    def next_question(self, env: Environment, now: Optional[float] = None) -> Optional[Wonder]:
+    def next_question(self, env: Environment, now: Optional[float] = None, invited: bool = False) -> Optional[Wonder]:
         """The wonder to ask now, or None. Does not mark it asked.
 
         Urgent ones may be asked at any ordinary pause; the rest are kept
@@ -1916,15 +1989,15 @@ class Wonderer:
         now = self.clock() if now is None else now
         with self._lock:
             self.housekeeping(now)
-            ok, _why = self.can_ask(env, now)
+            ok, _why = self.can_ask(env, now, invited)
             if not ok:
                 return None
-            cands = self.eligible(now)
+            cands = self.eligible(now, invited)
             if not cands:
                 return None
             scored = []
             for w in cands:
-                if w.urgency < self.cfg.urgent_at and not env.free_moment:
+                if w.urgency < self.cfg.urgent_at and not env.free_moment and not invited:
                     continue                     # saved for a free moment
                 f = self.fit(w, env)
                 if f > 0:

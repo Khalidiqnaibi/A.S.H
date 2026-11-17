@@ -105,6 +105,18 @@ class UndoStack:
             return "I couldn't undo that one, sorry."
         return f"Undone: {label.rstrip('.')}."
 
+    def undo_since(self, t: float) -> int:
+        """Undo every step pushed at or after `t`, newest first (what a cancelled turn learned). Returns how many."""
+        n = 0
+        while self._steps and self._steps[-1][0] >= t:
+            _t, _label, fn, _u = self._steps.pop()
+            try:
+                fn()
+                n += 1
+            except Exception:
+                logger.exception("An undo step failed")
+        return n
+
     def __len__(self):
         return len(self._steps)
 

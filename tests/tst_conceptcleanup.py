@@ -37,6 +37,7 @@ def build():
     ids["mem"] = net.add_concept(rnd(2), origin=Origin.GROWN, seed_text="memory at 93%").id
     ids["screen"] = net.add_concept(rnd(3), origin=Origin.GROWN, seed_text="screen changed while in Discord").id
     ids["switch"] = net.add_concept(rnd(4), origin=Origin.GROWN, seed_text="switched to Chrome (was on A.S.H for 40s)").id
+    ids["own"] = net.add_concept(rnd(7), origin=Origin.GROWN, seed_text="You've been on Stremio-shell-ng for 15 minutes without typing.").id
     ids["person"] = net.add_concept(rnd(5), origin=Origin.GROWN, seed_text="remind me to call my mother tomorrow").id
     ids["lecture"] = net.add_concept(rnd(6), origin=Origin.GROWN, seed_text="a vector is a keyword embedding").id
     net.link(ids["mem"], ids["person"], 0.5)
@@ -50,10 +51,10 @@ def c1():
     d, ids = build()
     p = cc.plan(d)
     dropped = {c["id"] for c in p["drop"]}
-    check("the three readings are found", dropped == {ids["mem"], ids["screen"], ids["switch"]}, str(dropped))
+    check("the three readings and ASH's own nudge are found", dropped == {ids["mem"], ids["screen"], ids["switch"], ids["own"]}, str(dropped))
     check("a seeded concept, a person's sentence and a lecture line are not", not ({ids["intent"], ids["person"], ids["lecture"]} & dropped))
     before = open(os.path.join(d, "graph.json"), "rb").read()
-    check("looking changes nothing", open(os.path.join(d, "graph.json"), "rb").read() == before and p["total"] == 6)
+    check("looking changes nothing", open(os.path.join(d, "graph.json"), "rb").read() == before and p["total"] == 7)
     backup = cc.apply(p)
     check("a backup of the folder was made", os.path.isdir(backup) and os.path.exists(os.path.join(backup, "graph.json")))
     net = ConceptNetwork(dim=DIM)

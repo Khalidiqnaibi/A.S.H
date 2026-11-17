@@ -45,6 +45,7 @@ from .wondering import ROLE_CANON
 _LEAD = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:please|can\s+you|could\s+you|would\s+you)[,\s]+)*"
                    r"(?:remember|note|make\s+a\s+note|take\s+a\s+note|keep\s+in\s+mind|don'?t\s+forget)"
                    r"(?:\s+(?:that|this))?[,:\s]+", re.I)
+_TAIL = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?P<b>.{8,200}?)[,.]?\s+(?:and\s+)?(?:please\s+)?remember\s+(?:that|this|it)\s*[.!]*\s*$", re.I)
 _NOT_A_NOTE = re.compile(r"^(?:to\s|me\s|in\s+\d|at\s+\d|tomorrow\b|tonight\b|it\b\s*[.!]?$|this\s*[.!]?$|that\s*[.!]?$|"
                          r"(?:when|where|what|who|how|why)\b)", re.I)
 
@@ -156,7 +157,13 @@ class Notes:
         t = (text or "").strip()
         m = _LEAD.match(t)
         if not m:
-            return None
+            tail = _TAIL.match(t)                          # "my favorite number is 4242, remember that"
+            if not tail:
+                return None
+            body = tail.group("b").strip(" ,.!")
+            if _NOT_A_NOTE.match(body) or len(keys(body)) < 1 or len(body.split()) < 3:
+                return None
+            return body
         body = t[m.end():].strip(" ,.!")
         if not body or _NOT_A_NOTE.match(body) or len(body) > 200 or len(keys(body)) < 1 or len(body.split()) < 3:
             return None

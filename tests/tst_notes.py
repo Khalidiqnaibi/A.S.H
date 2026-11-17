@@ -43,11 +43,13 @@ def n1_what_is_a_note():
                        ("keep in mind that I'm allergic to peanuts", "I'm allergic to peanuts"),
                        ("don't forget the passports are in the top drawer", "the passports are in the top drawer"),
                        ("can you remember my locker number is 42", "my locker number is 42"),
-                       ("make a note: the plumber comes on Friday", "the plumber comes on Friday")]:
+                       ("make a note: the plumber comes on Friday", "the plumber comes on Friday"),
+                       ("my favorite number is 4242, remember that", "my favorite number is 4242"),
+                       ("the plumber comes on Friday. Please remember that.", "the plumber comes on Friday")]:
         check(f"{said!r} -> {body!r}", Notes.wants_note(said) == body, str(Notes.wants_note(said)))
     for said in ("remember to call mom", "remember in 10 minutes to check the oven", "remember this", "remember that",
                  "remember me", "do you remember where I parked", "remember when we went to Paris", "what time is it",
-                 "I remember the old house", "remember it"):
+                 "I remember the old house", "remember it", "what do you remember that", "yes remember that"):
         check(f"not a note: {said!r}", Notes.wants_note(said) is None, str(Notes.wants_note(said)))
 
 

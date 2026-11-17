@@ -245,6 +245,16 @@ def main() -> int:
         from src.py.ash import ash  # noqa: E402  (slow import: model loads)
         logger.info("ASH loaded in %.1fs", time.time() - t0)
 
+        # Who the person is called (console settings -> daemon.json identity.user_name); earlier names are kept for their old lines.
+        try:
+            ident = cfg.get("identity", {}) if isinstance(cfg, dict) else {}
+            for old in ident.get("previous_names") or []:
+                ash.user_aliases.add(str(old))
+            if str(ident.get("user_name") or "").strip():
+                logger.info("Calling the user %s", ash.set_user_name(ident["user_name"]))
+        except Exception:
+            logger.exception("Could not apply identity.user_name")
+
         # The manual: what ASH can and cannot do, in its own core memory (idempotent).
         try:
             from src.daemon import manual as _manual

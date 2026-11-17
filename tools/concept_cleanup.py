@@ -24,6 +24,16 @@ from typing import Any, Dict, List
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
+_OWN = __import__("re").compile(
+    r"^(?:you(?:'ve| have) been on\b|anything from it you want me to keep|want today's|do you want me to|want me to\b|are you "
+    r"still\b)", __import__("re").I)
+
+
+def is_own_remark(text: str) -> bool:
+    """A sentence ASH itself says to the user (a nudge, an offer), grown into a concept when it came back through the loop."""
+    return bool(_OWN.search(str(text or "").strip()))
+
+
 def plan(directory: str) -> Dict[str, Any]:
     import json
     from src.concepts.telemetry import is_telemetry
@@ -39,7 +49,7 @@ def plan(directory: str) -> Dict[str, Any]:
         if c.get("origin") != "grown" or c.get("frozen"):
             continue
         text = str(c.get("seed_text") or c.get("label") or "")
-        if is_telemetry(text, ""):
+        if is_telemetry(text, "") or is_own_remark(text):
             out["drop"].append({"id": int(c["id"]), "text": text[:70], "fired": c.get("activations", 0)})
     return out
 

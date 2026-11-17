@@ -27,6 +27,7 @@ dropped; only a number and a time are kept, in memory, never written out.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -155,32 +156,36 @@ class FreeMoments:
         return v if now - t <= self.cfg.mood_ttl_s else None
 
     # -- choosing -------------------------------------------------------
-    def _blocked(self, env: Environment) -> str:
+    def _blocked(self, env: Environment, invited: bool = False) -> str:
         if env.muted:
             return "muted"
         if env.quiet_hours:
             return "quiet hours"
         if env.paused:
             return "privacy pause"
-        if env.conversation_open:
+        if env.conversation_open and not invited:
             return "in conversation"
         if env.plan_active:
             return "plan active"
         if env.speaking:
             return "speaking"
-        if env.idle_s is None:
+        if env.idle_s is None and not invited:
             return "idle unknown"
-        if not env.free_moment:
+        if not env.free_moment and not invited:
             return "not a free moment"
         return ""
 
-    def can_speak(self, env: Environment, now: Optional[float] = None) -> Tuple[bool, str]:
+    def can_speak(self, env: Environment, now: Optional[float] = None, invited: bool = False) -> Tuple[bool, str]:
+        """`invited`: the user said it is a free moment and asked what there is -- the waiting rules (gap, hourly budget,
+        an unanswered remark, a conversation being open) do not apply; muted, quiet hours, a pause and a plan still do."""
         now = self.clock() if now is None else now
         if not self.cfg.enabled:
             return False, "off"
-        why = self._blocked(env)
+        why = self._blocked(env, invited)
         if why:
             return False, why
+        if invited:
+            return True, ""
         if self._spoken and now - self._spoken[-1] < self.cfg.min_gap_s:
             return False, "too soon after the last"
         if sum(1 for t in self._spoken if now - t <= 3600) >= self.cfg.max_per_hour:
@@ -200,9 +205,9 @@ class FreeMoments:
                 break
         return f
 
-    def pick(self, env: Environment, now: Optional[float] = None) -> Optional[Candidate]:
+    def pick(self, env: Environment, now: Optional[float] = None, invited: bool = False) -> Optional[Candidate]:
         now = self.clock() if now is None else now
-        ok, _ = self.can_speak(env, now)
+        ok, _ = self.can_speak(env, now, invited)
         if not ok:
             return None
         if env.mood is None:
@@ -241,12 +246,28 @@ class FreeMoments:
             except Exception:
                 logger.exception("free-moment activity %s failed on spoken", name)
 
+    _NOT_AN_ANSWER = re.compile(
+        r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:hello|hi|hey|yo|good\s+(?:morning|evening|afternoon))\b|(?:who|what|what's|whats|when|where|why|how|which|"
+        r"can|could|will|would|do|does|did|is|are|am|tell|show|read|open|remind|set|find|search|create|make|play|stop|start)\b)", re.I)
+
+    @classmethod
+    def is_not_an_answer(cls, text: str) -> bool:
+        """A greeting, a question, or an instruction is something said TO ASH, not how the user feels: "Who is Linda" was taken
+        as an answer to "how are you holding up?" and answered "Ah, that sounds rough". "how are you?" / "how about you" are the
+        exception: they are the user turning the question round, and are left to the activity."""
+        t = str(text or "").strip()
+        if re.match(r"^\s*(?:and\s+)?how\s+(?:about\s+you|are\s+you|'?s\s+it\s+going|'?re\s+you)\b", t, re.I):
+            return False
+        return bool(cls._NOT_AN_ANSWER.match(t)) or (t.endswith("?") and len(t.split()) >= 4)
+
     def hear(self, text: str, now: Optional[float] = None) -> Optional[str]:
         """An utterance right after a free-moment remark. Returns a reply line
         if the activity took it as an answer; None leaves it to others."""
         now = self.clock() if now is None else now
         if self._awaiting is None:
             return None
+        if self.is_not_an_answer(text):
+            return None                                       # said to ASH, not an answer: the remark stays open, the line goes on
         name, t = self._awaiting
         if now - t > self.cfg.answer_window_s:
             self._awaiting = None
@@ -421,7 +442,18 @@ class MoodCheck(Activity):
             return None                 # already has a recent reading
         return Candidate(self.name, "How are you holding up today?", 0.4)
 
+    _FEELING = re.compile(
+        r"\b(?:good|great|fine|ok|okay|alright|all\s+right|well|bad|not\s+bad|so[- ]so|meh|tired|exhausted|sleepy|stressed|anxious|nervous|"
+        r"worried|happy|sad|down|low|rough|awful|terrible|horrible|wonderful|amazing|excellent|busy|swamped|overwhelmed|bored|excited|"
+        r"sick|ill|unwell|relaxed|calm|chill|drained|burnt\s+out|burned\s+out|hanging\s+in|holding\s+up|surviving|struggling|lousy|crap|shit)\b", re.I)
+
     def hear(self, text, now):
+        t = str(text or "")
+        words = t.split()
+        # An answer to "how are you holding up?" is short and says how they are. "My dad's name is Afif" was read as one (it is
+        # positive enough) and answered "Good. Hold onto that."
+        if len(words) > 10 or not (self._FEELING.search(t) or len(words) <= 2):
+            return None
         m = self.moments.read(text)
         if m is None:
             return None                 # not an answer; handle it as any utterance

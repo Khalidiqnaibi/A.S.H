@@ -81,6 +81,7 @@ from .remarks import RemarkLog
 from .speech import SpeechControl, wants_brief, wants_cancel, wants_short, wants_stop
 from .tasks import Tasks
 from . import honest, voicectl
+from . import filemake
 from . import quiet as quiet_mod
 from .scenes import Scenes
 from .arrival import Arrivals
@@ -147,6 +148,8 @@ class AmbientConfig:
     tick_seconds: float = 1.0
     queue_limit: int = 256
     sleep_after_idle_s: float = 25 * 60
+    nap_after_idle_s: float = 10 * 60            # a light consolidation after this long quiet ...
+    nap_min_interval_s: float = 45 * 60          # ... at most this often
     sleep_min_interval_s: float = 60 * 60
     # The brain's own consolidation (replay, pruning) is a night's work: once
     # in this long, however often the machine goes quiet.
@@ -977,6 +980,30 @@ class AmbientRuntime:
             words += [c["name"] for c in self.timetable.classes[:10]]
         return words + ["ASH", "port", "console"]
 
+    def _user_sentences(self) -> List[str]:
+        """What the user has said that ASH still holds: their lines in episodic memory, and core memory. For the question
+        "is the answer already in memory?" asked before a question is put to them."""
+        out: List[str] = []
+        user = str(getattr(self.brain, "user", "") or "").strip().lower()
+        names = {user} | {str(a).strip().lower() for a in (getattr(self.ash, "user_aliases", None) or ())}
+        epi = getattr(getattr(self.ash, "episodic_memory", None), "store", None)
+        eps = getattr(epi, "episodes", None) or {}
+        for ep in list(eps.values())[-3000:]:
+            s = str(getattr(ep, "summary", "") or "")
+            head, _, rest = s.partition(":")
+            if rest and (head.strip().lower() in names or head.strip().lower() in ("user", "you")):
+                out.append(rest.strip())
+        core = getattr(self.ash, "core_memory", None)
+        try:
+            dump = core.dump_all() if hasattr(core, "dump_all") else {}
+            for it in (dump.values() if isinstance(dump, dict) else (dump or [])):
+                d = it if isinstance(it, dict) else getattr(it, "__dict__", {})
+                if d.get("text"):
+                    out.append(str(d["text"]))
+        except Exception:
+            logger.debug("core memory not readable for the scan", exc_info=True)
+        return out
+
     def _hint_the_microphone(self):
         mic = getattr(self.periphery, "sensors", {}).get("microphone")
         if mic is not None and hasattr(mic, "hint_words"):
@@ -984,6 +1011,8 @@ class AmbientRuntime:
 
     def start(self):
         self._hint_the_microphone()
+        if self.wonder is not None:
+            self.wonder.memory_scan = self._user_sentences
         # Clear the stop flag *before* the already-alive check, not only in
         # the branch that spawns a new thread. If the previous ash-ambient
         # thread is still blocked inside a slow synchronous call (an
@@ -1042,6 +1071,11 @@ class AmbientRuntime:
                 self.activity.save(force=True)
             except Exception:
                 logger.exception("Could not flush activity memory")
+        try:                                                 # the last thing learned is consolidated before it is written down
+            if getattr(self, "brain", None) is not None and hasattr(self.brain, "nap"):
+                self.brain.nap()
+        except Exception:
+            logger.warning("Consolidation on stop failed", exc_info=True)
         self._save_learning()
         self.periphery.close_all()
         logger.info("Ambient runtime stopped. %s", self.stats)
@@ -1409,7 +1443,7 @@ class AmbientRuntime:
         return ("I ran into some internal errors recently. Nothing you need to do, "
                 "but the logs have the details.", 0.5)
 
-    def _moment_step(self, now: float, idle_s: Optional[float]) -> bool:
+    def _moment_step(self, now: float, idle_s: Optional[float], invited: bool = False) -> bool:
         """In a free moment, pick the best thing to do with it and offer it.
         True if something was submitted."""
         m = self.moments
@@ -1417,19 +1451,19 @@ class AmbientRuntime:
             return False
         try:
             env = self._wonder_env(now, idle_s)
-            c = m.pick(env, now)
+            c = m.pick(env, now, invited=invited)
             if c is None:
                 return False
             q = c.data.get("wonder")
             if q is not None:
                 self._wonder_inflight = q.id
                 self.stats["wonders_asked"] += 1
-                meta = {"offer": "wonder", "offer_strength": round(0.7 + 0.15 * q.urgency, 3),
+                meta = {"offer": "wonder", "offer_strength": round(0.7 + 0.15 * q.urgency, 3), "invited": invited,
                         "say": c.text, "wonder_id": q.id, "topic": q.kind,
                         "accept_context": f"You had just asked the user: {c.text}"}
             else:
                 self._moment_inflight = c.activity
-                meta = {"offer": "moment", "offer_strength": round(0.5 + 0.2 * c.score, 3),
+                meta = {"offer": "moment", "offer_strength": round(0.5 + 0.2 * c.score, 3), "invited": invited,
                         "say": c.text, "moment": c.activity, "topic": c.activity,
                         "accept_context": f"You had just said: {c.text}"}
             self.submit(SensorEvent(source="flow", modality=Modality.TEXT, text=c.text,
@@ -2056,6 +2090,65 @@ class AmbientRuntime:
         if not say:
             return False
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
+    _FREE_Q = re.compile(
+        r"\b(?:free\s+(?:moment|time|minute)|spare\s+(?:moment|time|minute)|got\s+a\s+(?:minute|moment)|i'?m\s+free(?:\s+now)?|"
+        r"i\s+am\s+free(?:\s+now)?|nothing\s+to\s+do)\b", re.I)
+    _FREE_ASK = re.compile(
+        r"\b(?:what|anything|something|any\s+questions?|got\s+any|do\s+you\s+have|have\s+you\s+got|in\s+store|for\s+me|ask\s+me|"
+        r"tell\s+me|say)\b", re.I)
+
+    def _free_moment_request(self, ev, now: float) -> bool:
+        """"What do you have in store for me for a free moment? This is a free moment." / "I'm free, ask me something": the user
+        has opened the moment themselves, so what ASH has been saving for one (a question, a remark, a briefing) is offered now --
+        the waiting rules do not apply. If there is nothing, it says so, and what is held back."""
+        if not self._user_source(ev) or not self._meant_for_ash(ev):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        if not self._FREE_Q.search(text) or not self._FREE_ASK.search(text) or len(text.split()) > 30:
+            return False
+        if self._moment_inflight is not None or self._wonder_inflight is not None:
+            return False                                   # one is already on its way
+        self._free_until = now + (self.wonder.cfg.free_moment_s if self.wonder else 180.0)
+        idle = self._idle_seconds()
+        idle_s = 30.0 if idle is None else max(idle, 30.0)
+        if self._moment_step(now, idle_s, invited=True) or self._wonder_step(now, idle_s, invited=True):
+            self._last_why = {"kind": "free_moment_invited"}
+            return True
+        held = []
+        try:
+            held = self.wonder.pending() if self.wonder is not None else []
+        except Exception:
+            logger.debug("could not list the held questions", exc_info=True)
+        if held:
+            say = (f"Nothing I can bring up right now -- {len(held)} question{'s' if len(held) != 1 else ''} saved up, but "
+                   f"I'm not allowed to ask them yet (muted, quiet hours, or told to stop).")
+        else:
+            say = "Nothing saved up for a free moment: no open questions, and nothing I want to bring up. Ask me something instead."
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
+        self._last_why = {"kind": "free_moment_none"}
+        return True
+
+    def _filemake_request(self, ev, now: float) -> bool:
+        """"Create a new empty desktop text file called notes.txt": made with the file tool and checked, never claimed."""
+        if not self._user_source(ev) or self._is_guest(ev) or not self._meant_for_ash(ev):
+            return False
+        said = filemake.where(str(getattr(ev, "text", "") or ""), time.time())
+        if said:
+            self._wonder_say(ev, type("R", (), {"say": said, "outcome": "desktop"})())
+            self._last_why = {"kind": "file_where"}
+            return True
+        spec = filemake.parse(str(getattr(ev, "text", "") or ""))
+        if spec is None:
+            return False
+        try:
+            say = filemake.make(spec)
+        except Exception:
+            logger.exception("Creating a file failed")
+            say = "I couldn't create that file."
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "file_created"}
         return True
 
     def _dispute_request(self, ev, now: float) -> bool:
@@ -3041,14 +3134,14 @@ class AmbientRuntime:
             activity=(f"{getattr(flow, 'subject', '')} {getattr(flow, 'process', '')}".strip()
                       if flow is not None else ""))
 
-    def _wonder_step(self, now: float, idle_s: Optional[float]) -> bool:
+    def _wonder_step(self, now: float, idle_s: Optional[float], invited: bool = False) -> bool:
         """Submit the next question as an offer, if the moment allows. True if
         one was submitted."""
         w = self.wonder
         if w is None or self._wonder_inflight is not None:
             return False
         try:
-            q = w.next_question(self._wonder_env(now, idle_s), now)
+            q = w.next_question(self._wonder_env(now, idle_s), now, invited=invited)
             if q is None:
                 return False
             text = w.render(q, now)
@@ -3057,7 +3150,7 @@ class AmbientRuntime:
             self.submit(SensorEvent(
                 source="flow", modality=Modality.TEXT, text=text, salience=0.6, ts=now,
                 persistable=False,
-                meta={"offer": "wonder", "offer_strength": round(0.7 + 0.15 * q.urgency, 3),
+                meta={"offer": "wonder", "offer_strength": round(0.7 + 0.15 * q.urgency, 3), "invited": invited,
                       "say": text, "wonder_id": q.id, "topic": q.kind,
                       "accept_context": f"You had just asked the user: {text}"}))
             return True
@@ -3370,9 +3463,13 @@ class AmbientRuntime:
         self._think_started = time.time()
         self._think_query = str(getattr(ev, "text", "") or "")[:80]
         self._respond_thread = threading.current_thread()
+        turn_from = min(float(getattr(ev, "ts", 0.0) or self._think_started), self._think_started) - 1.0
         try:
             self._respond(ev, decision)
         finally:
+            cancelled_turn = bool(self._cancelled)
+            if cancelled_turn:
+                self._unwrite_turn(turn_from, str(getattr(ev, "text", "") or ""))
             with self._cancel_lock:
                 self._thinking -= 1
                 self._think_started = 0.0
@@ -3460,6 +3557,8 @@ class AmbientRuntime:
             return True
         if not loose and self._fun_request(ev, now):
             return True
+        if self._samsung_request(ev, now):
+            return True
         if self._notes_request(ev, now):
             return True
         if self._playing_request(ev, now):
@@ -3506,8 +3605,6 @@ class AmbientRuntime:
             return True
         if self._smarthome_request(ev, now):
             return True
-        if self._samsung_request(ev, now):
-            return True
         if self._timetable_request(ev, now):
             return True
         if not loose and self._research_request(ev, now):
@@ -3527,6 +3624,10 @@ class AmbientRuntime:
         if not loose and self._facts_request(ev, now):
             return True
         if not loose and self._dispute_request(ev, now):
+            return True
+        if not loose and self._free_moment_request(ev, now):
+            return True
+        if not loose and self._filemake_request(ev, now):
             return True
         if not loose and self._honest_request(ev, now):
             return True
@@ -3708,7 +3809,7 @@ class AmbientRuntime:
 
     def _respond(self, ev, decision):
         """Full cognitive cycle, with ambient context attached."""
-        context = self.journal.context_block(self.cfg.context_window_s)
+        context = self.journal.context_block(self.cfg.context_window_s, limit=8, skip_sources=("console", "microphone", "voice"))
         meta = getattr(ev, "meta", None) or {}
         # Certainly addressed, or route 1b's "probably". Both are replies to
         # the user and must be phrased as replies -- framing "what time is
@@ -4331,6 +4432,38 @@ class AmbientRuntime:
             self._speech_say("Okay -- dropped it.", "cancel")
         return True
 
+    def _unwrite_turn(self, since: float, text: str):
+        """"Never mind" is a real undo: the episode the turn wrote, what wondering learned from it (people, tastes, facts, the
+        entities they made), the working-memory lines and the line kept for the honesty checks all go -- a cancelled turn used to
+        leave all of that behind, and the next answers were built on something the user had taken back."""
+        gone: Dict[str, int] = {}
+        try:
+            epi = getattr(self.ash, "episodic_memory", None)
+            if epi is not None and hasattr(epi, "forget_since"):
+                gone["episodes"] = epi.forget_since(since)
+        except Exception:
+            logger.exception("Could not forget the cancelled turn's episode")
+        try:
+            gone["learned"] = self.undo.undo_since(since)
+        except Exception:
+            logger.exception("Could not undo what the cancelled turn learned")
+        try:
+            wm = getattr(getattr(self.brain, "memory", None), "wm", None)
+            if wm is not None:
+                keep = [s for s in wm if getattr(s, "ts", 0.0) < since]
+                gone["working"] = len(wm) - len(keep)
+                wm.clear()
+                wm.extend(keep)
+        except Exception:
+            logger.exception("Could not clear the cancelled turn from working memory")
+        try:
+            if self._recent_user and str(self._recent_user[-1]) == text:
+                self._recent_user.pop()
+        except Exception:
+            logger.debug("recent_user not trimmed", exc_info=True)
+        self.stats["unwritten"] = self.stats.get("unwritten", 0) + 1
+        logger.info("A cancelled turn was unwritten: %s", gone)
+
     @staticmethod
     def _resume_model():
         """Clear a cancel's block on the model. Only if the model module is loaded at all: there is nothing to clear
@@ -4582,15 +4715,28 @@ class AmbientRuntime:
         the README always wanted 'sleep mode' to key off.
         """
         idle_for = now - self._last_activity
+        if self._user_busy > 0.3:
+            return
         if idle_for < self.cfg.sleep_after_idle_s:
+            if idle_for >= self.cfg.nap_after_idle_s and now - getattr(self, "_last_nap", 0.0) >= self.cfg.nap_min_interval_s \
+                    and now - self.last_sleep >= self.cfg.nap_min_interval_s:
+                self._last_nap = now
+                threading.Thread(target=self._nap, daemon=True, name="ash-nap").start()
             return
         if now - self.last_sleep < self.cfg.sleep_min_interval_s:
-            return
-        if self._user_busy > 0.3:
             return
         self.last_sleep = now
         threading.Thread(target=self._sleep_phase, daemon=True,
                          name="ash-sleep").start()
+
+    def _nap(self):
+        """The light consolidation (brain.nap): what was learned since the last one is replayed and written down."""
+        try:
+            rep = self.brain.nap(min_gap_s=self.cfg.nap_min_interval_s / 2)
+            self.stats["naps"] = self.stats.get("naps", 0) + 1
+            logger.info("Nap complete: %s", {k: v for k, v in rep.items() if k in ("light", "skipped", "persisted", "duration_ms")})
+        except Exception:
+            logger.exception("Nap failed")
 
     def _sleep_phase(self, force: bool = False):
         logger.info("Sleep phase starting")
