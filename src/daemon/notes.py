@@ -59,6 +59,15 @@ _TOLD = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:what\s+(?:did|have)\s+i\s+(
 _ALL = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:what\s+(?:do\s+you\s+remember|have\s+i\s+(?:asked\s+you\s+to\s+remember|told\s+you\s+to\s+remember))|"
                   r"what\s+(?:notes|have\s+you\s+noted)|(?:list|read)\s+(?:my|your|the)\s+notes)\s*\??\s*$", re.I)
 
+# "What do you know about me / the user / Khalid", "who is my friend", "who are my friends": the same question as "what do you
+# remember" -- what the person asked to be kept -- so it is answered the same way (the name is filled in from who the user is).
+_ABOUT_LEAD = (r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:but|so|and|ok(?:ay)?)\s+)?(?:please\s+)?")
+_ABOUT_ME = re.compile(_ABOUT_LEAD + r"(?:what\s+(?:do\s+you\s+(?:know|remember)|have\s+you\s+(?:got|noted|learned))\s+(?:about|on)|"
+                       r"tell\s+me\s+(?:what\s+you\s+know\s+)?about|what\s+did\s+i\s+tell\s+you\s+about)\s+(?P<who>[a-z][a-z .'\-]{0,40}?)"
+                       r"\s*\??\s*$", re.I)
+_MY_PEOPLE = re.compile(_ABOUT_LEAD + r"(?:who\s+(?:is|are|'?s)|what\s+(?:is|are)|do\s+you\s+know)\s+my\s+(?P<r>[a-z]+?)s?"
+                        r"(?:\s+(?:name|names|called))?\s*\??\s*$", re.I)
+
 # Words that say nothing about which note is meant.
 _FILLER = frozenset("""a an the my your our their his her its this that these those i me you we he she it they is are was were
     be been am do does did done have has had will would can could should shall may might must to of in on at by for from
@@ -227,15 +236,46 @@ class Notes:
             return "on " + d.strftime("%A")
         return "on " + d.strftime("%d %B").lstrip("0")
 
+    def everything(self) -> str:
+        """What was asked to be remembered: the newest few, as said back."""
+        if not self.items:
+            return "You haven't asked me to remember anything yet."
+        last = sorted(self.items, key=lambda n: -n.at)[:5]
+        return "You told me: " + "; ".join(n.back for n in last) + "."
+
+    def about_user(self, text: str, names=(), role_known: Optional[Callable[[str], bool]] = None) -> Optional[str]:
+        """"What do you know about me / the user / <the user's name>?" and "who is my friend?" are asking for what the person
+        told ASH to keep, so they get the very answer "what do you remember?" gets. None when nothing was kept (the other rules
+        answer) or when it is not that kind of question. `role_known(role)` says the people store already has a name for the
+        role ("my dad"), which then answers it."""
+        t = (text or "").strip()
+        if not self.items:
+            return None
+        me = {n.strip().lower() for n in names if n and n.strip()} | {"me", "myself", "the user", "user", "my self", "i"}
+        m = _ABOUT_ME.match(t)
+        if m and m.group("who").strip().lower().rstrip("?. ") in me:
+            self.stats["found"] += 1
+            return self.everything()
+        p = _MY_PEOPLE.match(t)
+        if p:
+            role = ROLE_CANON.get(p.group("r").lower(), p.group("r").lower())
+            if role not in {ROLE_CANON.get(r, r) for r in _PEOPLE} and role != "friend":
+                return None
+            if role_known is not None and role_known(role):
+                return None
+            found = self.find(f"my {role}")
+            if not found:
+                return None
+            self.stats["found"] += 1
+            return "You told me: " + "; ".join(n.back for n in found[:5]) + "."
+        return None
+
     def recall(self, text: str, now: Optional[float] = None) -> Optional[str]:
         """The answer to a question about what was noted, or None to leave the question to the brain."""
         now = self.clock() if now is None else now
         t = (text or "").strip()
         if _ALL.match(t):
-            if not self.items:
-                return "You haven't asked me to remember anything yet."
-            last = sorted(self.items, key=lambda n: -n.at)[:5]
-            return "You told me: " + "; ".join(n.back for n in last) + "."
+            return self.everything()
         told = _TOLD.match(t)
         if told:
             subject = told.group("s")

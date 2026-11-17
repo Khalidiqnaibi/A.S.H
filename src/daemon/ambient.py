@@ -2760,6 +2760,33 @@ class AmbientRuntime:
         self._last_why = {"kind": "notes"}
         return True
 
+    def _about_me_request(self, ev, now: float) -> bool:
+        """"What do you know about me / the user / Khalid?" and "who is my friend?": what the person asked ASH to keep, answered
+        exactly as "what do you remember?" is -- not "you haven't told me anything" while the notes are there."""
+        nt = self.notes
+        if nt is None or not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        user = str(getattr(self.brain, "user", "") or "")
+        names = [user] + [str(a) for a in (getattr(self.ash, "user_aliases", None) or ())]
+        kb = getattr(self.wonder, "kb", None)
+
+        def known(role: str) -> bool:
+            try:
+                return bool(kb is not None and kb.role_name(role))
+            except Exception:
+                return False
+        try:
+            say = nt.about_user(str(getattr(ev, "text", "") or ""), names, known)
+            if say is None:
+                return False
+            say = self._maybe_hold(say, now)
+        except Exception:
+            logger.exception("Notes (about the user) failed")
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "notes"}
+        return True
+
     def _identity_request(self, ev, now: float) -> bool:
         """"Who am I?": from the name and the people on record, not the model."""
         w = self.wonder
@@ -3548,6 +3575,8 @@ class AmbientRuntime:
         if not loose and self._forget_request(ev, now):
             return True
         if not loose and self._remember_request(ev, now):
+            return True
+        if not loose and self._about_me_request(ev, now):
             return True
         if not loose and self._identity_request(ev, now):
             return True

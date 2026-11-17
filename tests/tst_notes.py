@@ -11,6 +11,7 @@ tst_notes.py -- "remember that I parked on level 3" ... "where did I park?", by 
   N7  in the runtime: kept and answered with no model call; undo; forget; why
   N8  not from overheard speech, not for a guest, held while a stranger is in view
   N9  people still go to remember.py ("remember Lieth is my friend"); a misspelled "remmeber" still works
+  N10 "what do you know about me / the user / Khalid" and "who is my friend" answer exactly as "what do you remember" does
 
 Run:  PYTHONIOENCODING=utf-8 python tests/tst_notes.py
 """
@@ -179,9 +180,33 @@ def n9_people_and_spelling():
     check("'wher did I park' is still found", "level 2" in (out or "") and not model, f"{out!r}")
 
 
+def n10_about_me_is_what_you_remember():
+    print("\n=== N10. About me, the user, my friend: the same answer as 'what do you remember' ===")
+    rt = runtime(wonder=True)
+    for s in ("Ash, remember that lieth is a friend", "Ash, remember abd allah sonokut is my best friend",
+              "Ash, remember baha natshah is one of my best friends",
+              "Ash, im thinking of making a custom chip with a few computer engineer friends remember that"):
+        say(rt, s)
+    want, model = say(rt, "what do you remember")
+    check("what do you remember lists what was kept", want is not None and "baha natshah" in want and "lieth" in want and not model, f"{want!r}")
+    for q in ("what do you know about me", "what do you know about khalid", "what do you know about the user", "what do you know about Khalid?",
+              "tell me about myself", "who is my friend", "who are my friends"):
+        out, model = say(rt, q)
+        check(f"{q!r}: the same answer, no model", out == want and not model, f"{out!r}")
+    out, model = say(rt, "what do you know about lieth")
+    check("about somebody else is still its own question", out != want, f"{out!r}")
+    out, _ = say(rt, "who am I")
+    check("'who am I' still says who the user is", "Khalid" in (out or ""), f"{out!r}")
+    rt2 = runtime(wonder=True)
+    out, model = say(rt2, "what do you know about me")
+    check("with nothing kept it is still answered by the identity rule", out is not None and "Khalid" in out and not model, f"{out!r}")
+    n = Notes(None, clock=lambda: T)
+    check("a role the people store already names is answered by it", n.about_user("who is my dad", (), lambda r: True) is None)
+
+
 if __name__ == "__main__":
     for fn in (n1_what_is_a_note, n2_turned_round, n3_finding, n4_never_the_wrong_note, n5_told_and_all, n6_disk_and_forget,
-               n7_runtime, n8_not_overheard_guest_stranger, n9_people_and_spelling):
+               n7_runtime, n8_not_overheard_guest_stranger, n9_people_and_spelling, n10_about_me_is_what_you_remember):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)
