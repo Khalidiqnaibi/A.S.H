@@ -265,6 +265,7 @@ class AmbientConfig:
     loose_commands: bool = True
     # "Remember that I parked on level 3" ... "where did I park?": kept and found by rule (notes.py).
     notes: bool = False
+    courtesy: bool = False        # "thanks", "later", "good night" answered by rule, no model (courtesy.py)
     notes_path: Optional[str] = None
     # "Why is my computer slow?" / "what's using my memory?": the real numbers, by rule (pcdoctor.py).
     pcdoctor: bool = False
@@ -778,6 +779,10 @@ class AmbientRuntime:
         if self.cfg.notes:
             from .notes import Notes
             self.notes = Notes(self.cfg.notes_path)
+        self.courtesy = None
+        if self.cfg.courtesy:
+            from .courtesy import Courtesy
+            self.courtesy = Courtesy()                          # "thanks", "later", "good night": answered at once, no model
         self._commands = None
         if self.cfg.loose_commands:
             try:
@@ -2057,6 +2062,22 @@ class AmbientRuntime:
             return False
         if say:                                       # "" = taken down quietly (dictation)
             self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
+    def _courtesy_request(self, ev, now: float) -> bool:
+        """"Later", "will do thanks", "good night", "kk": a short line by rule, never a 20-second thought (courtesy.py). The last
+        rule: whatever was waiting for an answer has had the line first."""
+        c = getattr(self, "courtesy", None)
+        if c is None or not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        try:
+            say = c.hear(str(getattr(ev, "text", "") or ""), now)
+        except Exception:
+            logger.exception("Courtesy failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
         return True
 
     def _cheer_request(self, ev, now: float) -> bool:
@@ -3678,6 +3699,8 @@ class AmbientRuntime:
             if said:
                 self._wonder_say(ev, type("R", (), {"say": said, "outcome": "moment"})())
                 return True
+        if not loose and self._courtesy_request(ev, now):
+            return True
         return False
 
     # -- saying a command loosely ----------------------------------------------------------------------------------
