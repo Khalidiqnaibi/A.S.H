@@ -792,7 +792,10 @@ class AmbientRuntime:
         self.arbiter = None
         if self.cfg.arbiter:
             from .arbiter import Arbiter
-            self.arbiter = Arbiter(self.cfg.arbiter_path, clock=lambda: self.clock())
+            from .arbiter import SOURCE_SEEDS, WHO_SEEDS
+            self.arbiter = Arbiter(self.cfg.arbiter_path, clock=lambda: self.clock(),
+                                   sources=self.chooser("arbiter_sources", SOURCE_SEEDS, accept=0.55, margin=0.1),
+                                   who=self.chooser("arbiter_who", WHO_SEEDS, accept=0.6, margin=0.1))
         self.courtesy = None
         if self.cfg.courtesy:
             from .courtesy import Courtesy, SEEDS as _COURTESY_SEEDS
@@ -2929,7 +2932,7 @@ class AmbientRuntime:
         a = getattr(self, "arbiter", None)
         if a is None or not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
             return False
-        from .arbiter import subject_of
+        from .arbiter import loose_subject, subject_of
         text = str(getattr(ev, "text", "") or "")
         forced = a.correction(text, now)
         was = None
@@ -2937,6 +2940,13 @@ class AmbientRuntime:
             subject, asked, was = a.last["subject"], a.last["text"], a.last.get("source")
         else:
             subject = subject_of(text)
+            if subject is None and a.who is not None and len(text.split()) <= 12:
+                # not asked in a listed way: is it a who-question anyway (by meaning)? then what is it about
+                v = a.who.classify(text)
+                if v.label == "who_question":
+                    subject = loose_subject(text)
+            elif subject is not None and a.who is not None:
+                a.who.learn(text, "who_question")                    # what the rule caught teaches the chooser
             if subject is None:
                 return False
             asked = text

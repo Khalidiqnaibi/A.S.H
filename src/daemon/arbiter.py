@@ -44,6 +44,37 @@ _CORRECTION_BARE = re.compile(r"^\s*(?:(?:no|nope|nah|not\s+that|wrong|hm+|well|
 
 PERSONAL = ("me", "people", "notes", "memory")
 
+# What the choosers learn from (chooser.py): which place a sentence NAMES ("i mean from your memory", "check the notes i gave you"), and
+# whether a sentence is a "who is X" kind of question at all. The regexes above catch the phrasings somebody listed and teach these as they go.
+SOURCE_SEEDS: Dict[str, List[str]] = {
+    "memory": ["from your memory", "i mean from your memory", "what do you remember about it", "from what i told you before", "from what we talked about",
+               "check your memory", "you should remember this", "from our earlier conversations", "from our past chats", "what we discussed",
+               "in your memory", "think back to what i said"],
+    "notes": ["from my notes", "in my notes", "what i asked you to remember", "check the notes i gave you", "the things i told you to keep",
+              "from the notes", "what i had you note down", "look in the notes"],
+    "people": ["from the people i told you about", "in my contacts", "my family and friends", "the people in my life", "from the people you know",
+               "one of my friends", "from my people list"],
+    "wikipedia": ["look it up on wikipedia", "on wikipedia", "on the web", "google it", "search online", "the famous one", "the real person",
+                  "look it up online", "from the internet", "the public figure", "the encyclopedia"],
+    "concepts": ["from your concepts", "what do you associate with it", "in your mind", "what ideas do you link to it", "from what you have learned",
+                 "in your graph"],
+    "none": ["what time is it", "play some music", "tell me a joke", "who is ada lovelace", "yes", "no", "thanks", "open the browser", "what is the weather",
+             "remind me to call mom", "i am tired", "that is wrong", "stop", "what do you mean", "why", "how are you", "set a timer", "turn it up",
+             "i don't know", "tell me more", "go on", "never mind", "what is my cpu usage", "who is lieth", "what do you know about me",
+             "open the notes app", "open my notes", "create a new note", "write this down", "take a note", "make a note of that", "show me the people",
+             "open the web browser", "search for a recipe", "the weather online", "what is on the internet today"],
+}
+WHO_SEEDS: Dict[str, List[str]] = {
+    "who_question": ["who is omar", "who was alan turing", "tell me about lieth", "what do you know about sara", "do you know omar",
+                     "do you have anything on lieth", "what's the deal with khalid", "tell me what you've got on sara", "any idea who linda is",
+                     "have we talked about omar", "what can you say about ada lovelace", "who's that guy omar", "remind me who linda is",
+                     "what do you remember about omar", "i want to know about lieth", "can you tell me about the roman empire"],
+    "none": ["what time is it", "play some music", "tell me a joke", "open the browser", "what is the weather", "remind me to call mom",
+             "thanks", "later", "yes", "how are you", "what is my cpu usage", "set a timer for ten minutes", "turn the volume up", "stop",
+             "how do i fix this error", "why is my computer slow", "write an email to my boss", "what should i eat tonight", "search for pizza",
+             "remember that i parked on level three", "i am tired", "what are you doing", "who are you", "what can you do", "what is two plus two"],
+}
+
 
 @dataclass
 class Option:
@@ -65,9 +96,11 @@ class Decision:
 class Arbiter:
     FLOOR = 0.15            # below this a source is not asked at all unless it was named
 
-    def __init__(self, path: Optional[str] = None, clock: Callable[[], float] = time.time):
+    def __init__(self, path: Optional[str] = None, clock: Callable[[], float] = time.time, sources=None, who=None):
         self.path = path
         self.clock = clock
+        self.sources = sources            # a Chooser: which place a sentence names (by meaning), learned from corrections
+        self.who = who                    # a Chooser: is this a "who is X" kind of question at all
         self.prefs: Dict[str, float] = {}               # standing preference per source, from corrections (-0.3 .. 0.3)
         self.last: Optional[Dict[str, Any]] = None      # {"subject", "text", "source", "at", "ranking"}
         self.stats = {"decided": 0, "redirected": 0}
@@ -148,14 +181,25 @@ class Arbiter:
     def correction(self, text: str, now: Optional[float] = None) -> Optional[str]:
         """The source a correction names ("i mean from your memory"), when it follows a decision a moment ago; else None."""
         now = self.clock() if now is None else now
-        if not self.last or now - self.last.get("at", 0.0) > 180.0 or not (_CORRECTION.match(text or "") or _CORRECTION_BARE.match(text or "")):
+        if not self.last or now - self.last.get("at", 0.0) > 180.0:
+            return None
+        if not (_CORRECTION.match(text or "") or _CORRECTION_BARE.match(text or "")):
+            # not a phrasing anybody listed: by meaning, if it is short and a place is clearly what it names
+            if self.sources is not None and len((text or "").split()) <= 9:
+                v = self.sources.classify(text)
+                if v.label in CUES:
+                    return v.label
             return None
         src = self.named(text)
+        by_rule = src is not None
         if src is None:
             m = re.search(r"\b(?:from|in|on|with|using|mean|meant|try|use|check|ask)\s+(?:my|your|the)?\s*(memory|notes?|people|concepts?|wikipedia|web)\b", text or "", re.I)
             if m:
                 src = {"memory": "memory", "note": "notes", "notes": "notes", "people": "people", "concept": "concepts",
                        "concepts": "concepts", "wikipedia": "wikipedia", "web": "wikipedia"}.get(m.group(1).lower())
+                by_rule = src is not None
+        if src is not None and by_rule and self.sources is not None:
+            self.sources.learn(text, src)                          # what the rules caught teaches the chooser
         return src
 
     def learn(self, wanted: str, was: Optional[str]) -> None:
@@ -177,6 +221,28 @@ class Arbiter:
 
     def status(self) -> Dict[str, Any]:
         return {**self.stats, "prefs": {k: round(v, 2) for k, v in self.prefs.items() if abs(v) > 1e-6}}
+
+
+def loose_subject(text: str) -> Optional[str]:
+    """The thing a who-question is about when it was not asked in a listed way ("any idea who Linda is", "what's the deal with Khalid"):
+    what follows about / on / with / of / for / who, or the capitalised names. None if there is nothing to take."""
+    t = " ".join(str(text or "").replace("?", " ").replace("!", " ").split())
+    m = re.search(r"\b(?:about|on|with|of|for|who|whom|know)\s+(?:is\s+|was\s+)?(?:the\s+|a\s+|an\s+)?([A-Za-z][\w'\-]*(?:\s+[A-Za-z][\w'\-]*){0,2})\s*(?:is|was)?\s*$", t)
+    cand = m.group(1) if m else None
+    if cand is None:
+        caps = [w for w in re.findall(r"\b[A-Z][\w'\-]+", t)[1:] or re.findall(r"\b[A-Z][\w'\-]+", t)]
+        cand = " ".join(caps[:3]) if caps else None
+    if not cand:
+        return None
+    parts = cand.split()
+    while parts and parts[0].lower() in ("about", "on", "of", "for", "with", "to", "is", "was", "exactly", "actually", "really", "even", "this", "that"):
+        parts.pop(0)
+    while parts and parts[-1].lower() in ("is", "was", "are", "does", "do", "any", "idea", "guy", "girl", "person", "dude", "one", "someone"):
+        parts.pop()
+    words = [p.lower() for p in parts]
+    if not words or any(w in _NOT_SUBJECT for w in words) or len(words) > 4:
+        return None
+    return " ".join(parts)
 
 
 # -- which questions are "who is X" -------------------------------------------------------------------------------------------

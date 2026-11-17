@@ -10,6 +10,8 @@ mean?", both about the person asking; then "i mean from your memory" went to the
   A2  corrections ("i mean from your memory"): found, only just after a decision, and they move the standing preference (kept)
   A3  which questions are "who is X"
   A4  in the runtime: the user, a person, a note, Wikipedia, memory; the redirect; nothing fits -> the model, as before
+  A5  by meaning (the choosers): a correction that is not worded like the rules, a who-question that is not, what the rules catch
+      teaches them; and without an encoder the rules stand
 
 Run:  PYTHONIOENCODING=utf-8 python tests/tst_arbiter.py
 """
@@ -181,8 +183,56 @@ def a4_runtime():
     check("switched off: the old order (here Wikipedia has no page for it, so it says so)", out is not None and "Wikipedia" in out, f"{out!r}")
 
 
+def a5_by_meaning():
+    print("\n=== A5. By meaning ===")
+    import semantic_fake as sf
+    from src.daemon.arbiter import SOURCE_SEEDS, WHO_SEEDS, loose_subject
+    from src.daemon.chooser import Chooser
+    src = Chooser("s", sf.embed, SOURCE_SEEDS, accept=0.55, margin=0.1)
+    a = Arbiter(clock=lambda: 1000.0, sources=src)
+    a.decide("who is mercury", "mercury", opts([], wikipedia=0.6))
+    check("a correction worded unlike the rules is understood by meaning", a.correction("check your memory now") == "memory", str(src.classify("check your memory now").scores))
+    check("an ordinary sentence after a decision is not a correction", a.correction("what time is it") is None and a.correction("thanks") is None)
+    check("with no chooser the rules alone decide", Arbiter(clock=lambda: 1000.0).correction("check your memory now") is None)
+    before = len(src.learned.get("notes", []))
+    a.correction("no, from my notes")
+    check("what the rules catch teaches the chooser", len(src.learned.get("notes", [])) == before + 1, str(src.learned))
+    for said, want in [("any idea who Linda is", "Linda"), ("what's the deal with Khalid", "Khalid"), ("do you have anything on lieth", "lieth"),
+                       ("tell me what you've got on Sara", "Sara"), ("have we talked about Omar", "Omar"), ("I want to know about Lieth", "Lieth"),
+                       ("who exactly is Linda", "Linda"), ("so who's this Omar guy", "Omar"), ("is Omar someone you know", "Omar"),
+                       ("what can you say about Ada Lovelace", "Ada Lovelace")]:
+        check(f"the subject of {said!r}", loose_subject(said) == want, str(loose_subject(said)))
+    for said in ("what time is it", "how are you today", "thanks a lot"):
+        check(f"no subject in {said!r}", loose_subject(said) is None, str(loose_subject(said)))
+    # in the runtime
+    import tst_effects as te
+    d = tempfile.mkdtemp()
+    rt = te.rig(notes=True, notes_path=os.path.join(d, "n.json"), wonder=True, wonder_path=os.path.join(d, "w.json"),
+                knowledge_path=os.path.join(d, "k.json"), facts=True, facts_cfg={"enabled": True}, arbiter=True,
+                arbiter_path=os.path.join(d, "a.json"), chooser_embed=sf.embed, chooser_dir=os.path.join(d, "c"))
+    rt.brain.user = "Immortal"
+    rt.ash.user_aliases = set()
+    rt.facts.fetch = Fetch({"Mercury": {"type": "standard", "extract": "Mercury is the smallest planet."}})
+    rt.say("remember Omar is my cousin")
+    out, model = say(rt, "do you have anything on Omar")
+    check("a who-question the rules do not list is understood by meaning, and answered from who it is", out and "cousin" in out and not model, f"{out!r}")
+    check("what it is called depends on the arbiter, not Wikipedia", rt.facts.fetch.calls == [], str(rt.facts.fetch.calls))
+    rt._user_sentences = lambda: ["I saw mercury at dawn", "mercury is close to the sun in my book"]
+    out, model = say(rt, "who is Mercury")
+    check("a public name with a little personal trace: Wikipedia", out and out.endswith("(Wikipedia)"), f"{out!r}")
+    out, model = say(rt, "check your memory now")
+    check("and 'check your memory now' (not a listed wording) re-asks from memory", out and out.startswith("From what you've said before") and not model, f"{out!r}")
+    out, model = say(rt, "what is the weather tomorrow")
+    check("an unrelated question still goes on to the model", model)
+    bare = te.rig(notes=True, notes_path=os.path.join(d, "n2.json"), wonder=True, wonder_path=os.path.join(d, "w2.json"),
+                  knowledge_path=os.path.join(d, "k2.json"), arbiter=True)
+    bare.say("remember Omar is my cousin")
+    out, model = say(bare, "do you have anything on Omar")
+    check("without an encoder the unlisted phrasing is left to the model, as before", model, f"{out!r}")
+
+
 if __name__ == "__main__":
-    for fn in (a1_decision, a2_corrections, a3_subjects, a4_runtime):
+    for fn in (a1_decision, a2_corrections, a3_subjects, a4_runtime, a5_by_meaning):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)
