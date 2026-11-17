@@ -9,6 +9,7 @@ time and only moved when the person answered), and when the person said "you sai
   J2  the free-moment joke: written down when told, not repeated until the rest have been, not the first one again after a restart
   J3  "you told me that already" is answered from the record and retires the joke
   J4  in the runtime: a joke asked for is recorded; the complaint is answered by rule, no model
+  J5  "that one again, really" and other wordings no pattern lists are understood by meaning; ordinary sentences are not
 
 Run:  PYTHONIOENCODING=utf-8 python tests/tst_jokes.py
 """
@@ -112,8 +113,33 @@ def j4_runtime():
     check("it is never told again", told not in seen, str(seen))
 
 
+def j5_by_meaning():
+    print("\n=== J5. By meaning ===")
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import semantic_fake as sf
+    from src.daemon.chooser import Chooser
+    from src.daemon.fun import SEEDS
+    ch = Chooser("jokes", sf.embed, SEEDS, accept=0.6, margin=0.1)
+    f = Fun(None)
+    b = JokeBook(None)
+    b.record("the bread joke", 1.0)
+    f.book, f.chooser = b, ch
+    got = f.hear("same joke as before again")
+    check("a wording no pattern lists is understood: from the record, and retired", got is not None and "bread joke" in got and "the bread joke" in b.retired, str(got))
+    b2 = JokeBook(None)
+    b2.record("another joke", 1.0)
+    f.book = b2
+    for said in ("tell me a different joke", "that was funny", "i like that joke", "what time is it"):
+        got = f.hear(said)
+        check(f"{said!r} is not a complaint", not b2.retired and (got is None or "retired" not in got), str(got))
+    f.book = JokeBook(None)
+    check("with no joke told yet there is nothing to complain about", f.hear("same joke as before again") is None)
+    f.book, f.chooser = b2, None
+    check("without a chooser the patterns alone decide", f.hear("same joke as before again") is None)
+
+
 if __name__ == "__main__":
-    for fn in (j1_book, j2_free_moment_joke, j3_complaint, j4_runtime):
+    for fn in (j1_book, j2_free_moment_joke, j3_complaint, j4_runtime, j5_by_meaning):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

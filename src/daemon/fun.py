@@ -90,6 +90,20 @@ _REPEATED = tuple(re.compile(_PRE + body + r"[\s.!?]*$", re.I) for body in (
     r"(?:i(?:'ve|\s+have)?\s+)?(?:already\s+)?heard\s+(?:that|this)(?:\s+(?:one|joke))?(?:\s+already)?",
     r"you\s+(?:keep|always)\s+(?:saying|telling|repeating)\s+(?:the\s+same|that)\s+(?:joke|one)",
 ))
+# What a Chooser (chooser.py) learns "is the person saying ASH repeats itself?" from; the patterns above catch the wordings somebody listed.
+SEEDS = {
+    "repeat": ["you told me that already", "that's the same joke again", "i've heard that one before", "you always say the same thing",
+               "stop repeating yourself", "that joke is old", "you've said that before", "not that one again", "you already told me this",
+               "you keep telling me the same joke", "that one again really", "same joke as before", "you told that one yesterday",
+               "same one again", "didn't you say that already", "say something new please", "enough with this joke", "you keep repeating the joke",
+               "you literally just said that", "i've already heard this", "this is the same thing as last time", "can you say something different",
+               "tell me something new this is old", "you repeat yourself a lot", "that's not new"],
+    "none": ["tell me a joke", "that was funny", "i like that joke", "tell me another one", "what joke was that", "haha", "good one",
+             "what's the joke about", "who wrote that joke", "i told that joke to my sister", "tell me a different joke", "make me laugh",
+             "sing me a song", "what time is it", "thanks", "i've heard of that song", "i heard that you can sing", "say something funny",
+             "you already know me", "i told you my name already", "you said you would remind me", "that's the third alarm", "again please"],
+}
+
 _FORGET = re.compile(_LEAD + r"forget\s+(?:all\s+)?(?:our|my|the)\s+inside\s+jokes\s*[.!]*\s*$", re.I)
 
 
@@ -106,6 +120,7 @@ class Fun:
         self.laugh_window_s = laugh_window_s
         self.keep = keep
         self.book = None                    # a JokeBook, set by the runtime: what was told across restarts
+        self.chooser = None                 # a Chooser: "you told me that already", by meaning (set by the runtime)
         self.told: List[int] = []
         self.inside: List[Dict[str, Any]] = []
         self._last_was_joke = False
@@ -179,7 +194,12 @@ class Fun:
         if len(t) > 120:
             return None
         if self.book is not None and any(rx.match(t) for rx in _REPEATED):
+            if self.chooser is not None:
+                self.chooser.learn(t, "repeat")   # what the patterns caught teaches the chooser
             return self.book.complaint()          # from the record, never "I haven't told it" from nothing
+        if self.book is not None and self.chooser is not None and self.book.last and len(t.split()) <= 10:
+            if self.chooser.classify(t).label == "repeat":
+                return self.book.complaint()      # worded unlike the patterns: by meaning
         if _FORGET.match(t):
             n = len(self.inside)
             self.inside = []

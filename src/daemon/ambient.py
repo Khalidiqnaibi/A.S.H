@@ -728,6 +728,8 @@ class AmbientRuntime:
             from .fun import Fun
             self.fun = Fun(self.cfg.fun_path, clock=lambda: self.clock())
             self.fun.book = self.jokebook
+            from .fun import SEEDS as _FUN_SEEDS
+            self.fun.chooser = self.chooser("jokes", _FUN_SEEDS, accept=0.6, margin=0.1)
         self._avail = None                      # can the user talk right now? (availability.py)
         self._free_since = None
         self.dwell = None
@@ -788,7 +790,7 @@ class AmbientRuntime:
         if self.cfg.notes:
             from .notes import Notes
             self.notes = Notes(self.cfg.notes_path)
-        self._choosers: Dict[str, Any] = {}
+        self._choosers = getattr(self, "_choosers", {})          # the learned deciders (chooser.py), made on first use
         if getattr(self, "play", None) is not None:
             from .play import SEEDS as _PLAY_SEEDS
             self.play.chooser = self.chooser("play", _PLAY_SEEDS, accept=0.62, margin=0.1)     # "whats todays trivia": by meaning
@@ -2886,6 +2888,8 @@ class AmbientRuntime:
     def chooser(self, name: str, seeds, accept: float = 0.6, margin: float = 0.05):
         """The learned decider called `name` (chooser.py), made once; None when there is no sentence encoder, and then the caller's rules
         stand. What it learns from corrections is kept in chooser_dir."""
+        if not hasattr(self, "_choosers"):
+            self._choosers = {}
         c = self._choosers.get(name)
         if c is None and self.cfg.chooser_embed is not None:
             from .chooser import Chooser
