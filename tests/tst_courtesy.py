@@ -5,12 +5,14 @@ tst_courtesy.py -- "Later", "will do thanks", "good night", "kk": a short line b
   Y2  what does not: anything with a request in it, a question, "yes"/"ok"/"sure" (they answer a question), long lines
   Y3  never the same line twice running
   Y4  in the runtime: answered with no model call; a pending offer still gets "later"/"yes" first; not for a guest or overheard speech
+  Y5  what the rules do not list is understood by meaning (the chooser), what the rules catch teaches it, and the rules stand without it
 
 Run:  PYTHONIOENCODING=utf-8 python tests/tst_courtesy.py
 """
 
 import os
 import sys
+import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -73,8 +75,38 @@ def y4_runtime():
     check("with the switch off (a bare runtime) it goes on as before, to the model", len(bare.ash.calls) > n)
 
 
+def y5_by_meaning():
+    print("\n=== Y5. By meaning ===")
+    import semantic_fake as sf
+    from src.daemon.chooser import Chooser
+    from src.daemon.courtesy import SEEDS
+    ch = Chooser("courtesy", sf.embed, SEEDS, accept=0.6, margin=0.12)
+    c = Courtesy(chooser=ch)
+    check("'much obliged' is not in the rules, so without the chooser it is left alone", Courtesy().kind("much obliged") is None)
+    check("with the chooser it is thanks", c.kind("much obliged") == "thanks", str(ch.classify("much obliged").scores))
+    check("'catch you tomorrow' is a goodbye", c.kind("catch you tomorrow") == "bye", str(ch.classify("catch you tomorrow").scores))
+    check("a question with courtesy words in it is not", c.kind("what is the weather tomorrow") is None and c.kind("thanks, what time is it?") is None)
+    check("a longer sentence is not", c.kind("thanks for all the help with the project yesterday morning") is None)
+    n = len(ch.learned.get("thanks", []))
+    c.kind("thanks")
+    check("what the rules catch is added to what the chooser knows", len(ch.learned.get("thanks", [])) >= n)
+    check("it counts what it did by meaning", c.stats["by_meaning"] >= 2)
+    import tst_effects as te
+    d = tempfile.mkdtemp()
+    rt = te.rig(courtesy=True, chooser_embed=sf.embed, chooser_dir=d)
+    n0, k = len(rt.ash.calls), len(rt.out)
+    rt.say("much obliged")
+    check("in the runtime 'much obliged' is answered at once, no model", len(rt.out) > k and len(rt.ash.calls) == n0, f"{rt.out[-1:]}")
+    rt.say("what should I cook tonight")
+    check("a real question still goes to the model", len(rt.ash.calls) > n0)
+    plain = te.rig(courtesy=True)
+    n0 = len(plain.ash.calls)
+    plain.say("much obliged")
+    check("without an encoder the rules stand and it goes to the model as before", len(plain.ash.calls) > n0)
+
+
 if __name__ == "__main__":
-    for fn in (y1_what_counts, y2_what_does_not, y3_not_the_same_twice, y4_runtime):
+    for fn in (y1_what_counts, y2_what_does_not, y3_not_the_same_twice, y4_runtime, y5_by_meaning):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

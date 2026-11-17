@@ -46,6 +46,7 @@ class Verdict:
 def clean(text: str) -> str:
     t = re.sub(r"[^\w\s']", " ", str(text or "").lower().replace("’", "'"))
     t = re.sub(r"^\s*(?:hey\s+)?ash[\s,]+", "", t)
+    t = re.sub(r"[\s,]+ash\s*$", "", t)                       # "good night ash" is "good night"
     return re.sub(r"\s+", " ", t).strip()
 
 

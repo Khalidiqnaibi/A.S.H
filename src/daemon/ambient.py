@@ -795,8 +795,9 @@ class AmbientRuntime:
             self.arbiter = Arbiter(self.cfg.arbiter_path, clock=lambda: self.clock())
         self.courtesy = None
         if self.cfg.courtesy:
-            from .courtesy import Courtesy
-            self.courtesy = Courtesy()                          # "thanks", "later", "good night": answered at once, no model
+            from .courtesy import Courtesy, SEEDS as _COURTESY_SEEDS
+            # "thanks", "later", "good night": answered at once, no model. The rules first; the chooser (by meaning) for what they miss.
+            self.courtesy = Courtesy(chooser=self.chooser("courtesy", _COURTESY_SEEDS, accept=0.6, margin=0.12))
         self._commands = None
         if self.cfg.loose_commands:
             try:
