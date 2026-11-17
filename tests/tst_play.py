@@ -10,6 +10,7 @@ tst_play.py -- quick games, ASH wanting to play, and stories.
   P5  Wanting to play (only when things go well) and the evening story offer;
       yes / no to each
   P6  The runtime end to end
+  P7  A late yes to an offer, and asking for today's trivia in the words people use
 
 Run:  PYTHONIOENCODING=utf-8 python tests/tst_play.py
 """
@@ -170,8 +171,44 @@ def p6_runtime():
     check("status carries play", rt.status()["play"]["games"] == 1)
 
 
+def p7_late_yes_and_trivia_words():
+    print("\n=== P7. A late yes; today's trivia in plain words ===")
+    from src.daemon.games import DailyTrivia
+    spoke = [0.0]
+    p = Play(seed=1)
+    p.ash_last = lambda: spoke[0]
+    DailyTrivia(p).spoken(T0)
+    spoke[0] = T0 + 1                                        # ASH said the offer itself
+    got = p.hear("yes", T0 + 23 * 60)
+    check("a plain yes 23 minutes after the offer still starts today's trivia, since nothing was said in between",
+          got is not None and p.playing and "?" in got["say"], str(got))
+    p = Play(seed=1)
+    p.ash_last = lambda: spoke[0]
+    DailyTrivia(p).spoken(T0)
+    spoke[0] = T0 + 400                                      # ASH said something else meanwhile
+    check("but not when ASH said something else since", p.hear("yes", T0 + 23 * 60) is None and not p.playing)
+    p = Play(seed=1)
+    p.ash_last = lambda: 0.0
+    DailyTrivia(p).spoken(T0)
+    check("and not after more than half an hour", p.hear("yes", T0 + 35 * 60) is None)
+    p = Play(seed=1)
+    DailyTrivia(p).spoken(T0)
+    check("with no way to know, it is the old two minutes", p.hear("yes", T0 + 600) is None)
+    for q in ("whats todays trivia", "what's today's trivia", "no i was saying yes about that i want the todays trivia", "give me a riddle",
+              "can i have today's trivia", "i want a riddle", "show me the trivia"):
+        p = Play(seed=1)
+        got = p.hear(q, T0)
+        check(f"{q!r} starts it", got is not None and p.playing, str(got))
+    a, b = Play(seed=1), Play(seed=2)
+    ga, gb = a.hear("whats todays trivia", T0), b.hear("whats todays trivia", T0)
+    check("today's trivia is the same question whoever asks", ga["say"] == gb["say"], f"{ga} {gb}")
+    for q in ("what is the capital of France", "what's the trivia about", "i want a sandwich", "what is a riddle"):
+        p = Play(seed=1)
+        check(f"{q!r} is left alone", p.hear(q, T0) is None and not p.playing)
+
+
 if __name__ == "__main__":
-    for fn in (p1_start, p2_number, p3_quiz, p4_stopping, p5_offers, p6_runtime):
+    for fn in (p1_start, p2_number, p3_quiz, p4_stopping, p5_offers, p6_runtime, p7_late_yes_and_trivia_words):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

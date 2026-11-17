@@ -44,7 +44,11 @@ _START = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:let'?s|can we|could we|wan
                     r"(?:\s+game)?\s*[.!]?\s*$"
                     r"|^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?play\s+(?:a|another|some)\s+game(?:\s+with\s+me)?\s*[.!]?\s*$"
                     r"|^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:tell|give|ask)\s+me\s+(?:a|another|today'?s)\s+"
-                    r"(?P<which3>riddle|trivia(?:\s+question)?)\s*[.!?]?\s*$", re.I)
+                    r"(?P<which3>riddle|trivia(?:\s+question)?)\s*[.!?]?\s*$"
+                    # "what's today's trivia", "i want the todays trivia", "give me a riddle", "can i have today's trivia"
+                    r"|^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:no|nope|yes|yeah)[,\s]+)?(?:i\s+was\s+saying\s+yes\s+(?:about\s+that\s+)?)?"
+                    r"(?:(?:i\s+want|show\s+me|gimme|give\s+me|can\s+i\s+(?:have|get)|let\s+me\s+(?:have|hear))\s+(?:the\s+|today'?s\s+|a\s+|an\s+)*|"
+                    r"(?:what'?s|whats|what\s+is)\s+(?:the\s+)?today'?s\s+)(?P<which4>riddle|trivia(?:\s+question)?)\s*[.!?]*\s*$", re.I)
 _STOP = re.compile(r"^\s*(?:stop|quit|enough|i'?m done|end (?:the )?game|let'?s stop|i give up|give up)\b", re.I)
 _YES = re.compile(r"^\s*(?:yes|yeah|yep|sure|ok(?:ay)?|why not|go on|let'?s|alright|please)\b", re.I)
 _NO = re.compile(r"^\s*(?:no|nope|nah|not now|maybe later|later)\b", re.I)
@@ -143,6 +147,10 @@ class Play:
         self.enabled = enabled
         self.game: Optional[Game] = None
         self.offered: Optional[Tuple[str, float]] = None    # ("game"|"story", when)
+        # When ASH last said anything (the runtime sets it). With it, a plain "yes" is taken for as long as nobody has said
+        # anything since the offer: a yes 23 minutes after "Want today's trivia question?" had gone to the model, which
+        # guessed it was about a 3D printer.
+        self.ash_last: Optional[Callable[[], float]] = None
         self.last: Optional[Tuple[str, float]] = None       # (name of the game that just ended, when)
         self.stats = {"games": 0, "finished": 0, "stories": 0}
 
@@ -216,7 +224,13 @@ class Play:
         if off is not None:
             age = now - off[1]
             go = bool(_GO.match(t))
-            if age <= 120.0 or (age <= GO_WINDOW_S and go):
+            alone = False
+            if self.ash_last is not None and _YES.match(t):
+                try:
+                    alone = self.ash_last() <= off[1] + 5.0         # ASH has said nothing since the offer
+                except Exception:
+                    alone = False
+            if age <= 120.0 or (age <= GO_WINDOW_S and (go or alone)):
                 self.offered = None
                 if _YES.match(t) or go:
                     if off[0] == "story":
@@ -244,7 +258,10 @@ class Play:
             self.last = None                  # something else was said: the game is over, "next" no longer means it
         m = _START.match(t)
         if m:
-            return {"say": self.start(m.group("which") or m.group("which2") or m.group("which3") or "", now)}
+            which = m.group("which") or m.group("which2") or m.group("which3") or m.group("which4") or ""
+            if which.lower() in ("trivia", "trivia question") and re.search(r"today", t, re.I):
+                which = "daily trivia"                               # "today's trivia" is the day's question, the same all day
+            return {"say": self.start(which, now)}
         return None
 
     def offer(self, kind: str, now: float):

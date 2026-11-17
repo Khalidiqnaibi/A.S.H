@@ -605,6 +605,7 @@ class AmbientRuntime:
                                                if self.cfg.play else None)
         if self.cfg.play:
             self.play = Play(knowledge=(self.wonder.kb if self.wonder else None), clock=lambda: self.clock())
+            self.play.ash_last = address.conversation.last_ash_spoke      # a plain yes still means the offer if nothing was said since
             if self.moments is not None:
                 drives = getattr(getattr(self.brain, "homeostasis", None), "drives", None)
                 self.moments.register(Bored(self.play, curiosity=lambda: float(getattr(drives, "curiosity", 0.5))))

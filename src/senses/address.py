@@ -266,6 +266,11 @@ class Conversation:
             self._ash_spoke = ts or time.time()
             self._asked = bool(asked)
 
+    def last_ash_spoke(self) -> float:
+        """When ASH last said anything (0.0 if it has not)."""
+        with self._lock:
+            return self._ash_spoke
+
     def expects_reply(self, now: Optional[float] = None) -> bool:
         """ASH asked something and the exchange is still open."""
         with self._lock:
