@@ -4316,6 +4316,8 @@ class AmbientRuntime:
             return False
         from src.senses.mic import MicrophoneSensor
         text = MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or ""))
+        if self.feelings is not None and self.feelings.wants(text):
+            return False                       # "what's your emotional status" is how ASH feels, not the CPU and battery
         pend = getattr(self, "_shutdown_asked", None)
         if pend is not None and now - pend > 30.0:
             self._shutdown_asked = pend = None                      # too late to say yes

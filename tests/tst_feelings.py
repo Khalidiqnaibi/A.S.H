@@ -137,8 +137,23 @@ def m5_runtime():
     check("status", rt.status()["feelings"]["feeling"] in ("loved", "delighted"), str(rt.status()["feelings"]))
 
 
+def m6_emotional_status():
+    print("\n=== M6. 'whats your emotional status' is how it feels, not the CPU ===")
+    import tst_effects as te
+    rt = te.rig(feelings=True, feelings_path=os.path.join(tempfile.mkdtemp(), "f.json"), loose_commands=True)
+    for q in ("whats your emotional status", "what's your emotional state", "how is your emotional status", "what is your state of mind",
+              "tell me your emotional state", "how are you feeling today"):
+        k, n = len(rt.out), len(rt.ash.calls)
+        rt.say(q)
+        out = rt.out[-1] if len(rt.out) > k else ""
+        check(f"{q!r}: the feeling, by rule", out and "CPU" not in out and "memory" not in out and len(rt.ash.calls) == n, out[:80])
+    k = len(rt.out)
+    rt.say("whats your status")
+    check("'whats your status' is still the system status", "CPU" in rt.out[-1], rt.out[-1][:60])
+
+
 if __name__ == "__main__":
-    for fn in (m1_moved, m2_last_and_fade, m3_energy, m4_asking, m5_runtime):
+    for fn in (m1_moved, m2_last_and_fade, m3_energy, m4_asking, m5_runtime, m6_emotional_status):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

@@ -36,6 +36,10 @@ _KIND = [
 _ASK = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:so|and|hey|hi|hello)[,\s]+)?"
                   r"(?:how\s+(?:are\s+you|r\s+u|are\s+you\s+(?:feeling|doing)|do\s+you\s+feel|'?s\s+it\s+going\s+with\s+you)(?:\s+today|\s+now)?|"
                   r"are\s+you\s+(?:ok(?:ay)?|alright|happy|sad|bored|tired)|what'?s\s+your\s+mood|how'?s\s+your\s+mood|"
+                  r"(?:what'?s|whats|what\s+is|how'?s|hows|how\s+is|tell\s+me)\s+(?:about\s+)?your\s+(?:emotional|mental|inner|current)\s+"
+                  r"(?:status|state|mood|condition|health)(?:\s+(?:right\s+)?now|\s+today)?|"
+                  r"(?:what'?s|whats|what\s+is)\s+your\s+(?:state\s+of\s+mind|vibe|energy)(?:\s+(?:right\s+)?now|\s+today)?|"
+                  r"how\s+(?:is|are)\s+you\s+(?:feeling|doing)\s+(?:today|now|right\s+now)|"
                   r"you\s+(?:ok(?:ay)?|good|alright))(?:\s*,?\s*ash)?\s*\??\s*$", re.I)
 
 # What the face wears for each feeling (animations/builtin); "" = nothing special.
