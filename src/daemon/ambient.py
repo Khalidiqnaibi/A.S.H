@@ -2782,6 +2782,37 @@ class AmbientRuntime:
         self._last_why = {"kind": "notes"}
         return True
 
+    def _learn_alias(self, ev, now: float) -> bool:
+        """"khalid (me)", "khalid is me", "my real name is Khalid": another name the person goes by, kept (daemon.json
+        identity.previous_names) so "who is Khalid" is about them. A line that is only that statement is answered; a name
+        in passing ("...a friend of khalid (me)...") is learned and the sentence goes on."""
+        if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")) or not self._meant_for_ash(ev):
+            return False
+        from .identity import alias_in
+        got = alias_in(str(getattr(ev, "text", "") or ""))
+        if got is None:
+            return False
+        name, whole = got
+        ash = getattr(self, "ash", None)
+        known = {str(getattr(self.brain, "user", "") or "").lower()} | {str(a).lower() for a in (getattr(ash, "user_aliases", None) or ())}
+        if name.lower() in known:
+            return False
+        try:
+            ash.user_aliases.add(name)
+            b = getattr(self, "brain", None)
+            if b is not None:
+                b.user_aliases = set(ash.user_aliases)
+            save = getattr(self, "save_aliases", None)
+            if save is not None:
+                save(sorted(ash.user_aliases))
+        except Exception:
+            logger.exception("Could not keep the alias")
+            return False
+        if not whole:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": f"Got it -- {name} is you too.", "outcome": "desktop"})())
+        return True
+
     def _about_me_request(self, ev, now: float) -> bool:
         """"What do you know about me / the user / Khalid?" and "who is my friend?": what the person asked ASH to keep, answered
         exactly as "what do you remember?" is -- not "you haven't told me anything" while the notes are there."""
@@ -3597,6 +3628,8 @@ class AmbientRuntime:
         if not loose and self._forget_request(ev, now):
             return True
         if not loose and self._remember_request(ev, now):
+            return True
+        if not loose and self._learn_alias(ev, now):
             return True
         if not loose and self._about_me_request(ev, now):
             return True

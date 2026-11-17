@@ -13,6 +13,7 @@ tst_notes.py -- "remember that I parked on level 3" ... "where did I park?", by 
   N9  people still go to remember.py ("remember Lieth is my friend"); a misspelled "remmeber" still works
   N10 "what do you know about me / the user / Khalid" and "who is my friend" answer exactly as "what do you remember" does
   N11 "who is Khalid" (the user) and "who is Lieth" (somebody in the notes) are answered from the notes, not looked up on Wikipedia
+  N12 "khalid (me)", "my real name is Khalid" teach ASH another name the person goes by (kept), so N11 works for it
 
 Run:  PYTHONIOENCODING=utf-8 python tests/tst_notes.py
 """
@@ -220,9 +221,39 @@ def n11_who_is_name():
     check("with nothing kept it is left alone", Notes(None).about_user("who is khalid", ("Khalid",)) is None)
 
 
+def n12_alias_learning():
+    print("\n=== N12. Another name the person goes by ===")
+    from src.daemon.identity import alias_in
+    for said, name, whole in [("lieth is only a friend of khalid (me) not his best friend", "Khalid", False), ("khalid is me", "Khalid", True),
+                              ("my real name is khalid", "Khalid", True), ("I'm also called Khalid", "Khalid", True),
+                              ("Ash, my name is also khalid.", "Khalid", True)]:
+        check(f"{said!r}", alias_in(said) == (name, whole), str(alias_in(said)))
+    for said in ("I'm tired", "my name is the best", "who is khalid", "that is me", "it is me", "call me later", "remember that lieth is a friend"):
+        check(f"{said!r} is not a name", alias_in(said) is None, str(alias_in(said)))
+    rt = runtime(wonder=True)
+    kept = []
+    rt.save_aliases = kept.append
+    rt.brain.user = "Immortal"
+    rt.ash.user_aliases = set()
+    for s in ("Ash, remember that lieth is a friend", "Ash, remember abd allah sonokut is my best friend"):
+        say(rt, s)
+    out, model = say(rt, "who is khalid")
+    check("before it is told, 'who is khalid' is not taken for the user (it is left to the lookup)", out != rt.notes.everything(), f"{out!r}")
+    out, model = say(rt, "Ash, khalid is me")
+    check("told once, answered and kept", out is not None and "Khalid" in out and "Khalid" in rt.ash.user_aliases and kept and kept[-1] == ["Khalid"], f"{out!r} {kept}")
+    out, model = say(rt, "who is khalid")
+    check("afterwards 'who is khalid' is what was kept, with no model", out == rt.notes.everything() and not model, f"{out!r}")
+    rt2 = runtime(wonder=True)
+    rt2.brain.user = "Immortal"
+    rt2.ash.user_aliases = set()
+    out, model = say(rt2, "Ash, remember that lieth is a friend of sami (me)")
+    check("a name in passing is learned and the sentence still goes on (here: kept as a note)",
+          "Sami" in rt2.ash.user_aliases and any("lieth" in n.said for n in rt2.notes.items), f"{out!r} {rt2.ash.user_aliases}")
+
+
 if __name__ == "__main__":
     for fn in (n1_what_is_a_note, n2_turned_round, n3_finding, n4_never_the_wrong_note, n5_told_and_all, n6_disk_and_forget,
-               n7_runtime, n8_not_overheard_guest_stranger, n9_people_and_spelling, n10_about_me_is_what_you_remember, n11_who_is_name):
+               n7_runtime, n8_not_overheard_guest_stranger, n9_people_and_spelling, n10_about_me_is_what_you_remember, n11_who_is_name, n12_alias_learning):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

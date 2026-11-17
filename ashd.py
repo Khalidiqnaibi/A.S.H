@@ -573,6 +573,12 @@ def main() -> int:
         # below ends and runs the same shutdown as Ctrl-C.
         runtime.request_shutdown = lambda: threading.Timer(3.0, quit_requested.set).start()
 
+        def _save_aliases(names):
+            from src.daemon.service import CONFIG_FILE  # noqa: E402
+            from src.ui.settings import save as _save_setting  # noqa: E402
+            _save_setting(args.config or CONFIG_FILE, "identity.previous_names", list(names))
+        runtime.save_aliases = _save_aliases                    # "khalid (me)" is kept across restarts
+
         def _shutdown(quick: bool = False):
             # quick: the window is being closed and Windows allows a few seconds -- save first, skip the goodbye sound.
             if not quick:

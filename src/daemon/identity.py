@@ -32,3 +32,28 @@ class NameMixin:
             b.user = name
             b.user_aliases = set(self.user_aliases)
         return name
+
+
+# "khalid (me)", "khalid is me", "my real name is Khalid", "I'm also called Khalid": the person tells ASH another name they go by.
+# Today "who is khalid" went to Wikipedia because the name ASH calls them is "Immortal" and nothing said Khalid was them.
+import re as _re
+
+_NM = r"([A-Za-z][A-Za-z'\-]{1,19}(?:\s+[A-Za-z][A-Za-z'\-]{1,19})?)"
+_ALIAS_PAREN = _re.compile(r"([A-Za-z][A-Za-z'\-]{1,19})\s*\(\s*(?:me|myself|that'?s\s+me|it'?s\s+me)\s*\)", _re.I)
+_ALIAS_IS_ME = _re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?" + _NM + r"\s+is\s+(?:also\s+)?(?:me|my\s+name|my\s+real\s+name)\s*[.!]*\s*$", _re.I)
+_ALIAS_SAY = _re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:and|but|also|so)[,\s]+)?(?:my\s+(?:real|actual|first|full|other)\s+name\s+is|"
+                         r"my\s+name\s+is\s+also|i(?:'m|\s+am)\s+also\s+(?:called|known\s+as)|i\s+also\s+go\s+by|you\s+can\s+also\s+call\s+me)\s+"
+                         + _NM + r"\s*[.!]*\s*$", _re.I)
+_NOT_ALIAS = frozenset("me my you he she it they this that there who what ash user someone somebody the a an i we".split())
+
+
+def alias_in(text: str):
+    """(name, whole) -- a name the person says is theirs, and whether the line is only that statement. None if there is none."""
+    t = str(text or "")
+    for rx, whole in ((_ALIAS_SAY, True), (_ALIAS_IS_ME, True), (_ALIAS_PAREN, False)):
+        m = rx.search(t)
+        if m:
+            name = " ".join(m.group(1).split())
+            if name.lower() not in _NOT_ALIAS and not any(w.lower() in _NOT_ALIAS for w in name.split()):
+                return name.title(), whole
+    return None
