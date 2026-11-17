@@ -376,6 +376,7 @@ def main() -> int:
                 feelings_path=os.path.join(os.getcwd(), "state", "feelings.json"),
                 fun=bool(cfg.get("fun", {}).get("enabled", True)),
                 fun_path=os.path.join(os.getcwd(), "state", "fun.json"),
+                jokes_path=os.path.join(os.getcwd(), "state", "jokes.json"),
                 kids=bool(cfg.get("kids", {}).get("enabled", False)),
                 kids_cfg=cfg.get("kids", {}),
                 photobooth=bool(cfg.get("photobooth", {}).get("enabled", True)),

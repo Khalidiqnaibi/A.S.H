@@ -378,9 +378,11 @@ class Joke(Activity):
     weight = 0.8
     cooldown_s = 6 * 3600.0
 
-    def __init__(self, jokes=_JOKES):
+    def __init__(self, jokes=_JOKES, book=None):
         self.jokes = tuple(jokes)
+        self.book = book                # a JokeBook: what was told survives a restart
         self._i = 0
+        self._offered = None
 
     def propose(self, env, now):
         if not self.jokes:
@@ -388,10 +390,24 @@ class Joke(Activity):
         if env.mood is not None and env.mood < 0.0:
             return None
         value = 0.25 + (0.15 if (env.mood or 0.0) > 0.3 else 0.0)
-        return Candidate(self.name, self.jokes[self._i % len(self.jokes)], value)
+        if self.book is not None:
+            joke = self.book.pick(self.jokes)       # the one told least, the oldest telling first, never a retired one
+            if joke is None:
+                return None
+        else:
+            joke = self.jokes[self._i % len(self.jokes)]
+        self._offered = joke
+        return Candidate(self.name, joke, value)
+
+    def spoken(self, now):
+        # Told: written down (it used to move only when the person answered, and start again at the first joke on every restart,
+        # so the programmer and the loaf of bread came round again and again).
+        if self.book is not None and self._offered:
+            self.book.record(self._offered, now)
 
     def hear(self, text, now):
-        self._i += 1                    # told once; the next is a different one
+        if self.book is None:
+            self._i += 1                # without a record: told once, the next is a different one (as before)
         return None
 
 
@@ -468,12 +484,16 @@ class MoodCheck(Activity):
 def default_moments(cfg: Optional[Dict[str, Any]] = None, wonderer=None,
                     clock: Callable[[], float] = time.time,
                     jokes: bool = True, mood_check: bool = True,
-                    sentiment: Optional[SentimentFn] = None) -> FreeMoments:
+                    sentiment: Optional[SentimentFn] = None, joke_book=None) -> FreeMoments:
     fm = FreeMoments(FreeMomentsConfig.from_dict(cfg), clock, sentiment=sentiment)
     if wonderer is not None:
         fm.register(GapClosure(wonderer))
     if jokes:
-        fm.register(Joke())
+        if joke_book is not None:
+            from .fun import JOKES as _MORE
+            fm.register(Joke(tuple(dict.fromkeys(_JOKES + tuple(_MORE))), book=joke_book))
+        else:
+            fm.register(Joke())
     if mood_check:
         fm.register(MoodCheck(fm))
     return fm

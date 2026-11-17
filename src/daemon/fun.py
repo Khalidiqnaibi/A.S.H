@@ -82,6 +82,14 @@ _JOKE = re.compile(_LEAD + r"(?:tell\s+me\s+(?:a|another)\s+joke|(?:a|another)\s
 _SONG = re.compile(_LEAD + r"(?:sing|make\s+up)\s+(?:me\s+)?(?:a\s+(?:little\s+)?song|something)(?:\s+(?:about|for|on)\s+(?P<x>.{2,40}?))?\s*(?:please)?\s*[.!?]*\s*$", re.I)
 _LAUGH = re.compile(r"\b(?:ha(?:ha)+|hah+|lol|lmao|rofl|hehe+|that'?s\s+(?:so\s+)?(?:funny|hilarious)|good\s+one|you'?re\s+funny)\b", re.I)
 _LIST = re.compile(_LEAD + r"what\s+are\s+(?:our|my|your)\s+inside\s+jokes\s*\??\s*$", re.I)
+_PRE = r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:no|but|wait|ok(?:ay)?|ugh|bro|man)[,\s]+)*"
+_REPEATED = tuple(re.compile(_PRE + body + r"[\s.!?]*$", re.I) for body in (
+    # "you said the same joke 6 times already", "you told me that one already", "you've told me that joke twice"
+    r"you(?:'ve|\s+have)?\s+(?:already\s+)?(?:said|told|made|cracked)(?:\s+me)?\s+(?:the\s+same|that|this)\s+(?:one|joke)(?:\s+\w+\s+times?|\s+twice)?(?:\s+already)?(?:\s+again)?",
+    r"(?:that|this)\s+(?:joke\s+)?again",
+    r"(?:i(?:'ve|\s+have)?\s+)?(?:already\s+)?heard\s+(?:that|this)(?:\s+(?:one|joke))?(?:\s+already)?",
+    r"you\s+(?:keep|always)\s+(?:saying|telling|repeating)\s+(?:the\s+same|that)\s+(?:joke|one)",
+))
 _FORGET = re.compile(_LEAD + r"forget\s+(?:all\s+)?(?:our|my|the)\s+inside\s+jokes\s*[.!]*\s*$", re.I)
 
 
@@ -97,6 +105,7 @@ class Fun:
         self.rng = rng or random.Random()
         self.laugh_window_s = laugh_window_s
         self.keep = keep
+        self.book = None                    # a JokeBook, set by the runtime: what was told across restarts
         self.told: List[int] = []
         self.inside: List[Dict[str, Any]] = []
         self._last_was_joke = False
@@ -145,6 +154,12 @@ class Fun:
             self.stats["inside_recalled"] += 1
             pick = self.rng.choice(self.inside)["line"]
             return f"Remember when I said “{pick}”? Still gets me."
+        if self.book is not None:
+            j = self.book.pick(JOKES)
+            if j is not None:
+                self.book.record(j, self.clock())
+                self.stats["jokes"] += 1
+                return j
         left = [i for i in range(len(JOKES)) if i not in self.told]
         if not left:
             self.told, left = [], list(range(len(JOKES)))
@@ -163,6 +178,8 @@ class Fun:
         t = (text or "").strip()
         if len(t) > 120:
             return None
+        if self.book is not None and any(rx.match(t) for rx in _REPEATED):
+            return self.book.complaint()          # from the record, never "I haven't told it" from nothing
         if _FORGET.match(t):
             n = len(self.inside)
             self.inside = []

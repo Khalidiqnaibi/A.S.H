@@ -303,6 +303,7 @@ class AmbientConfig:
     # BMO-style play: jokes, made-up songs, inside jokes remembered from what made you laugh (fun.py).
     fun: bool = False
     fun_path: Optional[str] = None
+    jokes_path: Optional[str] = None      # which jokes were told (jokebook.py)
     # Kids mode: grown-up things refused, the model told it's a child, a word filter, a time limit (kids.py).
     kids: bool = False
     kids_cfg: Optional[Dict[str, Any]] = None
@@ -551,12 +552,14 @@ class AmbientRuntime:
         self.moments: Optional[FreeMoments] = None
         self._moment_inflight: Optional[str] = None
         self._errors_told = 0
+        from .jokebook import JokeBook
+        self.jokebook = JokeBook(self.cfg.jokes_path, clock=lambda: self.clock())       # which jokes were told, across restarts
         if self.cfg.moments:
             mc = dict(self.cfg.moments_cfg or {})
             self.moments = default_moments(
                 mc, wonderer=self.wonder, clock=lambda: self.clock(),
                 jokes=bool(mc.get("jokes", True)), mood_check=bool(mc.get("mood_check", True)),
-                sentiment=getattr(self.brain, "sentiment_fn", None))
+                sentiment=getattr(self.brain, "sentiment_fn", None), joke_book=self.jokebook)
             self.moments.register(ProviderActivity(
                 "system_assessment", self._system_note, cooldown_s=6 * 3600.0, weight=0.9))
         # Follow-ups: events the user mentioned, asked about once they are over.
@@ -720,6 +723,7 @@ class AmbientRuntime:
         if self.cfg.fun:
             from .fun import Fun
             self.fun = Fun(self.cfg.fun_path, clock=lambda: self.clock())
+            self.fun.book = self.jokebook
         self._avail = None                      # can the user talk right now? (availability.py)
         self._free_since = None
         self.dwell = None
