@@ -357,6 +357,8 @@ def main() -> int:
                 loose_commands=bool(rcfg.get("loose_commands", True)),
                 notes=bool(cfg.get("notes", {}).get("enabled", True)),
                 courtesy=bool(cfg.get("courtesy", {}).get("enabled", True)),
+                arbiter=bool(cfg.get("arbiter", {}).get("enabled", True)),
+                arbiter_path=os.path.join(os.getcwd(), "state", "arbiter.json"),
                 notes_path=os.path.join(os.getcwd(), "state", "notes.json"),
                 pcdoctor=bool(cfg.get("pcdoctor", {}).get("enabled", True)),
                 situation=bool(cfg.get("situation", {}).get("enabled", True)),

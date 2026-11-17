@@ -246,6 +246,15 @@ class Notes:
         last = sorted(self.items, key=lambda n: -n.at)[:5]
         return "You told me: " + "; ".join(n.back for n in last) + "."
 
+    def about_name(self, name: str) -> Optional[str]:
+        """What was kept about somebody (every word of the name in the note), newest first -- or None."""
+        want = set(keys(name))
+        found = sorted((n for n in self.items if want and want <= set(n.keys)), key=lambda n: -n.at)
+        if not found:
+            return None
+        self.stats["found"] += 1
+        return "You told me: " + "; ".join(n.back for n in found[:4]) + "."
+
     def about_user(self, text: str, names=(), role_known: Optional[Callable[[str], bool]] = None) -> Optional[str]:
         """"What do you know about me / the user / <the user's name>?" and "who is my friend?" are asking for what the person
         told ASH to keep, so they get the very answer "what do you remember?" gets. None when nothing was kept (the other rules
@@ -266,11 +275,9 @@ class Notes:
                 self.stats["found"] += 1
                 return self.everything()                  # "who is Khalid" (the user's own name) is not a Wikipedia question
             if who not in _NOT_NAMES_HERE and len(who.split()) <= 3:
-                want = set(keys(who))                     # somebody the person asked ASH to remember: what was said, not a lookup
-                found = sorted((n for n in self.items if want and want <= set(n.keys)), key=lambda n: -n.at)
-                if found:
-                    self.stats["found"] += 1
-                    return "You told me: " + "; ".join(n.back for n in found[:4]) + "."
+                said = self.about_name(who)           # somebody the person asked ASH to remember: what was said, not a lookup
+                if said:
+                    return said
         p = _MY_PEOPLE.match(t)
         if p:
             role = ROLE_CANON.get(p.group("r").lower(), p.group("r").lower())

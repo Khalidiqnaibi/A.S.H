@@ -265,6 +265,8 @@ class AmbientConfig:
     loose_commands: bool = True
     # "Remember that I parked on level 3" ... "where did I park?": kept and found by rule (notes.py).
     notes: bool = False
+    arbiter: bool = False         # questions that can be answered from several places are decided, not hard-wired (arbiter.py)
+    arbiter_path: Optional[str] = None
     courtesy: bool = False        # "thanks", "later", "good night" answered by rule, no model (courtesy.py)
     notes_path: Optional[str] = None
     # "Why is my computer slow?" / "what's using my memory?": the real numbers, by rule (pcdoctor.py).
@@ -784,6 +786,10 @@ class AmbientRuntime:
         if self.cfg.notes:
             from .notes import Notes
             self.notes = Notes(self.cfg.notes_path)
+        self.arbiter = None
+        if self.cfg.arbiter:
+            from .arbiter import Arbiter
+            self.arbiter = Arbiter(self.cfg.arbiter_path, clock=lambda: self.clock())
         self.courtesy = None
         if self.cfg.courtesy:
             from .courtesy import Courtesy
@@ -2847,6 +2853,99 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": f"Got it -- {name} is you too.", "outcome": "desktop"})())
         return True
 
+    def _who_options(self, subject: str, text: str):
+        """Every place "who is <subject>" could be answered from, each with how well it fits (cheap checks only; the one source that
+        goes online, Wikipedia, is asked last and only if it is reached)."""
+        from .arbiter import Option
+        low = subject.lower()
+        user = str(getattr(self.brain, "user", "") or "")
+        names = {n.strip().lower() for n in [user] + [str(a) for a in (getattr(self.ash, "user_aliases", None) or ())] if n}
+        names |= {"me", "myself", "the user", "user"}
+        kb = getattr(self.wonder, "kb", None)
+        word = re.compile(r"\b" + re.escape(low) + r"\b")
+        opts = []
+        if low in names:
+            def ask_me():
+                if self.notes is not None and self.notes.items:
+                    return self.notes.everything()
+                return remembering.who_am_i(kb, user) if kb is not None else None
+            opts.append(Option("me", 1.0, "that is you", ask_me))
+        try:
+            said = remembering.who_is(kb, f"who is {subject}", user) if kb is not None else None
+        except Exception:
+            said = None
+        if said:
+            opts.append(Option("people", 0.9, "somebody you told me about", lambda s=said: s))
+        try:
+            noted = self.notes.about_name(subject) if self.notes is not None else None
+        except Exception:
+            noted = None
+        if noted:
+            opts.append(Option("notes", 0.75, "it is in what you asked me to keep", lambda s=noted: s))
+        try:
+            lines = [s for s in self._user_sentences() if word.search(s.lower())]
+        except Exception:
+            lines = []
+        if lines:
+            recent = [ln.strip()[:140] for ln in lines[-2:]]
+            opts.append(Option("memory", min(0.6, 0.12 * len(lines)), f"you have mentioned it {len(lines)} time(s)",
+                               lambda r=recent: "From what you've said before: " + " / ".join(f"\u201c{x}\u201d" for x in r)))
+        try:
+            net = self.brain.concepts.net
+            hits = [c for c in net.concepts.values() if getattr(c, "exemplars", None)
+                    and any(word.search(t.lower()) for _, t in c.exemplars)]
+        except Exception:
+            hits = []
+        if hits:
+            ex = next(t for _, t in hits[0].exemplars if word.search(t.lower()))
+            opts.append(Option("concepts", 0.3, "an idea I formed has it in it",
+                               lambda e=ex: f"I've come across \u201c{subject}\u201d in things like \u201c{e[:120]}\u201d, but nothing more."))
+        f = self.facts
+        if f is not None and f.enabled:
+            from .facts import topic_of
+            if topic_of(text) is not None:
+                proper = any(w[:1].isupper() for w in subject.split()) or len(subject.split()) >= 2
+                opts.append(Option("wikipedia", 0.6 if proper else 0.4, "a public name" if proper else "could be a public name",
+                                   lambda t=text: f.hear(t)))
+        return opts
+
+    def _who_request(self, ev, now: float) -> bool:
+        """"Who is X?" / "tell me about X" / "what do you know about X": decided among identity, people, notes, earlier conversations,
+        concepts and Wikipedia by how well each fits (arbiter.py), not always the same one. "I mean from your memory" re-asks from there."""
+        a = getattr(self, "arbiter", None)
+        if a is None or not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        from .arbiter import subject_of
+        text = str(getattr(ev, "text", "") or "")
+        forced = a.correction(text, now)
+        was = None
+        if forced is not None:
+            subject, asked, was = a.last["subject"], a.last["text"], a.last.get("source")
+        else:
+            subject = subject_of(text)
+            if subject is None:
+                return False
+            asked = text
+        try:
+            dec = a.decide(asked, subject, self._who_options(subject, asked), force=forced, now=now)
+        except Exception:
+            logger.exception("Arbiter failed")
+            return False
+        if forced is not None:
+            a.learn(forced, was)
+        if dec.answer is None:
+            if forced is None:
+                return False                                   # nothing fits: the old rules, and the model, go on
+            label = {"memory": "what you've said to me", "notes": "your notes", "people": "the people I know",
+                     "concepts": "my concepts", "wikipedia": "Wikipedia", "me": "what I know about you"}.get(forced, forced)
+            say = f"I looked in {label} and there's nothing about \u201c{subject}\u201d."
+        else:
+            say = self._maybe_hold(dec.answer, now)
+        logger.info("Arbiter: %r -> %s  %s", subject, dec.source, dec.ranking[:4])
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "arbiter", "source": dec.source, "why": a.why()}
+        return True
+
     def _about_me_request(self, ev, now: float) -> bool:
         """"What do you know about me / the user / Khalid?" and "who is my friend?": what the person asked ASH to keep, answered
         exactly as "what do you remember?" is -- not "you haven't told me anything" while the notes are there."""
@@ -3666,6 +3765,8 @@ class AmbientRuntime:
         if not loose and self._learn_alias(ev, now):
             return True
         if not loose and self._about_me_request(ev, now):
+            return True
+        if not loose and self._who_request(ev, now):
             return True
         if not loose and self._identity_request(ev, now):
             return True
