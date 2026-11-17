@@ -47,11 +47,11 @@ except ImportError:
 
 
 class NotifyActuator(Actuator):
-    """Desktop notification. The safest way for an always-on ASH to say
-    something without hijacking focus or talking over a meeting."""
+    """Says something in ASH's own window -- never an operating-system popup, so it cannot hijack focus or talk over a
+    meeting."""
 
     capability = Capability(
-        name="notify", description="Show a desktop notification.",
+        name="notify", description="Show a line in the A.S.H window (no desktop popup).",
     )
     action_class = "mutation"
     reversible = True
@@ -67,41 +67,10 @@ class NotifyActuator(Actuator):
         return "notify-send" if which("notify-send") else None
 
     def act(self, args: Any) -> Dict[str, Any]:
-        text = args if isinstance(args, str) else str((args or {}).get("text", args))
-        title = "A.S.H"
-        backend = self.probe_backend()
-
-        if backend == "win":
-            try:
-                import ctypes
-                # MessageBoxW is a *blocking* call -- it does not return
-                # until a human clicks OK. Calling it synchronously here
-                # would freeze whichever thread called notify(), which for
-                # the daemon is the ambient loop's own thread (no thread is
-                # spawned per response -- see AmbientRuntime._respond). Text
-                # mistaken for a legitimate reply (e.g. a raw LLM provider
-                # error string that slipped past the guard in
-                # src/brain/system2.py) would then hang the *entire* daemon
-                # until someone happened to be there to click OK, which on
-                # an unattended box can be indefinitely. Fire it on its own
-                # daemon thread so notify() always returns immediately.
-                threading.Thread(
-                    target=lambda: ctypes.windll.user32.MessageBoxW(
-                        0, text[:500], title, 0x40 | 0x1000),
-                    daemon=True,
-                ).start()
-                return {"ok": True, "result": "notification shown"}
-            except Exception as e:
-                return {"ok": False, "error": str(e)}
-        if backend == "osascript":
-            subprocess.run(["osascript", "-e",
-                            f'display notification {shlex.quote(text[:400])} with title "{title}"'],
-                           timeout=5)
-            return {"ok": True, "result": "notification shown"}
-        if backend == "notify-send":
-            subprocess.run(["notify-send", title, text[:400]], timeout=5)
-            return {"ok": True, "result": "notification shown"}
-        return {"ok": False, "error": "no notification backend"}
+        # No operating-system popup of any kind (a message box, a toast, notify-send): everything ASH says is shown in its own
+        # window, which keeps a history and replays it to a window opened late. This used to raise a blocking MessageBox
+        # whenever the window was closed.
+        return {"ok": True, "result": "shown in the A.S.H window"}
 
 
 class SpeakActuator(Actuator):

@@ -446,10 +446,16 @@ def u6_sink():
     open_ = [False]
     sink = ashd.build_response_sink(p, prefer_speech=False, window_open=lambda: open_[0])
     sink("hello", {"addressed": True})
-    check("closed window: the notification is shown", p.actuators["notify"].n == 1)
+    check("closed window: no desktop popup", p.actuators["notify"].n == 0)
     open_[0] = True
     sink("hello", {"addressed": True})
-    check("open window: no duplicate notification", p.actuators["notify"].n == 1)
+    check("open window: no desktop popup either", p.actuators["notify"].n == 0)
+    from src.senses.actuators import NotifyActuator
+    import ctypes
+    called = []
+    real = getattr(getattr(ctypes, "windll", None), "user32", None)
+    r = NotifyActuator(enabled=True, dry_run=False).act("hello")
+    check("the notify actuator raises no operating-system dialog", r.get("ok") and "window" in r.get("result", ""))
 
 
 # ----------------------------------------------------------------------

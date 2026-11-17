@@ -152,19 +152,14 @@ def build_response_sink(periphery, prefer_speech: bool = True, window_open=None)
     What is still never spoken: a notice that the model is down. That is ASH
     apologising for being broken, and it goes to the quiet channel only.
     """
-    notify = periphery.actuators.get("notify")
     speak = periphery.actuators.get("speak")
 
     def sink(text: str, meta: dict):
         addressed = meta.get("addressed", False)
         delivered = []
 
-        if (notify is not None and notify.state.value == "active"
-                and not (window_open is not None and window_open())):
-            r = notify(text)
-            if r.get("ok"):
-                delivered.append("notify")
-
+        # Nothing pops up on the desktop: what ASH says is shown in its own window (which keeps a history, so a window opened
+        # later still has it), and spoken when it should be. `window_open` is kept for callers but no longer decides anything.
         # Spoken when spoken to, and -- unless runtime.speak_unprompted says
         # otherwise -- when ASH decided on its own that this was worth saying.
         # Never an apology for being broken.

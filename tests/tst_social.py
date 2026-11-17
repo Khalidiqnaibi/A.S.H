@@ -1002,8 +1002,8 @@ def s9_lines_and_outages():
         sink = ashd.build_response_sink(P(), prefer_speech=False)
         sink("an answer", {"addressed": True})
         sink(NO_MODEL_TEXT, {"addressed": True, "degraded": True})
-        check("the daemon's sink: an answer is notified and spoken, a degraded notice only notified",
-              notified == ["an answer", NO_MODEL_TEXT] and spoken == ["an answer"], f"{notified} {spoken}")
+        check("the daemon's sink: an answer is spoken, a degraded notice is not, and nothing is popped up on the desktop",
+              notified == [] and spoken == ["an answer"], f"{notified} {spoken}")
 
         # The default. An offer that is shown and not said is the one feature
         # whose whole point is speaking up unasked, done silently.
@@ -1022,8 +1022,8 @@ def s9_lines_and_outages():
               said == ["ready for a break?", "want a hand with that?",
                        "that build has been running a while"], str(said))
         loud(NO_MODEL_TEXT, {"addressed": False, "degraded": True})
-        check("...but never the apology for being broken",
-              NO_MODEL_TEXT not in said and NO_MODEL_TEXT in shown, str(said[-1:]))
+        check("...but never the apology for being broken, and no popup for it either",
+              NO_MODEL_TEXT not in said and shown == [], str(said[-1:]))
 
         # And the quiet channel is still one setting away.
         quiet_said = []
