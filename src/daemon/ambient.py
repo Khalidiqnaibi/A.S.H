@@ -2147,10 +2147,40 @@ class AmbientRuntime:
             say = (f"Nothing I can bring up right now -- {len(held)} question{'s' if len(held) != 1 else ''} saved up, but "
                    f"I'm not allowed to ask them yet (muted, quiet hours, or told to stop).")
         else:
-            say = "Nothing saved up for a free moment: no open questions, and nothing I want to bring up. Ask me something instead."
+            # Nothing saved is not a reason to go quiet when the person has just said "ask me anything": ask something, from
+            # what ASH does not know yet (it said "nothing saved up, ask me something instead", which is the opposite of the invitation).
+            say = "Okay, free moment. " + self._curious_question(now)
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
         self._last_why = {"kind": "free_moment_none"}
         return True
+
+    _CURIOUS = (
+        ("friend", "I only know a few names -- who's someone close to you?"),
+        ("work", "What's the most interesting thing you're working on right now?"),
+        ("goal", "What's one thing you want to get done before the day's over?"),
+        ("music", "What have you been listening to lately?"),
+        ("mind", "Anything on your mind you haven't said out loud yet?"),
+        ("day", "What was the best part of your day so far?"),
+        ("learn", "Is there something you've been wanting to learn?"),
+    )
+
+    def _curious_question(self, now: float) -> str:
+        """A question for a free moment the person opened: one ASH has not asked lately, and not about what it already knows
+        (nobody close on record -> ask who)."""
+        asked = getattr(self, "_curious_asked", None)
+        if asked is None:
+            asked = self._curious_asked = []
+        know_friend = False
+        try:
+            kb = getattr(self.wonder, "kb", None)
+            know_friend = bool(kb is not None and any((p.get("relation") or "") == "friend" for p in kb.people.values()))
+            know_friend = know_friend or bool(self.notes is not None and any("friend" in n.keys for n in self.notes.items))
+        except Exception:
+            pass
+        pool = [q for k, q in self._CURIOUS if q not in asked[-4:] and not (k == "friend" and know_friend)]
+        q = (pool or [q for _, q in self._CURIOUS])[len(asked) % max(1, len(pool or self._CURIOUS))]
+        asked.append(q)
+        return q
 
     def _filemake_request(self, ev, now: float) -> bool:
         """"Create a new empty desktop text file called notes.txt": made with the file tool and checked, never claimed."""

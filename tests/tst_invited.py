@@ -45,11 +45,17 @@ def i2_question():
 
 
 def i3_nothing():
-    print("\n=== I3. Nothing saved: it says so ===")
+    print("\n=== I3. Nothing saved: it asks something ===")
     h = tf.rt_rig(disabled=["mood_check", "gap_closure", "system_assessment", "joke"])
     n = len(h.ash.calls)
     h.say(ASK)
-    check("it says there is nothing, and does not ask the model", any("Nothing saved up" in s for s in h.said()) and len(h.ash.calls) == n, str(h.said()))
+    said = h.said()
+    check("it asks the person something instead of 'nothing saved up' (that was the opposite of the invitation), and not the model",
+          said and said[-1].startswith("Okay, free moment. ") and said[-1].endswith("?") and "Nothing saved up" not in said[-1] and len(h.ash.calls) == n,
+          str(said))
+    h.say(ASK)
+    again = h.said()
+    check("asked again, it asks a different thing", len(again) >= 2 and again[-1] != again[-2], str(again[-2:]))
 
 
 def i4_other_lines():
