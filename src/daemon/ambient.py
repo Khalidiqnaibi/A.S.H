@@ -789,6 +789,9 @@ class AmbientRuntime:
             from .notes import Notes
             self.notes = Notes(self.cfg.notes_path)
         self._choosers: Dict[str, Any] = {}
+        if getattr(self, "play", None) is not None:
+            from .play import SEEDS as _PLAY_SEEDS
+            self.play.chooser = self.chooser("play", _PLAY_SEEDS, accept=0.62, margin=0.1)     # "whats todays trivia": by meaning
         self.arbiter = None
         if self.cfg.arbiter:
             from .arbiter import Arbiter

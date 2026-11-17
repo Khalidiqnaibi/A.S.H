@@ -67,6 +67,25 @@ _HARD = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:that'?s|that\s+was|it'?s
 _MORE = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:yes|yeah|okay|ok)[,\s]+)?(?:another(?:\s+one)?|next(?:\s+(?:one|question))?|one\s+more|"
                    r"again|more|ask\s+me\s+another(?:\s+one)?|give\s+me\s+(?:another|more))(?:\s+(?:please|pls))?\s*[.!?]*\s*$", re.I)
 AFTER_S = 120.0
+
+# What a Chooser (chooser.py) learns "is this a request to play something?" from. "whats todays trivia" was not matched by any pattern and went
+# to the model, which said it had no access; the patterns list wordings, this reads meaning (and the patterns teach it what they catch).
+SEEDS = {
+    "trivia": ["today's trivia", "whats todays trivia", "give me the daily trivia", "i want the trivia question", "ask me today's trivia",
+               "trivia time", "quiz me", "test me with a trivia question", "can i have a trivia question", "got any trivia for me",
+               "i want to do the trivia", "let's do the trivia"],
+    "riddle": ["give me a riddle", "tell me a riddle", "i want a riddle", "got a riddle for me", "riddle me this", "ask me a riddle",
+               "let's do a riddle", "hit me with a riddle"],
+    "game": ["let's play a game", "wanna play something", "i'm bored, let's play", "play a game with me", "can we play a game", "start a game",
+             "i want to play a game", "let's play something fun", "got any games"],
+    "none": ["play some music", "play some jazz", "play the next song", "play my playlist", "play despacito", "pause the music", "i want to play football later",
+             "what is a riddle", "what is trivia", "who invented trivia", "tell me a joke", "what time is it", "open spotify", "who is ada lovelace",
+             "thanks", "yes", "no", "what is the weather", "remind me to call mom", "play it again", "i played chess yesterday", "what's the answer",
+             "tell me a story", "how are you", "what should we do tonight", "set a timer", "i'm bored", "turn the music up", "play the video",
+             "what game was that", "who won the game last night", "the game starts at eight", "remind me about the trivia night on friday",
+             "when is the trivia night", "i went to a trivia night last week", "the quiz is tomorrow", "remind me about the game on friday",
+             "there is a trivia night at the pub", "i have an exam quiz on monday"],
+}
 _NUM = re.compile(r"\b(\d{1,3})\b")
 _WORDNUM = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
             "ten": 10, "eleven": 11, "twelve": 12, "fifteen": 15, "twenty": 20, "thirty": 30, "forty": 40,
@@ -151,6 +170,7 @@ class Play:
         # anything since the offer: a yes 23 minutes after "Want today's trivia question?" had gone to the model, which
         # guessed it was about a 3D printer.
         self.ash_last: Optional[Callable[[], float]] = None
+        self.chooser = None                      # a Chooser: a request to play, by meaning (set by the runtime)
         self.last: Optional[Tuple[str, float]] = None       # (name of the game that just ended, when)
         self.stats = {"games": 0, "finished": 0, "stories": 0}
 
@@ -261,7 +281,18 @@ class Play:
             which = m.group("which") or m.group("which2") or m.group("which3") or m.group("which4") or ""
             if which.lower() in ("trivia", "trivia question") and re.search(r"today", t, re.I):
                 which = "daily trivia"                               # "today's trivia" is the day's question, the same all day
+            if self.chooser is not None:
+                low = which.lower()
+                self.chooser.learn(t, "trivia" if "trivia" in low else "riddle" if "riddle" in low else "game")   # what the rule caught teaches it
             return {"say": self.start(which, now)}
+        if self.chooser is not None and len(t.split()) <= 12:
+            v = self.chooser.classify(t)                             # worded unlike the patterns: by meaning
+            if v.label == "trivia":
+                return {"say": self.start("daily trivia" if re.search(r"today|daily", t, re.I) else "trivia", now)}
+            if v.label == "riddle":
+                return {"say": self.start("riddle", now)}
+            if v.label == "game":
+                return {"say": self.start("", now)}
         return None
 
     def offer(self, kind: str, now: float):

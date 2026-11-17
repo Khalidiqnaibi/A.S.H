@@ -11,6 +11,7 @@ tst_play.py -- quick games, ASH wanting to play, and stories.
       yes / no to each
   P6  The runtime end to end
   P7  A late yes to an offer, and asking for today's trivia in the words people use
+  P8  A request to play worded unlike the patterns is understood by meaning (the chooser); what the patterns catch teaches it
 
 Run:  PYTHONIOENCODING=utf-8 python tests/tst_play.py
 """
@@ -207,8 +208,42 @@ def p7_late_yes_and_trivia_words():
         check(f"{q!r} is left alone", p.hear(q, T0) is None and not p.playing)
 
 
+def p8_by_meaning():
+    print("\n=== P8. By meaning ===")
+    import semantic_fake as sf
+    from src.daemon.chooser import Chooser
+    from src.daemon.play import SEEDS
+    ch = Chooser("play", sf.embed, SEEDS, accept=0.62, margin=0.1)
+    p = Play(seed=1)
+    check("without a chooser 'trivia question todays' is not a request", p.hear("trivia question todays", T0) is None and not p.playing)
+    p = Play(seed=1)
+    p.chooser = ch
+    got = p.hear("trivia question todays", T0)
+    check("with one it is, and it is today's trivia", got is not None and p.playing and "?" in got["say"], f"{got} {ch.classify('trivia question todays').scores}")
+    p2 = Play(seed=2)
+    p2.chooser = Chooser("play", sf.embed, SEEDS, accept=0.62, margin=0.1)
+    check("the same question whoever asks", p2.hear("trivia question todays", T0)["say"] == got["say"])
+    p3 = Play(seed=1)
+    p3.chooser = ch
+    check("a riddle asked for in other words", p3.hear("riddle puzzle for me", T0) is not None and p3.playing)
+    for q in ("play some music", "what is a riddle", "play the next song", "thanks", "tell me a joke", "who won the game last night"):
+        p4 = Play(seed=1)
+        p4.chooser = ch
+        check(f"{q!r} is not a request to play", p4.hear(q, T0) is None and not p4.playing, str(p4.hear(q, T0)))
+    n = len(ch.learned.get("trivia", []))
+    p5 = Play(seed=1)
+    p5.chooser = ch
+    p5.hear("whats todays trivia", T0)
+    check("what a pattern caught teaches the chooser", len(ch.learned.get("trivia", [])) >= n, str(ch.status()))
+    import tst_effects as te
+    rt = te.rig(play=True, chooser_embed=sf.embed, chooser_dir=tempfile.mkdtemp())
+    n0 = len(rt.ash.calls)
+    rt.say("trivia question todays")
+    check("in the runtime it starts a game with no model call", rt.play.playing and len(rt.ash.calls) == n0, f"{rt.out[-1:]}")
+
+
 if __name__ == "__main__":
-    for fn in (p1_start, p2_number, p3_quiz, p4_stopping, p5_offers, p6_runtime, p7_late_yes_and_trivia_words):
+    for fn in (p1_start, p2_number, p3_quiz, p4_stopping, p5_offers, p6_runtime, p7_late_yes_and_trivia_words, p8_by_meaning):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)
