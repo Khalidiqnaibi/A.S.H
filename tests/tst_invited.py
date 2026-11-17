@@ -58,6 +58,29 @@ def i3_nothing():
     check("asked again, it asks a different thing", len(again) >= 2 and again[-1] != again[-2], str(again[-2:]))
 
 
+def i5_by_meaning():
+    print("\n=== I5. Worded unlike the patterns ===")
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import semantic_fake as sf
+    from src.daemon.chooser import Chooser
+    from src.daemon.freemoment import INVITE_SEEDS
+    ch = Chooser("invite", sf.embed, INVITE_SEEDS, accept=0.62, margin=0.1)
+    for said in ("now is a good time ask away", "free right now what did you want to ask me"):
+        check(f"{said!r} is an invitation by meaning", ch.classify(said).label == "invite", str(ch.classify(said).scores))
+    for said in ("i have a free moment tomorrow at ten for the dentist", "free wifi is available here", "i'm not free until five", "what time is it"):
+        check(f"{said!r} is not", ch.classify(said).label is None, str(ch.classify(said).scores))
+    h = tf.rt_rig(disabled=["mood_check", "gap_closure", "system_assessment", "joke"])
+    h.rt.cfg.chooser_embed = sf.embed
+    n = len(h.ash.calls)
+    h.say("now is a good time ask away")
+    said = h.said()
+    check("in the runtime it opens the moment, with no model", said and said[-1].startswith("Okay, free moment. ") and len(h.ash.calls) == n, str(said[-1:]))
+    off = tf.rt_rig(disabled=["mood_check", "gap_closure", "system_assessment", "joke"])
+    n = len(off.ash.calls)
+    off.say("now is a good time ask away")
+    check("without an encoder the patterns alone decide: it is left to the model", len(off.ash.calls) > n or not any("free moment" in s for s in off.said()))
+
+
 def i4_other_lines():
     print("\n=== I4. Other lines are left alone ===")
     h = tf.rt_rig()
@@ -70,5 +93,6 @@ if __name__ == "__main__":
     i2_question()
     i3_nothing()
     i4_other_lines()
+    i5_by_meaning()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

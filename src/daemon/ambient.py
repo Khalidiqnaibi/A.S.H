@@ -2150,8 +2150,14 @@ class AmbientRuntime:
         if not self._user_source(ev) or not self._meant_for_ash(ev):
             return False
         text = str(getattr(ev, "text", "") or "")
-        if not self._FREE_Q.search(text) or not self._FREE_ASK.search(text) or len(text.split()) > 30:
-            return False
+        by_rule = bool(self._FREE_Q.search(text) and self._FREE_ASK.search(text)) and len(text.split()) <= 30
+        from .freemoment import INVITE_SEEDS
+        ch = self.chooser("invite", INVITE_SEEDS, accept=0.62, margin=0.1)
+        if by_rule:
+            if ch is not None:
+                ch.learn(text, "invite")                            # what the patterns caught teaches the chooser
+        elif ch is None or len(text.split()) > 16 or ch.classify(text).label != "invite":
+            return False                                           # not by the patterns, and not by meaning either
         if self._moment_inflight is not None or self._wonder_inflight is not None:
             return False                                   # one is already on its way
         self._free_until = now + (self.wonder.cfg.free_moment_s if self.wonder else 180.0)

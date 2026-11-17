@@ -358,6 +358,30 @@ class GapClosure(Activity):
                          data={"wonder": q})
 
 
+# What a Chooser (chooser.py) learns "the person is free and inviting ASH to bring something up" from; the two patterns in the runtime catch the
+# wordings somebody listed ("free moment" + "ask me"), and teach these as they do.
+INVITE_SEEDS = {
+    "invite": ["this is a free moment ask me anything", "i'm free, ask me something", "got a minute? ask me a question", "i have some time, what do you want to ask",
+               "what do you have for me in a free moment", "i'm not busy right now, talk to me", "i've got nothing to do, say something",
+               "i have a spare minute, what's on your mind", "now is a good time, ask away", "free right now, what did you want to ask me",
+               "i'm done working, ask me whatever you like", "anything you want to ask me while i'm free",
+               "i'm bored, entertain me", "nothing going on, what do you want to talk about", "you can ask me something now",
+               "go ahead and ask me what you wanted", "i'm here with time, ask me a thing", "feel free to ask me anything", "your turn to ask me something",
+               "i'm listening, what's on your mind", "i have a few minutes to chat, what's up", "i'm free to talk, say something",
+               "ask me a question, i have time", "i've got time right now, bring up whatever you like", "let's talk, i'm not doing anything",
+               "what did you want to ask me earlier, i'm free now", "got something for me? i'm ready", "chat with me for a bit",
+               "i'm relaxing, tell me what you wanted to ask", "i'm on a break, ask away", "no plans right now, what's on your mind"],
+    "none": ["i have a free moment tomorrow at ten for the dentist", "i'm free on friday", "what is a free moment", "i'm busy right now", "don't bother me",
+             "ask me nothing today", "what time is it", "tell me a joke", "play some music", "remind me about my free time", "i have no free time this week",
+             "thanks", "yes", "who is omar", "i'm not free until five", "i had a free period at school", "free wifi is available here",
+             "i want to ask you a question", "can i ask you something", "what do you know about me", "how are you", "i'm tired", "quiet please",
+             "are you free right now", "do you have a minute for me", "do you have time to answer something", "can you help me with a question",
+             "i have a question about python", "ask the plumber to call me", "remind me to ask mom", "what should i ask my boss", "i'm free after lunch",
+             "i'll be free at three", "do you have a question about my schedule", "i'm not doing anything wrong", "we have nothing to do with it",
+             "what do you want for dinner", "what's your favorite color", "what do you like to do", "tell me about your day"],
+}
+
+
 _JOKES = (
     "A programmer's partner says: go to the shop, buy a loaf of bread, and if they have eggs, get a dozen. "
     "They come back with twelve loaves.",
