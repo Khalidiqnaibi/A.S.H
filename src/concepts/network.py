@@ -50,6 +50,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 
+from .candidates import CandidateBuffer, is_episode_like
 from .model import (
     Activation, Concept, Origin, PROTECTED_ORIGINS, Synapse, SynType,
 )
@@ -82,6 +83,7 @@ class ConceptNetwork:
         conscience: float = 1.0,       # how hard a concept that already takes more than its share is held back
         conscience_cap: float = 0.25,  # the most similarity it can lose to that
         conscience_warmup: int = 300,  # total activations before shares mean anything
+        deferred_growth: bool = False,  # a concept is made at sleep from what came back, not on the spot (see candidates.py)
     ):
         self.dim = dim
         self.k = k
@@ -97,6 +99,7 @@ class ConceptNetwork:
         self.conscience = conscience
         self.conscience_cap = conscience_cap
         self.conscience_warmup = conscience_warmup
+        self.candidates: Optional[CandidateBuffer] = CandidateBuffer(dim) if deferred_growth else None
 
         self.concepts: Dict[int, Concept] = {}
         self.synapses: Dict[Tuple[int, int], Synapse] = {}
@@ -316,11 +319,16 @@ class ConceptNetwork:
         grown = None
         if allow_growth and best < self.vigilance:
             # Resonance failure: nothing in the vocabulary explains this.
-            c = self.add_concept(vec, origin=Origin.GROWN, seed_text=text[:200])
-            grown = c.id
-            initial[c.id] = 1.0
-            logger.debug("Grew concept c%d (best match %.2f < vigilance %.2f): %r",
-                         c.id, best, self.vigilance, text[:60])
+            if self.candidates is None:
+                c = self.add_concept(vec, origin=Origin.GROWN, seed_text=text[:200])
+                grown = c.id
+                initial[c.id] = 1.0
+                logger.debug("Grew concept c%d (best match %.2f < vigilance %.2f): %r",
+                             c.id, best, self.vigilance, text[:60])
+            elif not is_episode_like(text):
+                # Not a concept yet: one unexplained input is an episode. It is only noted, and becomes a concept at sleep if
+                # the same kind of thing comes back on separate occasions.
+                self.candidates.note(vec, text, time.time())
 
         # Priming: carry a decayed trace of the previous cycle in as baseline
         # for the spread -- but not into `initial`. `initial` means "this
@@ -337,12 +345,15 @@ class ConceptNetwork:
         spread = self._spread(seed, perceived=initial)
 
         now = time.time()
+        # Adaptive resonance: a prototype only learns from an input it resonates with. When growth is deferred, an input a
+        # concept matches only weakly is not something to drag that concept toward (it would be, with nothing grown to take
+        # it): only a match at or above vigilance teaches.
         for cid, a in spread.items():
             c = self.concepts.get(cid)
             if c is None:
                 continue
             c.touch(a, now)
-            if learn_prototypes and cid in initial:
+            if learn_prototypes and cid in initial and (self.candidates is None or initial[cid] >= self.vigilance):
                 c.note_exemplar(text, float(initial[cid]))
                 # Only bottom-up winners drift. A concept reached purely by
                 # association should not move toward an input it never matched.
@@ -358,6 +369,25 @@ class ConceptNetwork:
         self.last = act
         self._record_cooccurrence(act)
         return act
+
+    def promote_candidates(self, now: Optional[float] = None) -> Dict[str, int]:
+        """Sleep: what came back often enough, on separate occasions, becomes a concept (its prototype the average of the times
+        it came); what never came back is forgotten. Nothing is promoted that a concept now explains well."""
+        if self.candidates is None:
+            return {"promoted": 0, "forgotten": 0, "waiting": 0}
+        now = time.time() if now is None else now
+        made = 0
+        for cand in self.candidates.ripe():
+            self.candidates.remove(cand)
+            _, best = self._kwta(cand.vec)
+            if best >= self.vigilance:
+                continue                      # a concept covers it by now: it was one more way of saying something known
+            c = self.add_concept(cand.vec, origin=Origin.GROWN, seed_text=(cand.texts[0] if cand.texts else ""))
+            c.activations = cand.n
+            c.exemplars = [(1.0, t) for t in cand.texts[:3]]
+            made += 1
+        gone = self.candidates.forget(now)
+        return {"promoted": made, "forgotten": gone, "waiting": len(self.candidates.items)}
 
     def _record_cooccurrence(self, act: Activation):
         """Counts for the PMI correction. Bounded by capping the table -- an
@@ -490,10 +520,16 @@ class ConceptNetwork:
             from src.memory.atomic import write_with, write_json
             ids = np.array(self._ids, dtype=np.int64)
             protos = self._matrix if self._matrix is not None else np.zeros((0, self.dim), dtype=np.float32)
-            write_with(os.path.join(directory, "prototypes.npz"),
-                       lambda f: np.savez_compressed(f, ids=ids, protos=protos), "wb")
+            cand = self.candidates.matrix() if self.candidates is not None else None
+            if cand is not None:
+                write_with(os.path.join(directory, "prototypes.npz"),
+                           lambda f: np.savez_compressed(f, ids=ids, protos=protos, cand=cand), "wb")
+            else:
+                write_with(os.path.join(directory, "prototypes.npz"),
+                           lambda f: np.savez_compressed(f, ids=ids, protos=protos), "wb")
             meta = {
                 "dim": self.dim, "next_id": self._next_id, "cycles": self.cycles,
+                "candidates": self.candidates.meta() if self.candidates is not None else [],
                 "concepts": [
                     {**c.as_dict(), "plasticity": c.plasticity}
                     for c in self.concepts.values()
@@ -568,6 +604,8 @@ class ConceptNetwork:
                 except ValueError:
                     pass
 
+            if self.candidates is not None:
+                self.candidates.restore(d["cand"] if "cand" in d.files else None, meta.get("candidates") or [])
             self._next_id = int(meta.get("next_id", max(ids, default=-1) + 1))
             self.cycles = int(meta.get("cycles", 0))
             self._dirty = True
@@ -596,6 +634,7 @@ class ConceptNetwork:
             "mean_weight": round(float(np.mean(weights)), 4) if weights else 0.0,
             "max_weight": round(float(np.max(weights)), 4) if weights else 0.0,
             "cycles": self.cycles,
+            "candidates": len(self.candidates.items) if self.candidates is not None else 0,
             "primed": len(self._prime),
             "density": round(len(self.synapses) / max(1, len(self.concepts) ** 2), 5),
         }

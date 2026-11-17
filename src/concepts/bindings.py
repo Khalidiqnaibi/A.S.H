@@ -375,7 +375,7 @@ class ConceptSystem:
     def __init__(self, embedder, registry, core_memory=None, entity_memory=None,
                  intent_catalog=None, shapes=None, dim: int = 384,
                  load: bool = True, seed: bool = True):
-        self.net = ConceptNetwork(dim=dim)
+        self.net = ConceptNetwork(dim=dim, deferred_growth=True)
         self.plasticity = Plasticity(self.net)
         self.hippocampus = Hippocampus(dim=dim)
         self.neuromod = Neuromodulators()
@@ -433,8 +433,11 @@ class ConceptSystem:
 
         if learn and self.enabled:
             self.plasticity.potentiate(act)
-            # Neighbours of the winning units drift toward the input.
-            self.plasticity.nonhebb.pull_prototypes(vec, act.initial)
+            # Neighbours of the winning units drift toward the input -- when it resonates with them. An input nothing
+            # explains is an episode until it has come back (candidates.py); it must not drag the units that merely
+            # came closest.
+            if self.net.candidates is None or act.novelty <= 1.0 - self.net.vigilance:
+                self.plasticity.nonhebb.pull_prototypes(vec, act.initial)
         return act
 
     def encode_episode(self, vec, text: str = "", act: Optional[Activation] = None,

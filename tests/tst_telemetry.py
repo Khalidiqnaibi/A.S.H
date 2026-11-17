@@ -5,7 +5,7 @@ tst_telemetry.py -- the machine's own readings are perceived but never become co
 all activation. They are the body's state (homeostasis already has them); the graph is for what the person means.
 
   T1  What counts as telemetry (and what never does: a person's words, whatever carries them)
-  T2  A telemetry percept does not grow a concept, drag a prototype, or strengthen wires; a person's sentence still does
+  T2  A telemetry percept does not grow a concept, drag a prototype, or strengthen wires; a person's sentence is noted as a candidate
   T3  The brain's ambient path passes it on
 
 Run:  PYTHONIOENCODING=utf-8 python tests/tst_telemetry.py
@@ -66,7 +66,9 @@ def t2_graph():
     check("...and strengthen no wires", w1 == w0)
     for i in range(10):
         cs.perceive(rnd(300 + i), text=f"a sentence about topic {i}")
-    check("whereas a person's sentences still grow the graph", len(cs.net.concepts) > n0, str(len(cs.net.concepts)))
+    check("whereas a person's sentences are noted as candidates (a concept is made at sleep, if they come back)",
+          len(cs.net.candidates.items) >= 5 and len(cs.net.concepts) == n0, str(len(cs.net.candidates.items)))
+    cs.net.add_concept(rnd(100))
     act = cs.perceive(rnd(100), text="memory at 80%", telemetry=True)
     check("a telemetry percept is still perceived (an activation to explain)", act is not None and bool(act.spread))
 

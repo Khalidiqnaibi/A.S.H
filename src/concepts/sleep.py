@@ -102,6 +102,12 @@ class SleepCycle:
                 self.neuromod.update(novelty=0.0, surprise=0.0, asleep=True)
             report["ach"] = round(self.neuromod.state.ach, 3)
 
+        # What came back on separate occasions becomes a concept first, so this night's replay can wire it in (and the
+        # rollback guard below keeps it: it is not part of what replay changes).
+        promote = getattr(self.net, "promote_candidates", None)
+        if promote is not None:
+            report["candidates"] = promote()
+
         before = self._snapshot_stats()
         pre_score = None
         snapshot = None
