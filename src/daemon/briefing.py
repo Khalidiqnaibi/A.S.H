@@ -247,7 +247,7 @@ class Briefings:
         w = self.wonder
         if w is not None:
             try:
-                n = sum(1 for x in w.wonders.values() if x.status == "pending")
+                n = w.askable(now) if hasattr(w, "askable") else sum(1 for x in w.wonders.values() if x.status == "pending")
             except Exception:
                 n = 0
             if n:

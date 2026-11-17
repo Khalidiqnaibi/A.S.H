@@ -247,8 +247,20 @@ def b5_runtime():
     check("and not counted as given", h.rt.briefings.stats["given"] == 0 and h.rt.briefings.stats["empty"] == 1)
 
 
+def b6_promise_matches_what_can_be_asked():
+    print("\n=== B6. A question is only promised when one can be asked ===")
+    w = tw.rig()
+    w.observe("I told Omar about it")
+    b = Briefings(BriefingConfig(), wonder=w, clock=lambda: at(0, 8))
+    check("one open question: promised", "I have a question for you" in b.compose("morning"), b.compose("morning"))
+    check("and the count is the one 'ask away' uses", w.askable(at(0, 8)) == 1)
+    w._is_closed = lambda k, now: True                     # closed or muted: "ask away" would find none
+    check("none that can be asked: not promised", "question" not in b.compose("morning"), b.compose("morning"))
+    check("the count follows", w.askable(at(0, 8)) == 0)
+
+
 if __name__ == "__main__":
-    for fn in (b1_asking, b2_when, b3_what, b4_activity, b5_runtime):
+    for fn in (b1_asking, b2_when, b3_what, b4_activity, b5_runtime, b6_promise_matches_what_can_be_asked):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

@@ -2026,6 +2026,13 @@ class Wonderer:
             f -= 0.1
         return f
 
+    def askable(self, now: float) -> int:
+        """How many pending questions can be asked when the person says "go ahead": the same ones _top_open can pick (not muted,
+        not closed). The morning line promised "I have a question for you" for ones "ask away" then said it had none of."""
+        with self._lock:
+            return sum(1 for w in self.wonders.values()
+                       if w.status == "pending" and not self._subject_muted(w.subjects) and not self._is_closed(w.key, now))
+
     def _top_open(self, now: float) -> Optional[Wonder]:
         """The best pending question when the user has asked for them: no
         pacing, but never one they muted or already closed."""
