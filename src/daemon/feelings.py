@@ -42,6 +42,26 @@ _ASK = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:so|and|hey|hi|hello)[,\s]
                   r"how\s+(?:is|are)\s+you\s+(?:feeling|doing)\s+(?:today|now|right\s+now)|"
                   r"you\s+(?:ok(?:ay)?|good|alright))(?:\s*,?\s*ash)?\s*\??\s*$", re.I)
 
+# What a Chooser (chooser.py) learns "is this asking how ASH feels, or for the machine's status?" from. The rules above catch the phrasings
+# somebody listed (and teach these as they do); "emotional status" was read as "status" and answered with the CPU, because one regex
+# had the word "status" in it and the other did not know "emotional".
+SEEDS = {
+    "feelings": ["how are you", "how are you feeling", "how do you feel", "are you ok", "what's your mood", "how's your mood",
+                 "what's your emotional state", "are you happy", "are you sad today", "how's it going with you", "you doing alright",
+                 "how's your day been", "what mood are you in", "are you in a good mood", "how are you doing today",
+                 "what is your emotional status", "do you have feelings today", "are you feeling okay", "are you tired",
+                 "are you bored", "what's your vibe today", "how's your state of mind"],
+    "status": ["what's your status", "system status", "how's the cpu", "what's your cpu usage", "memory usage", "how much ram is free",
+               "battery level", "give me a status report", "what's using my memory", "how much disk space is left", "what's your load",
+               "show system stats", "how is the system doing", "check system resources", "how's the computer doing"],
+    "none": ["what time is it", "play some music", "who is ada lovelace", "tell me a joke", "thanks", "what's the weather", "yes",
+             "open spotify", "what do you remember", "what's my name", "set a timer", "turn the volume up", "how do i fix this error",
+             "what's the plan for today", "how long will it take", "how many files are in this folder", "what's new", "how do you spell necessary",
+             "how are you going to do that", "how's my schedule today", "how am i feeling", "do you think i'm stressed", "how do i feel about this",
+             "what's my emotional state", "how is the weather", "how's the traffic", "what are you doing", "who are you", "what can you do",
+             "remember that i parked on level three", "remind me to call mom", "i'm tired", "i'm bored", "tell me about yourself"],
+}
+
 # What the face wears for each feeling (animations/builtin); "" = nothing special.
 FACE = {"delighted": "very_happy", "loved": "love", "happy": "happy", "fine": "", "bored": "look_around",
         "sleepy": "sleepy", "low": "sad", "grumpy": "annoyed"}

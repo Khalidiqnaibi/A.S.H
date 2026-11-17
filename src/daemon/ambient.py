@@ -2377,10 +2377,30 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
         return True
 
+    def _feel_or_status(self, text: str):
+        """By meaning (chooser.py): "feelings" (asking how ASH is), "status" (asking for the machine's numbers) or None."""
+        from .feelings import SEEDS as _FEEL_SEEDS
+        c = self.chooser("feelings", _FEEL_SEEDS, accept=0.6, margin=0.1)
+        if c is None or not text or len(text.split()) > 12:
+            return None
+        v = c.classify(text)
+        return v.label if v.label in ("feelings", "status") else None
+
+    def _asks_feelings(self, text: str) -> bool:
+        f = self.feelings
+        if f is None:
+            return False
+        if f.wants(text):
+            c = self._choosers.get("feelings")
+            if c is not None:
+                c.learn(text, "feelings")                      # what the rule caught teaches the chooser
+            return True
+        return self._feel_or_status(text) == "feelings"
+
     def _feelings_request(self, ev, now: float) -> bool:
         """"How are you feeling?": from what actually happened today (feelings.py), not made up by the model."""
         f = self.feelings
-        if f is None or not self._user_source(ev) or not self._meant_for_ash(ev) or not f.wants(str(getattr(ev, "text", "") or "")):
+        if f is None or not self._user_source(ev) or not self._meant_for_ash(ev) or not self._asks_feelings(str(getattr(ev, "text", "") or "")):
             return False
         self._wonder_say(ev, type("R", (), {"say": f.say(now), "outcome": "moment"})())
         return True
@@ -4509,7 +4529,7 @@ class AmbientRuntime:
             return False
         from src.senses.mic import MicrophoneSensor
         text = MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or ""))
-        if self.feelings is not None and self.feelings.wants(text):
+        if self._asks_feelings(text):
             return False                       # "what's your emotional status" is how ASH feels, not the CPU and battery
         pend = getattr(self, "_shutdown_asked", None)
         if pend is not None and now - pend > 30.0:
@@ -4546,6 +4566,12 @@ class AmbientRuntime:
             return self._control_say(ev, f"Okay, quiet until {phrase}. I'll answer if you ask me something, "
                                          "and I'll be back on my own then.")
         cmd = voicectl.parse(text)
+        if cmd is None and self._feel_or_status(text) == "status":
+            cmd = voicectl.Command("status")                     # worded unlike the rule ("is the battery low"), but by meaning it asks for the numbers
+        elif cmd is not None and cmd.name == "status":
+            c = self._choosers.get("feelings")
+            if c is not None:
+                c.learn(text, "status")
         if cmd is None:
             return False
         harmless = cmd.name in ("face", "faces", "status")

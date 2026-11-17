@@ -152,8 +152,37 @@ def m6_emotional_status():
     check("'whats your status' is still the system status", "CPU" in rt.out[-1], rt.out[-1][:60])
 
 
+def m7_by_meaning():
+    print("\n=== M7. Feelings or status, by meaning ===")
+    import semantic_fake as sf
+    import tst_effects as te
+    from src.daemon.chooser import Chooser
+    from src.daemon.feelings import SEEDS
+    d = tempfile.mkdtemp()
+    rt = te.rig(feelings=True, feelings_path=os.path.join(d, "f.json"), loose_commands=True, chooser_embed=sf.embed, chooser_dir=os.path.join(d, "c"))
+    for q in ("how are you feeling lately", "what is your mood state right now", "what is your emotional mood"):
+        k, n = len(rt.out), len(rt.ash.calls)
+        rt.say(q)
+        out = rt.out[-1] if len(rt.out) > k else ""
+        check(f"{q!r}: how it feels, by meaning", out and "CPU" not in out and len(rt.ash.calls) == n, out[:70])
+    k = len(rt.out)
+    rt.say("how is the cpu usage load")
+    check("'how is the cpu usage load' (not the rule's wording) is the system status", "CPU" in rt.out[-1] or "memory" in rt.out[-1], rt.out[-1][:70])
+    rt.say("whats your status")
+    check("and the listed wording still is", "CPU" in rt.out[-1], rt.out[-1][:70])
+    ch = rt._choosers["feelings"]
+    check("what the rules caught teaches the chooser", ch.learned.get("status") and ch.learned.get("feelings"), str(ch.status()))
+    n0 = len(rt.ash.calls)
+    rt.say("what should i cook tonight")
+    check("an unrelated question still goes to the model", len(rt.ash.calls) > n0)
+    bare = te.rig(feelings=True, feelings_path=os.path.join(d, "f2.json"), loose_commands=True)
+    k = len(bare.out)
+    bare.say("whats your emotional status")
+    check("without an encoder, the rules (the earlier fix) still answer this one", "CPU" not in bare.out[-1])
+
+
 if __name__ == "__main__":
-    for fn in (m1_moved, m2_last_and_fade, m3_energy, m4_asking, m5_runtime, m6_emotional_status):
+    for fn in (m1_moved, m2_last_and_fade, m3_energy, m4_asking, m5_runtime, m6_emotional_status, m7_by_meaning):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)
