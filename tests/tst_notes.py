@@ -12,6 +12,7 @@ tst_notes.py -- "remember that I parked on level 3" ... "where did I park?", by 
   N8  not from overheard speech, not for a guest, held while a stranger is in view
   N9  people still go to remember.py ("remember Lieth is my friend"); a misspelled "remmeber" still works
   N10 "what do you know about me / the user / Khalid" and "who is my friend" answer exactly as "what do you remember" does
+  N11 "who is Khalid" (the user) and "who is Lieth" (somebody in the notes) are answered from the notes, not looked up on Wikipedia
 
 Run:  PYTHONIOENCODING=utf-8 python tests/tst_notes.py
 """
@@ -204,9 +205,24 @@ def n10_about_me_is_what_you_remember():
     check("a role the people store already names is answered by it", n.about_user("who is my dad", (), lambda r: True) is None)
 
 
+def n11_who_is_name():
+    print("\n=== N11. Who is <the user> / <somebody noted> ===")
+    n = Notes(None, clock=lambda: T)
+    for b in ("lieth is a friend", "abd allah sonokut is my best friend"):
+        n.keep_note(b, T)
+    want = n.everything()
+    for q in ("who is khalid", "who is Khalid?", "who's immortal", "who is me", "ash, who is the user"):
+        check(f"{q!r} (the user) is what was kept", n.about_user(q, ("Khalid", "Immortal")) == want, str(n.about_user(q, ("Khalid", "Immortal"))))
+    got = n.about_user("who is lieth", ("Khalid",))
+    check("'who is lieth' is what was said about lieth", got == "You told me: lieth is a friend.", str(got))
+    for q in ("who is the president", "who is Ada Lovelace", "who is that", "who is it"):
+        check(f"{q!r} is left to the lookup", n.about_user(q, ("Khalid",)) is None, str(n.about_user(q, ("Khalid",))))
+    check("with nothing kept it is left alone", Notes(None).about_user("who is khalid", ("Khalid",)) is None)
+
+
 if __name__ == "__main__":
     for fn in (n1_what_is_a_note, n2_turned_round, n3_finding, n4_never_the_wrong_note, n5_told_and_all, n6_disk_and_forget,
-               n7_runtime, n8_not_overheard_guest_stranger, n9_people_and_spelling, n10_about_me_is_what_you_remember):
+               n7_runtime, n8_not_overheard_guest_stranger, n9_people_and_spelling, n10_about_me_is_what_you_remember, n11_who_is_name):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

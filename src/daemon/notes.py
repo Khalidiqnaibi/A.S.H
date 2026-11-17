@@ -65,8 +65,11 @@ _ABOUT_LEAD = (r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:but|so|and|ok(?:ay)?)\s+)?(?
 _ABOUT_ME = re.compile(_ABOUT_LEAD + r"(?:what\s+(?:do\s+you\s+(?:know|remember)|have\s+you\s+(?:got|noted|learned))\s+(?:about|on)|"
                        r"tell\s+me\s+(?:what\s+you\s+know\s+)?about|what\s+did\s+i\s+tell\s+you\s+about)\s+(?P<who>[a-z][a-z .'\-]{0,40}?)"
                        r"\s*\??\s*$", re.I)
+_WHO_NAME = re.compile(_ABOUT_LEAD + r"who\s*(?:is|was|'s|’s)\s+(?P<who>[a-z][a-z .'\-]{0,40}?)\s*\??\s*$", re.I)
 _MY_PEOPLE = re.compile(_ABOUT_LEAD + r"(?:who\s+(?:is|are|'?s)|what\s+(?:is|are)|do\s+you\s+know)\s+my\s+(?P<r>[a-z]+?)s?"
                         r"(?:\s+(?:name|names|called))?\s*\??\s*$", re.I)
+
+_NOT_NAMES_HERE = frozenset("this that it he she they there you who what the a an someone somebody".split())
 
 # Words that say nothing about which note is meant.
 _FILLER = frozenset("""a an the my your our their his her its this that these those i me you we he she it they is are was were
@@ -256,6 +259,18 @@ class Notes:
         if m and m.group("who").strip().lower().rstrip("?. ") in me:
             self.stats["found"] += 1
             return self.everything()
+        w = _WHO_NAME.match(t)
+        if w:
+            who = w.group("who").strip().lower().rstrip("?. ")
+            if who in me:
+                self.stats["found"] += 1
+                return self.everything()                  # "who is Khalid" (the user's own name) is not a Wikipedia question
+            if who not in _NOT_NAMES_HERE and len(who.split()) <= 3:
+                want = set(keys(who))                     # somebody the person asked ASH to remember: what was said, not a lookup
+                found = sorted((n for n in self.items if want and want <= set(n.keys)), key=lambda n: -n.at)
+                if found:
+                    self.stats["found"] += 1
+                    return "You told me: " + "; ".join(n.back for n in found[:4]) + "."
         p = _MY_PEOPLE.match(t)
         if p:
             role = ROLE_CANON.get(p.group("r").lower(), p.group("r").lower())
