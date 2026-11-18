@@ -1962,6 +1962,32 @@ class Wonderer:
             return False, "asked too recently"
         return True, "ok"
 
+    _WHY_WORDS = {"wondering is off": "asking questions is switched off", "told to stop asking for now": "you told me to stop asking for now",
+                  "muted": "I'm muted", "privacy pause": "privacy mode is on", "quiet hours": "it's quiet hours",
+                  "following a plan": "I'm in the middle of a task", "already speaking": "I'm already speaking",
+                  "still waiting for an answer": "I'm still waiting for your answer to the last one"}
+
+    def why_not(self, env: Environment, now: Optional[float] = None) -> str:
+        """In words, why the best waiting question is not being asked even when invited -- the real reason, not a guess:
+        "you told me to stop asking about father", "I asked about Samsung a few hours ago". "" when there is no such question."""
+        now = self.clock() if now is None else now
+        ok, why = self.can_ask(env, now, invited=True)
+        if not ok:
+            return self._WHY_WORDS.get(why, why)
+        for w in sorted((w for w in self.wonders.values() if w.status in OPEN), key=lambda w: (-w.priority, w.created)):
+            subj = w.subject or w.key
+            if self._subject_muted(w.subjects):
+                return f"you told me to stop asking about {subj}"
+            if self._is_closed(w.key, now):
+                return f"it's already settled ({subj})"
+            hit = [s for s in w.subjects if now - self.subject_last.get(s, -1e12) < self.cfg.subject_cooldown_s]
+            if hit:
+                hrs = (now - self.subject_last[hit[0]]) / HOUR
+                return f"I asked about {subj} {'a few minutes' if hrs < 1 else str(int(hrs)) + ' hours'} ago"
+            if w.urgency < self.cfg.urgent_at and self.backoff.benched(w.kind, now):
+                return f"you waved off my last question of that kind ({subj})"
+        return ""
+
     def eligible(self, now: Optional[float] = None, invited: bool = False) -> List[Wonder]:
         now = self.clock() if now is None else now
         out = []

@@ -2190,8 +2190,14 @@ class AmbientRuntime:
         except Exception:
             logger.debug("could not list the held questions", exc_info=True)
         if held:
-            say = (f"Nothing I can bring up right now -- {len(held)} question{'s' if len(held) != 1 else ''} saved up, but "
-                   f"I'm not allowed to ask them yet (muted, quiet hours, or told to stop).")
+            why = ""
+            try:
+                why = self.wonder.why_not(self._wonder_env(now, idle_s), now)
+            except Exception:
+                logger.debug("could not say why", exc_info=True)
+            first = held[0]
+            say = (f"I have {len(held)} question{'s' if len(held) != 1 else ''} saved up -- the first is about {first.get('subject') or 'something'} -- "
+                   + (f"but I can't ask {'them' if len(held) != 1 else 'it'} now: {why}." if why else "but I can't ask now, and I can't tell why."))
         else:
             # Nothing saved is not a reason to go quiet when the person has just said "ask me anything": ask something, from
             # what ASH does not know yet (it said "nothing saved up, ask me something instead", which is the opposite of the invitation).
