@@ -91,9 +91,21 @@ def _strip_think(text: str) -> str:
     return t
 
 
+# What qwen3:4b wrote and ASH spoke: "Okay, let's break this down. User says "When?" ...", "We are in the middle of a conversation
+# where the user has been on Stremio ...", "Okay, let's unpack this carefully." ASH never says "the user" (it says "you").
+_REASONING_MORE = re.compile(
+    r"^\s*(?:(?:okay|ok|alright|hmm+|so|well|wait)[,.]?\s+)*(?:let'?s|let us)\s+(?:break|unpack|see|think|figure|look|start|analy[sz]e|go through|"
+    r"parse|dissect|tackle|work|try|check|consider|review)" + r"\b" + r"|"
+    r"^\s*(?:we|i)\s+(?:are|am|have|need)\s+(?:in the middle of|looking at|given|to (?:figure|determine|understand|respond|answer|check|see))" + r"\b" + r"|"
+    r"^\s*(?:(?:okay|ok|alright|hmm+|so|well|wait)[,.]?\s+)*(?:the\s+)?user\s+(?:says|said|asks|asked|wants|wanted|is|has|mentioned|query|message|just|seems)" + r"\b", re.IGNORECASE)
+_ABOUT_USER = re.compile(r"\b(?:the\s+)?user\s+(?:is|has|has been|was|says|said|asks|asked|wants|wanted|mentioned|seems|query|message|just|might|probably)\b", re.IGNORECASE)
+
+
 def looks_like_reasoning(text: str) -> bool:
     """True if the text is a model thinking aloud rather than answering."""
-    return bool(text) and bool(_REASONING.match(text))
+    if not text:
+        return False
+    return bool(_REASONING.match(text) or _REASONING_MORE.match(text) or _ABOUT_USER.search(text[:200]))
 
 # Load env
 load_dotenv(override=False)
@@ -375,7 +387,29 @@ class LLM(BaseChatModel):
                     f"(currently {self._max_tokens}) or use a non-reasoning model."
                 )
             if looks_like_reasoning(response_text):
-                print("[LLM WARN] the model answered with its own reasoning; dropped.")
+                # Its thinking came out as the answer (qwen3:4b, 7 times in a day, spoken aloud). Never said; asked once more,
+                # directly and shorter. If that is thinking too, nothing is said.
+                print("[LLM WARN] the model answered with its own reasoning; asking once more, directly.")
+                retry = dict(payload)
+                retry["messages"] = list(payload.get("messages") or []) + [{
+                    "role": "user", "content": "Answer directly now: one or two short spoken sentences, as yourself. No analysis, "
+                                               "and never say 'the user'. /no_think"}]
+                retry["options"] = {**(payload.get("options") or {}), "num_predict": 100}
+                try:
+                    r2 = _post(self._ollama_url, json=retry, timeout=self._timeout)
+                    again = ""
+                    if r2.status_code == 200:
+                        for line in r2.text.splitlines():
+                            try:
+                                again += (json.loads(line).get("message") or {}).get("content") or ""
+                            except (json.JSONDecodeError, AttributeError):
+                                continue
+                    again = _strip_think(again).strip()
+                    if again and not looks_like_reasoning(again):
+                        return again
+                except Exception as e:
+                    print(f"[LLM WARN] the second ask failed: {e}")
+                print("[LLM WARN] still reasoning; dropped.")
                 return ""
 
             return response_text
