@@ -13,6 +13,7 @@ session of 2026-11-07.
       without the name, a short "yeah" is kept
   H6  The intent-embedding cache remembers what it was built from
   H7  The memory cleanup tool: shows first, backs up, keeps what is real
+  H11 "What can you do then?" (a trailing word) and capability questions worded unlike the pattern are answered by rule, never by the model
 
 Run:  PYTHONIOENCODING=utf-8 python tests/tst_honest.py
 """
@@ -370,8 +371,33 @@ def h10_disputes():
     check("in the runtime, the pretend memory is replaced", rt3.out[-1] == honest.NOT_STORED, rt3.out[-1])
 
 
+def h11_trailing_and_meaning():
+    print("\n=== H11. A trailing word; by meaning ===")
+    for said in ("What can you do then?", "what can you do exactly", "what can you do now ash", "what do you do again", "what can you do for me please"):
+        check(f"{said!r} is a capability question", honest.asks_capabilities(said), said)
+    for said in ("can you help me", "what can i do about this error", "what can you see", "what did you do yesterday", "what can you do about the noise upstairs"):
+        check(f"{said!r} is not", not honest.asks_capabilities(said), said)
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import semantic_fake as sf
+    import tst_effects as te
+    rt = te.rig(chooser_embed=sf.embed, chooser_dir=tempfile.mkdtemp())
+    n, k = len(rt.ash.calls), len(rt.out)
+    rt.say("What can you do then?")
+    check("in the runtime the trailing word no longer sends it to the model", len(rt.out) > k and len(rt.ash.calls) == n, str(rt.out[-1:]))
+    n, k = len(rt.ash.calls), len(rt.out)
+    rt.say("what kind of tasks can you handle")
+    check("worded unlike the pattern, it is understood by meaning (no model)", len(rt.out) > k and len(rt.ash.calls) == n, str(rt.out[-1:]))
+    n = len(rt.ash.calls)
+    rt.say("what should I cook tonight")
+    check("an ordinary question still goes to the model", len(rt.ash.calls) > n)
+    bare = te.rig()
+    n = len(bare.ash.calls)
+    bare.say("what kind of tasks can you handle")
+    check("without an encoder the pattern alone decides: that wording goes to the model", len(bare.ash.calls) > n)
+
+
 if __name__ == "__main__":
-    for fn in (h1_capabilities, h2_limits, h3_sanitize, h4_runtime, h5_small, h6_cache, h7_cleanup, h8_quiet_modes, h9_invented, h10_disputes):
+    for fn in (h1_capabilities, h2_limits, h3_sanitize, h4_runtime, h5_small, h6_cache, h7_cleanup, h8_quiet_modes, h9_invented, h10_disputes, h11_trailing_and_meaning):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

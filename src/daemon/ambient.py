@@ -2164,7 +2164,13 @@ class AmbientRuntime:
         from src.senses.mic import MicrophoneSensor
         text = MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or ""))
         say = None
-        if honest.asks_capabilities(text):
+        asks = honest.asks_capabilities(text)
+        ch = self.chooser("capabilities", honest.SEEDS, accept=0.62, margin=0.1)
+        if asks and ch is not None:
+            ch.learn(text, "capabilities")                          # what the rule caught teaches the chooser
+        elif not asks and ch is not None and 2 <= len(text.split()) <= 10 and ch.classify(text).label == "capabilities":
+            asks = True                                             # worded unlike the rule: by meaning
+        if asks:
             say = honest.capabilities(self)
         else:
             say = honest.quiet_modes_reply(text) or honest.ports_reply(self, text) or honest.limit_reply(text)

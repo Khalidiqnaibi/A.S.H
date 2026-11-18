@@ -191,11 +191,34 @@ def limit_reply(text: str) -> Optional[str]:
 _ASK_FOR_HELP = re.compile(r"^\s*(?:hey\s+)?(?:ash[,\s]+)?(?:can|could|would|will)\s+you\s+(?:please\s+)?help(?:\s+me)?\s*[.!?]*\s*$", re.I)
 
 
+_TAIL = re.compile(r"(?:[\s,]+(?:then|exactly|really|actually|now|again|anyway|here|though|so|ash|please))+\s*[.!?]*\s*$", re.I)
+
+# What a Chooser (chooser.py) learns "is the person asking what ASH can do?" from. "What can you do then?" and "what can you do exactly?" matched
+# nothing, went to the model, and were answered with a made-up "I know you asked about Khalid..." -- one trailing word broke the pattern.
+SEEDS = {
+    "capabilities": ["what can you do", "what are you able to do", "what do you do exactly", "tell me what you're capable of", "what are your abilities",
+                     "what are you good at", "how can you help me", "what can i ask you", "what are your features", "what things can you do for me",
+                     "show me what you can do", "what is it that you can do", "list your skills", "what are your limits", "what can't you do",
+                     "what do you know how to do", "what is your purpose", "what are you for", "what do you offer", "what are your powers",
+                     "what kind of tasks can you do", "what are you capable of", "how can you be useful to me", "what services do you provide",
+                     "what sort of things are you able to do", "explain what you can do for me", "what could you do for me", "what are you good for",
+                     "give me an overview of your abilities", "what's your skill set", "what kinds of requests do you handle", "what can you take care of",
+                     "what types of things are you built for", "which tasks can you take on", "what is your toolkit", "what can you actually do for me"],
+    "none": ["can you help me", "can you help me with my code", "what can i do about this error", "what do you think about this", "what do you remember",
+             "what do you know about me", "who are you", "what's your name", "how are you", "what time is it", "tell me a joke", "play some music",
+             "what is the weather", "what can you see", "what did you do yesterday", "what should i do tonight", "what do you do when i'm away",
+             "do you do windows", "can you do it again", "what does the camera do", "how do you work", "how do i use this", "thanks", "yes", "no",
+             "open spotify", "set a timer", "who is omar", "what is a transformer", "what is my cpu usage", "how are you feeling"],
+}
+
+
 def asks_capabilities(text: str) -> bool:
     t = (text or "").strip()
     if _ASK_FOR_HELP.match(t):
         return False                  # "can you help me" asks for help; the answer is "sure, with what?", not a manual
-    return bool(t) and len(t) <= 80 and bool(_CAPS.match(t))
+    if not t or len(t) > 80:
+        return False
+    return bool(_CAPS.match(t)) or bool(_CAPS.match(_TAIL.sub("", t)))        # "what can you do then?"
 
 
 def capabilities(rt) -> str:
