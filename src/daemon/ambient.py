@@ -934,6 +934,12 @@ class AmbientRuntime:
             # can't: only the voice commands can. Say so instead.
             logger.info("Model claimed an action it cannot do -- replaced: %r", text[:120])
             text = voicectl.HONEST
+        elif (text and meta.get("addressed") and str(meta.get("pathway", "")).lower() == "slow" and self._device_claim_fixed(text)):
+            # "Mic and camera are both already off", said while the microphone was on: the model cannot see the sensors, so what it says
+            # about them is checked against what they are.
+            fixed = self._device_claim_fixed(text)
+            logger.info("Model stated a device state that is not so -- replaced: %r -> %r", text[:100], fixed)
+            text = fixed
         elif (text and meta.get("addressed") and str(meta.get("pathway", "")).lower() == "slow"
                 and not getattr(self, "_last_tool_used", False) and honest.claimed_unperformed(text)):
             # "I've sent the email": nothing was sent. A tool that really ran is exempt.
@@ -4643,6 +4649,19 @@ class AmbientRuntime:
             if _similar(ev.text, t) >= REPHRASED or read_correction(t) is not None:
                 return True
         return False
+
+    def _device_claim_fixed(self, text: str):
+        """The truth, if `text` (a model answer) says a microphone or camera is on or off and that is not so; else None."""
+        claims = voicectl.device_claims(text)
+        if not claims:
+            return None
+        sensors = getattr(self.periphery, "sensors", {}) or {}
+        actual = {}
+        for dev in claims:
+            s = sensors.get(dev)
+            if s is not None:
+                actual[dev] = getattr(getattr(s, "state", None), "value", "") == "active"
+        return voicectl.device_truth(claims, actual)
 
     def _voice_command(self, ev, now: float) -> bool:
         """What the console's buttons do, said out loud. True if spent."""

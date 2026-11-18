@@ -208,6 +208,49 @@ def claimed_action(reply: str) -> bool:
     return bool(_CLAIM.search(reply or ""))
 
 
+# A model answer that STATES whether a device is on: "Mic and camera are both already off." (said at 22:22 while the microphone was on -- it was
+# switched off at 22:23). The model cannot see the sensors, so such a sentence is checked against the real state.
+_DEV_WORDS = {"mic": "microphone", "mics": "microphone", "microphone": "microphone", "mike": "microphone",
+              "camera": "camera", "cam": "camera", "webcam": "camera"}
+_STATE_OFF = ("off", "disabled", "muted", "inactive", "switched off", "turned off", "not running", "not on")
+_STATE_ON = ("on", "enabled", "active", "running", "switched on", "turned on", "live", "listening")
+_STATES = re.compile(r"\b(?:already|currently|right now|both|still)?\s*(" + "|".join(sorted(map(re.escape, _STATE_OFF + _STATE_ON), key=len, reverse=True)) + r")\b", re.I)
+_BE = re.compile(r"\b(?:is|are|'s|was|were|remains?|stays?)\b|\balready\b|\bboth\b", re.I)
+_INSTRUCTION = re.compile(r"\b(?:turn|switch|shut|put|set|to|can|could|should|would|if|when|whenever|unless|say|type|press|click)\b[^.!?]{0,30}$", re.I)
+
+
+def device_claims(reply: str) -> Dict[str, bool]:
+    """{"microphone": False, "camera": False} for the devices a reply says are off (False) or on (True); {} when it says nothing of the kind.
+    A suggestion ("you can turn off the camera"), a condition ("if the mic is on") or a question is not a claim."""
+    out: Dict[str, bool] = {}
+    for sentence in re.split(r"(?<=[.!?])\s+", str(reply or "")):
+        low = sentence.lower()
+        if "?" in sentence or not _BE.search(low):
+            continue
+        devs = [d for w, d in _DEV_WORDS.items() if re.search(r"\b" + w + r"\b", low)]
+        if not devs:
+            continue
+        first = min(m.start() for w in _DEV_WORDS for m in re.finditer(r"\b" + w + r"\b", low))
+        if re.match(r"\s*(?:if|when|whenever|unless|once)\b", low) or _INSTRUCTION.search(low[:first]):
+            continue
+        m = _STATES.search(low, first)
+        if not m:
+            continue
+        on = m.group(1).lower() in _STATE_ON
+        for d in devs:
+            out[d] = on
+    return out
+
+
+def device_truth(claims: Dict[str, bool], actual: Dict[str, bool]) -> Optional[str]:
+    """None when every claim is true; otherwise the real state of the devices it talked about, said plainly."""
+    wrong = [d for d, on in claims.items() if d in actual and actual[d] != on]
+    if not wrong:
+        return None
+    bits = [f"the {d} is {'on' if actual[d] else 'off'}" for d in claims if d in actual]
+    return "Let me correct that: " + " and ".join(bits) + "."
+
+
 HONEST = ("I can't do that from a chat answer. Say it as a command -- \u201cprivacy mode\u201d, "
           "\u201cturn off the mic\u201d, \u201cturn on the camera\u201d, \u201cgo to sleep\u201d or "
           "\u201cshut down\u201d -- and I'll do it.")

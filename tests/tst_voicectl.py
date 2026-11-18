@@ -13,6 +13,7 @@ the language model, which answered as if it had done them.
   V4  Shutting down: asked first, done on a yes, said plainly if it can't be
   V5  A model answer that claims one of these is replaced by the truth
   V6  Quiet mode looks sleepy
+  V8  A model answer that states whether the mic or camera is on is checked against the real state
   V7  Several devices in one line ("Mic off, camera off.", "turn off the mic and the camera", "cam off"), each with its own direction
 
 Run:  PYTHONIOENCODING=utf-8 python tests/tst_voicectl.py
@@ -333,8 +334,32 @@ def v7_many():
     check("an ordinary sentence still goes to the model", len(rt.ash_.calls) > n)
 
 
+def v8_state_claims():
+    print("\n=== V8. What the model says about the devices ===")
+    from src.daemon.voicectl import device_claims, device_truth
+    for said, want in [("Mic and camera are both already off. You're good to go without them.", {"microphone": False, "camera": False}),
+                       ("The microphone is on.", {"microphone": True}), ("Your camera is currently off.", {"camera": False}),
+                       ("The mic is already off.", {"microphone": False}), ("The camera's active right now.", {"camera": True})]:
+        check(f"claims in {said[:44]!r}", device_claims(said) == want, str(device_claims(said)))
+    for said in ("You can turn off the camera from the console.", "If the mic is on, I can hear you.", "Want me to turn the mic off?", "Is the camera on?",
+                 "To switch the microphone off, say mic off.", "I like my camera.", "The weather is on the way.", "Say turn on the mic and I will.", ""):
+        check(f"not a claim: {said[:44]!r}", device_claims(said) == {}, str(device_claims(said)))
+    check("a true claim is left alone", device_truth({"microphone": False}, {"microphone": False}) is None)
+    check("a false one is corrected, naming only what it talked about",
+          device_truth({"microphone": False, "camera": False}, {"microphone": True, "camera": False}) == "Let me correct that: the microphone is on and the camera is off.")
+    rt = rig(reply="Mic and camera are both already off. You're good to go without them.")
+    rt.say("ash what are you doing about the sensors")
+    check("while the mic is on the model's 'both already off' is replaced by the truth", rt.out[-1] == "Let me correct that: the microphone is on and the camera is off.", rt.out[-1])
+    rt.periphery.sensors["microphone"].disable()
+    rt.say("ash what are you doing about the sensors")
+    check("when it is true it is left alone", rt.out[-1].startswith("Mic and camera are both already off"), rt.out[-1])
+    rt2 = rig(reply="You can turn off the camera from the console.")
+    rt2.say("ash how do i stop the camera")
+    check("advice about a device is left alone", rt2.out[-1] == "You can turn off the camera from the console.", rt2.out[-1])
+
+
 if __name__ == "__main__":
-    for fn in (v1_parse, v2_doing, v2b_timed, v2c_faces, v3_who, v4_shutdown, v5_claims, v6_face_quiet, v7_many):
+    for fn in (v1_parse, v2_doing, v2b_timed, v2c_faces, v3_who, v4_shutdown, v5_claims, v6_face_quiet, v7_many, v8_state_claims):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)
