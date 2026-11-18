@@ -46,7 +46,7 @@ _LEAD = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:please|can\s+you|could\s
                    r"(?:remember|note|make\s+a\s+note|take\s+a\s+note|keep\s+in\s+mind|don'?t\s+forget)"
                    r"(?:\s+(?:that|this))?[,:\s]+", re.I)
 _TAIL = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?P<b>.{8,200}?)[,.]?\s+(?:and\s+)?(?:please\s+)?remember\s+(?:that|this|it)\s*[.!]*\s*$", re.I)
-_NOT_A_NOTE = re.compile(r"^(?:to\s|me\s|in\s+\d|at\s+\d|tomorrow\b|tonight\b|it\b\s*[.!]?$|this\s*[.!]?$|that\s*[.!]?$|"
+_NOT_A_NOTE = re.compile(r"^(?:to\s|me\s|in\s+\d|at\s+\d|tomorrow\b|tonight\b|it\b\s*[.!]?$|this\s*[.!]?$|that\s*[.!]?$|(?:(?:it|this|that)\s+)?as\s|"
                          r"(?:when|where|what|who|how|why)\b)", re.I)
 
 _ASK_LEAD = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:so|and|ok(?:ay)?|um|uh)[,\s]+)?(?:(?:do|can)\s+you\s+remember\s+|"

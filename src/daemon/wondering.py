@@ -191,6 +191,9 @@ chrome firefox edge safari opera google microsoft apple amazon facebook meta twi
 github gitlab discord slack zoom teams skype whatsapp telegram instagram tiktok reddit wikipedia claude
 gpt chatgpt openai anthropic gemini copilot siri alexa docker kubernetes git npm pip excel word powerpoint
 outlook gmail notepad photoshop vscode code pycharm jupyter
+samsung sony lg huawei xiaomi nokia oppo oneplus dell hp lenovo asus acer msi intel amd nvidia qualcomm tesla uber ebay paypal stripe
+stremio vlc steam epic valve nintendo playstation xbox ikea nike adidas starbucks mcdonalds kfc pepsi cocacola ford toyota bmw
+nosql sql mongodb postgres mysql redis cassandra kafka linux ubuntu reddit twitch
 america europe asia africa australia antarctica
 paris london rome berlin madrid cairo amman dubai tokyo beijing delhi mumbai moscow istanbul
 canada mexico brazil india china japan egypt jordan palestine israel iran iraq syria lebanon turkey
@@ -1669,7 +1672,7 @@ class Wonderer:
             if _NO.match(text) and not _YES.match(text):
                 return {"decline": True, "ack": "Okay, I won't."}
             m = re.search(r"\b(?:call it|name it|call that|it'?s (?:my|the|our)|as)\s+(?:my\s+|the\s+|a\s+)?"
-                          r"([\w' \-]{2,30})", text, re.I)
+                          r"([\w' \-]{2,60})", text, re.I)
             name = m.group(1) if m else ""
             if not name and _YES.match(text):
                 rest = re.sub(r"^\s*(?:yes|yeah|yep|yup|sure|right|ok(?:ay)?|please|go ahead)\b[\s,.!:-]*", "",
@@ -1680,7 +1683,10 @@ class Wonderer:
             if not name and not _YES.match(text) and not re.search(r"\b(?:sure|please|go ahead|ok(?:ay)?)\b",
                                                                    text, re.I):
                 return None
-            name = _clean(re.sub(r"^(?:my|the|a)\s+", "", name or "usual start", flags=re.I), 30) or "usual start"
+            name = re.sub(r"^(?:my|the|a)\s+", "", name or "usual start", flags=re.I).strip()
+            if len(name) > 40:                                   # cut between words: it was "something I do when I watch mo"
+                name = name[:40].rsplit(" ", 1)[0]
+            name = _clean(name, 40) or "usual start"
             return {"name": name, "ack": f"Got it -- I'll remember \"{name}\": " + ", then ".join(d["steps"]) + "."}
         if k == "conflict":
             if d.get("what") == "role":
