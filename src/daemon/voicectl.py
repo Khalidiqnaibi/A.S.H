@@ -68,6 +68,60 @@ _RULES = [
 ]
 _COMPILED = [(name, re.compile(_A + r"(?:" + pat + r")" + _Z, re.I)) for name, pat in _RULES]
 
+# "Mic off, camera off." / "turn off the mic and the camera" / "switch the camera off and the mic off" / "cam off": several devices in one line,
+# each with its own direction. Today five tries at this went to the model (and three answers were cancelled by the next try), because the
+# rules above only know one device and one fixed phrasing.
+_DEVICE = {"mic": "mic", "mics": "mic", "mike": "mic", "microphone": "mic", "microphones": "mic",
+           "camera": "camera", "cameras": "camera", "cam": "camera", "webcam": "camera"}
+_DIR_OFF = frozenset({"off", "disable", "disabled", "kill", "stop", "mute", "deactivate", "close", "of"})     # "of": whisper's "off"
+_DIR_ON = frozenset({"on", "enable", "enabled", "start", "unmute", "activate", "open"})
+_GLUE = frozenset("turn switch shut put set the your my please and then also ash can you could would now both for me it them to a up both together all".split())
+_QUESTION = frozenset("what whats what's why how who when where which is are does did do am".split())
+
+
+def parse_many(text: str) -> List[Command]:
+    """Every device command in one line, in order: [mic_off, camera_off]. A direction applies to the devices before it ("mic and camera off")
+    or, said first, to the ones after it ("turn off the mic and the camera"). Anything else in the line, or a question, gives []."""
+    t = re.sub(r"[^a-z\s']", " ", (text or "").lower().replace("\u2019", "'"))
+    words = t.split()
+    if not words or len(words) > 12 or re.search(r"\?", text or ""):
+        return []
+    if words[0] in _QUESTION:
+        return []
+    pending: List[str] = []
+    lead: Optional[str] = None
+    out: List[Command] = []
+    seen_dev = False
+    for i, w in enumerate(words):
+        if w in _DEVICE:
+            seen_dev = True
+            d = _DEVICE[w]
+            if lead is not None:
+                out.append(Command(f"{d}_{lead}"))
+            else:
+                pending.append(d)
+        elif w in _DIR_OFF or w in _DIR_ON:
+            if w == "of" and any(x not in _GLUE for x in words[i + 1:]):
+                return []                                    # "of" is only whisper's "off" at the end of the line ("camera of ASH")
+            direction = "off" if w in _DIR_OFF else "on"
+            if pending:
+                out.extend(Command(f"{d}_{direction}") for d in pending)
+                pending = []
+            else:
+                lead = direction
+        elif w in _GLUE:
+            continue
+        else:
+            return []                                        # something else is being said: not for this
+    if pending or not seen_dev:
+        return []                                            # a device with no direction, or no device at all
+    names = []
+    for c in out:
+        if c.name not in names:
+            names.append(c.name)
+    return [Command(n) for n in names]
+
+
 FACES: Dict[str, str] = {
     "smile": "happy", "happy": "happy", "happy face": "happy", "big smile": "very_happy", "very happy": "very_happy",
     "excited": "very_happy", "sad": "sad", "angry": "angry", "mad": "angry", "surprised": "surprised",

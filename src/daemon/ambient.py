@@ -4681,6 +4681,25 @@ class AmbientRuntime:
             return self._control_say(ev, f"Okay, quiet until {phrase}. I'll answer if you ask me something, "
                                          "and I'll be back on my own then.")
         cmd = voicectl.parse(text)
+        many = voicectl.parse_many(text)
+        if many and (cmd is None or len(many) > 1):
+            # several devices in one line, or a short wording the single rules do not know ("cam off")
+            if any(c.name.endswith("_on") for c in many) and not self._meant_for_ash(ev):
+                return False                 # overheard: only ever makes ASH more private
+            dev = {"mic": ("microphone", "microphone"), "camera": ("camera", "camera")}
+            parts = []
+            for c in many:
+                kind, direction = c.name.rsplit("_", 1)
+                sensor, label = dev[kind]
+                if self.periphery.sensors.get(sensor) is None:
+                    parts.append(f"There's no {label} set up on this machine.")
+                    continue
+                ok, why = self.set_sensor(sensor, direction == "on")
+                cap = label[0].upper() + label[1:]
+                parts.append(f"{cap} {direction}." if ok else (f"Privacy mode is on -- turn it off first (\u201cprivacy off\u201d), then the {label}."
+                                                              if why == "privacy mode is on" else f"I couldn't switch the {label} {direction}: {why}."))
+            self.stats["voice_commands"] = self.stats.get("voice_commands", 0) + 1
+            return self._control_say(ev, " ".join(parts))
         if cmd is None and voicectl.AGAIN.match(text) and getattr(self, "_last_face", None) and now - self._last_face[1] <= 90.0:
             cmd = voicectl.Command("face", self._last_face[0])        # "Again." after a face: the same face
         if cmd is None and self._feel_or_status(text) == "status":

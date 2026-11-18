@@ -13,6 +13,7 @@ the language model, which answered as if it had done them.
   V4  Shutting down: asked first, done on a yes, said plainly if it can't be
   V5  A model answer that claims one of these is replaced by the truth
   V6  Quiet mode looks sleepy
+  V7  Several devices in one line ("Mic off, camera off.", "turn off the mic and the camera", "cam off"), each with its own direction
 
 Run:  PYTHONIOENCODING=utf-8 python tests/tst_voicectl.py
 """
@@ -301,8 +302,39 @@ def v6_face_quiet():
     check("unmuted: awake", p.idle == "idle")
 
 
+def v7_many():
+    print("\n=== V7. Several devices in one line ===")
+    from src.daemon.voicectl import parse_many
+    names = lambda q: [c.name for c in parse_many(q)]          # noqa: E731
+    for said, want in [("Mic off, camera off.", ["mic_off", "camera_off"]), ("Switch the camera off and the mic off.", ["camera_off", "mic_off"]),
+                       ("turn off the mic and the camera", ["mic_off", "camera_off"]), ("mic and camera off", ["mic_off", "camera_off"]),
+                       ("cam off", ["camera_off"]), ("Mic and camera of ASH.", ["mic_off", "camera_off"]), ("turn off mic and turn on camera", ["mic_off", "camera_on"]),
+                       ("turn the mic off and the camera on", ["mic_off", "camera_on"]), ("please turn the camera and the mic off", ["camera_off", "mic_off"]),
+                       ("turn on the camera", ["camera_on"]), ("mic off mic off", ["mic_off"])]:
+        check(f"{said!r}", names(said) == want, str(names(said)))
+    for said in ("what does the camera do on mondays", "is the camera on?", "tell me about the camera", "mic", "the camera is broken", "I like my mic",
+                 "turn off the lights", "camera", "my camera is on top of the monitor", "how do I turn the mic off", "what can you do then", "Come it off."):
+        check(f"{said!r} is not a device command", names(said) == [], str(names(said)))
+    rt = rig()
+    rt.periphery.sensors["camera"].on = True
+    rt.say("Mic off, camera off.")
+    check("both go off in one answer, with no model", not rt.periphery.sensors["microphone"].on and not rt.periphery.sensors["camera"].on
+          and rt.out[-1].startswith("Microphone off. Camera off.") and rt.ash_.calls == [], str(rt.out[-1:]))
+    rt.say("turn on the camera and the mic", source="console")
+    check("both back on (typed)", rt.periphery.sensors["microphone"].on and rt.periphery.sensors["camera"].on and "Camera on." in rt.out[-1] and "Microphone on." in rt.out[-1], rt.out[-1])
+    rt.say("cam off")
+    check("'cam off' is understood", not rt.periphery.sensors["camera"].on and rt.out[-1] == "Camera off.", rt.out[-1])
+    rt.say("turn on the mic and the camera", addressed=False, source="microphone")
+    check("turning on from overheard speech is refused (it only ever makes ASH more private)", not rt.periphery.sensors["camera"].on)
+    rt.say("mic off and camera off", addressed=False, source="microphone")
+    check("but off is allowed from any line the microphone hears", not rt.periphery.sensors["microphone"].on)
+    n = len(rt.ash_.calls)
+    rt.say("what should I cook tonight")
+    check("an ordinary sentence still goes to the model", len(rt.ash_.calls) > n)
+
+
 if __name__ == "__main__":
-    for fn in (v1_parse, v2_doing, v2b_timed, v2c_faces, v3_who, v4_shutdown, v5_claims, v6_face_quiet):
+    for fn in (v1_parse, v2_doing, v2b_timed, v2c_faces, v3_who, v4_shutdown, v5_claims, v6_face_quiet, v7_many):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)
