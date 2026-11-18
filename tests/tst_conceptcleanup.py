@@ -103,9 +103,30 @@ def c3_hub_noise():
     check("a short one nothing points at stays, and a long sentence that is a hub stays", short_ok not in dropped and long_hub not in dropped, str(dropped))
 
 
+def reset_core_check():
+    print("\n=== The core rules' counts can be started again ===")
+    d = tempfile.mkdtemp()
+    n = ConceptNetwork(dim=8)
+    v = np.ones(8, dtype=np.float32)
+    core = n.add_concept(v, label="rule:Lightweight Operation", origin=Origin.CORE)
+    grown = n.add_concept(-v, origin=Origin.GROWN, seed_text="what time is it")
+    for _ in range(50):
+        core.touch(0.5)
+        grown.touch(0.5)
+    n.save(d)
+    p = cc.plan(d)
+    p["reset_core"] = True
+    cc.apply(p)
+    after = ConceptNetwork(dim=8)
+    after.load(d)
+    check("a core rule's fire count starts again from 0", after.concepts[core.id].activations == 0 and after.concepts[core.id].activation_sum == 0.0)
+    check("a concept somebody's sentence made keeps its count", after.concepts[grown.id].activations == 50)
+
+
 if __name__ == "__main__":
     c1()
     c2_clamp()
     c3_hub_noise()
+    reset_core_check()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

@@ -423,7 +423,10 @@ class ConceptSystem:
         # Telemetry (memory at 93%, battery, "screen changed", window switches) is the body, not a thing to have a concept
         # of: it is perceived, so it can still be explained and still moves the neuromodulators, but it never grows a new
         # concept or drags an existing one's prototype toward it.
-        act = self.net.perceive(vec, text=text, allow_growth=not telemetry, learn_prototypes=not telemetry)
+        # A machine reading is perceived (so it can be explained) but the concepts it touches are not counted as having fired: "memory at 94%"
+        # is 0.57 like the rule "Lightweight Operation", and every tick of telemetry made that rule "fire" -- 5,137 times, with three other
+        # rules, a quarter of everything the graph recorded.
+        act = self.net.perceive(vec, text=text, allow_growth=not telemetry, learn_prototypes=not telemetry, count=not telemetry)
         if telemetry:
             learn = False
 

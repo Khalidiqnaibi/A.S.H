@@ -103,6 +103,20 @@ def t4_sensor_names_and_room():
           f"{len(cs.net.concepts) - n0} {len(cs.net.candidates.items)}")
 
 
+def t5_not_counted():
+    print("\n=== T5. A machine reading is not a concept firing ===")
+    cs = ConceptSystem(None, None, dim=DIM, load=False, seed=False)
+    rule = cs.net.add_concept(rnd(900), label="rule:Lightweight Operation", origin=__import__("src.concepts.model", fromlist=["Origin"]).Origin.CORE)
+    near = rnd(900)
+    cs.perceive(near, text="memory at 94%", telemetry=True)
+    check("a telemetry percept that lands on a concept does not count it as fired", rule.activations == 0 and rule.activation_sum == 0.0, str(rule.activations))
+    cs.perceive(near, text="what time is it please", telemetry=False)
+    check("a person's sentence does", rule.activations == 1, str(rule.activations))
+    cs.perceive(near, text="memory at 95%", telemetry=True)
+    check("and telemetry still does not after that", rule.activations == 1)
+    check("the telemetry was still perceived (an activation to explain)", cs.net.last is not None and rule.id in cs.net.last.spread)
+
+
 def t3_brain():
     print("\n=== T3. The ambient path ===")
     src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "brain", "brain.py"), encoding="utf-8").read()
@@ -117,5 +131,6 @@ if __name__ == "__main__":
     t2_graph()
     t3_brain()
     t4_sensor_names_and_room()
+    t5_not_counted()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

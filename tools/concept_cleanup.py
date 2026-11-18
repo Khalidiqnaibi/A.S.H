@@ -73,6 +73,19 @@ def clamp_counts(net, ceiling: int = CLAMP) -> int:
     return n
 
 
+def reset_core_counts(net) -> int:
+    """The core rules ("Lightweight Operation", "Tools are pure Python functions"...) are not things anybody said: what they were counted
+    as firing for was the machine's own readings ("memory at 94%"), which are no longer counted. Their counts start again from 0.
+    Returns how many were reset."""
+    from src.concepts.model import Origin
+    n = 0
+    for c in net.concepts.values():
+        if c.origin == Origin.CORE and (c.activations or c.activation_sum):
+            c.activations, c.activation_sum = 0, 0.0
+            n += 1
+    return n
+
+
 def apply(p: Dict[str, Any]) -> str:
     from src.concepts.network import ConceptNetwork
     d = p["dir"]
@@ -89,6 +102,8 @@ def apply(p: Dict[str, Any]) -> str:
         net.remove_concept(c["id"])
     if p.get("clamp"):
         print(f"   {clamp_counts(net)} wires had their 'seen' count brought down to {CLAMP}")
+    if p.get("reset_core"):
+        print(f"   {reset_core_counts(net)} core rules had their fire counts reset to 0")
     net.save(d)
     return backup
 
@@ -98,9 +113,12 @@ def main(argv=None) -> int:
     ap.add_argument("--dir", default=os.path.join(os.getcwd(), "state", "concepts"), help="the concept state folder")
     ap.add_argument("--apply", action="store_true", help="do it (after a backup)")
     ap.add_argument("--clamp-counts", action="store_true", help="bring 'seen' counts of wires down to 3 (replays used to count)")
+    ap.add_argument("--reset-core-counts", action="store_true",
+                    help="start the core rules' fire counts again from 0 (they were counted for the machine's own readings)")
     a = ap.parse_args(argv)
     p = plan(a.dir)
     p["clamp"] = bool(a.clamp_counts)
+    p["reset_core"] = bool(a.reset_core_counts)
     print(f"{p['total']} concepts in {a.dir}; grown from readings of the machine: {len(p['drop'])}")
     for c in p["drop"]:
         print(f"   c{c['id']:<4} fired {c['fired']!s:>6}  {c['text']!r}".encode("ascii", "replace").decode())
