@@ -49,7 +49,7 @@ from typing import Any, Callable, Deque, Dict, List, Optional
 
 import numpy as np
 
-from src.concepts.telemetry import is_telemetry
+from src.concepts.telemetry import is_telemetry, observed_is_telemetry
 from .salience import remembered_importance
 from .executive import ExecutiveCore
 from .gist import build_gist, readable as _words
@@ -1105,7 +1105,7 @@ class Brain:
         self.vla.note_perception(bundle)
         trace.percepts = bundle.as_dict()
 
-        activation, latent = self._conceive(bundle, telemetry=is_telemetry(text, source))
+        activation, latent = self._conceive(bundle, telemetry=observed_is_telemetry(text, source))
         if activation is not None:
             trace.concepts = self.concepts.net.explain(activation)
 

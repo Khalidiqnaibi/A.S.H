@@ -8,6 +8,9 @@ all activation. They are the body's state (homeostasis already has them); the gr
   T2  A telemetry percept does not grow a concept, drag a prototype, or strengthen wires; a person's sentence is noted as a candidate
   T3  The brain's ambient path passes it on
 
+  T4  The sensors' own words and names (active_window, now_playing, "power connected", "user went away") and overheard room speech
+      grow nothing; what is said TO ASH still can
+
 Run:  PYTHONIOENCODING=utf-8 python tests/tst_telemetry.py
 """
 
@@ -75,16 +78,44 @@ def t2_graph():
     check("a telemetry percept is still perceived (an activation to explain)", act is not None and bool(act.spread))
 
 
+def t4_sensor_names_and_room():
+    print("\n=== T4. The sensors' own names; the room ===")
+    from src.concepts.telemetry import observed_is_telemetry
+    f = is_telemetry()
+    for text, source in [("now playing Without Me by Halsey on Spotify", "now_playing"), ("stopped playing Favorite by Isabel LaRosa", "now_playing"),
+                         ("power connected", "system"), ("user went away from the machine", "idle"), ("user came back after 0s away", "idle"),
+                         ("switched to GitHub Desktop", "active_window"),
+                         ("switched to Topological Energy-Landscape Morphing Algorithm - Google Gemini - Opera at some length of window title text", "active_window"),
+                         ("screen changed while in A.S.H -- a mix of text and images", "screenshot"), ("now playing X on YouTube", "ambient")]:
+        check(f"{text[:44]!r} from {source} is telemetry", f(text, source))
+    for text, source in [("what time is it", "console"), ("what can you do then", "microphone"), ("Later", "console"),
+                         ("remind me that now playing music is annoying", "console")]:
+        check(f"{text!r} from {source} is a person's, so it is not", not f(text, source))
+    for text in ("Should be the remote.", "I believe you.", "She's going to fall.", "We'll clean a little.", "Bitch.", "All right, guys, it's done. Okay, let's go."):
+        check(f"{text!r} heard from the room (observed) grows nothing", observed_is_telemetry(text, "microphone"))
+    check("a typed line is never room speech", not observed_is_telemetry("what time is it", "console"))
+    cs = ConceptSystem(None, None, dim=DIM, load=False, seed=False)
+    cs.net.vigilance = 0.9
+    n0 = len(cs.net.concepts)
+    for i, t in enumerate(("now playing A on Spotify", "now playing B on Spotify", "power connected", "user went away from the machine")):
+        cs.perceive(rnd(500 + i), text=t, telemetry=is_telemetry()(t, "now_playing"))
+    check("in the graph those four grow no concept and no candidate", len(cs.net.concepts) == n0 and len(cs.net.candidates.items) == 0,
+          f"{len(cs.net.concepts) - n0} {len(cs.net.candidates.items)}")
+
+
 def t3_brain():
     print("\n=== T3. The ambient path ===")
     src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "brain", "brain.py"), encoding="utf-8").read()
+    check("Brain.observe judges what was only observed with room speech included", "self._conceive(bundle, telemetry=observed_is_telemetry(text, source))" in src)
     check("Brain.observe hands telemetry to the concept layer as telemetry",
-          re.search(r"self\._conceive\(bundle, telemetry=is_telemetry\(text, source\)\)", src) is not None and "from src.concepts.telemetry import is_telemetry" in src)
+          re.search(r"self\._conceive\(bundle, telemetry=(?:observed_is_telemetry|is_telemetry)\(text, source\)\)", src) is not None
+          and "from src.concepts.telemetry import is_telemetry" in src)
 
 
 if __name__ == "__main__":
     t1_what()
     t2_graph()
     t3_brain()
+    t4_sensor_names_and_room()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)
