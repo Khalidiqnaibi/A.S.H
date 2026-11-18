@@ -329,7 +329,8 @@ class Plasticity:
                     delta = lr * post * (pre - self.cfg.oja_gain * post * w)
                     syn.w_fast += delta
                     syn.last_potentiated = now
-                    syn.potentiations += 1
+                    if live:
+                        syn.potentiations += 1          # "seen" is live experience: a replay of one memory is not another sighting
                     touched += 1
                     updates.append((s, d, delta, coact))
 

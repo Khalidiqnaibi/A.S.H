@@ -49,7 +49,7 @@ def t1_what():
     for text, source in [("You've been on Stremio for 15 minutes without typing.", "flow"), ("Want today's trivia question?", "flow")]:
         check(f"ASH's own remark {text!r} from {source} grows nothing", f(text, source))
     for text, source in [("the lecturer said a vector is a keyword", "microphone"), ("what time is it", "console"),
-                         ("memory at 93%", "microphone"), ("remind me to check memory usage", "console"),
+                         ("my memory is at 93% right now", "microphone"), ("remind me to check memory usage", "console"),
                          ("I use 90% of my memory for tabs", "microphone")]:
         check(f"{text!r} from {source} is not", not f(text, source))
 

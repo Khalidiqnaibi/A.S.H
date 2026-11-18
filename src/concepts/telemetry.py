@@ -20,6 +20,10 @@ _OWN_SOURCES = frozenset({"flow", "ash", "remark", "self"})
 def is_telemetry(text: str, source: str = "") -> bool:
     """A reading of the machine or the room (memory at 93%, battery, a window switch, "screen changed", motion): not
     something to grow concepts from. A person's words never are, whatever source carries them."""
+    # "Uh-oh.", "Back on some.", "I can sound.", "Mm.": a noise or a mishearing of one, from the room. Each grew a concept, and the
+    # concepts became hubs 111 other concepts pointed at. A typed line is always a thing said on purpose.
+    if str(source or "").lower() in ("microphone", "voice", "ambient") and len(str(text or "").split()) <= 3:
+        return True
     if str(source or "").lower() in ("microphone", "console", "voice", "user", "chat", "wonder"):
         return False
     if str(source or "").lower() in _OWN_SOURCES:

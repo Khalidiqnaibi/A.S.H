@@ -307,9 +307,10 @@ class ConceptNetwork:
         return act
 
     def perceive(self, vec: np.ndarray, text: str = "",
-                 allow_growth: bool = True, learn_prototypes: bool = True) -> Activation:
+                 allow_growth: bool = True, learn_prototypes: bool = True, count: bool = True) -> Activation:
         """Present one input. This is the hot path -- one matmul plus a
-        handful of dict operations."""
+        handful of dict operations. `count=False` (sleep replay): the concepts are not counted as seen again -- a trace replayed
+        400 times in a night had its concepts "fire" 400 times, and the mind page said 1,232."""
         vec = _l2(np.asarray(vec, dtype=np.float32))
         self.cycles += 1
 
@@ -352,7 +353,8 @@ class ConceptNetwork:
             c = self.concepts.get(cid)
             if c is None:
                 continue
-            c.touch(a, now)
+            if count:
+                c.touch(a, now)
             if learn_prototypes and cid in initial and (self.candidates is None or initial[cid] >= self.vigilance):
                 c.note_exemplar(text, float(initial[cid]))
                 # Only bottom-up winners drift. A concept reached purely by

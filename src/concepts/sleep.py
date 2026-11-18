@@ -200,7 +200,7 @@ class SleepCycle:
                 self.plasticity._recent.clear()
 
                 act = self.net.perceive(trace.dense, allow_growth=False,
-                                        learn_prototypes=False)
+                                        learn_prototypes=False, count=False)
                 if len(act.spread) < 2:
                     continue
                 self.plasticity.replay_gate = max(0.3, trace.strength *
@@ -291,7 +291,7 @@ class SleepCycle:
                     new_fraction=self.cfg.rem_new_fraction)
                 for trace in batch:
                     act = self.net.perceive(trace.dense, allow_growth=False,
-                                            learn_prototypes=False)
+                                            learn_prototypes=False, count=False)
                     inferred = act.inferred(6)
                     if len(inferred) >= 2:
                         novel_links += self.plasticity.potentiate(act)
