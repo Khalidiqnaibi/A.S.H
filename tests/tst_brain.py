@@ -637,6 +637,27 @@ def main():
           f"{r.pathway.value} tool={r.tool_used}")
     check("...and a verbatim result is spoken as it is, not retold", r.text == SAID, repr(r.text))
 
+    import logging as _logging
+
+    class _Grab(_logging.Handler):
+        def __init__(self):
+            super().__init__()
+            self.lines = []
+
+        def emit(self, record):
+            self.lines.append(record.getMessage())
+    grab = _Grab()
+    blog = _logging.getLogger("ash.brain")
+    old_level = blog.level
+    blog.addHandler(grab)
+    blog.setLevel(_logging.INFO)
+    try:
+        r = fresh_brain_with({"ok": True, "result": SAID}).think("what is on my screen, capture the screen")
+    finally:
+        blog.removeHandler(grab)
+        blog.setLevel(old_level)
+    timing = [ln for ln in grab.lines if ln.startswith("Brain: slow turn took")]
+    check("a slow turn logs where its time went (the stages, longest first)", len(timing) == 1 and ("narrate" in timing[0] or "no stage over" in timing[0]), str(grab.lines[-3:]))
     r = fresh_brain_with({"ok": True, "result": SAID}).think(
         "what is on my screen, capture the screen")
     if os.environ.get("ASH_GIST") == "1":

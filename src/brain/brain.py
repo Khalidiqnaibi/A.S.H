@@ -405,6 +405,13 @@ class Brain:
                                   context=context)
         trace.timings_ms = timings
         trace.timings_ms["total"] = (time.perf_counter() - t_start) * 1000.0
+        # Where the seconds went. A model turn took 19-25 s today and the log said only that it was slow; with the stages in the line
+        # ("narrate 21.3s" = the model, "retrieve 1.8s" = memory) the next look does not have to guess.
+        try:
+            stages = ", ".join(f"{k} {v / 1000.0:.1f}s" for k, v in sorted(timings.items(), key=lambda kv: -kv[1]) if k != "total" and v >= 100.0)
+            logger.info("Brain: slow turn took %.1fs -- %s", timings["total"] / 1000.0, stages or "no stage over 0.1s")
+        except Exception:
+            pass
         final_pathway = Pathway.ESCALATED if trace.escalated_from else Pathway.SLOW
         trace.pathway = final_pathway
         response.pathway = final_pathway
