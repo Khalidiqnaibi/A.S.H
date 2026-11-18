@@ -194,7 +194,10 @@ def n10_about_me_is_what_you_remember():
     for q in ("what do you know about me", "what do you know about khalid", "what do you know about the user", "what do you know about Khalid?",
               "tell me about myself", "who is my friend", "who are my friends"):
         out, model = say(rt, q)
-        check(f"{q!r}: the same answer, no model", out == want and not model, f"{out!r}")
+        about_me = q in ("what do you know about me", "tell me about myself")
+        # About the person themselves it is who they are and who they know, THEN what they asked to keep (it was the notes alone).
+        check(f"{q!r}: the same answer, no model", (out == want or (about_me and out is not None and out.startswith("You're Khalid.") and want in out
+                                                                     and "I don't know much else" not in out)) and not model, f"{out!r}")
     out, model = say(rt, "what do you know about lieth")
     check("about somebody else is still its own question", out != want, f"{out!r}")
     out, _ = say(rt, "who am I")

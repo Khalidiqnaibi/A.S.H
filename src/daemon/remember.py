@@ -58,6 +58,39 @@ def wants_identity(text: str) -> bool:
     return bool(_WHO_AM_I.match(text or ""))
 
 
+# "What about my relationships?" / "who are the people in my life" / "what are my relationships that you remember" / "who is my family"
+_RELATIONS = re.compile(
+    r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:but|so|and|ok(?:ay)?|now)\s+)?(?:please\s+)?(?:(?:what|who)\s+(?:about|are|is)|tell\s+me\s+(?:about|who\s+are)|"
+    r"do\s+you\s+(?:know|remember)|list)\s+(?:all\s+)?(?:of\s+)?(?:my|the)\s+(?:relationships?|relatives?|family(?:\s+members)?|"
+    r"people(?:\s+in\s+my\s+life)?|friends(?:\s+and\s+family)?|loved\s+ones|close\s+ones)(?:\s+(?:that\s+)?you\s+(?:know|remember)(?:\s+of)?)?"
+    r"(?:\s*,?\s*(?:ash|please|now))*\s*[.!?]*\s*$|"
+    r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:what|who)\s+(?:are|is)\s+(?:my\s+)?(?:relationships?|relatives?|family)(?:\s+that\s+you\s+(?:know|remember))?\s*[.!?]*\s*$|"
+    r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:who|what)\s+(?:are|is)\s+my\s+(?:relationships?|relatives?)\b.*$", re.I)
+
+
+def wants_relationships(text: str) -> bool:
+    return bool(_RELATIONS.match(text or ""))
+
+
+def relationships(kb) -> str:
+    """The people on record and how they are related -- from what ASH was told, never made up."""
+    rows: List[str] = []
+    try:
+        with kb._lock:
+            for p in kb.people.values():
+                rel = (p.get("relation") or "").strip()
+                name = (p.get("name") or "").strip()
+                if name and rel:
+                    rows.append(f"{name} is your {rel}")
+                elif name:
+                    rows.append(f"{name} ({(p.get('desc') or 'someone you mentioned').strip().rstrip('.')})")
+    except Exception:
+        rows = []
+    if not rows:
+        return "I don't have anyone written down yet. Tell me -- \"my sister is Linda\" -- and I'll keep it."
+    return ". ".join(rows[:8]) + "."
+
+
 def _title(name: str) -> str:
     return " ".join(w[:1].upper() + w[1:] for w in name.strip().split())
 

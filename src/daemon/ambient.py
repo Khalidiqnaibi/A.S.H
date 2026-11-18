@@ -2934,9 +2934,7 @@ class AmbientRuntime:
         opts = []
         if low in names:
             def ask_me():
-                if self.notes is not None and self.notes.items:
-                    return self.notes.everything()
-                return remembering.who_am_i(kb, user) if kb is not None else None
+                return self._about_me(kb) if kb is not None else (self.notes.everything() if self.notes is not None and self.notes.items else None)
             opts.append(Option("me", 1.0, "that is you", ask_me))
         try:
             said = remembering.who_is(kb, f"who is {subject}", user) if kb is not None else None
@@ -3040,6 +3038,8 @@ class AmbientRuntime:
             say = nt.about_user(str(getattr(ev, "text", "") or ""), names, known)
             if say is None:
                 return False
+            if remembering.wants_identity(str(getattr(ev, "text", "") or "")) and self.wonder is not None:
+                say = self._about_me(self.wonder.kb)          # not the notes alone: who they are and who they know too
             say = self._maybe_hold(say, now)
         except Exception:
             logger.exception("Notes (about the user) failed")
@@ -3054,8 +3054,28 @@ class AmbientRuntime:
         if w is None or not self._user_source(ev) or not remembering.wants_identity(
                 str(getattr(ev, "text", "") or "")):
             return False
-        say = remembering.who_am_i(w.kb, str(getattr(self.brain, "user", "") or ""))
+        say = self._about_me(w.kb)
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        return True
+
+    def _about_me(self, kb) -> str:
+        """Who they are, the people on record, what they like -- and what they told ASH to keep. Before, "what do you know about me"
+        was only the list of notes, with no name and no people."""
+        say = remembering.who_am_i(kb, str(getattr(self.brain, "user", "") or ""))
+        try:
+            if self.notes is not None and self.notes.items:
+                say = say.replace(" I don't know much else about you yet.", "") + " " + self.notes.everything()
+        except Exception:
+            logger.debug("notes not added to the answer", exc_info=True)
+        return say
+
+    def _relations_request(self, ev, now: float) -> bool:
+        """"What about my relationships?": the people ASH was told about, by rule (the model timed out three times on it)."""
+        w = self.wonder
+        if w is None or not self._user_source(ev) or not self._meant_for_ash(ev)                 or not remembering.wants_relationships(str(getattr(ev, "text", "") or "")):
+            return False
+        self._wonder_say(ev, type("R", (), {"say": remembering.relationships(w.kb), "outcome": "desktop"})())
+        self._last_why = {"kind": "memory"}
         return True
 
     def _who_is_request(self, ev, now: float) -> bool:
@@ -3846,6 +3866,8 @@ class AmbientRuntime:
         if not loose and self._who_request(ev, now):
             return True
         if not loose and self._identity_request(ev, now):
+            return True
+        if not loose and self._relations_request(ev, now):
             return True
         if not loose and self._who_is_request(ev, now):
             return True
