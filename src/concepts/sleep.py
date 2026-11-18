@@ -205,7 +205,9 @@ class SleepCycle:
                     continue
                 self.plasticity.replay_gate = max(0.3, trace.strength *
                                                   (1.0 + abs(trace.reward)))
+                self.plasticity.replay_token = trace.id
                 self.plasticity.potentiate(act)
+                self.plasticity.replay_token = None
                 # The episode's own reward is replayed with it, so
                 # consolidation is still reward-weighted rather than becoming
                 # pure correlation the moment we leave the waking loop.
@@ -294,7 +296,9 @@ class SleepCycle:
                                             learn_prototypes=False, count=False)
                     inferred = act.inferred(6)
                     if len(inferred) >= 2:
+                        self.plasticity.replay_token = trace.id
                         novel_links += self.plasticity.potentiate(act)
+                        self.plasticity.replay_token = None
                     recombined += 1
             self.plasticity._commit_traces()
             self.plasticity.traces.clear()

@@ -58,10 +58,20 @@ def r2_potentiation():
         act = n.perceive(v, allow_growth=False, learn_prototypes=False, count=False)
         pl.potentiate(act)
     check("forty replays: no wire has been 'seen'", seen() == 0, str(seen()))
+    for _ in range(40):
+        act = n.perceive(v, allow_growth=False, learn_prototypes=False, count=False)
+        pl.replay_token = 7
+        pl.potentiate(act)
+        pl.replay_token = None
+    check("one stored memory replayed forty times is one sighting", seen() == 1, str(seen()))
+    act = n.perceive(v, allow_growth=False, learn_prototypes=False, count=False)
+    pl.replay_token = 8
+    pl.potentiate(act)
+    check("a second, different memory holding the pair is a second", seen() == 2, str(seen()))
     pl.replay_mode = False
     act = n.perceive(v, allow_growth=False, learn_prototypes=False)
     pl.potentiate(act)
-    check("one live sighting: seen once", seen() == 1, str(seen()))
+    check("one live sighting: seen once more", seen() == 3, str(seen()))
 
 
 def r3_noises():

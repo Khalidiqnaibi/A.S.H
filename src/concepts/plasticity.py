@@ -166,6 +166,8 @@ class Plasticity:
         # own strength rather than the streaming statistics, which otherwise
         # read every replayed concept as ubiquitous and block everything.
         self.replay_mode = False
+        self.replay_token = None                       # set by the sleep to the id of the trace being replayed
+        self._replay_counted: set = set()
         self.replay_gate = 1.0
         # STDP can be switched off. It must be, during any replay whose order
         # is not the order things were actually experienced in -- otherwise
@@ -331,6 +333,13 @@ class Plasticity:
                     syn.last_potentiated = now
                     if live:
                         syn.potentiations += 1          # "seen" is live experience: a replay of one memory is not another sighting
+                    elif self.replay_token is not None and (s, d, self.replay_token) not in self._replay_counted:
+                        # ...but each distinct stored memory that holds the pair is one sighting, once: the pairing is in that many
+                        # episodes. (Replayed 400 times it is still one.)
+                        self._replay_counted.add((s, d, self.replay_token))
+                        syn.potentiations += 1
+                        if len(self._replay_counted) > 60000:
+                            self._replay_counted.clear()
                     touched += 1
                     updates.append((s, d, delta, coact))
 
