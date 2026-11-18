@@ -70,6 +70,21 @@ NOISE_PROB = 0.5          # chance the phrase is not speech at all...
 NOISE_LOGPROB = -0.6      # ...and it is not sure of the words either
 
 
+# What whisper writes on silence or music, learned from its training subtitles: credits, URLs, "thanks for watching", a string of letters.
+_JUNK = re.compile(r"(?:\b(?:subs?|subtitles?|captions?|translated|transcribed)\s+by\b|\bwww\.(?:[a-z0-9-]+\.)+(?:co\.uk|org|net|tv)\b|"
+                   r"thanks?(?:\s+you)?(?:\s+so\s+much)?\s+for\s+(?:watching|listening)|like\s+and\s+subscribe|please\s+subscribe|amara\.org)", re.I)
+
+
+def is_junk(text: str) -> bool:
+    """Whisper's invented text: "Subs by www.zeoranger.co.uk", "Thanks for watching", or a long run of single letters
+    ("pres-en-d-b-a-g-a-d-a-g-a-d-a..."): nothing a person said."""
+    t = text or ""
+    if _JUNK.search(t):
+        return True
+    w = re.findall(r"[A-Za-z0-9']+", t)
+    return len(w) >= 12 and sum(1 for x in w if len(x) == 1) / len(w) >= 0.5
+
+
 def is_loop(text: str) -> bool:
     """Whisper stuck in a loop, on noise: the same few words said again and again ("I'm not sure if I'm going to work with Ash,
     I'm not sure if I'm going to work with Ash, ..."). A person does not say one phrase three times running as a request, and
@@ -109,8 +124,8 @@ def trusted_text(segs) -> str:
                 and (len(text.split()) >= 3 or lp < -0.9)):
             logger.info("Mic: dropped a phrase that is probably not speech (%.2f, %.2f): %r", ns, lp, text)
             continue
-        if is_loop(text):
-            logger.info("Mic: dropped a phrase that is whisper repeating itself: %r", text[:100])
+        if is_loop(text) or is_junk(text):
+            logger.info("Mic: dropped a phrase that is whisper repeating itself or inventing text: %r", text[:100])
             continue
         keep.append(text)
     out = " ".join(keep).strip()

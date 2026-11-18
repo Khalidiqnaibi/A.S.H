@@ -306,6 +306,24 @@ class Conversation:
 conversation = Conversation()
 
 
+# First names of the people ASH knows (set by the runtime from what it was told: Linda, Afif ...). Said to one of them -- "Linda, where did
+# I go now? Linda?" -- is not said to ASH, though it is a question and has "I" in it: it was answered "Linda Iqnaibi is your sister."
+KNOWN_OTHERS: set = set()
+
+
+def spoken_to_someone_else(raw: str) -> Optional[str]:
+    """The known person the line is said to ("Linda, ..." / "... Linda?" / "hey Omar, ..."), if ASH's own name is not in it."""
+    if not KNOWN_OTHERS or _NAME_ANYWHERE.search(raw):
+        return None
+    m = re.match(r"^\s*(?:(?:hey|hi|hello|oh|yo|ok(?:ay)?)[,\s]+)?([A-Za-z]{2,20})\s*[,?!.]", raw)
+    if m and m.group(1).lower() in KNOWN_OTHERS:
+        return m.group(1)
+    m = re.search(r"[,?!.]\s*([A-Za-z]{2,20})\s*[?!.]*\s*$", raw)
+    if m and m.group(1).lower() in KNOWN_OTHERS:
+        return m.group(1)
+    return None
+
+
 # ---------------------------------------------------------------------------
 def score(text: str, now: Optional[float] = None,
           convo: Optional[Conversation] = None) -> AddressVerdict:
@@ -317,6 +335,10 @@ def score(text: str, now: Optional[float] = None,
     convo = conversation if convo is None else convo
     reasons: List[str] = []
     conf = 0.0
+
+    other = spoken_to_someone_else(raw)
+    if other:
+        return AddressVerdict(0.0, [f"said to {other}"])
 
     second = bool(_SECOND_PERSON.search(raw))
     question = bool(_QUESTION.search(raw))

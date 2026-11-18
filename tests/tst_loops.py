@@ -46,6 +46,38 @@ def l2_answer():
     check("a normal answer is untouched", g2.check("It is six. The weather is fine.") == "It is six. The weather is fine.")
 
 
+def l4_junk():
+    print("\n=== L4. Text whisper invents ===")
+    from src.senses.mic import is_junk
+    for t in ["Subs by www.zeoranger.co.uk", "Thanks for watching!", "Thank you so much for watching", "Please subscribe to the channel",
+              "Vara Khalafi, pres-en-d-b-a-g-a-d-a-g-a-d-a-g-a-d-a-g-a-d-a-g-a-g-a-g-a-g-a-g-a-g"]:
+        check(f"junk: {t[:40]!r}", is_junk(t))
+    for t in ["open youtube.com please", "what is a.b.c in the alphabet", "Remind me to subscribe to the newsletter tomorrow", "I got a B and an A in two classes",
+              "Subtitles are off in this video, can you turn them on"]:
+        check(f"speech: {t[:40]!r}", not is_junk(t))
+
+
+def l5_other_people():
+    print("\n=== L5. Said to somebody else ===")
+    from src.senses import address
+    address.KNOWN_OTHERS.clear()
+    address.KNOWN_OTHERS.update({"linda", "afif"})
+    try:
+        for t in ["Linda, where did I go now? Linda?", "Linda?", "hey Linda, are you coming", "Where did you put it, Afif?"]:
+            check(f"to a person: {t!r}", address.score(t).confidence == 0.0, str(address.score(t).reasons))
+        for t in ["Ash, where is Linda?", "Linda, ash, what time is it", "where is Linda", "who is Linda"]:
+            check(f"still for ASH or about her: {t!r}", address.score(t).confidence > 0.0 or "said to" not in " ".join(address.score(t).reasons), str(address.score(t).reasons))
+    finally:
+        address.KNOWN_OTHERS.clear()
+    check("with nobody known it is as before", "said to" not in " ".join(address.score("Linda, where did I go now?").reasons))
+    import tst_effects as te
+    rt = te.rig(wonder=True)
+    rt.wonder.kb.store_relation("Linda Iqnaibi", role="sister")
+    rt._known_others()
+    check("the runtime fills it from the people it was told about", "linda" in address.KNOWN_OTHERS, str(address.KNOWN_OTHERS))
+    address.KNOWN_OTHERS.clear()
+
+
 def l3_window():
     print("\n=== L3. A stutter is replaced, an old answer asked again is not ===")
     clock = [1000.0]
@@ -64,5 +96,7 @@ if __name__ == "__main__":
     l1_mic()
     l2_answer()
     l3_window()
+    l4_junk()
+    l5_other_people()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

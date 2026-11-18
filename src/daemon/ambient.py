@@ -1323,6 +1323,22 @@ class AmbientRuntime:
         except Exception:
             return None
 
+    def _known_others(self):
+        """The first names of the people ASH was told about, so a line said to one of them is not taken as said to ASH."""
+        try:
+            kb = getattr(self.wonder, "kb", None)
+            names = set()
+            if kb is not None:
+                with kb._lock:
+                    for k, p in kb.people.items():
+                        for n in (str(p.get("name") or k).split()[:1]):
+                            if len(n) >= 3:
+                                names.add(n.lower())
+            address.KNOWN_OTHERS.clear()
+            address.KNOWN_OTHERS.update(names)
+        except Exception:
+            logger.debug("could not list the people it knows", exc_info=True)
+
     def _timed_restore(self, now: float):
         """"Mute the microphone for 10 minutes": switched back on when the time is up (voicectl.TIMED)."""
         due = [x for x in getattr(self, "_timed_back", []) if now >= x[0]]
@@ -1342,6 +1358,9 @@ class AmbientRuntime:
 
     def _social_step(self, now: float, idle_s: Optional[float] = None):
         self._timed_restore(now)
+        if now - getattr(self, "_others_at", 0.0) >= 60.0:
+            self._others_at = now
+            self._known_others()
         qu = getattr(self, "_quiet_until", None)
         if qu is not None and now >= qu:
             self._quiet_until = None
