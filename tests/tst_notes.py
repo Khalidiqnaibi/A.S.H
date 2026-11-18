@@ -90,7 +90,7 @@ def n4_never_the_wrong_note():
     n = notes()
     for q in ("when is my birthday", "when is mom's birthday", "how do I park a car", "what's the weather password",
               "where are my keys", "where is the eiffel tower", "what time is it", "what should I cook tonight",
-              "is it going to rain", "who is the president"):
+              "is it going to rain", "who is the president", "what can you do with notes", "can you use my notes"):
         check(f"{q!r} is left to the brain", n.recall(q, T) is None, str(n.recall(q, T)))
 
 

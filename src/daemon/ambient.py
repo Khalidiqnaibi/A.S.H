@@ -3772,6 +3772,8 @@ class AmbientRuntime:
             return True
 
         # "Find the contract I was editing last week" (and its "open it?"): before "open it" is read as the last thing named.
+        if self._samsung_request(ev, now):          # before the file search: 'search for projects in Samsung Notes' is not a file search
+            return True
         if self._filesearch_request(ev, now):
             return True
 
@@ -3832,8 +3834,6 @@ class AmbientRuntime:
         if not loose and self._feelings_request(ev, now):
             return True
         if not loose and self._fun_request(ev, now):
-            return True
-        if self._samsung_request(ev, now):
             return True
         if self._notes_request(ev, now):
             return True

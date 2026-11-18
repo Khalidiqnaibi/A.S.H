@@ -308,6 +308,8 @@ class Notes:
             self.stats["found"] += 1
             return "You told me: " + "; ".join(n.back for n in found[:4]) + "."
         q = _ASK_LEAD.sub("", t, count=1).strip()
+        if re.match(r"(?:what|which)\s+(?:can|could|do|are)\s+you\s+(?:do|able|know|use)|(?:can|could|do)\s+you\s+(?:use|work|read|write|access|have)", q, re.I):
+            return None                                      # "what can you do with notes?" asks about ASH, not what was noted
         if not _RECALL.match(q) or len(q) > 120 or re.match(r"how\s+(?:do|does|can|should|to|would)\b", q, re.I):
             return None                                      # "how do I park a car?" asks how, not what was noted
         found = self.find(q)

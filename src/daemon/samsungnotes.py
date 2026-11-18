@@ -407,14 +407,17 @@ _START2 = re.compile(_LEAD + r"start\s+(?:a\s+)?" + _SN + r"(?:\s+note)?(?:\s+" 
 _END = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:that'?s\s+(?:the|my)\s+note|that'?s\s+it|save\s+(?:the\s+|my\s+)?note|"
                   r"end\s+(?:the\s+)?note|done\s+(?:writing|dictating)|stop\s+(?:dictating|writing)|finish\s+(?:the\s+)?note)\s*[.!?]*\s*$", re.I)
 _DROP = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:cancel|discard|scratch|forget|drop)\s+(?:the\s+|that\s+|this\s+)?(?:note|dictation)\s*[.!?]*\s*$", re.I)
-_READ_LAST = re.compile(_LEAD + r"(?:read|show|what'?s\s+in|open)\s+(?:me\s+)?(?:my\s+)?(?:last|latest|newest|most\s+recent)\s+" + _SN +
+_READ_LAST = re.compile(_LEAD + r"(?:read|show|open(?:\s+up)?|what'?s\s+in)\s+(?:me\s+)?(?:my\s+|the\s+)?(?:last|latest|newest|most\s+recent)\s+note\s+(?:in|on|from|of|and|into)\s+" + _SN +
+                        r"\s*[.!?]*\s*$|" + _LEAD + r"(?:read|show|open(?:\s+up)?|what'?s\s+in)\s+(?:me\s+)?(?:my\s+)?(?:last|latest|newest|most\s+recent)\s+" + _SN +
                         r"(?:\s+note)?\s*[.!?]*\s*$|" + _LEAD + r"what\s+(?:was|is)\s+my\s+(?:last|latest)\s+" + _SN + r"(?:\s+note)?\s*\??\s*$", re.I)
 _READ = re.compile(_LEAD + r"(?:read|what'?s\s+in|what\s+does|tell\s+me\s+what'?s\s+in)\s+(?:me\s+)?(?:my\s+)?(?P<t>[\w .'\-]{2,60}?)\s+" + _SN +
                    r"(?:\s+note)?(?:\s+say)?\s*[.!?]*\s*$", re.I)
-_FIND = re.compile(_LEAD + r"(?:find|search|look\s+for|look\s+up|what\s+did\s+i\s+write\s+about)\s+(?P<q>.+?)\s+(?:in|on|through)\s+(?:my\s+)?" + _SN +
+_FIND = re.compile(_LEAD + r"(?:find|search(?:\s+for)?|look\s+for|look\s+up|what\s+did\s+i\s+write\s+about)\s+(?P<q>.+?)\s+(?:in|on|through)\s+(?:my\s+)?" + _SN +
                    r"\s*\??\s*[.!?]*\s*$", re.I)
+_FIND2 = re.compile(_LEAD + r"(?:in|on|through)\s+(?:my\s+)?" + _SN + r"[,\s]+(?:please\s+)?(?:find|search(?:\s+for)?|look\s+for|look\s+up)\s+(?P<q>.+?)\s*[.!?]*\s*$", re.I)
 _LIST = re.compile(_LEAD + r"(?:list|what|which|show)\s+(?:me\s+)?(?:my\s+)?(?:recent\s+)?" + _SN +
-                   r"(?:\s+(?:do\s+i\s+have|are\s+there))?\s*\??\s*[.!?]*\s*$", re.I)
+                   r"(?:\s+(?:do\s+i\s+have|are\s+there))?\s*\??\s*[.!?]*\s*$|" + _LEAD + r"(?:what|which|list|show)\s+(?:me\s+)?(?:my\s+)?(?:the\s+)?notes?\s+(?:do\s+i\s+have|are\s+there)\s+"
+                   r"(?:in|on)\s+(?:my\s+)?" + _SN + r"\s*\??\s*[.!?]*\s*$", re.I)
 
 
 _FOLDER = re.compile(_LEAD + r"(?:what|which|list|show|tell\s+me)\s+(?:me\s+)?(?:the\s+)?(?:my\s+)?(?:notes?\s+)?(?:do\s+i\s+have\s+|are\s+there\s+)?"
@@ -543,7 +546,7 @@ class SamsungNotes:
             return self._folder(_clean(m.group("f") or m.group("f2")))
         if _READ_LAST.match(t):
             return self._read_last()
-        m = _FIND.match(t)
+        m = _FIND.match(t) or _FIND2.match(t)
         if m:
             return self._find(_clean(m.group("q")))
         m = _READ.match(t)
