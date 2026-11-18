@@ -44,6 +44,12 @@ def m2_runtime():
           str((h.ash.calls, h.said())))
     h.say("pretty tired honestly", source="microphone", addressed=False)
     check("the answer is still taken afterwards", "rough" in h.said()[-1], str(h.said()))
+    import tst_effects as te
+    rt = te.rig(wonder=True, moments=True, feelings=True)
+    rt.moments._awaiting = ("mood_check", rt.clock())
+    rt.say("how are you, Ash?", source="console")
+    check("'how are you?' said back is answered about ASH, and the mood question is closed (the next line was read as its answer)",
+          rt.moments._awaiting is None, str(rt.out[-1:]))
 
 
 def m3_statement():

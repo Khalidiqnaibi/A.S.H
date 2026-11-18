@@ -2479,6 +2479,8 @@ class AmbientRuntime:
         if _fe.wants_user_mood(str(getattr(ev, "text", "") or "")):
             return False                                   # that asks about the person, not about ASH
         self._wonder_say(ev, type("R", (), {"say": f.say(now), "outcome": "moment"})())
+        if self.moments is not None and getattr(self.moments, "_awaiting", None) is not None:
+            self.moments._awaiting = None              # "I'm good, how are you?" answered the mood question; the next line is not its answer
         return True
 
     def _feelings_step(self, now: float):
