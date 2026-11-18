@@ -222,7 +222,9 @@ class MemoryRouter:
         # Generically process ANY entity type via unified entity ingestion architecture
         linked_entities = []
         for ent in ents:
-            mention = ent["text"]
+            mention = str(ent["text"]).strip(" ,.;:!?'\"()[]")      # "frameworks," and "frameworks" were two entities
+            if not mention or re.sub(r"[^a-z0-9]", "", mention.lower()) == "ash":
+                continue                                          # ASH's own name ("Ash", "A.S.H") is not something it learns about
             # Map labels generically (spaCy PERSON -> person, ORG -> organization, GPE -> location, etc.)
             raw_label = ent.get("label", "unknown").lower()
 

@@ -104,8 +104,29 @@ def g2_exceptions():
     check("...really", len(ents.items["zebra"].attributes["last_seen_context"]) <= 200)
 
 
+def g3_names():
+    print("\n=== G3. ASH's own name, punctuation, and one entity under several spellings ===")
+    r, ents = make(entity_min_mentions=1)
+    r.route_utterance("Ash, what do you think", source="chat")
+    r.route_utterance("A.S.H is running", source="chat")
+    check("ASH's own name is never an entity", ents.ingested == [], str(ents.ingested))
+    r.route_utterance("I met Hebron today, Hebron.", source="chat")
+    names = {n for n in ents.ingested}
+    check("punctuation is not part of a name", all(n == n.strip(" ,.;:!?") for n in names), str(names))
+    from src.memory.entity.entity_manager import EntityManager
+    em = EntityManager.__new__(EntityManager)
+    from types import SimpleNamespace as NS
+    mk = lambda nm: NS(primary_identifiers={"name": nm.lower()}, attributes={"canonical_name": nm})
+    em.store = NS(all=lambda: [mk("backend & genai developer"), mk("Frameworks"), mk("Samuel")])
+    check("'backend/genai developer' finds 'backend & genai developer'", len(em.find_matching_entities(["backend/genai developer"])) == 1)
+    check("'frameworks,' finds 'Frameworks'", len(em.find_matching_entities(["frameworks,"])) == 1)
+    check("a different name finds nothing", em.find_matching_entities(["Sam"]) == [])
+    check("an empty mention finds nothing", em.find_matching_entities(["", "..."]) == [])
+
+
 if __name__ == "__main__":
     g1_gate()
     g2_exceptions()
+    g3_names()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

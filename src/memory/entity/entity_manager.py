@@ -45,10 +45,15 @@ class EntityManager:
 
     def find_matching_entities(self, mentions: list) -> list:
         matched = []
-        lower_mentions = [m.lower().strip() for m in mentions]
+
+        def canon(s: str) -> str:
+            # case, punctuation and spacing do not make another entity: "a.s.h" / "ash", "backend & genai developer" / "backend/genai developer"
+            import re as _re
+            return _re.sub(r"[^a-z0-9]", "", str(s or "").lower())
+        lower_mentions = {canon(m) for m in mentions} - {""}
         for entity in self.store.all():
-            name = entity.primary_identifiers.get("name", "").lower().strip()
-            canonical = entity.attributes.get("canonical_name", "").lower().strip()
+            name = canon(entity.primary_identifiers.get("name", ""))
+            canonical = canon(entity.attributes.get("canonical_name", ""))
             if (name and name in lower_mentions) or (canonical and canonical in lower_mentions):
                 matched.append(entity)
         return matched
