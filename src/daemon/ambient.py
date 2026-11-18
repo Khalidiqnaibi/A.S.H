@@ -3263,6 +3263,10 @@ class AmbientRuntime:
                 except Exception:
                     logger.exception("Presence announcement failed")
 
+    _BARE_LOOK = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:look|have\s+a\s+look|take\s+a\s+look)(?:\s+(?:now|here|once\s+more|please|again))*"
+                            r"(?:[,\s]+ash)?\s*[.!?]*\s*$", re.I)
+    _BARE_SEE = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?what\s+(?:can|do|could)\s+you\s+see(?:\s+(?:now|here|right\s+now))?(?:[,\s]+ash)?\s*[.!?]*\s*$", re.I)
+
     def _look_request(self, ev, now: float) -> bool:
         """"Look around", "what am I holding?", "who's this?": the camera, asked, answered by rule. Not for a guest's
         voice, and only on a line meant for ASH -- overheard speech never opens the camera."""
@@ -3271,7 +3275,15 @@ class AmbientRuntime:
             return False
         text = str(getattr(ev, "text", "") or "")
         if not lk.wants(text):
-            return False
+            # "Look now." / "Look." matched nothing and got no answer at all; "What can you see Ash?" was read as the nearest command,
+            # "look at me", and answered "I don't see anyone in front of the camera". A bare look is a look around; a bare "what can you see"
+            # is the camera's when the camera is on and the screen is not being read (the screen's, as before, otherwise).
+            def active(name):
+                return getattr(getattr(self.periphery.sensors.get(name), "state", None), "value", "") == "active"
+            if self._BARE_LOOK.match(text) or (self._BARE_SEE.match(text) and active("camera") and not active("screenshot")):
+                text = "look around"
+            else:
+                return False
         try:
             say = lk.hear(text, now)
         except Exception:
@@ -4084,6 +4096,8 @@ class AmbientRuntime:
             return False
         fixed = cm.spelled(text)
         fixed = fixed if fixed != text else None
+        if near is not None and near.phrase in ("look at me", "can you see me") and not re.search(r"\b(?:me|myself|i|i'm)\b", text, re.I):
+            near = None            # "what can you see" is not "can you see me": a question about the room is not a check for the person
         if near is not None and near.kind == "rule":
             if near.sure:
                 if self._rules(self._as_said(ev, near.phrase, "nearest"), now):

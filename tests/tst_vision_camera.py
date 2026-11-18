@@ -526,8 +526,37 @@ def v8_corrections():
     check("with nothing looked at, 'nope' is not the camera's", "got that wrong" not in (rt2.out[-1] if rt2.out else ""))
 
 
+def v9_bare_look_and_see():
+    print("\n=== V9. 'Look now.' and 'What can you see Ash?' ===")
+    from src.senses.base import State
+    rt = rt_with([tv.thing("watch", .8, MID)])
+    for q in ("Look now.", "look", "Ash, look", "have a look", "Look here"):
+        k, n = len(rt.grabs), len(rt.ash.calls)
+        rt.say(q)
+        check(f"{q!r} is a look around (the camera, by rule)", len(rt.grabs) == k + 1 and rt.out and "watch" in rt.out[-1] and len(rt.ash.calls) == n, f"{rt.out[-1:]}")
+    rt.periphery.sensors["camera"].state = State.ACTIVE
+    k, n = len(rt.grabs), len(rt.ash.calls)
+    rt.say("What can you see Ash?")
+    check("with the camera on and the screen not read, 'what can you see' is the camera's: it says what it sees", len(rt.grabs) == k + 1 and "watch" in rt.out[-1]
+          and "anyone in front" not in rt.out[-1] and len(rt.ash.calls) == n, f"{rt.out[-1:]}")
+    rt.periphery.sensors["screenshot"].state = State.ACTIVE
+    k = len(rt.grabs)
+    rt.say("What can you see Ash?")
+    check("with the screen being read it is still the screen's (no camera frame)", len(rt.grabs) == k)
+    rt.periphery.sensors["screenshot"].state = State.DISABLED
+    rt.periphery.sensors["camera"].state = State.DISABLED
+    k = len(rt.grabs)
+    rt.say("What can you see Ash?")
+    check("with the camera off it is never answered as 'look at me' (it said 'I don't see anyone in front of the camera' to a question about the room)",
+          len(rt.grabs) == k and "anyone in front" not in rt.out[-1], f"{rt.out[-1:]}")
+    rt.say("look at me")
+    check("'look at me' itself is unchanged", "someone" in rt.out[-1] or "see" in rt.out[-1], rt.out[-1])
+    rt.say("look at the weather forecast")
+    check("a sentence that only starts with 'look' is not a look around", "watch" not in rt.out[-1])
+
+
 if __name__ == "__main__":
-    for fn in (v1_phrasings, v2_why_not, v3_answers, v4_runtime, v5_reacting, v6_defaults, v7_follow_ups, v8_corrections):
+    for fn in (v1_phrasings, v2_why_not, v3_answers, v4_runtime, v5_reacting, v6_defaults, v7_follow_ups, v8_corrections, v9_bare_look_and_see):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)
