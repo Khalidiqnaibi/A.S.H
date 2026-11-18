@@ -188,6 +188,23 @@ def v2b_timed():
     check("and it ends", not rt.privacy.paused)
 
 
+def v2c_faces():
+    print("\n=== V2c. Faces said the way people say them ===")
+    P = voicectl.parse
+    for t, anim in [("Can you do a crying face?", "sad"), ("do a laughing face", "very_happy"), ("make a furious face", "angry"),
+                    ("show me a puzzled face", "confused"), ("do a sad face", "sad")]:
+        check(f"{t!r} -> {anim}", P(t) == voicectl.Command("face", anim), str(P(t)))
+    rt = rig()
+    rt.say("Can you do a crying face?")
+    check("a face", rt.face.player.played[-1] == ("sad", True), str(rt.face.player.played[-1:]))
+    rt.say("Again.")
+    check("'Again.' does the same face again, by rule", rt.face.player.played[-1] == ("sad", True) and len(rt.face.player.played) == 2 and rt.ash_.calls == [],
+          str(rt.face.player.played) + str(rt.ash_.calls))
+    rt.t[0] += 200
+    rt.say("Again.")
+    check("a few minutes later 'Again.' is not about a face", len(rt.face.player.played) == 2)
+
+
 def out_has(rt, s):
     return any(s in o for o in rt.out)
 
@@ -285,7 +302,7 @@ def v6_face_quiet():
 
 
 if __name__ == "__main__":
-    for fn in (v1_parse, v2_doing, v2b_timed, v3_who, v4_shutdown, v5_claims, v6_face_quiet):
+    for fn in (v1_parse, v2_doing, v2b_timed, v2c_faces, v3_who, v4_shutdown, v5_claims, v6_face_quiet):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

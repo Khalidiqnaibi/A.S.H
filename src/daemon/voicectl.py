@@ -74,7 +74,14 @@ FACES: Dict[str, str] = {
     "shocked": "surprised", "sleepy": "sleepy", "tired": "sleepy", "confused": "confused", "curious": "curious",
     "love": "love", "in love": "love", "skeptical": "skeptical", "doubtful": "skeptical", "annoyed": "annoyed",
     "wink": "wink", "thinking": "thinking", "thoughtful": "thinking", "nod": "acknowledge", "look around": "look_around",
+    # said the way people say them ("can you do a crying face?"): the nearest face it has
+    "crying": "sad", "cry": "sad", "sobbing": "sad", "tearful": "sad", "upset": "sad", "unhappy": "sad", "heartbroken": "sad",
+    "laughing": "very_happy", "laugh": "very_happy", "grinning": "very_happy", "joyful": "very_happy", "delighted": "very_happy",
+    "furious": "angry", "grumpy": "angry", "cross": "annoyed", "irritated": "annoyed", "bored": "sleepy", "exhausted": "sleepy",
+    "puzzled": "confused", "baffled": "confused", "shocked face": "surprised", "amazed": "surprised", "astonished": "surprised",
+    "suspicious": "skeptical", "unsure": "skeptical", "interested": "curious", "winking": "wink", "smiling": "happy", "cheerful": "happy",
 }
+AGAIN = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:do\s+(?:it|that)\s+again|again|once\s+more|one\s+more\s+time|another\s+one)\s*[.!?]*\s*$", re.I)
 _FACE = re.compile(_A + r"(?:(?P<smile>smile|wink|nod)(?:\s+at\s+me)?"
                    r"|(?:make|show\s+me|give\s+me|do)\s+(?:a|an|your|the)\s+(?P<a>[a-z ]{3,15}?)\s*(?:face|look|expression)"
                    r"|(?:look|be|act)\s+(?P<b>[a-z ]{3,15}?)"

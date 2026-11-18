@@ -4677,6 +4677,8 @@ class AmbientRuntime:
             return self._control_say(ev, f"Okay, quiet until {phrase}. I'll answer if you ask me something, "
                                          "and I'll be back on my own then.")
         cmd = voicectl.parse(text)
+        if cmd is None and voicectl.AGAIN.match(text) and getattr(self, "_last_face", None) and now - self._last_face[1] <= 90.0:
+            cmd = voicectl.Command("face", self._last_face[0])        # "Again." after a face: the same face
         if cmd is None and self._feel_or_status(text) == "status":
             cmd = voicectl.Command("status")                     # worded unlike the rule ("is the battery low"), but by meaning it asks for the numbers
         elif cmd is not None and cmd.name == "status":
@@ -4739,6 +4741,7 @@ class AmbientRuntime:
                   or getattr(getattr(player, "current", None), "name", cmd.arg) != cmd.arg):
                 say = "I couldn't make that face just now."
             else:
+                self._last_face = (cmd.arg, now)
                 say = "Like this." if cmd.arg != "wink" else "\U0001F609"
         elif name == "faces":
             player = getattr(getattr(self, "face", None), "player", None)
