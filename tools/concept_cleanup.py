@@ -54,6 +54,20 @@ def plan(directory: str) -> Dict[str, Any]:
     return out
 
 
+CLAMP = 3
+
+
+def clamp_counts(net, ceiling: int = CLAMP) -> int:
+    """Wires 'seen' hundreds of times because the sleep replayed one memory hundreds of times (the replay is no longer counted): none
+    is shown, or trusted, as seen more than `ceiling` times. Their weights are left as they are. Returns how many were clamped."""
+    n = 0
+    for syn in net.synapses.values():
+        if syn.potentiations > ceiling:
+            syn.potentiations = ceiling
+            n += 1
+    return n
+
+
 def apply(p: Dict[str, Any]) -> str:
     from src.concepts.network import ConceptNetwork
     d = p["dir"]
@@ -68,6 +82,8 @@ def apply(p: Dict[str, Any]) -> str:
         raise SystemExit("could not load the saved graph; nothing changed")
     for c in p["drop"]:
         net.remove_concept(c["id"])
+    if p.get("clamp"):
+        print(f"   {clamp_counts(net)} wires had their 'seen' count brought down to {CLAMP}")
     net.save(d)
     return backup
 
@@ -76,8 +92,10 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Remove concepts grown from the machine's own readings.")
     ap.add_argument("--dir", default=os.path.join(os.getcwd(), "state", "concepts"), help="the concept state folder")
     ap.add_argument("--apply", action="store_true", help="do it (after a backup)")
+    ap.add_argument("--clamp-counts", action="store_true", help="bring 'seen' counts of wires down to 3 (replays used to count)")
     a = ap.parse_args(argv)
     p = plan(a.dir)
+    p["clamp"] = bool(a.clamp_counts)
     print(f"{p['total']} concepts in {a.dir}; grown from readings of the machine: {len(p['drop'])}")
     for c in p["drop"]:
         print(f"   c{c['id']:<4} fired {c['fired']!s:>6}  {c['text']!r}".encode("ascii", "replace").decode())

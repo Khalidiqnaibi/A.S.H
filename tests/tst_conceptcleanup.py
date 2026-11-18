@@ -65,7 +65,28 @@ def c1():
     check("run again: nothing to do", not cc.plan(d)["drop"])
 
 
+def c2_clamp():
+    print("\n=== C2. Counts brought down ===")
+    d, ids = build()
+    net = ConceptNetwork(dim=DIM)
+    net.load(d)
+    syn = net.synapse(ids["person"], ids["lecture"])
+    syn.potentiations = 1232
+    other = net.synapse(ids["lecture"], ids["intent"])
+    other.potentiations = 2
+    w = syn.w_slow
+    check("only the inflated ones are clamped", cc.clamp_counts(net) == 1 and syn.potentiations == 3 and other.potentiations == 2)
+    check("their weights are untouched", syn.w_slow == w)
+    p = cc.plan(d)
+    p["clamp"] = True
+    cc.apply(p)
+    net2 = ConceptNetwork(dim=DIM)
+    net2.load(d)
+    check("through the tool, saved", all(s.potentiations <= 3 for s in net2.synapses.values()))
+
+
 if __name__ == "__main__":
     c1()
+    c2_clamp()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)
