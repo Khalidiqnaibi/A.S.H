@@ -4390,8 +4390,10 @@ class AmbientRuntime:
         last = getattr(self, "_cue_last", "")
         line = _random.choice([c for c in self._CUES if c != last] or list(self._CUES))
         self._cue_last = line
+        self._cue_fired = False
 
         def fire():
+            self._cue_fired = True
             try:
                 self.response_sink(line, {"addressed": True, "source": "cue", "outcome": "thinking_cue",
                                           "pathway": "cue", "attention": {}})
@@ -5021,7 +5023,11 @@ class AmbientRuntime:
         now = self.clock()
         asked = bool(getattr(ev, "addressed", False)
                      or getattr(decision, "likely", False))
-        if not asked or now - self._last_no_reply_notice < self.cfg.no_reply_notice_s:
+        # "On it." / "Give me a second." was said and then nothing came (7 times in a day): that is never left silent, whatever
+        # the once-in-ten-minutes limit on this notice says.
+        cue_said = bool(getattr(self, "_cue_fired", False))
+        self._cue_fired = False
+        if not asked or (now - self._last_no_reply_notice < self.cfg.no_reply_notice_s and not cue_said):
             logger.warning("No reply to give (%s)", "asked" if asked else "unprompted")
             if asked:
                 self.gate.note_user_turn()
