@@ -387,6 +387,7 @@ class Looking:
         if frame is None:
             self.last_look["why"] = why
             return self._why_none(why)
+        self.last_look["how"] = why                          # "sensor" (the camera was on) or "camera" (opened just for this look)
         self._bump("looks")
         with self._hold(self.cfg.busy_wait_s) as got:
             if not got:

@@ -3240,6 +3240,15 @@ class AmbientRuntime:
             return False
         if not say:
             return False
+        try:
+            # With the camera switched off, "look around" opens it for that one picture. Said, so "I see a shield" is not a mystery
+            # to someone who believes the camera is off.
+            cam = self.periphery.sensors.get("camera")
+            cam_on = bool(cam is not None and getattr(getattr(cam, "state", None), "value", "") == "active")
+            if lk.last_look.get("how") == "camera" and not cam_on and say.startswith(("I see", "I looked")):
+                say = "The camera is off, so I took one picture just now. " + say
+        except Exception:
+            logger.debug("one-shot note not added", exc_info=True)
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
 

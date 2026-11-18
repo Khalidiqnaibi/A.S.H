@@ -408,7 +408,8 @@ def step1_look_around_and_what_am_i_holding():
     rt = te.rig(vision=True, vision_io=io, grammar=True, vision_cfg=dict(enrol_checks=False))
     rt.brain.user = "Khalid"
     rt.say("look around")
-    check("by voice: answered by rule", rt.out[-1] == "I see a cup and a laptop.", rt.out[-1])
+    check("by voice: answered by rule, and it says the camera was off and it took one picture (so 'I see a shield' is no mystery)",
+          rt.out[-1] == "The camera is off, so I took one picture just now. I see a cup and a laptop.", rt.out[-1])
     n = eye.looks
     rt.say("what do you see")
     check("bare 'what do you see?' does not open the camera", eye.looks == n, str(rt.out[-1:]))
