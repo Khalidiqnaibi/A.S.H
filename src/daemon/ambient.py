@@ -1323,7 +1323,25 @@ class AmbientRuntime:
         except Exception:
             return None
 
+    def _timed_restore(self, now: float):
+        """"Mute the microphone for 10 minutes": switched back on when the time is up (voicectl.TIMED)."""
+        due = [x for x in getattr(self, "_timed_back", []) if now >= x[0]]
+        if not due:
+            return
+        self._timed_back = [x for x in self._timed_back if x not in due]
+        for _t, name in due:
+            try:
+                if name == "privacy_on":
+                    self.privacy.resume()
+                else:
+                    sensor = {"mic_off": "microphone", "camera_off": "camera", "screen_off": "screenshot"}[name]
+                    ok, why = self.set_sensor(sensor, True)
+                    logger.info("Timed %s is over: %s %s", name, "back on" if ok else "could not turn it back on:", why or "")
+            except Exception:
+                logger.exception("Could not undo %s", name)
+
     def _social_step(self, now: float, idle_s: Optional[float] = None):
+        self._timed_restore(now)
         qu = getattr(self, "_quiet_until", None)
         if qu is not None and now >= qu:
             self._quiet_until = None
@@ -4657,6 +4675,11 @@ class AmbientRuntime:
                                        bool(self.privacy.paused))
         else:
             return False
+        if cmd.seconds and not re.match(r"(?:There's no|I couldn't|Privacy mode is on)", say):
+            self._timed_back = [x for x in getattr(self, "_timed_back", []) if x[1] != name] + [(now + cmd.seconds, name)]
+            mins = cmd.seconds / 60.0
+            span = f"{int(round(mins))} minute{'s' if round(mins) != 1 else ''}" if mins >= 1 else f"{int(cmd.seconds)} seconds"
+            say = say.split(" Use its button")[0].split(" Type")[0].rstrip(".") + f". I'll turn it back on in {span}."
         self.stats["voice_commands"] = self.stats.get("voice_commands", 0) + 1
         return self._control_say(ev, say)
 

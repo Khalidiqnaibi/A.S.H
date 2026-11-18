@@ -165,6 +165,29 @@ def v2_doing():
           == "Privacy mode is on; I'm in quiet mode.")
 
 
+def v2b_timed():
+    print("\n=== V2b. For a while ===")
+    P = voicectl.parse
+    check("'mute microphone for 10 minutes' is a timed mic off", P("Mute microphone for 10 minutes.") == voicectl.Command("mic_off", seconds=600.0))
+    check("'privacy mode until 10 minutes' (as it was heard)", P("Ash, privacy mode until 10 minutes.").seconds == 600.0)
+    check("'mic off for ten minutes' (a number word)", P("mic off for ten minutes").seconds == 600.0)
+    check("'camera off for an hour'", P("turn off the camera for an hour").seconds == 3600.0)
+    check("turning something ON for a while is not a thing", P("turn on the camera for ten minutes") is None)
+    check("without a time it is as before", P("mute the mic").seconds == 0.0)
+    rt = rig()
+    rt.say("Mute microphone for 10 minutes")
+    check("the mic is off, and it says when it is back", not rt.periphery.sensors["microphone"].on and "turn it back on in 10 minutes" in rt.out[-1], rt.out[-1])
+    check("no model was asked", rt.ash_.calls == [])
+    rt._timed_restore(rt.t[0] + 300)
+    check("five minutes later it is still off", not rt.periphery.sensors["microphone"].on)
+    rt._timed_restore(rt.t[0] + 601)
+    check("after ten it is back on by itself", rt.periphery.sensors["microphone"].on)
+    rt.say("Ash, privacy mode for 10 minutes")
+    check("privacy mode for a while", rt.privacy.paused and "turn it back on in 10 minutes" in rt.out[-1], rt.out[-1])
+    rt._timed_restore(rt.t[0] + 700)
+    check("and it ends", not rt.privacy.paused)
+
+
 def out_has(rt, s):
     return any(s in o for o in rt.out)
 
@@ -262,7 +285,7 @@ def v6_face_quiet():
 
 
 if __name__ == "__main__":
-    for fn in (v1_parse, v2_doing, v3_who, v4_shutdown, v5_claims, v6_face_quiet):
+    for fn in (v1_parse, v2_doing, v2b_timed, v3_who, v4_shutdown, v5_claims, v6_face_quiet):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

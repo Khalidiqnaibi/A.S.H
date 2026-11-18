@@ -85,6 +85,7 @@ _FACE = re.compile(_A + r"(?:(?P<smile>smile|wink|nod)(?:\s+at\s+me)?"
 class Command:
     name: str                  # privacy_on, mic_off, face, ...
     arg: str = ""              # the animation, for a face
+    seconds: float = 0.0       # "for 10 minutes": how long, for the ones that come back by themselves
 
     @property
     def turns_on(self) -> bool:
@@ -93,10 +94,31 @@ class Command:
                              "status")
 
 
+# "mute microphone for 10 minutes", "privacy mode until 10 minutes" (as it was heard), "mic off for ten minutes": switched off, and
+# switched back on by itself. Only the ones that make ASH more private take a time.
+_DUR = re.compile(r"[,\s]+(?:for|until|till|in)\s+(?:the\s+next\s+)?(?:(?P<a>an?|one)|(?P<n>\d+(?:\.\d+)?))\s*"
+                  r"(?P<u>hours?|hrs?|minutes?|mins?|seconds?|secs?)\s*[.!?]*\s*$", re.I)
+TIMED = ("mic_off", "camera_off", "screen_off", "privacy_on")
+
+
 def parse(text: str) -> Optional[Command]:
     t = (text or "").strip()
     if not t or len(t) > 90:
         return None
+    from .numwords import digits
+    t = digits(t)
+    seconds = 0.0
+    m = _DUR.search(t)
+    if m:
+        n = 1.0 if m.group("a") else float(m.group("n"))
+        unit = m.group("u").lower()
+        seconds = n * (3600.0 if unit.startswith("h") else 60.0 if unit.startswith("m") else 1.0)
+        base = t[:m.start()]
+        for name, rx in _COMPILED:
+            if rx.match(base):
+                if name in TIMED and 10.0 <= seconds <= 24 * 3600.0:
+                    return Command(name, seconds=seconds)
+                return None                       # "turn on the camera for ten minutes" is not something it does
     for name, rx in _COMPILED:
         if rx.match(t):
             return Command(name)
