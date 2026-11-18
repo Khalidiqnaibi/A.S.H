@@ -85,8 +85,27 @@ def c2_clamp():
     check("through the tool, saved", all(s.potentiations <= 3 for s in net2.synapses.values()))
 
 
+def c3_hub_noise():
+    print("\n=== C3. A noise that became a hub ===")
+    d = tempfile.mkdtemp()
+    net = ConceptNetwork(dim=DIM)
+    noise = net.add_concept(rnd(21), origin=Origin.GROWN, seed_text="Back on some.").id
+    short_ok = net.add_concept(rnd(22), origin=Origin.GROWN, seed_text="Hello there.").id
+    long_hub = net.add_concept(rnd(23), origin=Origin.GROWN, seed_text="my dad runs a clinic in Hebron near the hospital").id
+    others = [net.add_concept(rnd(30 + i), origin=Origin.GROWN, seed_text=f"a sentence number {i} about something real").id for i in range(25)]
+    for o in others:
+        net.link(o, noise, 0.2)
+        net.link(o, long_hub, 0.2)
+    net.link(others[0], short_ok, 0.2)
+    net.save(d)
+    dropped = {c["id"] for c in cc.plan(d)["drop"]}
+    check("the short noise with 25 wires in is dropped", noise in dropped, str(dropped))
+    check("a short one nothing points at stays, and a long sentence that is a hub stays", short_ok not in dropped and long_hub not in dropped, str(dropped))
+
+
 if __name__ == "__main__":
     c1()
     c2_clamp()
+    c3_hub_noise()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

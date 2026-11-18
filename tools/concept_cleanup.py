@@ -45,11 +45,16 @@ def plan(directory: str) -> Dict[str, Any]:
         meta = json.load(fh)
     cs: List[Dict[str, Any]] = meta.get("concepts", [])
     out["total"] = len(cs)
+    indeg: Dict[int, int] = {}
+    for s in meta.get("synapses", []):
+        indeg[int(s.get("dst", -1))] = indeg.get(int(s.get("dst", -1)), 0) + 1
     for c in cs:
         if c.get("origin") != "grown" or c.get("frozen"):
             continue
         text = str(c.get("seed_text") or c.get("label") or "")
-        if is_telemetry(text, "") or is_own_remark(text):
+        # A noise from the microphone ("Back on some.", "Uh-oh.") that became a hub: three words or fewer and 20 or more concepts point at it.
+        hub_noise = len(text.split()) <= 3 and indeg.get(int(c["id"]), 0) >= 20
+        if is_telemetry(text, "") or is_own_remark(text) or hub_noise:
             out["drop"].append({"id": int(c["id"]), "text": text[:70], "fired": c.get("activations", 0)})
     return out
 
