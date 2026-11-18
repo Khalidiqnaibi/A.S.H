@@ -660,8 +660,12 @@ class Brain:
         timings["narrate"] = (time.perf_counter() - t0) * 1000.0
 
         if not (text or "").strip():
-            text = _fmt_tool_output(tool_out) or NO_REPLY_TEXT
-            trace.notes.append("narration empty -- fell back to raw facts")
+            # Raw facts are said only where the tool already has words for them ("result", "text", an error); a dict of readings
+            # ("sentiment: POSITIVE, confidence: 0.99") is not something to say aloud, and was.
+            readable = isinstance(tool_out, dict) and (any(tool_out.get(k) is not None for k in ("result", "output", "text", "value", "answer"))
+                                                       or tool_out.get("ok") is False)
+            text = (_fmt_tool_output(tool_out) if (readable or isinstance(tool_out, str)) else "") or NO_REPLY_TEXT
+            trace.notes.append("narration empty -- fell back to raw facts" if readable else "narration empty -- nothing readable to say")
 
         # --- commit ---------------------------------------------------------
         if chosen is not None:

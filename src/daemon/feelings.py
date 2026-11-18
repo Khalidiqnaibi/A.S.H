@@ -33,6 +33,33 @@ _KIND = [
     ("hurt", -0.25, re.compile(r"\b(?:you(?:'re|\s+are)\s+(?:useless|stupid|dumb|annoying|wrong|bad|terrible)|i\s+hate\s+you|you\s+suck|bad\s+(?:bot|job))\b", re.I)),
     ("hushed", -0.12, re.compile(r"\b(?:shut\s+up|go\s+away|be\s+quiet|stop\s+talking)\b", re.I)),
 ]
+# "What's my emotional status?" / "how am I feeling" / "what do you think I'm feeling" / "what is the user feeling right now": about the
+# PERSON, not ASH. These were answered with ASH's own mood ("Pretty happy -- you've thanked me 3 times") or looked up on Wikipedia.
+_USER_MOOD = re.compile(
+    r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:so|and|but|ok(?:ay)?|now)[,\s]+)?(?:"
+    r"(?:what'?s|whats|what\s+is|how'?s|hows|how\s+is|tell\s+me)\s+(?:about\s+)?(?:my|the\s+user'?s?)\s+(?:emotional\s+|mental\s+|current\s+)?"
+    r"(?:status|state|mood|condition|feelings?|vibe|energy|state\s+of\s+mind)(?:\s+(?:right\s+)?now|\s+today)?|"
+    r"(?:how|what)\s+(?:am\s+i|do\s+i)\s+(?:feeling|feel)(?:\s+(?:today|now|right\s+now))?|how\s+am\s+i(?:\s+doing)?(?:\s+(?:today|now))?|"
+    r"what\s+do\s+you\s+think\s+(?:i'?m|i\s+am)\s+feeling(?:\s+(?:right\s+)?now)?|"
+    r"(?:what|how)\s+(?:is|does)\s+the\s+user\s+(?:feeling|feel)(?:\s+(?:right\s+)?now|\s+today)?)"
+    r"(?:\s*,?\s*(?:ash|please))*\s*[?.!]*\s*$", re.I)
+
+
+def wants_user_mood(text: str) -> bool:
+    return bool(_USER_MOOD.match(text or ""))
+
+
+def user_mood_say(mood) -> str:
+    """What ASH can honestly say about how the person feels: a reading of their WORDS (the sentiment model), said as that."""
+    if mood is None:
+        return "I can't tell from here -- I only read your words, and you haven't said how you feel. How are you?"
+    if mood >= 0.3:
+        return "You've sounded upbeat lately -- going only by your words, so tell me if I've got it wrong."
+    if mood <= -0.3:
+        return "You've sounded a bit low lately -- going only by your words, so tell me if I've got it wrong."
+    return "Fairly level, going by your words. I can't see more than that -- tell me if I'm off."
+
+
 _ASK = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:so|and|hey|hi|hello)[,\s]+)?"
                   r"(?:how\s+(?:are\s+you|r\s+u|are\s+you\s+(?:feeling|doing)|do\s+you\s+feel|'?s\s+it\s+going\s+with\s+you)(?:\s+today|\s+now)?|"
                   r"are\s+you\s+(?:ok(?:ay)?|alright|happy|sad|bored|tired)|what'?s\s+your\s+mood|how'?s\s+your\s+mood|"

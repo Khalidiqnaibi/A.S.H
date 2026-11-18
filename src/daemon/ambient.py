@@ -2426,11 +2426,33 @@ class AmbientRuntime:
             return True
         return self._feel_or_status(text) == "feelings"
 
+    def _user_mood_request(self, ev, now: float) -> bool:
+        """"What's my emotional state?", "how am I feeling": the person's, as far as their words show (never ASH's own mood)."""
+        from . import feelings as _fe
+        text = str(getattr(ev, "text", "") or "")
+        if not self._user_source(ev) or not self._meant_for_ash(ev) or not _fe.wants_user_mood(text):
+            return False
+        mood = None
+        try:
+            mood = self.moments.mood(now) if self.moments is not None else None
+            ls = getattr(self.brain, "last_sentiment", None)
+            if mood is None and ls and now - float(ls.get("t", 0) or 0) <= 600:
+                from .freemoment import mood_of
+                mood = mood_of(ls)
+        except Exception:
+            logger.debug("no mood reading", exc_info=True)
+        self._wonder_say(ev, type("R", (), {"say": _fe.user_mood_say(mood), "outcome": "moment"})())
+        self._last_why = {"kind": "feelings"}
+        return True
+
     def _feelings_request(self, ev, now: float) -> bool:
         """"How are you feeling?": from what actually happened today (feelings.py), not made up by the model."""
         f = self.feelings
         if f is None or not self._user_source(ev) or not self._meant_for_ash(ev) or not self._asks_feelings(str(getattr(ev, "text", "") or "")):
             return False
+        from . import feelings as _fe
+        if _fe.wants_user_mood(str(getattr(ev, "text", "") or "")):
+            return False                                   # that asks about the person, not about ASH
         self._wonder_say(ev, type("R", (), {"say": f.say(now), "outcome": "moment"})())
         return True
 
@@ -3870,6 +3892,8 @@ class AmbientRuntime:
         if not loose and self._relations_request(ev, now):
             return True
         if not loose and self._who_is_request(ev, now):
+            return True
+        if not loose and self._user_mood_request(ev, now):
             return True
         if not loose and self._feelings_request(ev, now):
             return True
