@@ -5137,6 +5137,21 @@ class AmbientRuntime:
             logger.info("Nap complete: %s", {k: v for k, v in rep.items() if k in ("light", "skipped", "persisted", "duration_ms")})
         except Exception:
             logger.exception("Nap failed")
+        self._compile_entity_facets()
+
+    def _compile_entity_facets(self):
+        """Entities get facets (how often, since when, the relationship, what they like, what was said around them) -- src/daemon/facets.py."""
+        try:
+            from .facets import compile_facets
+            store = getattr(getattr(self.ash, "entity_memory", None), "store", None)
+            eps = getattr(getattr(getattr(self.ash, "episodic_memory", None), "store", None), "episodes", None) or {}
+            if store is None:
+                return
+            n = compile_facets(store, list(eps.values())[-5000:], getattr(self.wonder, "kb", None), self.clock())
+            if n:
+                logger.info("Entity facets compiled for %d entities", n)
+        except Exception:
+            logger.exception("Compiling entity facets failed")
 
     def _sleep_phase(self, force: bool = False):
         logger.info("Sleep phase starting")
