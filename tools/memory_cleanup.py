@@ -72,6 +72,8 @@ def junk_entity(e: Dict[str, Any]) -> str:
         return "no name"
     if "\n" in n:
         return "text with a line break in it"
+    if re.sub(r"[^a-z0-9]", "", low) == "ash":
+        return "ASH's own name"
     # An address or number you really gave ASH is a fact worth keeping; only
     # the placeholders a model makes up are removed.
     if _EMAIL.search(n) and re.search(r"@(?:email|example|domain|mail|yourmail|test)\.(?:com|org|net)\b", low):

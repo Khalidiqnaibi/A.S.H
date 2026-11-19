@@ -53,6 +53,9 @@ def f1_compile():
     check("a place gets its mentions, no relationship", st.entities["e2"].attributes["mentions"] == 1 and "relationship" not in st.entities["e2"].attributes)
     check("one never mentioned in an episode gets nothing invented", "mentions" not in st.entities["e3"].attributes)
     check("two changed, saved once", n == 2 and st.saved == 1, f"{n} {st.saved}")
+    st2 = Store(ent("e1", "Linda Iqnaibi"))
+    compile_facets(st2, [ep(1.0, "Immortal: Linda called [mentions: Linda Iqnaibi]", "e1")], None)
+    check("the episode's own tag is not a thing said", st2.entities["e1"].attributes["heard_in"] == ["Linda called"], str(st2.entities["e1"].attributes))
     check("run again: nothing changes, nothing saved", compile_facets(st, eps, r.kb) == 0 and st.saved == 1)
     check("the old attributes are kept", a["canonical_name"] == "Linda Iqnaibi")
 

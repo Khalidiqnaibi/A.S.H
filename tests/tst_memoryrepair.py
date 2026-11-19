@@ -34,7 +34,7 @@ def build():
     d = tempfile.mkdtemp()
     ents = {e["entity_id"]: e for e in (
         ent(1, "Streamio", 0.2), ent(2, "Linda Iqnaibi", 0.2), ent(3, "PyTorch", 60), ent(4, "cpu_percent", 0.1), ent(5, "Hebron", 0.1),
-        ent(6, "Dimension", 0.5), ent(7, "Omar", 0.2, relation="friend"), ent(8, "Embedding", 0.5))}
+        ent(6, "Dimension", 0.5), ent(7, "Omar", 0.2, relation="friend"), ent(8, "Embedding", 0.5), ent(9, "A.S.H", 0.1), ent(10, "Ash", 0.1))}
     json.dump(ents, open(os.path.join(d, "entities.json"), "w"))
     eps = [{"episode_id": "e1", "timestamp": NOW, "summary": "Immortal: hi", "related_entities": ["id1", "id2", "id3"]},
            {"episode_id": "e2", "timestamp": NOW, "summary": "Immortal: hello Linda Iqnaibi", "related_entities": ["id2", "id6"]},
@@ -69,6 +69,7 @@ def m2_entities():
     p = mc.plan(d)
     names = {mc._name(e): why for e, why in p["drop_entities"]}
     check("a reading of the machine goes", "cpu_percent" in names, str(names))
+    check("ASH's own name goes", "A.S.H" in names and "Ash" in names, str(names))
     check("a one-off from the last days goes (seen once, name only)", "Streamio" in names and "Embedding" in names, str(names))
     check("one seen in two sentences stays", "Dimension" not in names, str(names))
     check("an older one-off stays (it may be a real project)", "PyTorch" not in names)

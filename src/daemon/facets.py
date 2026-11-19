@@ -22,6 +22,7 @@ def _short(summary: str) -> str:
     s = str(summary or "")
     head, sep, rest = s.partition(":")
     s = rest if sep and len(head) <= 24 else s
+    s = re.sub(r"\s*\[[^\]]*\]\s*$", "", s)                 # (not the "[mentions: ...]" the episode carries)
     s = re.sub(r"\s+", " ", s).strip()
     return s[:100]
 
