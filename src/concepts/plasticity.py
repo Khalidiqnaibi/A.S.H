@@ -103,6 +103,7 @@ class PlasticityConfig:
     # cause; events that merely follow each other in a log read as both). 49% of the saved graph's wires were causal.
     causal_keep: float = 0.35
     causal_both_ways_margin: float = 0.4
+    causal_min_span_h: float = 12.0    # an arrow is promoted to CAUSAL only once its evidence spans this many hours
 
     # --- Development ------------------------------------------------------
     # Plasticity starts high and anneals with experience. A newborn cortex
@@ -405,7 +406,10 @@ class Plasticity:
                         fwd.order_evidence = min(2.0, fwd.order_evidence + 0.8 * d)
                         back = self.net.synapses.get((post_id, pre_id))
                         clear = back is None or fwd.order_evidence - back.order_evidence > self.cfg.causal_both_ways_margin
-                        if (fwd.order_evidence >= self.cfg.causal_threshold
+                        # "A then B" within one conversation is adjacency in a log, not cause: the evidence has to span at least
+                        # `causal_min_span_h` (the first sighting and the latest are that far apart, so it came back on another occasion).
+                        spans = (time.time() - float(fwd.created or time.time())) >= self.cfg.causal_min_span_h * 3600.0
+                        if (spans and fwd.order_evidence >= self.cfg.causal_threshold
                                 and fwd.kind == SynType.ASSOC and clear):
                             fwd.kind = SynType.CAUSAL
                             logger.debug("Edge %s->%s promoted to CAUSAL",

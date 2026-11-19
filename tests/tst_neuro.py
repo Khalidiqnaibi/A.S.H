@@ -154,6 +154,10 @@ def main():
     cb = net5.add_concept(v(51), label="effect", origin=Origin.ENTITY).id
     filler = net5.add_concept(v(52), label="filler", origin=Origin.ENTITY).id
 
+    # An arrow is promoted to CAUSAL only once its evidence spans hours (one conversation is adjacency, not cause): the pair has been
+    # seen on earlier days in this setup.
+    for k in ((ca, cb), (cb, ca)):
+        net5.synapse(*k).created -= 3 * 86400
     for _ in range(60):
         for step in ({ca: 0.9}, {cb: 0.9}, {filler: 0.5}):
             net5.cycles += 1

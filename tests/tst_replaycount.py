@@ -103,10 +103,44 @@ def r4_cap():
     check("run again: nothing", pl._cap_inputs() == 0)
 
 
+def r5_causal():
+    print("\n=== R5. Arrows are causal only across days ===")
+    from src.concepts.model import SynType, Activation
+    from src.concepts.plasticity import PlasticityConfig
+    n = ConceptNetwork(dim=DIM, k=4, vigilance=0.99, persist=False)
+    pl = Plasticity(n, PlasticityConfig(stdp_window=3))
+    a = n.add_concept(rnd(70), label="a", origin=Origin.ENTITY).id
+    b = n.add_concept(rnd(71), label="b", origin=Origin.ENTITY).id
+    f = n.add_concept(rnd(72), label="f", origin=Origin.ENTITY).id
+
+    def run(rounds):
+        for _ in range(rounds):
+            for step in ({a: 0.9}, {b: 0.9}, {f: 0.5}):
+                n.cycles += 1
+                for cid, x in step.items():
+                    n.concepts[cid].touch(x)
+                act = Activation(initial=step, spread=step)
+                n._record_cooccurrence(act)
+                pl.potentiate(act)
+    run(80)
+    fwd = n.synapses.get((a, b))
+    check("within one afternoon it has plenty of order evidence but is not causal", fwd is not None and fwd.order_evidence >= pl.cfg.causal_threshold
+          and fwd.kind != SynType.CAUSAL, f"{fwd.order_evidence if fwd else None} {fwd.kind if fwd else None}")
+    fwd.created -= 3 * 86400
+    run(5)
+    check("once it spans days it is", n.synapses[(a, b)].kind == SynType.CAUSAL, str(n.synapses[(a, b)].kind))
+    # two arrows that claim to cause each other lose it in the sleep
+    x, y = n.synapse(a, f), n.synapse(f, a)
+    x.kind = y.kind = SynType.CAUSAL
+    x.order_evidence = y.order_evidence = 0.9
+    check("both ways, no clear direction: the audit takes it away from both", pl._audit_causal() >= 2 and x.kind != SynType.CAUSAL and y.kind != SynType.CAUSAL)
+
+
 if __name__ == "__main__":
     r1_count_flag()
     r2_potentiation()
     r3_noises()
     r4_cap()
+    r5_causal()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

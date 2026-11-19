@@ -135,9 +135,11 @@ class SleepCycle:
             report["capped"] = self.plasticity._cap_inputs()
             report["scaled"] = self.plasticity._homeostatic_scaling()
             report["merged"] = self.plasticity._merge_converged()
+            report["uncaused"] = self.plasticity._audit_causal()
         else:
             report["light"] = True
             report["merged"] = self.plasticity._merge_converged()      # near-duplicates fold together: the one change a nap may make
+            report["uncaused"] = self.plasticity._audit_causal()      # ...and arrows that claim to cause each other in both directions lose it
         report["faded_traces"] = self.hpc.decay(hours=hours_since_last)
 
         if evaluator is not None and snapshot is not None:
