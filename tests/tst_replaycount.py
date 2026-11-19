@@ -136,11 +136,38 @@ def r5_causal():
     check("both ways, no clear direction: the audit takes it away from both", pl._audit_causal() >= 2 and x.kind != SynType.CAUSAL and y.kind != SynType.CAUSAL)
 
 
+def r6_lonely():
+    print("\n=== R6. A concept that connects to nothing goes ===")
+    import time as _t
+    n = ConceptNetwork(dim=DIM)
+    old = _t.time() - 5 * 86400
+    lonely = n.add_concept(rnd(80), origin=Origin.GROWN, seed_text="read the screen in a window")
+    lonely.created = old
+    wired = n.add_concept(rnd(81), origin=Origin.GROWN, seed_text="wired")
+    wired.created = old
+    other = n.add_concept(rnd(82), origin=Origin.GROWN, seed_text="other")
+    other.created = old
+    n.link(wired.id, other.id, 0.3)
+    newone = n.add_concept(rnd(83), origin=Origin.GROWN, seed_text="new")
+    busy = n.add_concept(rnd(84), origin=Origin.GROWN, seed_text="busy but wireless")
+    busy.created, busy.activations = old, 50
+    labelled = n.add_concept(rnd(85), origin=Origin.GROWN, label="named", seed_text="named")
+    labelled.created = old
+    seed = n.add_concept(rnd(86), origin=Origin.INTENT, label="calc", intent="calc")
+    seed.created = old
+    pl = Plasticity(n)
+    check("one is dropped", pl._prune_lonely() == 1 and lonely.id not in n.concepts, str(sorted(n.concepts)))
+    check("a wired one, a new one, a busy one, a labelled one and a seeded one stay",
+          all(c in n.concepts for c in (wired.id, other.id, newone.id, busy.id, labelled.id, seed.id)))
+    check("run again: nothing", pl._prune_lonely() == 0)
+
+
 if __name__ == "__main__":
     r1_count_flag()
     r2_potentiation()
     r3_noises()
     r4_cap()
     r5_causal()
+    r6_lonely()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

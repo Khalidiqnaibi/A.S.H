@@ -650,6 +650,23 @@ class Plasticity:
                 inc.pop(k[0], None)
         return len(dead)
 
+    def _prune_lonely(self, min_age_days: float = 3.0, max_seen: int = 3) -> int:
+        """A grown concept that connects to nothing, was seen at most a few times and is days old is dropped: nothing can reach it by
+        association and nothing recurs to give it wires (39 of 183). Never a seeded one, a frozen one or one with a label."""
+        now = time.time()
+        gone = []
+        for cid, c in self.net.concepts.items():
+            if c.origin != Origin.GROWN or c.frozen or c.label or c.intent:
+                continue
+            if self.net._in.get(cid) or self.net._out.get(cid):
+                continue
+            if c.activations > max_seen or now - float(c.created or now) < min_age_days * 86400.0:
+                continue
+            gone.append(cid)
+        for cid in gone:
+            self.net.remove_concept(cid)
+        return len(gone)
+
     def _cap_inputs(self) -> int:
         """A concept can be pointed at by only so many others: the weakest wires in beyond `max_inputs` are dropped. Half the graph
         pointed at five concepts ("in 111 of 183"), which says nothing about any of them and floods the spread. Frozen wires (the rules
