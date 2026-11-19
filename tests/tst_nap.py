@@ -41,7 +41,7 @@ def s1_cycle():
     print("\n=== S1. The sleep cycle, light ===")
     calls = []
     plast = NS(replay_mode=False, _recent=NS(clear=lambda: None), _snapshot=lambda: 1, _restore=lambda s: None,
-               _prune=lambda: calls.append("prune") or 0, _homeostatic_scaling=lambda: calls.append("scale") or 0,
+               _prune=lambda: calls.append("prune") or 0, _homeostatic_scaling=lambda: calls.append("scale") or 0, _cap_inputs=lambda: calls.append("cap") or 0,
                _merge_converged=lambda: calls.append("merge") or 0)
     hpc = NS(replay_batch=lambda size, new_fraction: [], decay=lambda hours: calls.append(("decay", hours)) or 0, status=lambda: {})
     net = NS()
@@ -54,11 +54,11 @@ def s1_cycle():
     sc._rem = lambda: stages.append("r") or {}
     rep = sc.run(hours_since_last=0.2, light=True)
     check("a nap is one cycle", stages == ["n", "r"], str(stages))
-    check("no downscale, prune or scale; near-duplicates are merged", "merge" in calls and not any(c in calls for c in ("downscale", "prune", "scale")), str(calls))
+    check("no downscale, prune or scale; near-duplicates are merged", "merge" in calls and not any(c in calls for c in ("downscale", "prune", "scale", "cap")), str(calls))
     check("the traces fade by the real time", ("decay", 0.2) in calls, str(calls))
     stages.clear(); calls.clear()
     sc.run(hours_since_last=8.0)
-    check("a night is three cycles with all of it", len(stages) == 6 and {"downscale", "prune", "scale", "merge"} <= set(calls), str((stages, calls)))
+    check("a night is three cycles with all of it", len(stages) == 6 and {"downscale", "prune", "scale", "merge", "cap"} <= set(calls), str((stages, calls)))
 
 
 def s2_consolidate():

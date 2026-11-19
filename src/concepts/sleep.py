@@ -132,6 +132,7 @@ class SleepCycle:
         if not light:
             report["downscale"] = self._downscale()
             report["pruned"] = self.plasticity._prune()
+            report["capped"] = self.plasticity._cap_inputs()
             report["scaled"] = self.plasticity._homeostatic_scaling()
             report["merged"] = self.plasticity._merge_converged()
         else:

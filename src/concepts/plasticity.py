@@ -125,6 +125,7 @@ class PlasticityConfig:
     # input halves the rate again at `hub_free_inputs` more. Without it a concept everything points at ("wew" had 96 of
     # 131 concepts wiring to it) says nothing about any one of them, and spreading activation floods through it.
     hub_free_inputs: int = 12
+    max_inputs: int = 40            # at most this many wires in to one concept after a night: the weakest go (a hub earns its wires)
 
     # --- Schema fast-track -------------------------------------------------
     # An association consistent with existing structure consolidates in far
@@ -644,6 +645,26 @@ class Plasticity:
             if inc:
                 inc.pop(k[0], None)
         return len(dead)
+
+    def _cap_inputs(self) -> int:
+        """A concept can be pointed at by only so many others: the weakest wires in beyond `max_inputs` are dropped. Half the graph
+        pointed at five concepts ("in 111 of 183"), which says nothing about any of them and floods the spread. Frozen wires (the rules
+        that name a skill) and the strongest `max_inputs` stay."""
+        cap = self.cfg.max_inputs
+        removed = 0
+        for dst in list(self.net._in):
+            inc = self.net._in.get(dst) or {}
+            if len(inc) <= cap:
+                continue
+            ranked = sorted(((src, syn) for src, syn in inc.items() if not syn.frozen), key=lambda t: abs(t[1].weight()))
+            for src, _syn in ranked[:max(0, len(inc) - cap)]:
+                self.net.synapses.pop((src, dst), None)
+                out = self.net._out.get(src)
+                if out:
+                    out.pop(dst, None)
+                inc.pop(src, None)
+                removed += 1
+        return removed
 
     def _emergency_prune(self):
         """Hard cap. Keeps the strongest edges and drops the rest."""

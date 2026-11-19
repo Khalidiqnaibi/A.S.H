@@ -84,9 +84,29 @@ def r3_noises():
         check(f"a real sentence from the microphone is still learned from: {t!r}", not is_telemetry(t, "microphone"))
 
 
+def r4_cap():
+    print("\n=== R4. A hub earns its wires ===")
+    n = ConceptNetwork(dim=DIM)
+    hub = n.add_concept(rnd(500), seed_text="hub", origin=Origin.GROWN).id
+    srcs = [n.add_concept(rnd(600 + i), seed_text=f"s{i}", origin=Origin.GROWN).id for i in range(60)]
+    for i, s_ in enumerate(srcs):
+        n.link(s_, hub, 0.1 + i * 0.01)
+    frozen = n.synapse(srcs[0], hub)
+    frozen.frozen = True
+    pl = Plasticity(n)
+    check("setup: 60 wires in", len(n._in[hub]) == 60)
+    removed = pl._cap_inputs()
+    check("down to the cap, 20 removed", len(n._in[hub]) == pl.cfg.max_inputs and removed == 20, f"{len(n._in[hub])} {removed}")
+    check("the strongest stayed", all(abs(n._in[hub][s_].weight()) >= 0.1 + 20 * 0.01 - 1e-6 for s_ in n._in[hub] if s_ != srcs[0]))
+    check("a frozen wire stayed", srcs[0] in n._in[hub])
+    check("the synapse table and the in/out indexes agree", all((s_, hub) in n.synapses for s_ in n._in[hub]) and all(hub in n._out[s_] for s_ in n._in[hub]))
+    check("run again: nothing", pl._cap_inputs() == 0)
+
+
 if __name__ == "__main__":
     r1_count_flag()
     r2_potentiation()
     r3_noises()
+    r4_cap()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)
