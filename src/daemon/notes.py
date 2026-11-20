@@ -31,6 +31,7 @@ Not for guests, never while a stranger is in view (the daemon holds the answer),
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import tempfile
@@ -41,6 +42,8 @@ from datetime import datetime
 from typing import Callable, Dict, List, Optional, Tuple
 
 from .wondering import ROLE_CANON
+
+logger = logging.getLogger("ash.daemon.notes")
 
 _LEAD = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:please|can\s+you|could\s+you|would\s+you)[,\s]+)*"
                    r"(?:remember|note|make\s+a\s+note|take\s+a\s+note|keep\s+in\s+mind|don'?t\s+forget)"
@@ -104,7 +107,7 @@ def keys(text: str) -> List[str]:
     for w in re.findall(r"[A-Za-z0-9'’]+", text or ""):
         s = stem(w)
         if s and w.lower() not in _FILLER and s not in _FILLER:      # "what's" -> "what": still filler
-            out.append(s)
+            out.append(ROLE_CANON.get(s, s))          # "mom's birthday" and "my mother's birthday" are the same person's
     return out
 
 
@@ -147,9 +150,17 @@ class Notes:
         try:
             with open(self.path, encoding="utf-8") as fh:
                 raw = json.load(fh)
-            self.items = [Note(**n) for n in raw.get("notes", [])]
+            self.items = [Note(**{k: v for k, v in n.items() if k in Note.__dataclass_fields__}) for n in raw.get("notes", [])]
+            for n in self.items:
+                n.keys = sorted(set(keys(n.said)))          # worked out again: the words that count may have changed since it was kept
             self._next = max([n.id for n in self.items] + [0]) + 1
         except Exception:
+            # Never silently empty: the next note kept would overwrite the file. Set it aside, as reminders and follow-ups do.
+            logger.exception("Notes file could not be read; keeping it as %s.bad", self.path)
+            try:
+                os.replace(self.path, self.path + ".bad")
+            except OSError:
+                pass
             self.items = []
 
     def save(self):
@@ -265,13 +276,15 @@ class Notes:
             return None
         me = {n.strip().lower() for n in names if n and n.strip()} | {"me", "myself", "the user", "user", "my self", "i"}
         m = _ABOUT_ME.match(t)
-        if m and m.group("who").strip().lower().rstrip("?. ") in me:
+        from .identity import sounds_like
+        generic = ("me", "myself", "the user", "user", "my self", "i")
+        if m and (m.group("who").strip().lower().rstrip("?. ") in me
+                  or any(sounds_like(m.group("who").strip().lower().rstrip("?. "), n) for n in me if n not in generic)):
             self.stats["found"] += 1
             return self.everything()
         w = _WHO_NAME.match(t)
         if w:
             who = w.group("who").strip().lower().rstrip("?. ")
-            from .identity import sounds_like
             if who in me or any(sounds_like(who, n) for n in me if n not in ("me", "myself", "the user", "user", "my self", "i")):
                 self.stats["found"] += 1
                 return self.everything()                  # "who is Khalid" (the user's own name, or whisper's "Khaled") is not a Wikipedia question

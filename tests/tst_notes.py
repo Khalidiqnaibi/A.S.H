@@ -275,9 +275,32 @@ def n13_same_person_and_spelling():
     check("'who is Khaled' (whisper's spelling) is the person, from what was kept -- not Wikipedia", out == rt.notes.everything() and not model, f"{out!r}")
 
 
+def n14_mom_mother_and_a_bad_file():
+    print("\n=== N14. 'mom' is 'mother'; a notes file that will not load is kept, not wiped ===")
+    n = Notes(None, clock=lambda: T)
+    n.keep_note("my mother's birthday is May 3rd", T)
+    found = n.find("when is my mom's birthday?")
+    check("a note about 'my mother' is found by a question about 'my mom'", len(found) == 1, str([x.said for x in found]))
+    check("...and not for another person's", n.find("when is my dad's birthday?") == [])
+    p = os.path.join(tempfile.mkdtemp(), "notes.json")
+    with open(p, "w", encoding="utf-8") as fh:
+        fh.write("{ not json")
+    n = Notes(p, clock=lambda: T)
+    check("a bad file is set aside as .bad", os.path.exists(p + ".bad") and not os.path.exists(p) and n.items == [])
+    import json
+    with open(p, "w", encoding="utf-8") as fh:
+        json.dump({"notes": [{"id": 1, "said": "I parked on level 3", "back": "you parked on level 3", "keys": [], "at": T, "colour": "red"}]}, fh)
+    n = Notes(p, clock=lambda: T)
+    check("a field this version does not know does not lose the notes", len(n.items) == 1 and n.find("where did I park")[0].id == 1)
+    n = Notes(None, clock=lambda: T)
+    n.keep_note("I like jazz", T)
+    check("'what do you know about Khaled?' is the user (Khalid) by sound",
+          n.about_user("what do you know about Khaled?", ["Immortal", "Khalid"]) == n.everything())
+
+
 if __name__ == "__main__":
     for fn in (n1_what_is_a_note, n2_turned_round, n3_finding, n4_never_the_wrong_note, n5_told_and_all, n6_disk_and_forget,
-               n7_runtime, n8_not_overheard_guest_stranger, n9_people_and_spelling, n10_about_me_is_what_you_remember, n11_who_is_name, n12_alias_learning, n13_same_person_and_spelling):
+               n7_runtime, n8_not_overheard_guest_stranger, n9_people_and_spelling, n10_about_me_is_what_you_remember, n11_who_is_name, n12_alias_learning, n13_same_person_and_spelling, n14_mom_mother_and_a_bad_file):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)
