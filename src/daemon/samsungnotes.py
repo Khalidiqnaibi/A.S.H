@@ -443,8 +443,15 @@ def _say_list(titles: List[str]) -> str:
     return ", ".join(t[:-1]) + " and " + t[-1]
 
 
+_RETRY = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:ok(?:ay)?|so|please|no)[,\s]+)?(?:try\s+(?:it\s+|that\s+)?again|again|retry|"
+                    r"one\s+more\s+time|do\s+it\s+again|have\s+another\s+go)(?:[,\s]+(?:ash|please))*\s*[.!?]*\s*$", re.I)
+_OPEN = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:just|please|can\s+you|could\s+you)[,\s]+)*(?:open|launch|start|bring\s+up)\s+(?:up\s+)?"
+                   r"(?:the\s+)?(?:app\s+)?samsung\s+notes?(?:\s+app)?(?:[,\s]+(?:ash|please|now))*\s*[.!?]*\s*$", re.I)
+
+
 class SamsungNotes:
     PENDING_S = 90.0
+    RETRY_S = 180.0              # "try again" after a write that failed, for this long
 
     def __init__(self, db: Optional[NotesDB] = None, driver: Optional[Driver] = None, enabled: bool = True,
                  write: bool = True, clock: Callable[[], float] = time.time, backup_dir: Optional[str] = None,
@@ -459,6 +466,7 @@ class SamsungNotes:
         self.run_async = run_async
         self.pending: Optional[Dict[str, Any]] = None
         self.dictating: Optional[Dict[str, Any]] = None
+        self.failed: Optional[Dict[str, Any]] = None       # the last write that did not get in, for "try again"
         self._lock = threading.Lock()
         self.stats = {"read": 0, "written": 0, "appended": 0, "failed": 0}
 
@@ -488,6 +496,28 @@ class SamsungNotes:
                 if yesno.is_no(t):
                     self.pending = None
                     return "Okay, I won't write it."
+
+        # "Try again" after a write that failed: the same note, once more (it was already confirmed with a yes). Today it went to the
+        # model, which said "the camera keeps moving".
+        f = self.failed
+        if f is not None and now - f["t"] <= self.RETRY_S and _RETRY.match(t):
+            self.failed = None
+            return self._run(f["job"])
+
+        # "Open Samsung Notes": the app, opened. The model said "I can't open Samsung Notes directly from here".
+        if _OPEN.match(t):
+            if not self.driver.available():
+                return "I can't drive Samsung Notes here -- I'd need Windows UI Automation (comtypes)."
+            def go():
+                try:
+                    self.driver.launch()
+                except Exception:
+                    logger.exception("Opening Samsung Notes failed")
+            if self.run_async:
+                threading.Thread(target=go, daemon=True, name="ash-samsung-open").start()
+            else:
+                go()
+            return "Opening Samsung Notes."
 
         # dictation in progress
         d = self.dictating
@@ -681,6 +711,7 @@ class SamsungNotes:
 
     def _outcome(self, job: Dict[str, Any], res: Dict[str, Any]) -> str:
         if res.get("ok") and res.get("verified"):
+            self.failed = None
             self.stats["appended" if job["kind"] == "append" else "written"] += 1
             if job["kind"] == "append":
                 return f"Added to \"{_say_list([job['title']])}\"."
@@ -688,9 +719,10 @@ class SamsungNotes:
             return f"Done -- it's in Samsung Notes{folder} as \"{res.get('title') or job['title'] or 'a new note'}\"."
         self.stats["failed"] += 1
         self._backup(job)
+        self.failed = {"job": job, "t": self.clock()}
         why = res.get("why") or "I couldn't confirm it was saved"
         return (f"I couldn't get that into Samsung Notes -- {why}. The text is on your clipboard"
-                f"{' and in my notes folder' if self.backup_dir else ''}, so it's one paste away.")
+                f"{' and in my notes folder' if self.backup_dir else ''}, so it's one paste away. Say \u201ctry again\u201d and I'll have another go.")
 
     def _backup(self, job: Dict[str, Any]):
         try:

@@ -2122,7 +2122,8 @@ class AmbientRuntime:
         s = self.samsung
         if s is None or not self._user_source(ev) or self._is_guest(ev):
             return False
-        if not (self._meant_for_ash(ev) or s.pending is not None or s.dictating is not None):
+        retry_open = s.failed is not None and now - s.failed["t"] <= s.RETRY_S
+        if not (self._meant_for_ash(ev) or s.pending is not None or s.dictating is not None or retry_open):
             return False
         text = str(getattr(ev, "text", "") or "")
         s.notify = lambda say, ev=ev: self._said_later.put((ev, say, text))

@@ -216,6 +216,20 @@ def s3_writing():
     check("...the text IS on the clipboard", sn.d.clip == "buy milk", sn.d.clip)
     check("...and in ASH's own notes folder", any(f.endswith(".txt") for f in os.listdir(os.path.join(os.path.dirname(sn.dbpath), "backup"))))
     check("...counted as a failure", sn.stats["failed"] == 1 and sn.stats["written"] == 0)
+    check("...and it offers to try again", "try again" in out, out)
+    sn.d.ok = True
+    out = sn.hear("Try again Ash.", NOW + 30)
+    check("'try again' writes the same note once more, with no second read-back", out.startswith("Done") and
+          [x for x in sn.d.log if isinstance(x, tuple)].count(("new", "", "buy milk")) == 2, f"{out!r} {sn.d.log}")
+    check("...and after it worked, 'try again' is nothing of ours", sn.hear("try again", NOW + 40) is None)
+    sn = rig(FakeDriver(ok=False))
+    sn.hear("write buy milk in Samsung Notes", NOW)
+    sn.hear("yes", NOW + 2)
+    check("a 'try again' long after the failure is not taken", sn.hear("try again", NOW + 600) is None)
+    sn = rig()
+    check("'open Samsung Notes' opens the app", sn.hear("Ash, open Samsung Notes.", NOW) == "Opening Samsung Notes." and "launch" in sn.d.log, str(sn.d.log))
+    check("...'just open the app, open Samsung Notes' too", rig().hear("just open Samsung Notes", NOW) == "Opening Samsung Notes.")
+    check("'open my notes' (ASH's own) is not this", rig().hear("open my notes", NOW) is None)
 
     sn = rig(write=False)
     check("with writing switched off it refuses before reading anything back", "switched off" in sn.hear("write buy milk in Samsung Notes", NOW))
