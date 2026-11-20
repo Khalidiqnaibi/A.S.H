@@ -85,7 +85,19 @@ def _intent_description_from_block(block: Dict[str, Any]) -> str:
 # changes how well intents are told apart, not what a given score means.
 CATALOG_SCORE_SLOPE = 0.73
 CATALOG_SCORE_OFFSET = -0.05
-CATALOG_CACHE_VERSION = 2
+CATALOG_CACHE_VERSION = 3          # 3: example phrases and queries are compared in the same plain form (match_text)
+
+
+def match_text(text: str) -> str:
+    """The form a sentence is compared in: lower case, no "Ash," in front or behind, no closing punctuation, single spaces.
+    "What time is it?" scored 0.559 for get_time and "what time is it" 0.602 -- the fast path needs 0.60, so a question mark sent
+    the clock to the model for 25 seconds. How a sentence is written must not change what it asks."""
+    t = str(text or "").replace("\u2019", "'").strip()
+    t = re.sub(r"^\s*(?:(?:hey|hi|ok(?:ay)?|yo)[,\s]+)?(?:ash|a\.s\.h)\b[,.!:\s]*", "", t, flags=re.I)
+    t = re.sub(r"[,\s]+(?:ash|a\.s\.h)\s*[.!?]*\s*$", "", t, flags=re.I)
+    t = re.sub(r"[\s.!?,;:]+$", "", t)
+    t = re.sub(r"\s+", " ", t).strip().lower()
+    return t or str(text or "").strip().lower()
 
 
 class EmbeddingCatalog:
@@ -138,7 +150,7 @@ class EmbeddingCatalog:
                 phrase = str(phrase).strip()
                 if phrase:
                     labels.append(tag)
-                    descs.append(phrase)
+                    descs.append(match_text(phrase))
         self.labels = labels
         self.descriptions = descs
         emb = self.model.encode(descs, convert_to_numpy=True, normalize_embeddings=True)
@@ -180,7 +192,7 @@ class EmbeddingCatalog:
     def most_similar(self, text: str, top_k: int = 3):
         if self.model is None or self.embeddings is None or len(self.embeddings) == 0:
             return []
-        q_emb = self.model.encode([text], convert_to_numpy=True, normalize_embeddings=True)[0]
+        q_emb = self.model.encode([match_text(text)], convert_to_numpy=True, normalize_embeddings=True)[0]
         sims = (self.embeddings @ q_emb).tolist()
         by_label: Dict[str, List[float]] = {}
         for label, sim in zip(self.labels, sims):

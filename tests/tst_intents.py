@@ -245,6 +245,24 @@ def c_router():
           and not CL._has_evidence("read_file", "open the browser"))
 
 
+def f_written_the_same():
+    print("\n=== F. How a sentence is written does not change what it asks ===")
+    from tools import classification as CL
+    for a, b in [("What time is it?", "what time is it"), ("Ash, what time is it?", "what time is it"), ("What do you see, Ash?", "what do you see"),
+                 ("  HOW much memory am I using?!  ", "how much memory am i using"), ("hey ash, read notes.txt.", "read notes.txt"),
+                 ("A.S.H what's the weather", "what's the weather"), ("ash", "ash")]:
+        check(f"{a!r} is compared as {b!r}", CL.match_text(a) == b, repr(CL.match_text(a)))
+    if getattr(CL, "SentenceTransformer", None) is None or CL._INTENT_CATALOG.model is None:
+        print("  (the embedding model is not installed here: the score check is skipped)")
+        return
+    logging.disable(logging.CRITICAL)
+    cat = CL._INTENT_CATALOG
+    s1 = dict(cat.most_similar("What time is it?", top_k=3)).get("get_time", 0.0)
+    s2 = dict(cat.most_similar("what time is it", top_k=3)).get("get_time", 0.0)
+    check("'What time is it?' scores the same as 'what time is it' (0.559 against 0.602 sent it to the model)", abs(s1 - s2) < 1e-6, f"{s1:.3f} {s2:.3f}")
+    check("...and that is over the clear-match line (0.60)", s1 >= 0.60, f"{s1:.3f}")
+
+
 def d_safety():
     print("\n=== D. Media keys: overheard speech never presses one ===")
     from src.senses.base import State
@@ -294,5 +312,6 @@ if __name__ == "__main__":
     c_router()
     d_safety()
     e_numbers()
+    f_written_the_same()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)
