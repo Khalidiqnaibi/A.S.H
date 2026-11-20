@@ -132,12 +132,63 @@ def _as_spoken_sentence(body: str) -> str:
     return text
 
 
+def _plural(n: int, word: str) -> str:
+    return f"{n} {word}" + ("" if n == 1 else "es" if word.endswith("ch") else "s")
+
+
+def _spoken_dict(out: Dict[str, Any]) -> str:
+    """The tools whose result is a record, not a sentence: said as one, so the dump ("operation: list_directory, path: src,
+    entries: [{'name': ...") is never read out."""
+    try:
+        op = out.get("operation")
+        if op == "list_directory" and isinstance(out.get("entries"), list):
+            names = [str(e.get("name")) for e in out["entries"] if isinstance(e, dict) and e.get("name")]
+            n = int(out.get("entry_count") or len(names))
+            if not n:
+                return "That folder is empty."
+            shown = ", ".join(names[:5])
+            more = f", and {n - 5} more" if n > 5 else ""
+            return f"{_plural(n, 'item')} in there: {shown}{more}."
+        if op == "file_info" and "size_bytes" in out:
+            size = int(out["size_bytes"])
+            what = "a folder" if out.get("is_directory") else "a file"
+            amount = f"{size / 1048576:.1f} MB" if size >= 1048576 else f"{size / 1024:.0f} KB" if size >= 1024 else f"{size} bytes"
+            return f"It's {what}, {amount}, last changed {str(out.get('modified') or '')[:16].replace('T', ' ')}."
+        if op == "search_files" and "match_count" in out:
+            n = int(out["match_count"])
+            if not n:
+                return "I didn't find any matches."
+            files = []
+            for m in out.get("matches") or []:
+                f = os.path.basename(str(m.get("file", ""))) if isinstance(m, dict) else ""
+                if f and f not in files:
+                    files.append(f)
+            return f"{_plural(n, 'match')}, in {', '.join(files[:3])}." if files else f"{_plural(n, 'match')}."
+        if op == "read_file" and out.get("preview"):
+            return str(out["preview"]).strip()[:400]
+        if "words" in out and "characters" in out:
+            s = int(out.get("estimated_reading_time_sec") or 0)
+            read = f", about {s // 60} min {s % 60} s to read" if s >= 60 else f", about {s} s to read" if s else ""
+            return f"{_plural(int(out['words']), 'word')}, {_plural(int(out['characters']), 'character')}{read}."
+        if out.get("unit") and isinstance(out.get("result"), (int, float)):
+            r = out["result"]
+            r = int(r) if float(r).is_integer() else r
+            return f"That's {r} {out['unit']}."
+    except Exception:
+        return ""
+    return ""
+
+
 def _fmt_tool_output(out: Any) -> str:
     """Template renderer for the fast path. Deliberately boring -- the whole
     point of FAST is that no language model is involved."""
     if out is None:
         return ""
     if isinstance(out, dict):
+        if out.get("ok") is not False:
+            said = _spoken_dict(out)
+            if said:
+                return said
         for key in ("result", "output", "text", "value", "answer"):
             if key in out and out[key] is not None:
                 return str(out[key])

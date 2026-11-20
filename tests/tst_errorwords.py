@@ -62,6 +62,17 @@ def t2_plan_and_tools():
         check("the machine's numbers are said as a sentence, not a dump of keys",
               said == "CPU at 28%, memory at 83% (13.1 of 16 GB); on for 8 h 56 min." and "_percent" not in said and "None" not in said, said)
         check("an empty reading is left out of a plain template", b._fmt_tool_output({"ok": True, "a": 1, "b": None}) == "a: 1")
+        f = b._fmt_tool_output
+        s = f({"ok": True, "operation": "list_directory", "path": "src", "entry_count": 7,
+               "entries": [{"name": n, "size_bytes": 10} for n in "abcdefg"], "truncated": False})
+        check("a folder listing is said as names, not a dump", s == "7 items in there: a, b, c, d, e, and 2 more.", s)
+        check("an empty folder", f({"ok": True, "operation": "list_directory", "entry_count": 0, "entries": []}) == "That folder is empty.")
+        s = f({"ok": True, "words": 1, "characters": 5, "estimated_reading_time_sec": 0})
+        check("a word count is a sentence", s == "1 word, 5 characters.", s)
+        check("a conversion keeps its unit", f({"ok": True, "result": 6.2137, "unit": "mi"}) == "That's 6.2137 mi.")
+        check("a plain result is still just the result", f({"ok": True, "result": 84}) == "84")
+        s = f({"ok": True, "operation": "search_files", "match_count": 2, "matches": [{"file": "C:/x/a.py"}, {"file": "C:/x/b.py"}]})
+        check("a search says where", s == "2 matches, in a.py, b.py.", s)
     text = open(b.__file__, encoding="utf-8").read()
     check("a paused plan says 'paused', not the intent's id in quotes", "I've paused the plan before" in text
           and "plan before '{step.intent}'" not in text)
