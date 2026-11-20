@@ -334,7 +334,8 @@ class Reminders:
             self.stats["snoozed"] += 1
             self._last_fired = None
             self.save()
-        return f"Okay, again in {int(round(s / 60))} minutes."
+        mins = int(round(s / 60))
+        return f"Okay, again in {mins} minute{'' if mins == 1 else 's'}."
 
     # -- firing ----------------------------------------------------------------
     def tick(self, now: Optional[float] = None) -> List[str]:

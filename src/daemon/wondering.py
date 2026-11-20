@@ -1989,7 +1989,8 @@ class Wonderer:
             hit = [s for s in w.subjects if now - self.subject_last.get(s, -1e12) < self.cfg.subject_cooldown_s]
             if hit:
                 hrs = (now - self.subject_last[hit[0]]) / HOUR
-                return f"I asked about {subj} {'a few minutes' if hrs < 1 else str(int(hrs)) + ' hours'} ago"
+                ago = "a few minutes" if hrs < 1 else "an hour" if int(hrs) == 1 else f"{int(hrs)} hours"
+                return f"I asked about {subj} {ago} ago"
             if w.urgency < self.cfg.urgent_at and self.backoff.benched(w.kind, now):
                 return f"you waved off my last question of that kind ({subj})"
         return ""

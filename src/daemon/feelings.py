@@ -218,8 +218,8 @@ class Feelings:
         if lab == "bored":
             return f"A bit bored, honestly. It's been quiet for {int(quiet_h)} hours."
         if lab in ("loved", "delighted"):
-            why = (f"you've said nice things to me {t.get('praise')} times today" if t.get("praise") else
-                   f"you've thanked me {t.get('thanks')} times today" if t.get("thanks") else
+            why = (f"you've said nice things to me {_times(t.get('praise'))} today" if t.get("praise") else
+                   f"you've thanked me {_times(t.get('thanks'))} today" if t.get("thanks") else
                    "we've had a good day")
             return f"Really good -- {why}."
         if lab == "happy":

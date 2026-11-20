@@ -151,6 +151,11 @@ def r3_controls():
     check("a reminder that isn't there", r.hear("cancel the reminder about the dentist") == "I don't have a reminder like that."
           and len(due(r)) == 1)
     print("\n=== R3b. Times said other ways ===")
+    r = rig()
+    r.hear("set a timer for 5 minutes")
+    r.t[0] += 5 * MIN
+    r.tick()
+    check("'1 minute', not '1 minutes'", r.hear("snooze for 1 minute") == "Okay, again in 1 minute.")
     # The brain's set_reminder tool sets it for real (it used to return a due time that nothing scheduled).
     from tools import extra_tools
     r = rig()

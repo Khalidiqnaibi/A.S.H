@@ -730,7 +730,7 @@ class Looking:
         if d < 60:
             return "just now"
         if d < 3600:
-            return f"{int(d // 60)} minutes ago"
+            return "a minute ago" if d < 120 else f"{int(d // 60)} minutes ago"
         clock = time.strftime("%H:%M", time.localtime(ts))
         today = time.strftime("%Y-%m-%d", time.localtime(now))
         day = time.strftime("%Y-%m-%d", time.localtime(ts))

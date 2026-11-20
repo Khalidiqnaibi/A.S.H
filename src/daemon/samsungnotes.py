@@ -654,7 +654,9 @@ class SamsungNotes:
         r = self.db.recent(5)
         if not r:
             return "You don't have any Samsung notes yet."
-        return f"You have {self.db.count()} notes. The latest are " + _say_list([x["title"] for x in r]) + "."
+        n = self.db.count()
+        return (f"You have {n} note{'' if n == 1 else 's'}. The latest {'is' if n == 1 else 'are'} "
+                + _say_list([x["title"] for x in r]) + ".")
 
     # -- writing --------------------------------------------------------------------------------------
     def _ask(self, job: Dict[str, Any], now: float) -> str:
