@@ -74,7 +74,8 @@ def s3_storage():
     for t in ("What's your recommendation for the storage allocation in this system?", "any tips on disk space",
               "what is my storage usage", "how's the disk situation", "can you suggest how to clean my SSD"):
         check(f"{t!r}", bool(a._STORAGE.search(t)))
-    for t in ("recommend a good movie", "I bought storage boxes", "suggest a name for my dog", "space is big"):
+    for t in ("recommend a good movie", "I bought storage boxes", "suggest a name for my dog", "space is big",
+              "make some space on the shelf", "I'm low on space in my suitcase", "make more space at the table"):
         check(f"not: {t!r}", not a._STORAGE.search(t))
 
 

@@ -407,12 +407,15 @@ class AmbientConfig:
     context: bool = True
 
 
-_STORAGE = re.compile(r"\b(?:free\s+up|clean\s+up|clear\s+(?:up\s+)?|make|get\s+(?:back\s+)?)\s*(?:some\s+|more\s+)?"
+_ON_THIS_PC = r"(?:\s+on\s+(?:my\s+|the\s+|this\s+)?(?:disk|drive|pc|computer|laptop|ssd|c:))"
+_STORAGE = re.compile(r"\b(?:free\s+up|clean\s+up|clear\s+(?:up\s+)?)\s*(?:some\s+|more\s+)?"
                       r"(?:disk\s+|drive\s+|storage\s+)?space\b"
+                      # "make some space on the shelf" is not about the disk: "make" / "get back" need the disk named
+                      r"|\b(?:make|get\s+(?:back\s+)?)\s*(?:some\s+|more\s+)?(?:(?:disk|drive|storage)\s+space\b|space" + _ON_THIS_PC + r")"
                       r"|\b(?:storage|disk|drive)\s+(?:space\s+)?(?:recommendations?|advice|tips|suggestions?)\b"
                       r"|\bwhat(?:'s|\s+is)\s+(?:using|taking\s+up|eating(?:\s+up)?)\s+(?:all\s+)?(?:my\s+|the\s+)?"
                       r"(?:disk|storage|space|drive)\b"
-                      r"|\b(?:running|low)\s+(?:out\s+of|on)\s+(?:disk\s+|storage\s+)?space\b"
+                      r"|\b(?:running|low)\s+(?:out\s+of|on)\s+(?:(?:disk|storage)\s+space\b|space" + _ON_THIS_PC + r")"
                       # "what's your recommendation for the storage allocation in this system?"
                       r"|\b(?:recommend\w*|advice|advise|suggest\w*|tips?)\b[^.?!]{0,30}\b(?:storage|disk\s+space|"
                       r"drive\s+space|hard\s+drive|ssd)\b"
@@ -1629,6 +1632,8 @@ class AmbientRuntime:
         text = str(getattr(ev, "text", "") or "").strip()
         if not text or len(text) > 120:
             return False
+        if re.match(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:remind|text|message|tell|send|note|remember|write|email)\b", text, re.I):
+            return False          # a request for the reminder, the message, the note: not the disk's, whatever words are in it
         asked = bool(_STORAGE.search(text))
         follow = bool(_ADVICE.match(text)) and now - getattr(self, "_disk_warned_at", -1e18) <= 3 * 3600
         if not (asked or follow):
