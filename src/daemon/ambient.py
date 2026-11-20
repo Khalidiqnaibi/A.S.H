@@ -3142,7 +3142,9 @@ class AmbientRuntime:
         if w is None or not self._user_source(ev) or not remembering.wants_identity(
                 str(getattr(ev, "text", "") or "")):
             return False
-        say = self._about_me(w.kb)
+        if bool((getattr(ev, "meta", None) or {}).get("guest")) or not self._meant_for_ash(ev):
+            return False          # a guest's voice, or the room's, is not told who the user is and who they know
+        say = self._maybe_hold(self._about_me(w.kb), now)
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
 
@@ -3160,16 +3162,17 @@ class AmbientRuntime:
     def _relations_request(self, ev, now: float) -> bool:
         """"What about my relationships?": the people ASH was told about, by rule (the model timed out three times on it)."""
         w = self.wonder
-        if w is None or not self._user_source(ev) or not self._meant_for_ash(ev)                 or not remembering.wants_relationships(str(getattr(ev, "text", "") or "")):
+        if w is None or not self._user_source(ev) or not self._meant_for_ash(ev)                 or bool((getattr(ev, "meta", None) or {}).get("guest")) \
+                or not remembering.wants_relationships(str(getattr(ev, "text", "") or "")):
             return False
-        self._wonder_say(ev, type("R", (), {"say": remembering.relationships(w.kb), "outcome": "desktop"})())
+        self._wonder_say(ev, type("R", (), {"say": self._maybe_hold(remembering.relationships(w.kb), now), "outcome": "desktop"})())
         self._last_why = {"kind": "memory"}
         return True
 
     def _who_is_request(self, ev, now: float) -> bool:
         """"Who is Linda?" for a person ASH was told about: answered from what it holds, never looked up."""
         w = self.wonder
-        if w is None or not self._user_source(ev) or not self._meant_for_ash(ev):
+        if w is None or not self._user_source(ev) or not self._meant_for_ash(ev)                 or bool((getattr(ev, "meta", None) or {}).get("guest")):
             return False
         say = remembering.who_is(w.kb, str(getattr(ev, "text", "") or ""), str(getattr(self.brain, "user", "") or ""))
         if not say:

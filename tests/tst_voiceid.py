@@ -168,6 +168,12 @@ def v4_runtime():
     n = len(ash.calls)
     mic("what's the time", GUEST(22))
     check("but a guest is answered", len(ash.calls) == n + 1)
+    n = len(ash.calls)
+    mic("who am I", GUEST(25))
+    check("a guest is not told who the user is (it is not answered from the profile)", len(ash.calls) == n + 1
+          and not said()[-1].startswith("You're"), said()[-1])
+    mic("who am I", USER(26))
+    check("the user is", said()[-1].startswith("You're") and len(ash.calls) == n + 1, said()[-1])
     rt.privacy.pause("test")
     rt._thinking = 1                                   # the model is busy: the fast lane takes the line
     def lane(text, vec):
