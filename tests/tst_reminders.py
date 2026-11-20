@@ -143,6 +143,13 @@ def r3_controls():
     check("nothing to list", r.hear("do I have any reminders") == "You don't have any reminders, timers or alarms set.")
     r.t[0] += 3600
     check("cancelled ones never go off", r.tick() == [])
+    r = rig()
+    r.hear("remind me to call mom in 20 minutes")
+    r.hear("remind me to stretch in 30 minutes")
+    check("cancel one by what it says", r.hear("cancel my reminder to call mom") == "Cancelled your reminder."
+          and len(due(r)) == 1)
+    check("a reminder that isn't there", r.hear("cancel the reminder about the dentist") == "I don't have a reminder like that."
+          and len(due(r)) == 1)
 
 
 def r4_persist():

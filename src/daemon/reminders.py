@@ -59,7 +59,9 @@ _SNOOZE_MORE = re.compile(
     r"(?:(?:again|later)\s+(?:in\s+|after\s+)?(?P<n1>\d{1,3})\s*(?:min(?:ute)?s?)|(?P<n2>\d{1,3})\s*(?:more\s+)?min(?:ute)?s?(?:\s+more)?|"
     r"(?:a\s+)?(?:few|bit)\s+more\s+min(?:ute)?s?|later|not\s+now|in\s+a\s+bit|remind\s+me\s+(?:again\s+)?later)\s*[.!]*\s*$", re.I)
 _CANCEL = re.compile(r"^\s*(?:cancel|delete|stop|clear|never ?mind)\s+(?:the\s+|my\s+|all\s+(?:my\s+)?)?"
-                     r"(?P<k>timers?|alarms?|reminders?)\b", re.I)
+                     r"(?P<k>timers?|alarms?|reminders?)\b(?P<rest>.*)$", re.I)
+_CANCEL_FILLER = {"to", "about", "that", "for", "the", "my", "a", "an", "called", "named", "please", "reminder", "reminders",
+                  "me", "i", "of", "on", "at", "in", "and", "set"}
 # The time words, taken out of a reminder to leave what it is about.
 _WD = r"(?:mon|tues?|wed(?:nes)?|thu(?:rs?)?|fri|sat(?:ur)?|sun)(?:day)?"
 _TIME_PHRASES = [re.compile(p, re.I) for p in (
@@ -198,7 +200,7 @@ class Reminders:
                 return say
         m = _CANCEL.match(t)
         if m:
-            return self.cancel(m.group("k").lower().rstrip("s"), now)
+            return self.cancel(m.group("k").lower().rstrip("s"), now, m.group("rest"))
         if _LIST.search(t) and len(t.split()) <= 8:
             return self.listing(now)
         n = _TIMER_N.match(t)
@@ -261,9 +263,17 @@ class Reminders:
             self.save()
         return self.fresh.apply(say, now)
 
-    def cancel(self, kind: str, now: float) -> str:
+    def cancel(self, kind: str, now: float, about: str = "") -> str:
+        # "Cancel my reminder to call mom" cancels that one, not every reminder: what is left of the sentence is matched
+        # against the reminder's own words.
+        words = {w for w in re.findall(r"[a-z0-9']+", digits(about or "").lower()) if w not in _CANCEL_FILLER}
         with self._lock:
             hit = [r for r in self.items.values() if r.status == "set" and r.kind == kind]
+            if words and kind == "reminder":
+                mine = [r for r in hit if words & set(re.findall(r"[a-z0-9']+", r.text.lower()))]
+                if not mine:
+                    return "I don't have a reminder like that."
+                hit = mine
             for r in hit:
                 r.status = "cancelled"
                 self.stats["cancelled"] += 1
