@@ -223,6 +223,14 @@ def out_has(rt, s):
 def v3_who():
     print("\n=== V3. Who may ===")
     rt = rig()
+    n_out = len(rt.out)
+    rt.say("Ash, resume")
+    check("'resume' with privacy off is not 'privacy off' (it is the music's)", not any("Privacy mode off" in o for o in rt.out[n_out:]),
+          str(rt.out[n_out:]))
+    rt.say("privacy mode")
+    rt.say("resume")
+    check("...but with privacy on it still ends it", not rt.privacy.paused)
+    rt = rig()
     rt.say("privacy mode", addressed=False)
     check("overheard 'privacy mode': still done (it only turns things off)", rt.privacy.paused)
     rt.privacy.resume()

@@ -4748,6 +4748,9 @@ class AmbientRuntime:
             return self._control_say(ev, f"Okay, quiet until {phrase}. I'll answer if you ask me something, "
                                          "and I'll be back on my own then.")
         cmd = voicectl.parse(text)
+        if cmd is not None and cmd.name == "privacy_off" and not getattr(self.privacy, "paused", False) and re.match(
+                r"^\s*(?:please\s+)?(?:resume|un-?pause)\b", text, re.I):
+            cmd = None          # privacy was not on: "resume" / "unpause" is the music (media rules come later in the chain)
         many = voicectl.parse_many(text)
         if many and (cmd is None or len(many) > 1):
             # several devices in one line, or a short wording the single rules do not know ("cam off")
