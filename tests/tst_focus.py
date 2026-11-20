@@ -65,6 +65,20 @@ def f1_on_off():
     f.t[0] += 31 * 60
     check("it ends on its own", not f.active())
     check("off: nothing", Focus(enabled=False).hear("let me focus") is None)
+    t2 = [1_000_000.0]
+    g = Focus(clock=lambda: t2[0])
+    g.hear("let me focus for an hour", t2[0])
+    check("'stop focusing on the details' is not 'stop focus' (focus stays on, the line goes on to the model)",
+          g.hear("stop focusing on the details and summarise", t2[0]) is None and g.active(t2[0]))
+    check("'turn off focus mode please' still ends it", g.hear("turn off focus mode please", t2[0]) is None and not g.active(t2[0]))
+    import tempfile, os
+    fp = os.path.join(tempfile.mkdtemp(), "focus.json")
+    h = Focus(clock=lambda: t2[0], path=fp)
+    h.hear("I'm in an exam", t2[0])
+    again = Focus(clock=lambda: t2[0] + 600, path=fp)
+    check("a focus still running survives a restart", again.active(t2[0] + 600) and not Focus(clock=lambda: t2[0] + 3 * 3600, path=fp).active())
+    h.hear("I'm done", t2[0] + 60)
+    check("...and one that ended does not come back", not Focus(clock=lambda: t2[0] + 120, path=fp).active())
 
 
 def f2_summary():

@@ -436,6 +436,7 @@ def main() -> int:
                 play=bool(cfg.get("play", {}).get("enabled", True)),
                 reminders=bool(cfg.get("reminders", {}).get("enabled", True)),
                 reminders_path=os.path.join(os.getcwd(), "state", "reminders.json"),
+                focus_path=os.path.join(os.getcwd(), "state", "focus.json"),
                 smarthome=bool(cfg.get("smarthome", {}).get("enabled", True)),
                 smarthome_cfg=cfg.get("smarthome", {}),
                 timetable=bool(cfg.get("timetable", {}).get("enabled", True)),

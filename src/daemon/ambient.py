@@ -351,6 +351,7 @@ class AmbientConfig:
     # runtime; the daemon turns it on.
     reminders: bool = False
     reminders_path: Optional[str] = None     # state/reminders.json
+    focus_path: Optional[str] = None         # state/focus.json: a focus still running survives a restart
     # Play (play.py): quick games on request, and at a free moment ASH may
     # say it is bored, or offer an evening story. Off on a bare runtime.
     play: bool = False
@@ -856,7 +857,7 @@ class AmbientRuntime:
         self._last_why: Optional[Dict[str, Any]] = None      # why ASH said its last thing ("why?")
         self._mood_seen: Any = None                          # the brain sentiment reading last folded in
         self.undo = UndoStack(clock=lambda: self.clock())   # "undo that": what was last learned or set up
-        self.focus: Optional[Focus] = Focus(clock=lambda: self.clock()) if self.cfg.focus else None
+        self.focus: Optional[Focus] = Focus(clock=lambda: self.clock(), path=self.cfg.focus_path) if self.cfg.focus else None
         self._focus_was = False
         self.speech: Optional[SpeechControl] = (SpeechControl(self.cfg.speech_path, clock=lambda: self.clock())
                                                 if self.cfg.speech else None)
@@ -5006,8 +5007,8 @@ class AmbientRuntime:
     def _focus_request(self, ev, now: float) -> bool:
         """"I'm focusing for an hour" / "I'm done focusing"."""
         f = self.focus
-        if f is None or not self._user_source(ev):
-            return False
+        if f is None or not self._user_source(ev) or not self._meant_for_ash(ev):
+            return False          # a TV saying "stop focusing on..." is not "Focus wasn't on."
         was = f.active(now)
         say = f.hear(str(getattr(ev, "text", "") or ""), now)
         if say is None and was and not f.active(now):

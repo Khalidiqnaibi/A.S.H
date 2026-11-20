@@ -20,6 +20,8 @@ settings, and does not try: this keeps ASH itself quiet. No model is used.
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import time
 from collections import Counter
@@ -33,8 +35,10 @@ _ON = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:i'?m\s+(?:going to\s+)?focus(
                  r"let\s+me\s+focus|focus\s+mode|(?:turn\s+on\s+|start\s+)?(?:focus|do\s+not\s+disturb|dnd)(?:\s+mode)?|"
                  r"don'?t\s+disturb\s+me)\b(?P<rest>.*)$", re.I)
 _OFF = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:i'?m\s+done\s+focusing|done\s+focusing|focus\s+(?:mode\s+)?off|"
-                  r"end\s+(?:the\s+)?focus|stop\s+focus(?:ing)?|turn\s+off\s+(?:focus|do\s+not\s+disturb|dnd)|"
-                  r"(?:focus|dnd)\s+over|you\s+can\s+talk\s+(?:again|now))\b", re.I)
+                  r"end\s+(?:the\s+)?focus|stop\s+focus(?:ing)?|turn\s+off\s+(?:focus|do\s+not\s+disturb|dnd)(?:\s+mode)?|"
+                  r"(?:focus|dnd)\s+over|you\s+can\s+talk\s+(?:again|now))"
+                  # said whole: "stop focusing on the details and summarise" is not "stop focus"
+                  r"(?:\s+(?:please|now|ash|thanks|thank\s+you))*\s*[.!]*\s*$", re.I)
 # Saying where you are is asking to be left alone: "I'm in lecture", "I have an exam", "I'm driving", "stop interrupting me".
 # value = how long it lasts when no time is given (minutes).
 _PLACE = re.compile(
@@ -62,8 +66,9 @@ _PLACE_MIN = {"lecture": 90, "lectures": 90, "class": 90, "classroom": 90, "less
 
 class Focus:
     def __init__(self, clock: Callable[[], float] = time.time, default_s: float = 3600.0,
-                 max_s: float = 8 * 3600.0, enabled: bool = True):
+                 max_s: float = 8 * 3600.0, enabled: bool = True, path: Optional[str] = None):
         self.clock = clock
+        self.path = path
         self.default_s = default_s
         self.max_s = max_s
         self.enabled = enabled
@@ -71,6 +76,32 @@ class Focus:
         self.started = 0.0
         self.held: Counter = Counter()
         self.stats = {"sessions": 0, "held": 0}
+        self._load()
+
+    def _load(self):
+        """A focus still running when ASH was restarted is still running (after a crash in an exam it started volunteering again)."""
+        if not self.path or not os.path.exists(self.path):
+            return
+        try:
+            with open(self.path, encoding="utf-8") as fh:
+                d = json.load(fh)
+            until, started = float(d.get("until", 0)), float(d.get("started", 0))
+            if until > self.clock():
+                self.until, self.started = until, started
+        except Exception:
+            pass
+
+    def _save(self):
+        if not self.path:
+            return
+        try:
+            os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True)
+            tmp = f"{self.path}.{os.getpid()}.tmp"
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump({"until": self.until, "started": self.started}, fh)
+            os.replace(tmp, self.path)
+        except Exception:
+            pass
 
     def active(self, now: Optional[float] = None) -> bool:
         now = self.clock() if now is None else now
@@ -92,11 +123,13 @@ class Focus:
             if not self.active(now):
                 return "Focus wasn't on."
             self.until = now
+            self._save()
             return None                      # the caller says the summary
         if _DONE.match(t):                   # "I'm done", "the lecture is over": ends it, but only if it is on
             if not self.active(now):
                 return None
             self.until = now
+            self._save()
             return None
         place = _PLACE.match(t)
         bother = None if place else _STOP_BOTHERING.match(t)
@@ -132,6 +165,7 @@ class Focus:
             until = now + (_PLACE_MIN.get(what, self.default_s / 60.0) * 60.0 if place else self.default_s)
         until = min(until, now + self.max_s)
         self.until, self.started = until, now
+        self._save()
         self.held = Counter()
         self.stats["sessions"] += 1
         hm = datetime.fromtimestamp(until).strftime('%H:%M')
