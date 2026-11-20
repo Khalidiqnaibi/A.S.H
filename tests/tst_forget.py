@@ -145,6 +145,12 @@ def u4_runtime():
     check("undone, without the model", out[-1] == "Undone: Omar is your cousin." and len(ash.calls) == n, out[-1])
     check("the relation is gone", rt.wonder.kb.relation_of("Omar") == "")
     check("and the entity it created", ash.entity_memory.store.all() == [])
+    from src.senses import address
+    ev0 = type("E", (), {"text": "x", "meta": {}})()
+    for said, want in (("Want me to open it?", True), ("Shut ASH down completely? Say yes.", True), ("Opening it.", False)):
+        address.conversation.reset() if hasattr(address.conversation, "reset") else None
+        rt._wonder_say(ev0, type("R", (), {"say": said, "outcome": "desktop"})())
+        check(f"after {said!r} a bare answer is expected: {want}", bool(address.conversation.expects_reply(rt.clock())) == want)
     say("Omar is my cousin")
     from src.senses.base import Modality, SensorEvent
     clock_t = rt.clock() + 3

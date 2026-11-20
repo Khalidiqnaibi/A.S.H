@@ -3714,7 +3714,11 @@ class AmbientRuntime:
             meta["voice"] = self.cfg.game_voice          # games in a character voice
         try:
             self.response_sink(rep.say, meta)
-            address.conversation.note_ash_spoke(self.clock(), asked=rep.outcome == "followup")
+            tail = str(rep.say or "").rstrip()[-160:]
+            # A question put to the user -- "Want me to open it?", "Shut ASH down completely? Say yes" -- is answered by a bare
+            # "yes", which would otherwise read as someone else's talk (0.0, "just acknowledging") and be dropped.
+            address.conversation.note_ash_spoke(self.clock(), asked=rep.outcome == "followup" or "?" in tail
+                                                or bool(re.search(r"say yes", tail, re.I)))
             self.gate.note_user_turn()
         except Exception:
             logger.exception("Response sink failed")
