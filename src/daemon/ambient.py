@@ -2952,13 +2952,27 @@ class AmbientRuntime:
         in passing ("...a friend of khalid (me)...") is learned and the sentence goes on."""
         if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")) or not self._meant_for_ash(ev):
             return False
-        from .identity import alias_in
-        got = alias_in(str(getattr(ev, "text", "") or ""))
+        from .identity import alias_in, same_person_in, sounds_like
+        text = str(getattr(ev, "text", "") or "")
+        ash = getattr(self, "ash", None)
+        known = {str(getattr(self.brain, "user", "") or "").lower()} | {str(a).lower() for a in (getattr(ash, "user_aliases", None) or ())}
+        known.discard("")
+        got = alias_in(text)
+        pair = same_person_in(text)
+        if pair is not None:
+            # Two names for one person: if one of them is the person ASH talks to, the other is theirs too.
+            a, b = pair
+            is_known = lambda n: any(sounds_like(n, k) for k in known)          # noqa: E731
+            if is_known(a) and not is_known(b):
+                got = (b, True)
+            elif is_known(b) and not is_known(a):
+                got = (a, True)
+            elif is_known(a) and is_known(b):
+                self._wonder_say(ev, type("R", (), {"say": f"Yes -- {a} and {b} are both you.", "outcome": "desktop"})())
+                return True
         if got is None:
             return False
         name, whole = got
-        ash = getattr(self, "ash", None)
-        known = {str(getattr(self.brain, "user", "") or "").lower()} | {str(a).lower() for a in (getattr(ash, "user_aliases", None) or ())}
         if name.lower() in known:
             return False
         try:
@@ -2996,7 +3010,11 @@ class AmbientRuntime:
         low = subject.lower()
         user = str(getattr(self.brain, "user", "") or "")
         names = {n.strip().lower() for n in [user] + [str(a) for a in (getattr(self.ash, "user_aliases", None) or ())] if n}
+        from .identity import sounds_like
+        own = set(names)
         names |= {"me", "myself", "the user", "user"}
+        if low not in names and any(sounds_like(low, n) for n in own):
+            names.add(low)                    # "Khaled" is how whisper writes "Khalid": still the person ASH talks to
         kb = getattr(self.wonder, "kb", None)
         word = re.compile(r"\b" + re.escape(low) + r"\b")
         opts = []
@@ -3021,7 +3039,8 @@ class AmbientRuntime:
         except Exception:
             lines = []
         if lines:
-            recent = [ln.strip()[:140] for ln in lines[-2:]]
+            # The episode's own "[mentions: lieth, khalid]" tag is bookkeeping, not something that was said
+            recent = [re.sub(r"\s*\[mentions:[^\]]*\]", "", ln).strip()[:140] for ln in lines[-2:]]
             opts.append(Option("memory", min(0.6, 0.12 * len(lines)), f"you have mentioned it {len(lines)} time(s)",
                                lambda r=recent: "From what you've said before: " + " / ".join(f"\u201c{x}\u201d" for x in r)))
         try:

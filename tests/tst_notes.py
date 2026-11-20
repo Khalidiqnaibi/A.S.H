@@ -254,9 +254,30 @@ def n12_alias_learning():
           "Sami" in rt2.ash.user_aliases and any("lieth" in n.said for n in rt2.notes.items), f"{out!r} {rt2.ash.user_aliases}")
 
 
+def n13_same_person_and_spelling():
+    print("\n=== N13. 'Khalid and Immortal are the same person'; 'Khaled' is 'Khalid' ===")
+    from src.daemon.identity import same_person_in, sounds_like
+    check("the pair is read from a long line", same_person_in("im telling you that khalid and immortal are the same person .. khalid just likes to "
+                                                              "be called immortal as a nickname") == ("Khalid", "Immortal"))
+    check("'X likes to be called Y'", same_person_in("khalid just likes to be called immortal") == ("Khalid", "Immortal"))
+    check("not two things that are the same size", same_person_in("the cat and the dog are the same size") is None)
+    for a, b, want in [("khaled", "khalid", True), ("mohamed", "muhammad", True), ("lieth", "leith", True), ("sara", "omar", False), ("khalid", "kind", False)]:
+        check(f"{a} ~ {b}: {want}", sounds_like(a, b) == want)
+    rt = runtime(wonder=True)
+    kept = []
+    rt.save_aliases = kept.append
+    rt.brain.user = "Immortal"
+    rt.ash.user_aliases = set()
+    out, model = say(rt, "Ash, im telling you that khalid and immortal are the same person .. khalid just likes to be called immortal as a nickname")
+    check("told once, Khalid is kept as the person's name too, with no model", "Khalid" in rt.ash.user_aliases and kept and not model and "Khalid" in (out or ""), f"{out!r}")
+    say(rt, "Ash, remember that lieth is a friend")
+    out, model = say(rt, "who is Khaled?")
+    check("'who is Khaled' (whisper's spelling) is the person, from what was kept -- not Wikipedia", out == rt.notes.everything() and not model, f"{out!r}")
+
+
 if __name__ == "__main__":
     for fn in (n1_what_is_a_note, n2_turned_round, n3_finding, n4_never_the_wrong_note, n5_told_and_all, n6_disk_and_forget,
-               n7_runtime, n8_not_overheard_guest_stranger, n9_people_and_spelling, n10_about_me_is_what_you_remember, n11_who_is_name, n12_alias_learning):
+               n7_runtime, n8_not_overheard_guest_stranger, n9_people_and_spelling, n10_about_me_is_what_you_remember, n11_who_is_name, n12_alias_learning, n13_same_person_and_spelling):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

@@ -47,9 +47,59 @@ _ALIAS_SAY = _re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:and|but|also|so)[,
 _NOT_ALIAS = frozenset("me my you he she it they this that there who what ash user someone somebody the a an i we".split())
 
 
+# "khalid and immortal are the same person", "khalid just likes to be called immortal", "Immortal is my nickname": two names for one person.
+# Today this was told twice, the model answered "the records show Immortal and Khalid are separate entries", and nothing was kept.
+_W = r"([A-Za-z][A-Za-z'\-]{1,19})"
+_SAME = (
+    _re.compile(r"\b" + _W + r"\s+and\s+" + _W + r"\s+(?:are|is)\s+(?:the\s+)?same(?:\s+(?:person|guy|one|human))?\b", _re.I),
+    _re.compile(r"\b" + _W + r"\s+(?:just\s+|also\s+)?(?:likes?|wants?|prefers?)\s+to\s+be\s+called\s+" + _W + r"\b", _re.I),
+    _re.compile(r"\b" + _W + r"\s+is\s+(?:also\s+)?" + _W + r"(?:'s)?\s+nickname\b", _re.I),
+)
+_MY_NICK = _re.compile(r"\b(?:my|his)\s+nickname\s+is\s+" + _W + r"\b|\b" + _W + r"\s+is\s+(?:just\s+)?my\s+nickname\b", _re.I)
+
+
+def same_person_in(text: str):
+    """(a, b) when the line says two names are one person; None otherwise."""
+    t = str(text or "")
+    for rx in _SAME:
+        m = rx.search(t)
+        if m:
+            a, b = m.group(1), m.group(2)
+            if a.lower() not in _NOT_ALIAS and b.lower() not in _NOT_ALIAS and a.lower() != b.lower():
+                return a.title(), b.title()
+    return None
+
+
+def sounds_like(a: str, b: str) -> bool:
+    """Two spellings of one name: "Khaled" / "Khalid", "Mohamed" / "Muhammad" -- the same consonants in the same order, or one letter apart
+    in a name of five letters or more. Whisper writes a name the way it sounds; "who is Khaled" went to Wikipedia."""
+    a, b = str(a or "").lower().strip(), str(b or "").lower().strip()
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    cons = lambda s: _re.sub(r"(.)\1+", r"\1", _re.sub(r"[aeiouyw'\- ]", "", s))   # noqa: E731
+    if len(a) >= 4 and len(b) >= 4 and cons(a) == cons(b) and abs(len(a) - len(b)) <= 2:
+        return True
+    if min(len(a), len(b)) >= 5 and abs(len(a) - len(b)) <= 1:
+        prev = list(range(len(b) + 1))
+        for i, ca in enumerate(a, 1):
+            cur = [i]
+            for j, cb in enumerate(b, 1):
+                cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+            prev = cur
+        return prev[-1] <= 1
+    return False
+
+
 def alias_in(text: str):
     """(name, whole) -- a name the person says is theirs, and whether the line is only that statement. None if there is none."""
     t = str(text or "")
+    m = _MY_NICK.search(t)
+    if m:
+        name = m.group(1) or m.group(2)
+        if name and name.lower() not in _NOT_ALIAS:
+            return name.title(), True
     for rx, whole in ((_ALIAS_SAY, True), (_ALIAS_IS_ME, True), (_ALIAS_PAREN, False)):
         m = rx.search(t)
         if m:

@@ -271,9 +271,10 @@ class Notes:
         w = _WHO_NAME.match(t)
         if w:
             who = w.group("who").strip().lower().rstrip("?. ")
-            if who in me:
+            from .identity import sounds_like
+            if who in me or any(sounds_like(who, n) for n in me if n not in ("me", "myself", "the user", "user", "my self", "i")):
                 self.stats["found"] += 1
-                return self.everything()                  # "who is Khalid" (the user's own name) is not a Wikipedia question
+                return self.everything()                  # "who is Khalid" (the user's own name, or whisper's "Khaled") is not a Wikipedia question
             if who not in _NOT_NAMES_HERE and len(who.split()) <= 3:
                 said = self.about_name(who)           # somebody the person asked ASH to remember: what was said, not a lookup
                 if said:

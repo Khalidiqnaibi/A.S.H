@@ -252,7 +252,9 @@ _SUBJECT = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:so|and|but|ok(?:ay)?|
                       r"(?P<s>[^?.!,;:]{1,40}?)(?:\s+in\s+(?:your|my)\s+(?:memory|notes)|\s+from\s+(?:your|my)\s+(?:memory|notes)|"
                       r"\s+on\s+wikipedia)?\s*[?.!]*\s*$", re.I)
 _NOT_SUBJECT = frozenset(("this that it he she they there you your yours my mine our we us i here these those them him her who what which "
-                          "someone somebody anyone anybody everyone nobody something anything").split())
+                          "someone somebody anyone anybody everyone nobody something anything "
+                          # "Who is kind of?" (whisper, for "who is Khalid?") was looked up on Wikipedia as a name
+                          "kind sort type bit lot like just really very going gonna doing").split())
 
 
 def subject_of(text: str) -> Optional[str]:
