@@ -134,9 +134,16 @@ FACES: Dict[str, str] = {
     "furious": "angry", "grumpy": "angry", "cross": "annoyed", "irritated": "annoyed", "bored": "sleepy", "exhausted": "sleepy",
     "puzzled": "confused", "baffled": "confused", "shocked face": "surprised", "amazed": "surprised", "astonished": "surprised",
     "suspicious": "skeptical", "unsure": "skeptical", "interested": "curious", "winking": "wink", "smiling": "happy", "cheerful": "happy",
+    "frown": "angry", "grin": "very_happy", "pout": "sad", "sulk": "sad", "yawn": "sleepy", "blush": "love", "smirk": "skeptical",
+    "giggle": "very_happy",
 }
 AGAIN = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:do\s+(?:it|that)\s+again|again|once\s+more|one\s+more\s+time|another\s+one)\s*[.!?]*\s*$", re.I)
-_FACE = re.compile(_A + r"(?:(?P<smile>smile|wink|nod)(?:\s+at\s+me)?"
+# "Wink using your face", "Cry for me, Ash", "Cry.", "laugh for me" went to the model, which said "I can't move my face". A face said
+# as a verb, with "for me" / "at me" / "using your face" after it; and whisper's "Link using your face" is the wink it sounds like.
+_FACE_FOR = r"(?:\s+(?:for\s+me|at\s+me|(?:using|with)\s+(?:your\s+|the\s+)?face|now|again))*"
+_FACE = re.compile(_A + r"(?:(?P<smile>smile|wink|nod)" + _FACE_FOR +
+                   r"|(?P<v>cry|laugh|frown|grin|pout|sulk|yawn|blush|smirk|giggle)" + _FACE_FOR +
+                   r"|(?P<misheard>link|wing|ink)\s+(?:using|with)\s+(?:your\s+|the\s+)?face"
                    r"|(?:make|show\s+me|give\s+me|do)\s+(?:a|an|your|the)\s+(?P<a>[a-z ]{3,15}?)\s*(?:face|look|expression)"
                    r"|(?:look|be|act)\s+(?P<b>[a-z ]{3,15}?)"
                    r"|(?:show\s+me|make|give\s+me|do)\s+(?:a\s+)?(?P<c>big\s+smile|smile|wink))" + _Z, re.I)
@@ -185,7 +192,9 @@ def parse(text: str) -> Optional[Command]:
             return Command(name)
     m = _FACE.match(t)
     if m:
-        word = (m.group("smile") or m.group("a") or m.group("b") or m.group("c") or "").lower().strip()
+        word = (m.group("smile") or m.group("v") or m.group("a") or m.group("b") or m.group("c") or "").lower().strip()
+        if m.group("misheard"):
+            word = "wink"
         anim = FACES.get(word)
         if anim:
             return Command("face", anim)

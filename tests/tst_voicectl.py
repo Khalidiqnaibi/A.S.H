@@ -205,6 +205,15 @@ def v2c_faces():
     rt.t[0] += 200
     rt.say("Again.")
     check("a few minutes later 'Again.' is not about a face", len(rt.face.player.played) == 2)
+    # 2026-11-20: these went to the model, which said "I can't move my face"
+    for t, anim in [("Wink using your face.", "wink"), ("Link using your face.", "wink"), ("Cry for me, Ash.", "sad"), ("Cry.", "sad"),
+                    ("laugh for me", "very_happy"), ("can you cry", "sad"), ("frown at me", "angry")]:
+        check(f"{t!r} -> {anim}", P(t) == voicectl.Command("face", anim), str(P(t)))
+    for t in ("I want to cry", "the baby cried all night", "link the file to the folder", "why do people cry", "crying is fine"):
+        check(f"{t!r} is not a face request", P(t) is None, str(P(t)))
+    n = len(rt.ash_.calls)
+    rt.say("Cry for me, Ash.")
+    check("in the runtime it is a face, with no model", rt.face.player.played[-1] == ("sad", True) and len(rt.ash_.calls) == n, str(rt.face.player.played[-1:]))
 
 
 def out_has(rt, s):
