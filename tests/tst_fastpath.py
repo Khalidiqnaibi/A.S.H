@@ -198,6 +198,17 @@ def f6_clear_reflex():
     check("a low critic value still needs the usual bar", v.pathway.value == "slow", f"{v.score:.3f}")
     v = decide("set_reminder", 0.79, 0.80, cls=ActionClass.MUTATION)
     check("something that changes things deliberates", v.pathway.value == "slow", f"{v.escalation_reasons}")
+    # 2026-11-20: "what is 12 times 7" matched calculate at 0.85 and the critic's value for the moment was low, so it went to the model
+    v = decide("calculate", 0.85, 0.05)
+    check("a strong match (0.85) on a harmless tool goes even when the critic is lukewarm", v.pathway.value == "fast", f"{v.score:.3f} {v.escalation_reasons}")
+    v = decide("read_file", 0.80, 0.10)
+    check("read_file @ 0.80 (a path in the sentence), critic 0.10: fast", v.pathway.value == "fast", f"{v.score:.3f} {v.escalation_reasons}")
+    v = decide("read_file", 0.74, 0.10)
+    check("...while 0.74 with that critic still needs the usual bar", v.pathway.value == "slow", f"{v.score:.3f}")
+    v = decide("calculate", 0.85, -0.5)
+    check("...but not when the critic really objects (-0.5)", v.pathway.value == "slow", f"{v.score:.3f}")
+    v = decide("set_reminder", 0.85, 0.05, cls=ActionClass.MUTATION)
+    check("...and never for something that changes things", v.pathway.value == "slow")
     v = decide("shell", 0.9, 0.9, cls=ActionClass.IRREVERSIBLE, reversible=False)
     check("something that can't be undone deliberates", v.pathway.value == "slow")
     def cleared(match, value, outcome_surprise=0.0, p_success=0.5):

@@ -75,6 +75,9 @@ CLEAR_MATCH = 0.60            # a "clear reflex": classifier match at least this
 CLEAR_VALUE = 0.30            # critic value at least this, harmless and undoable tool
 CLEAR_PASS_SCORE = 0.02       # ...only needs a positive score
 CLEAR_LEAD = 0.25             # ...and a rival this much worse a match is noise, not a contest
+STRONG_MATCH = 0.78           # a match this strong (similarity alone tops out near 0.68; this is a match backed by the rules too)
+STRONG_VALUE_FLOOR = -0.20    # ...only needs the critic not to object: "what is 12 times 7" matched calculate at 0.85 and went to the
+                              #    model for 20 seconds because the critic's value for that moment was under CLEAR_VALUE
 
 ALWAYS_DELIBERATE: Set[ActionClass] = {
     ActionClass.MUTATION,
@@ -541,6 +544,8 @@ class ExecutiveCore:
             # (CLEAR_VALUE); the effort-scaled floor sent "how much memory am
             # I using" to the model when the critic said 0.40 against 0.45.
             value_floor = min(value_floor, CLEAR_VALUE)
+            if proposal is not None and proposal.confidence >= STRONG_MATCH:
+                value_floor = STRONG_VALUE_FLOOR      # a strong match only needs the critic not to object
         match_floor = 0.32 + 0.18 * e          # classifier score needed
         surprise_ceiling = 0.62 - 0.22 * e
         novelty_ceiling = 0.70 - 0.20 * e
@@ -660,7 +665,8 @@ class ExecutiveCore:
             (s[1] for s in live if s[1].origin == "system1" and _same(s[1], best)), None)
         clear = (ref is not None and best.tool_name is not None and best.reversible
                  and best.action_class not in ALWAYS_DELIBERATE
-                 and ref.confidence >= CLEAR_MATCH and ref.value >= CLEAR_VALUE)
+                 and ((ref.confidence >= CLEAR_MATCH and ref.value >= CLEAR_VALUE)
+                      or (ref.confidence >= STRONG_MATCH and ref.value >= STRONG_VALUE_FLOOR)))
         if clear and rivals and best.confidence - max(s[1].confidence for s in rivals) >= CLEAR_LEAD:
             deadlocked, margin = False, max(margin, DEADLOCK_MARGIN)   # the words back it; the rival is noise
         bar = CLEAR_PASS_SCORE if clear else MIN_PASS_SCORE
