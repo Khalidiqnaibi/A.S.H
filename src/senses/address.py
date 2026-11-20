@@ -395,7 +395,14 @@ def score(text: str, now: Optional[float] = None,
             reasons.append("about their own business")
 
     # ---- the conversation already running -------------------------------
-    if open_now > 0.02:
+    # ASH asked something and the exchange is still warm: a whole sentence back is the answer, not only "yeah". ASH asked "Is this
+    # microcode part of the chip?" and "Yes, yes, this is the microcode for the chip, I'm just working on it" scored 0.10 as
+    # "mid-conversation" -- ignored, and said three times before it got through with the name in it.
+    answering = convo.expects_reply(now) and open_now >= 0.08 and not vocative
+    if answering:
+        conf += 0.40 + 0.10 * open_now
+        reasons.append("answering what was just asked")
+    elif open_now > 0.02:
         if _REPLY_TOKENS.match(raw):
             conf += 0.45 * open_now
             reasons.append("answering what was just said")
@@ -408,7 +415,7 @@ def score(text: str, now: Optional[float] = None,
     if other and not vocative:
         conf -= 0.60
         reasons.append("addressed to " + other.group(1).lower())
-    if _FIRST_PERSON_ONLY.match(raw) and not (second or question or command or vocative):
+    if _FIRST_PERSON_ONLY.match(raw) and not (second or question or command or vocative or answering):
         # "I'm exhausted", "my back hurts" -- said out loud, not to anyone.
         conf -= 0.20
         reasons.append("talking to themselves")

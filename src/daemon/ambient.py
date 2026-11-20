@@ -4388,7 +4388,8 @@ class AmbientRuntime:
             self.gate.note_user_turn()
             # The exchange is now open: the next sentence is read as the other
             # half of it, with no need to say the name again.
-            address.conversation.note_ash_spoke(self.clock(), asked=text.rstrip().endswith("?"))
+            # A question anywhere near the end is a question asked ("Is this part of the chip? Tell me more." ends with a full stop).
+            address.conversation.note_ash_spoke(self.clock(), asked="?" in text.rstrip()[-160:])
         elif self.reactions is not None:
             self._note_ask(text, offer, meta, self.clock())
             # Something was volunteered: watch what the user does with it.

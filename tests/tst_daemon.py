@@ -574,6 +574,23 @@ def main():
           address.score("thanks", now=t0 + 1, convo=convo).likely)
     check("the name always wins: 'ash, yeah' is spoken to ASH",
           address.score("ash, yeah", now=t0 + 1, convo=convo).addressed)
+    # 2026-11-20: after ASH asked, whole sentences back were scored 0.10 "mid-conversation" and ignored
+    convo.note_ash_spoke(t0, asked=True)
+    for answer, after in [("Yes, yes, this is the microcode for the chip, I'm just working on it.", 29),
+                          ("Neither, I'm just building a custom single-purpose chip for LLMs.", 20),
+                          ("Just working on my custom hardware chip.", 13), ("I bought it last week", 40)]:
+        v = address.score(answer, now=t0 + after, convo=convo)
+        check(f"{answer[:40]!r} {after}s after ASH asked IS the answer", v.likely or v.addressed, f"{v.confidence:.2f} {','.join(v.reasons)}")
+    v = address.score("Yes, yes, this is the microcode for the chip.", now=t0 + 200, convo=convo)
+    check("...but not minutes later, when the question has gone cold", not (v.likely or v.addressed), f"{v.confidence:.2f}")
+    convo.note_ash_spoke(t0, asked=False)
+    v = address.score("Yes, yes, this is the microcode for the chip, I'm just working on it.", now=t0 + 29, convo=convo)
+    check("after a statement (nothing asked) such a line stays as it was", not v.addressed, f"{v.confidence:.2f} {','.join(v.reasons)}")
+    convo.note_ash_spoke(t0, asked=True)
+    address.KNOWN_OTHERS.add("linda")
+    v = address.score("Linda, where did I put the keys?", now=t0 + 5, convo=convo)
+    address.KNOWN_OTHERS.discard("linda")
+    check("a line said to someone ASH knows is still theirs", not (v.likely or v.addressed), f"{v.confidence:.2f}")
     convo.close()
     check("closing the exchange also forgets that ASH had asked", not convo.expects_reply(t0 + 1))
 
