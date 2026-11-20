@@ -283,6 +283,10 @@ def main():
     r = brain.think(q)
     dt = (time.perf_counter() - t0) * 1000
     check("exact repeat hits REFLEX", r.pathway == Pathway.REFLEX, f"{dt:.2f}ms")
+    # Small talk is not cached: "yes" answers whatever was asked last, so the same word a few seconds later is a new turn.
+    brain.think("go on then")
+    r = brain.think("go on then")
+    check("small talk said again is not served from the cache", r.pathway != Pathway.REFLEX, r.pathway.value)
 
     print("\n=== 5. Irreversible action never goes fast ===")
     r = brain.think("delete the old logs")

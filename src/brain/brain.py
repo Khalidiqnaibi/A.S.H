@@ -764,6 +764,7 @@ class Brain:
             chosen is not None
             and not verdict2.vetoed_by
             and chosen.action_class in SAFE_TO_CACHE
+            and tool_out is not None        # a tool's result is the same a moment later; small talk's answer depends on what came before
             and tool_ok is not False
             and bool((text or "").strip())
             and not is_failure_text(text)
