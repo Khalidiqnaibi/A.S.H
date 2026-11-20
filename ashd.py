@@ -236,6 +236,10 @@ def main() -> int:
     # stderr traceback, which never reaches the log file and can be lost.
     try:
         logger.info("Loading ASH (models, memory, tools) ...")
+        # Gist-first (src/brain/gist.py): a failed tool, a blocked action or a short factual result is said by rule, not worded by the
+        # model -- on this machine a model turn is ~20 s. daemon.json "gist": {"enabled": false} (or ASH_GIST=0) brings the old way back.
+        if isinstance(cfg, dict) and (cfg.get("gist") or {}).get("enabled", True):
+            os.environ.setdefault("ASH_GIST", "1")
         t0 = time.time()
         from src.py.ash import ash  # noqa: E402  (slow import: model loads)
         logger.info("ASH loaded in %.1fs", time.time() - t0)
