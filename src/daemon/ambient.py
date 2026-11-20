@@ -1981,7 +1981,10 @@ class AmbientRuntime:
                         logger.exception("Response sink failed")
             return
         try:
-            self._reminder_pending.extend(r.tick(now))
+            # Muted or paused: not ticked at all, so a reminder that comes due stays "set" on disk (a restart before the mute ends
+            # would otherwise lose it -- only "set" ones are saved) and is said, late, once ASH can speak again.
+            if not (self.gate.muted or self.privacy.paused):
+                self._reminder_pending.extend(r.tick(now))
         except Exception:
             self.stats["errors"] += 1
             logger.exception("Reminder tick failed")

@@ -303,9 +303,19 @@ def r5_runtime():
     rt.gate.mute(False)
     rt._tick()
     check("and said when unmuted", out[-1][0] == "Your 1-minute timer is done.")
+    say("set a timer for 1 minutes")
+    rt.gate.mute(True)
+    clock[0] += 2 * MIN
+    rt._tick()
+    check("one that comes due while muted is still 'set' (so a restart does not lose it)",
+          sorted(x.status for x in rt.reminders.items.values() if x.kind == "timer")[-1] == "set"
+          and any(x.status == "set" for x in rt.reminders.items.values()))
+    rt.gate.mute(False)
+    rt._tick()
+    check("...and is said once unmuted", out[-1][0] == "Your 1-minute timer is done.")
     say("snooze")
     check("snooze works through the loop", out[-1][0] == "Okay, again in 5 minutes.")
-    check("status carries reminders", rt.status()["reminders"]["fired"] == 2)
+    check("status carries reminders", rt.status()["reminders"]["fired"] == 3)
     say("remind me tomorrow at 9am to send the report")
     check("reminders reach the evening briefing", "Reminders tomorrow: 09:00 send the report."
           in rt.briefings.compose("evening", clock[0]))
