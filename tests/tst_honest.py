@@ -371,6 +371,26 @@ def h10_disputes():
     check("in the runtime, the pretend memory is replaced", rt3.out[-1] == honest.NOT_STORED, rt3.out[-1])
 
 
+def h12_false_reports():
+    print("\n=== H12. What the model said it did, or said it can't do ===")
+    for t in ("I did title the note you asked me to create earlier, so it should be there now in that folder.",
+              "I checked the recent history and didn't see any new Samsung notes added since your last one was titled.",
+              "That's wrong, I remember the records show Immortal and Khalid are separate entries.",
+              "Got it. I'll create the new Samsung note called Lecture 5 and type hash tables are fast.",
+              "I've already saved the file for you."):
+        check(f"caught: {t[:50]!r}", honest.false_report(t) == honest.NOT_DONE_NOTE, str(honest.false_report(t)))
+    for t in ("I can't open Samsung Notes directly from here, but you can just click the app.", "I can't launch apps directly like that."):
+        check(f"a false 'can't open': {t[:40]!r}", honest.false_report(t) == honest.CAN_OPEN, str(honest.false_report(t)))
+    check("a false 'can't make faces'", honest.false_report("I can't move my face, even with all that motion data.") == honest.CAN_FACE)
+    check("...unless there really is no face", honest.false_report("I can't move my face.", can_face=False) is None)
+    for t in ("You can open Samsung Notes from the start menu.", "I didn't title that note.", "Did you check the history?", "The note is titled Lecture 5.",
+              "I can't browse the web.", "Your records show a strong year.", "I opened up to my friend about it, you said.", ""):
+        check(f"left alone: {t[:50]!r}", honest.false_report(t) is None, str(honest.false_report(t)))
+    rt = rig("I did title the note you asked me to create earlier, so it should be there now in that folder.")
+    rt.say("ash did you title the note")
+    check("in the runtime the false report is replaced before it is said", rt.out[-1] == honest.NOT_DONE_NOTE, rt.out[-1])
+
+
 def h11_trailing_and_meaning():
     print("\n=== H11. A trailing word; by meaning ===")
     for said in ("What can you do then?", "what can you do exactly", "what can you do now ash", "what do you do again", "what can you do for me please"):
@@ -397,7 +417,7 @@ def h11_trailing_and_meaning():
 
 
 if __name__ == "__main__":
-    for fn in (h1_capabilities, h2_limits, h3_sanitize, h4_runtime, h5_small, h6_cache, h7_cleanup, h8_quiet_modes, h9_invented, h10_disputes, h11_trailing_and_meaning):
+    for fn in (h1_capabilities, h2_limits, h3_sanitize, h4_runtime, h5_small, h6_cache, h7_cleanup, h8_quiet_modes, h9_invented, h10_disputes, h11_trailing_and_meaning, h12_false_reports):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

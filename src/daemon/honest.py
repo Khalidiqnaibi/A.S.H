@@ -380,6 +380,41 @@ NOT_DONE = ("I haven't actually done that -- I can't send messages, make calls, 
             "from a chat answer. What I can really do is in “what can you do?”.")
 
 
+# 2026-11-20, all from the model with no tool behind them: "I did title the note you asked me to create earlier", "I checked the recent
+# history and didn't see any new Samsung notes", "I remember the records show Immortal and Khalid are separate entries", "I'll create
+# the new Samsung note called 'Lecture 5' and type ...". And the opposite lie: "I can't open Samsung Notes directly", "I can't launch
+# apps", "I can't move my face" -- while "open Spotify" and "wink" had just worked by rule.
+_DID_NOTE = re.compile(
+    r"\bi(?:\s+did|\s+have|'ve|\s+already)\s+(?:already\s+|just\s+)?(?:titled?|renamed?|created?|made|written|wrote|saved|opened|added|moved|filed|typed)\b"
+    r"|\bi\s+(?:just\s+|already\s+)?(?:titled|renamed|created|saved)\s+(?:the|that|your|a)\b"
+    r"|\bi\s+(?:checked|searched|looked\s+(?:through|at|in|into))\s+(?:the\s+|your\s+|my\s+)?(?:recent\s+|latest\s+)?(?:history|records?|notes?|logs?|list|files?|folders?|database)\b"
+    r"|\b(?:the|my|our)\s+records?\s+(?:show|say|says|shows)\b"
+    r"|\bi'?ll\s+(?:now\s+)?(?:create|make|write|type|add|title|open)\s+(?:the\s+|a\s+|that\s+)?(?:new\s+)?(?:[\w\-]+\s+){0,2}(?:note|folder|file|document)\b",
+    re.I)
+NOT_DONE_NOTE = ("I didn't actually do or check that -- there's nothing behind it, and I shouldn't have said so. For a note, say "
+                 "\u201cmake a new note in Samsung Notes\u201d and I'll really do it.")
+_CANT_OPEN = re.compile(r"\bi\s+(?:can'?t|cannot|can\s+not|am\s+not\s+able\s+to|'m\s+not\s+able\s+to|don'?t\s+have\s+(?:a\s+way|the\s+ability)\s+to)\s+"
+                        r"(?:directly\s+|actually\s+)?(?:open|launch|start|run)\s+(?:any\s+|the\s+|your\s+)?(?:apps?|applications?|programs?|samsung|spotify|"
+                        r"chrome|opera|discord|edge|it\b|that\b)", re.I)
+CAN_OPEN = "I can open apps -- say \u201copen\u201d and the name, like \u201copen Spotify\u201d or \u201copen Samsung Notes\u201d."
+_CANT_FACE = re.compile(r"\bi\s+(?:can'?t|cannot|can\s+not|am\s+not\s+able\s+to)\s+(?:really\s+|actually\s+)?(?:move|change|make|do|show)\s+(?:my\s+)?(?:a\s+)?"
+                        r"(?:face|faces|expressions?|wink)\b", re.I)
+CAN_FACE = "I can make faces -- say \u201cwink\u201d, \u201csmile\u201d or \u201clook surprised\u201d."
+
+
+def false_report(reply: str, can_open: bool = True, can_face: bool = True) -> Optional[str]:
+    """What to say instead when a model answer (no tool ran) reports doing or checking something it did not, or says ASH can't do a
+    thing it can. None when there is nothing of the kind."""
+    r = reply or ""
+    if _DID_NOTE.search(r):
+        return NOT_DONE_NOTE
+    if can_open and _CANT_OPEN.search(r):
+        return CAN_OPEN
+    if can_face and _CANT_FACE.search(r):
+        return CAN_FACE
+    return None
+
+
 def claimed_unperformed(reply: str) -> bool:
     """Does a model answer say it did something (sent, called, ordered, posted,
     set a reminder...) that it has no tool to do? Only asked when no tool ran."""

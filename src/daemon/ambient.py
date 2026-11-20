@@ -946,6 +946,13 @@ class AmbientRuntime:
             logger.info("Model claimed something it did not do -- replaced: %r", text[:120])
             text = honest.NOT_DONE
         elif (text and meta.get("addressed") and str(meta.get("pathway", "")).lower() == "slow"
+                and not getattr(self, "_last_tool_used", False)
+                and honest.false_report(text, can_face=getattr(self, "face", None) is not None)):
+            # "I did title the note", "I checked the recent history", "the records show...", "I can't open apps": nothing behind it.
+            fixed = honest.false_report(text, can_face=getattr(self, "face", None) is not None)
+            logger.info("Model reported something it did not do (or denied what it can) -- replaced: %r", text[:120])
+            text = fixed
+        elif (text and meta.get("addressed") and str(meta.get("pathway", "")).lower() == "slow"
                 and not getattr(self, "_last_tool_used", False) and honest.invented_reply(text)):
             # "Minimum interventions mode activated", "here are some cat pictures", "(pause)": made up.
             logger.info("Model invented an action or a result -- replaced: %r", text[:120])
