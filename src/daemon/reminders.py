@@ -270,6 +270,16 @@ class Reminders:
             return self._add("reminder", what, w.start, now, say=f"Okay, I'll remind you to {what} at {when_s}.")
         return None
 
+    def schedule(self, text: str, due: float) -> str:
+        """A reminder worked out elsewhere (the brain's set_reminder tool): set here, so it really goes off. Says what was set."""
+        now = self.clock()
+        if due <= now or not (text or "").strip():
+            return ""
+        when = datetime.fromtimestamp(due)
+        when_s = when.strftime("%H:%M") if when.date() == datetime.fromtimestamp(now).date() else when.strftime("%a %H:%M")
+        return self._add("reminder", to_second_person(text.strip()), due, now,
+                         say=f"Okay, I'll remind you to {to_second_person(text.strip())} at {when_s}.")
+
     def _add(self, kind: str, text: str, due: float, now: float, label: str = "", say: str = "") -> str:
         with self._lock:
             r = Reminder(id=uuid.uuid4().hex[:6], kind=kind, text=text[:120], due=due, created=now, label=label)

@@ -125,6 +125,12 @@ _IN_TIME = re.compile(
     r"fifteen|twenty|thirty|forty|sixty)\s*(second|sec|minute|min|hour|hr|day|week)s?\b")
 
 
+# Who actually sets the reminder. The daemon installs `Reminders.schedule` here (src/daemon/ambient.py); False means "this
+# runtime has no reminders", None means a bare tool run (tests, scripts) that only parses. Before, the tool returned a due time
+# and nothing anywhere scheduled it, while the model said "I'll remind you".
+SCHEDULER = None
+
+
 def reminder_tool(query: str) -> dict:
     q = query.lower().strip()
     now = datetime.now()
@@ -161,7 +167,18 @@ def reminder_tool(query: str) -> dict:
     if not text:
         return {"ok": False, "error": "What should I remind you about?"}
 
-    return {"ok": True, "text": text, "due_at": due.isoformat(), "created_at": now.isoformat()}
+    out = {"ok": True, "text": text, "due_at": due.isoformat(), "created_at": now.isoformat()}
+    if SCHEDULER is False:
+        return {"ok": False, "error": "I can't set reminders on this setup.", "text": text}
+    if callable(SCHEDULER):
+        try:
+            said = SCHEDULER(text, due.timestamp())
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "error": f"I couldn't set that reminder: {e}", "text": text}
+        if not said:
+            return {"ok": False, "error": "I couldn't set that reminder.", "text": text}
+        out["result"] = said
+    return out
 
 
 _QUOTED = re.compile(r"\"([^\"]+)\"|(?:(?<=\s)|^)'([^']+)'(?=[\s.,?!)]|$)")

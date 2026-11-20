@@ -610,6 +610,11 @@ class AmbientRuntime:
         self._reminder_pending: List[str] = []
         if self.cfg.reminders:
             self.reminders = Reminders(path=self.cfg.reminders_path, clock=lambda: self.clock())
+        try:
+            from tools import extra_tools as _extra
+            _extra.SCHEDULER = self.reminders.schedule if self.reminders is not None else False
+        except Exception:
+            logger.debug("set_reminder not tied to the reminders", exc_info=True)
         self.play: Optional[Play] = None
         self.storybook: Optional[StoryBook] = (StoryBook(self.cfg.story_path, clock=lambda: self.clock())
                                                if self.cfg.play else None)

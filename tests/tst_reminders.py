@@ -151,6 +151,20 @@ def r3_controls():
     check("a reminder that isn't there", r.hear("cancel the reminder about the dentist") == "I don't have a reminder like that."
           and len(due(r)) == 1)
     print("\n=== R3b. Times said other ways ===")
+    # The brain's set_reminder tool sets it for real (it used to return a due time that nothing scheduled).
+    from tools import extra_tools
+    r = rig()
+    try:
+        extra_tools.SCHEDULER = r.schedule
+        out = extra_tools.reminder_tool("don't let me forget to call dad in 20 minutes")
+        check("the tool schedules it and says so", out.get("ok") and "remind you" in out.get("result", ""), str(out))
+        check("it is in the list, and goes off", len(due(r)) == 1 and (r.t.__setitem__(0, time.time() + 21 * MIN) or True)
+              and any("dad" in x for x in r.tick()))
+        extra_tools.SCHEDULER = False
+        out = extra_tools.reminder_tool("remind me to call dad in 20 minutes")
+        check("with no reminders to set it, the tool says it didn't", out.get("ok") is False, str(out))
+    finally:
+        extra_tools.SCHEDULER = None
     r = rig()
     s = r.hear("wake me up tomorrow at 7")
     s = lead(s)
