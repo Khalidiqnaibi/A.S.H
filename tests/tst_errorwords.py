@@ -57,6 +57,11 @@ def t2_plan_and_tools():
     if out is not None:
         check("a failure with no reason is still plain", out == "That didn't work out.", out)
         check("one with a reason keeps it", b._fmt_tool_output({"ok": False, "error": "boom"}) == "That didn't work: boom")
+        said = b._fmt_tool_output({"ok": True, "cpu_percent": 27.5, "ram_used_percent": 82.7, "ram_used_mb": 13391, "ram_total_mb": 16202,
+                                   "uptime": "8:56:35", "cpu_temp_c": None})
+        check("the machine's numbers are said as a sentence, not a dump of keys",
+              said == "CPU at 28%, memory at 83% (13.1 of 16 GB); on for 8 h 56 min." and "_percent" not in said and "None" not in said, said)
+        check("an empty reading is left out of a plain template", b._fmt_tool_output({"ok": True, "a": 1, "b": None}) == "a: 1")
     text = open(b.__file__, encoding="utf-8").read()
     check("a paused plan says 'paused', not the intent's id in quotes", "I've paused the plan before" in text
           and "plan before '{step.intent}'" not in text)

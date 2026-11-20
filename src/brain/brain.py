@@ -144,7 +144,20 @@ def _fmt_tool_output(out: Any) -> str:
         if out.get("ok") is False:
             err = out.get("error")
             return f"That didn't work: {err}" if err else "That didn't work out."
-        return ", ".join(f"{k}: {v}" for k, v in out.items() if k != "ok")
+        if out.get("cpu_percent") is not None and out.get("ram_used_percent") is not None:
+            # The machine's numbers, said as a sentence: "how much memory am I using?" was answered on the fast path with
+            # "cpu_percent: 27.5, ram_used_percent: 82.7, ram_used_mb: 13391, ram_total_mb: 16202, uptime: 8:56:35, cpu_temp_c: None."
+            s = f"CPU at {float(out['cpu_percent']):.0f}%, memory at {float(out['ram_used_percent']):.0f}%"
+            if out.get("ram_used_mb") and out.get("ram_total_mb"):
+                s += f" ({out['ram_used_mb'] / 1024:.1f} of {out['ram_total_mb'] / 1024:.0f} GB)"
+            if out.get("cpu_temp_c") is not None:
+                s += f", {float(out['cpu_temp_c']):.0f} degrees"
+            if out.get("uptime"):
+                h, m = (str(out["uptime"]).split(":") + ["0", "0"])[:2]
+                if "day" not in h and h.isdigit() and m.isdigit():
+                    s += f"; on for {int(h)} h {int(m)} min" if int(h) else f"; on for {int(m)} min"
+            return s + "."
+        return ", ".join(f"{k}: {v}" for k, v in out.items() if k != "ok" and v is not None)
     return str(out)
 
 
