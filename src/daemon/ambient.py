@@ -4664,6 +4664,16 @@ class AmbientRuntime:
                 address.conversation.note_user_turn(now)
             done = False
             try:
+                # The same refusal the main loop gives: a guest's voice cannot turn privacy, the mic, the camera or ASH off
+                # just because the model happens to be busy. (Marked here, never learned from: the loop's voice step still
+                # sees the event if this one passes it on.)
+                v = self.voice
+                vec = (getattr(ev, "meta", None) or {}).get("voice")
+                if v is not None and vec and v.enrolled and not v.learning and v.who(vec) == "guest":
+                    ev.meta["guest"] = True
+                    if self._guest_action(ev):
+                        self.stats["lane"] = self.stats.get("lane", 0) + 1
+                        continue
                 done = bool(self._speech_step(ev, now) or self._voice_command(ev, now))
             except Exception:
                 logger.exception("A command failed in the fast lane")

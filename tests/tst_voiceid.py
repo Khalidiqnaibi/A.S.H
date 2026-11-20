@@ -168,6 +168,18 @@ def v4_runtime():
     n = len(ash.calls)
     mic("what's the time", GUEST(22))
     check("but a guest is answered", len(ash.calls) == n + 1)
+    rt.privacy.pause("test")
+    rt._thinking = 1                                   # the model is busy: the fast lane takes the line
+    def lane(text, vec):
+        clock[0] += 3
+        rt.submit(SensorEvent(source="microphone", modality=Modality.TEXT, text=text, addressed=True,
+                              salience=0.9, urgency=0.6, meta={"voice": vec}))
+        rt._lane_step()
+    lane("Ash, privacy off", GUEST(23))
+    check("a guest cannot end privacy mode through the fast lane", rt.privacy.paused, str(said()[-2:]))
+    lane("Ash, privacy off", USER(24))
+    check("the user can, through the fast lane", not rt.privacy.paused, str(said()[-2:]))
+    rt._thinking = 0
     mic("open outlook", USER(30))
     check("the user can act", rt.desktop.ex.opened == ["outlook"])
     mic("open outlook", SIMILAR(31))
