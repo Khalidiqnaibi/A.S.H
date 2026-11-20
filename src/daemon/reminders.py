@@ -65,8 +65,8 @@ _CANCEL_FILLER = {"to", "about", "that", "for", "the", "my", "a", "an", "called"
 # The time words, taken out of a reminder to leave what it is about.
 _WD = r"(?:mon|tues?|wed(?:nes)?|thu(?:rs?)?|fri|sat(?:ur)?|sun)(?:day)?"
 _TIME_PHRASES = [re.compile(p, re.I) for p in (
-    r"\bin\s+(?:\d{1,3}|an?|one|two|three|four|five|six|seven|eight|nine|ten|a couple of|a few)\s+"
-    r"(?:minutes?|mins?|hours?|hrs?|days?|weeks?)\b",
+    r"\bin\s+(?:(?:\d{1,3}|an?|one|two|three|four|five|six|seven|eight|nine|ten|a couple of|a few)\s+"
+    r"(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|days?|weeks?)\b(?:(?:\s*,\s*|\s+and\s+|\s+)(?=\d))?)+",
     r"\b(?:the\s+)?day after tomorrow\b",
     r"\b(?:tomorrow|tonight|today|later today)(?:\s+(?:morning|afternoon|evening|night))?\b",
     r"\bthis\s+(?:morning|afternoon|evening|weekend)\b",
@@ -116,6 +116,8 @@ class Reminder:
 
 
 def _minutes_label(seconds: float) -> str:
+    if seconds < 60:
+        return f"{max(1, int(round(seconds)))}-second"
     m = int(round(seconds / 60.0))
     if m < 60:
         return f"{m}-minute"
@@ -123,7 +125,15 @@ def _minutes_label(seconds: float) -> str:
     return f"{h}-hour" if mm == 0 else f"{h}-hour {mm}-minute"
 
 
-def _normalise_time(rest: str) -> str:
+_LENGTH_WORDS = re.compile(r"\b(?:in\s+)?(?:(?:a\s+)?(?:couple\s+of|few)|[a-z]+(?:[-\s]+[a-z]+)?)\s+(?:seconds?|secs?|minutes?|mins?|hours?|hrs?)\b",
+                           re.I)
+
+
+def _normalise_time(rest: str, whole: bool = False) -> str:
+    """The time words in plain form: 'half an hour' is 30 minutes, 'fifteen minutes' is 15. `whole`: the text is only the time (a
+    timer's or an alarm's), so every number word in it is one; otherwise only the lengths of time are changed, never the reminder's
+    own words ('call one friend')."""
+    rest = digits(rest) if whole else _LENGTH_WORDS.sub(lambda m: digits(m.group(0)), rest)
     r = " " + rest.strip() + " "
     r = re.sub(r"\bhalf an hour\b", "30 minutes", r, flags=re.I)
     r = re.sub(r"\ban hour and a half\b", "90 minutes", r, flags=re.I)
@@ -203,12 +213,12 @@ class Reminders:
             return self.cancel(m.group("k").lower().rstrip("s"), now, m.group("rest"))
         if _LIST.search(t) and len(t.split()) <= 8:
             return self.listing(now)
-        n = _TIMER_N.match(t)
+        n = _TIMER_N.match(digits(t))
         if n:
             t = f"set a timer for {n.group('n')} {n.group('u')}"
         m = _TIMER.match(t)
         if m:
-            w = resolve_when("in " + _normalise_time(m.group("rest")), now)
+            w = resolve_when("in " + _normalise_time(m.group("rest"), True), now)
             if w is None or not w.clock or w.start <= now:
                 return "How long should the timer be? Say something like \"a timer for 5 minutes\"."
             secs = w.start - now
@@ -216,7 +226,7 @@ class Reminders:
                              say=f"Okay, a {_minutes_label(secs)} timer, starting now.")
         m = _ALARM.match(t)
         if m:
-            rest = _normalise_time(m.group("rest")).strip(" .!")
+            rest = _normalise_time(m.group("rest"), True).strip(" .!")
             bare = re.fullmatch(r"(?:at|for)?\s*(\d{1,2})(?::(\d{2}))?(?:\s*o'?clock)?", rest, re.I)
             if bare and int(bare.group(1)) < 24 and int(bare.group(2) or 0) < 60:
                 # An alarm "at 7" is seven in the morning, the next time it comes round.
@@ -224,7 +234,11 @@ class Reminders:
                 due = d.replace(hour=int(bare.group(1)), minute=int(bare.group(2) or 0), second=0,
                                 microsecond=0).timestamp()
             else:
-                w = resolve_when(rest if re.search(r"\b(?:at|in|tomorrow)\b", rest, re.I) else "at " + rest, now)
+                if not re.search(r"\b(?:at|in)\b", rest, re.I) and re.search(r"\d", rest):
+                    rest = re.sub(r"(\d)", r"at \1", rest, count=1)       # "for 6 tomorrow" -> "for at 6 tomorrow"
+                elif not re.search(r"\b(?:at|in|tomorrow)\b", rest, re.I):
+                    rest = "at " + rest
+                w = resolve_when(rest, now, alarm=True)
                 if w is None or not w.clock:
                     return "What time should I wake you? Say something like \"wake me up at 7\"."
                 due = w.start
@@ -241,7 +255,8 @@ class Reminders:
             if w is None or w.start <= now:
                 return "When should I remind you? Say something like \"in 20 minutes\" or \"tomorrow at 9\"."
             what = rest
-            for rx in _TIME_PHRASES:
+            # "in 20 minutes" is the whole time: a day word in the reminder's own words ('plan tomorrow', 'sun cream') stays
+            for rx in (_TIME_PHRASES[:1] if w.span.startswith("in ") else _TIME_PHRASES):
                 what = rx.sub(" ", what)
             what = re.sub(r"\s+", " ", what).strip(" ,.")
             what = re.sub(r"^(?:to|that|about|of)\s+", "", what, flags=re.I)

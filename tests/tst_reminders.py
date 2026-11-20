@@ -150,6 +150,39 @@ def r3_controls():
           and len(due(r)) == 1)
     check("a reminder that isn't there", r.hear("cancel the reminder about the dentist") == "I don't have a reminder like that."
           and len(due(r)) == 1)
+    print("\n=== R3b. Times said other ways ===")
+    r = rig()
+    s = r.hear("wake me up tomorrow at 7")
+    s = lead(s)
+    check("an alarm 'tomorrow at 7' is seven in the morning, not seven at night", s == "i'll wake you at 07:00 tomorrow.", s)
+    s = r.hear("set an alarm for 6 tomorrow")
+    s = lead(s)
+    check("'for 6 tomorrow' too", s == "i'll wake you at 06:00 tomorrow.", s)
+    s = r.hear("remind me in 20 minutes to plan tomorrow")
+    s = lead(s)
+    check("'in 20 minutes' wins over a day word in what it is about", s == "i'll remind you to plan tomorrow at 14:20.", s)
+    s = r.hear("remind me in 10 minutes to put sun cream on")
+    s = lead(s)
+    check("'sun' is not Sunday", s == "i'll remind you to put sun cream on at 14:10.", s)
+    s = r.hear("set a 30 second timer")
+    s = lead(s)
+    check("a timer in seconds", s == "a 30-second timer, starting now.", s)
+    s = r.hear("a twenty minute timer")
+    s = lead(s)
+    check("a timer with the number in words", s == "a 20-minute timer, starting now.", s)
+    s = r.hear("remind me in fifteen minutes to call one friend")
+    s = lead(s)
+    check("number words in the time, not in what it is about", s == "i'll remind you to call one friend at 14:15.", s)
+    s = r.hear("timer for 1 hour 30 minutes")
+    s = lead(s)
+    check("an hour and minutes is both", s == "a 1-hour 30-minute timer, starting now.", s)
+
+
+def lead(s):
+    """What was said, without the way it opened ('Okay,' / 'Done --' / 'Got it --')."""
+    import re
+    s = re.sub(r"^[A-Za-z ']+(?:, | -- )", "", s)
+    return s[:1].lower() + s[1:]
 
 
 def r4_persist():

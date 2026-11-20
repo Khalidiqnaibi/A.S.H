@@ -146,7 +146,28 @@ class When:
     span: str                   # the words that said it, for tests and status
 
 
-def resolve_when(text: str, now: float) -> Optional[When]:
+_UNIT_S = {"second": 1, "sec": 1, "minute": 60, "min": 60, "hour": HOUR, "hr": HOUR}
+_REL_ONE = r"(?:" + _NUM_ALT + r")\s+(?:second|sec|minute|min|hour|hr)s?\b"
+_RELATIVE = re.compile(r"\bin\s+(" + _REL_ONE + r"(?:(?:\s*,\s*|\s+and\s+|\s+)" + _REL_ONE + r")*)", re.I)
+
+
+def _relative_seconds(text: str) -> Optional[Tuple[float, str]]:
+    """"in 20 minutes", "in an hour and a half"-less forms: "in 1 hour 30 minutes", "in 30 seconds". An explicit length of time is
+    what was asked, whatever else is in the sentence (a day word in the reminder's own words -- 'plan tomorrow', 'sun cream' -- is
+    not when)."""
+    m = _RELATIVE.search(text)
+    if not m:
+        return None
+    total = 0.0
+    for n, unit in re.findall(r"(" + _NUM_ALT + r")\s+(second|sec|minute|min|hour|hr)s?\b", m.group(1), re.I):
+        v = _num(n)
+        if not v:
+            return None
+        total += v * _UNIT_S[unit.lower()]
+    return (total, m.group(0)) if total else None
+
+
+def resolve_when(text: str, now: float, alarm: bool = False) -> Optional[When]:
     """The time a sentence puts on something, if it says one.
 
     Only forward-looking forms are read; "yesterday" is a past marker, handled
@@ -154,6 +175,9 @@ def resolve_when(text: str, now: float) -> Optional[When]:
     still ahead); "next Monday" is the one in the following week.
     """
     t = text.lower()
+    rel = _relative_seconds(t)
+    if rel is not None:
+        return When(now + rel[0], True, rel[1])
     today = _day_start(now)
     day: Optional[float] = None
     span: List[str] = []
@@ -245,8 +269,8 @@ def resolve_when(text: str, now: float) -> Optional[When]:
                 h += 12
             elif ap == "am" and h == 12:
                 h = 0
-            elif not ap and 1 <= h <= 7:
-                h += 12                                   # "at 3" is the afternoon
+            elif not ap and 1 <= h <= 7 and not alarm:
+                h += 12                                   # "at 3" is the afternoon (an alarm "at 7" is the morning)
             hour, minute = h % 24, mi
             span.append(m.group(0))
     else:
