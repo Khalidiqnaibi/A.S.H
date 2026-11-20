@@ -1128,7 +1128,11 @@ class Brain:
         drives = self.homeostasis.update(signals, cycle_cost=0.03)
         trace.drives = drives.as_dict()
 
-        self.memory.push(source, text or f"<{source} percept>", salience=bundle.salience)
+        # Working memory is the prompt's "recent conversation". A machine or sensor reading is not part of a conversation: with the
+        # camera on, "camera: motion in camera view (delta 0.031)" arrived every few seconds and filled it, and the model talked about
+        # the camera's twitching in answer to anything. What a person said within earshot still goes in.
+        if not is_telemetry(text, source):
+            self.memory.push(source, text or f"<{source} percept>", salience=bundle.salience)
         self.predictive.commit(latent, None, stream="ambient")
 
         trace.timings_ms["total"] = (time.perf_counter() - t0) * 1000.0

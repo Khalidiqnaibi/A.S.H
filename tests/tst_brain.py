@@ -637,6 +637,19 @@ def main():
           f"{r.pathway.value} tool={r.tool_used}")
     check("...and a verbatim result is spoken as it is, not retold", r.text == SAID, repr(r.text))
 
+    print("\n=== Sensor readings stay out of the working memory (the prompt's recent conversation) ===")
+    wb = build_brain(tempfile.mkdtemp())
+    for i in range(6):
+        wb.observe(f"motion in camera view (delta 0.0{i + 1}1)", source="camera")
+    wb.observe("screen changed while in main.py -- a screen of text", source="screenshot")
+    wb.observe("memory at 95%", source="system")
+    wb.observe("switched to main.py - A.S.H - Visual Studio Code (was on Opera for 95s)", source="active_window")
+    wb.observe("Yes, yes, this is the microcode for the chip", source="microphone")
+    block = wb.memory.working_block()
+    check("no camera motion, screen change, memory reading or window switch in it", "motion in camera view" not in block
+          and "screen changed" not in block and "memory at" not in block and "switched to" not in block, block[-300:])
+    check("what the person said within earshot still is", "microcode" in block, block[-300:])
+
     import logging as _logging
 
     class _Grab(_logging.Handler):
