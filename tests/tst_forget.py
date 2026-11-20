@@ -146,6 +146,17 @@ def u4_runtime():
     check("the relation is gone", rt.wonder.kb.relation_of("Omar") == "")
     check("and the entity it created", ash.entity_memory.store.all() == [])
     say("Omar is my cousin")
+    from src.senses.base import Modality, SensorEvent
+    clock_t = rt.clock() + 3
+    rt.clock = lambda: clock_t
+    rt.submit(SensorEvent(source="microphone", modality=Modality.TEXT, text="scratch that", addressed=False,
+                          salience=0.5, urgency=0.1, meta={}))
+    rt._tick()
+    check("'scratch that' overheard (not said to ASH) undoes nothing", rt.wonder.kb.relation_of("Omar") == "cousin")
+    rt.submit(SensorEvent(source="microphone", modality=Modality.TEXT, text="forget about Omar", addressed=False,
+                          salience=0.5, urgency=0.1, meta={}))
+    rt._tick()
+    check("'forget about Omar' overheard forgets nothing", rt.wonder.kb.relation_of("Omar") == "cousin")
     say("Lina is my sister")
     say("undo that")
     check("only the latest is undone", rt.wonder.kb.relation_of("Lina") == "" and

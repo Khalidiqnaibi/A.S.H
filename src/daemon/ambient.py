@@ -2357,7 +2357,7 @@ class AmbientRuntime:
         """"Remember Lieth is my friend": written to what ASH knows, and said as
         written. A sentence it can't read goes on to the model as before."""
         w = self.wonder
-        if w is None or not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+        if w is None or not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest"))                 or not self._meant_for_ash(ev):
             return False
         text = str(getattr(ev, "text", "") or "")
         try:
@@ -3518,8 +3518,8 @@ class AmbientRuntime:
     def _research_request(self, ev, now: float) -> bool:
         """"Look into X": a job started, acknowledged without the model."""
         r = self.research
-        if r is None or not self._user_source(ev):
-            return False
+        if r is None or not self._user_source(ev) or not self._meant_for_ash(ev):
+            return False                          # a lecture saying "research X" does not start an online job
         try:
             say = r.hear(str(getattr(ev, "text", "") or ""), now)
         except Exception:
@@ -5056,8 +5056,8 @@ class AmbientRuntime:
     def _forget_request(self, ev, now: float) -> bool:
         """"Undo that" reverses what ASH last learned or set up; "forget what I
         said about Omar" removes a subject from what ASH believes."""
-        if not self._user_source(ev):
-            return False
+        if not self._user_source(ev) or not self._meant_for_ash(ev):
+            return False                          # a "scratch that" / "forget about Omar" overheard from a TV undoes nothing
         text = str(getattr(ev, "text", "") or "")
         if wants_undo(text):
             say = self.undo.undo(now)
