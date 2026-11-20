@@ -100,7 +100,37 @@ def d6_context_sources():
     check("by default it is all there", "haiku" in j.context_block(seconds=600))
 
 
+def d7_sensor_noise():
+    print("\n=== D7. Sensor readings are not context ===")
+    from src.daemon.journal import Journal
+    from src.senses.base import Modality, SensorEvent
+    j = Journal(tempfile.mkdtemp())
+    now = time.time()
+    rows = [("active_window", "switched to main.py - A.S.H - Visual Studio Code (was on Opera for 95s)"),
+            ("now_playing", "now playing Loser by Tame Impala on Spotify")]
+    rows += [("camera", f"motion in camera view (delta 0.0{i % 9 + 1}2)") for i in range(60)]
+    rows += [("screenshot", "screen changed while in main.py -- a screen of text"), ("system", "memory at 95%"), ("system", "power connected"),
+             ("system", "CPU at 91%, mostly python.exe")]
+    for i, (src, text) in enumerate(rows):
+        j.append(SensorEvent(source=src, modality=Modality.TEXT, text=text, ts=now - 300 + i, salience=0.5))
+    j.flush()
+    block = j.context_block(seconds=600, limit=8)
+    check("sixty motion readings in a row do not reach the prompt", "motion in camera view" not in block, block)
+    check("nor 'screen changed', memory, CPU or power readings", "screen changed" not in block and "memory at" not in block
+          and "CPU at" not in block and "power connected" not in block, block)
+    check("what happened before them is still there (the window, the song)", "Visual Studio Code" in block and "Tame Impala" in block, block)
+    check("a person's sentence that mentions memory is kept", "memory" in Journal_line(j, now))
+
+
+def Journal_line(j, now):
+    from src.senses.base import Modality, SensorEvent
+    j.append(SensorEvent(source="active_window", modality=Modality.TEXT, text="switched to my memory at work notes (was on Opera for 40s)", ts=now - 1, salience=0.5))
+    j.flush()
+    return j.context_block(seconds=600, limit=8)
+
+
 if __name__ == "__main__":
+    d7_sensor_noise()
     d1_overlap()
     d2_working()
     d3_note()

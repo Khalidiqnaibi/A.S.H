@@ -51,6 +51,12 @@ JOURNAL_DIR = os.environ.get("ASH_JOURNAL_DIR", os.path.join(os.getcwd(), "state
 BLOCK_GAP_SECONDS = 12 * 60
 
 
+# Sensor readings that say nothing to a person: the camera's motion score, the screenshot sensor's "screen changed", the machine's
+# own numbers. With the camera on they arrived every few seconds (519 in one 55-minute session), so the newest lines of the activity
+# block were all "motion in camera view (delta 0.031)" -- and the model talked about "the camera twitching in tiny deltas" in answer
+# to questions about code, a 3D printer and the time.
+_NOISE = re.compile(r"^\s*(?:motion in camera view\b|screen changed\b|(?:memory|cpu|ram|disk|gpu)\b[^.]{0,24}?\d+(?:\.\d+)?\s*%|"
+                    r"power (?:connected|disconnected)\b|battery\b[^.]{0,24}?\d+\s*%)", re.I)
 _QUICK_SWITCH = re.compile(r"\(was on [^)]{1,80}? for (\d+)s\)")
 
 
@@ -290,12 +296,14 @@ class Journal:
 
     def context_block(self, seconds: float = 1800, limit: int = 12, skip_sources=()) -> str:
         """Compact text of what has been going on, for the LLM prompt."""
-        rows = self.recent(seconds, limit * 3)
+        rows = self.recent(seconds, limit * 40)          # wide enough that the noise below cannot crowd out what happened
         lines = []
         for r in rows:
             if r["source"] in skip_sources:
                 continue          # (the prompt skips what the user said: it is already in "Recent conversation")
             text = str(r["text"])
+            if _NOISE.search(text):
+                continue          # a sensor reading, not something that happened
             m = _QUICK_SWITCH.search(text)
             if m and int(m.group(1)) < 20:
                 continue          # "switched to Claude (was on Stremio for 3s)": flicking between windows says nothing, and filled the prompt
