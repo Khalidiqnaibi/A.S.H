@@ -25,6 +25,11 @@ import dotenv
 # retries) on an air-gapped machine regardless of what .env says.
 dotenv.load_dotenv()
 
+# ASH uses PyTorch only. Left alone, transformers also imports TensorFlow and Keras (about 250 MB and 14 s of one core at every start) for models
+# it never loads. A machine that really wants TensorFlow sets USE_TF=1 itself.
+os.environ.setdefault("USE_TF", "0")
+os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
+
 try:
     from sentence_transformers import SentenceTransformer
 except Exception as e:
