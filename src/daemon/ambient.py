@@ -1378,8 +1378,23 @@ class AmbientRuntime:
             except Exception:
                 logger.exception("Could not undo %s", name)
 
+    def _model_notice(self):
+        """What the model layer has to tell the person ("qwen3:4b only thinks out loud here, so I'm answering with qwen2.5:3b now"): said once."""
+        llm = getattr(self.ash, "llm", None)
+        pop = getattr(llm, "pop_notice", None)
+        if not callable(pop):
+            return
+        try:
+            say = pop()
+        except Exception:
+            return
+        if say:
+            logger.warning("Model notice: %s", say)
+            self._speech_say(say, "model_note")
+
     def _social_step(self, now: float, idle_s: Optional[float] = None):
         self._timed_restore(now)
+        self._model_notice()
         if now - getattr(self, "_others_at", 0.0) >= 60.0:
             self._others_at = now
             self._known_others()

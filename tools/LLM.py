@@ -101,6 +101,14 @@ _REASONING_MORE = re.compile(
 _ABOUT_USER = re.compile(r"\b(?:the\s+)?user\s+(?:is|has|has been|was|says|said|asks|asked|wants|wanted|mentioned|seems|query|message|just|might|probably)\b", re.IGNORECASE)
 
 
+def is_reasoning_model(name: str) -> bool:
+    """A model that thinks before it answers (qwen3, deepseek-r1, qwq ...), not the instruct builds that do not."""
+    n = (name or "").lower()
+    if any(k in n for k in ("instruct", "2507-i", "non-think")):
+        return False
+    return any(k in n for k in ("qwen3", "deepseek-r1", "qwq", "magistral", "phi4-reasoning", "gpt-oss", "-r1", "reasoning"))
+
+
 def looks_like_reasoning(text: str) -> bool:
     """True if the text is a model thinking aloud rather than answering."""
     if not text:
@@ -157,6 +165,8 @@ class LLM(BaseChatModel):
 
         self._local_url = local_url or DEFAULT_LOCAL_URL
         self._ollama_url = ollama_url or DEFAULT_OLLAMA_URL
+        self._notices: List[str] = []
+        self._reasoned = False
         self._ollama_model = ollama_model or DEFAULT_OLLAMA_MODEL
         self._timeout = timeout
 
@@ -309,7 +319,13 @@ class LLM(BaseChatModel):
         fails or says nothing, the main model answers instead -- small talk must never come
         back as an error. A small model that is not installed is switched off for good."""
         model = self._model_now()
+        self._reasoned = False
         out = self._call_ollama_model(messages, model)
+        if not out and self._reasoned and is_reasoning_model(model) and not getattr(self, "_no_fallback", False):
+            alt = self._switch_from_reasoning(model)
+            if alt:
+                self._reasoned = False
+                out = self._call_ollama_model(messages, alt)
         if model != self._ollama_model and (not out or out.startswith("[LLM]")):
             # Switched off for good only when Ollama says the model is not there. A refused connection or a timeout
             # is Ollama restarting: the main model gets this one, and the small one is tried again next time.
@@ -318,6 +334,50 @@ class LLM(BaseChatModel):
                 self._light_model = ""
             return self._call_ollama_model(messages, self._ollama_model)
         return out
+
+    def _tags(self) -> List[dict]:
+        """The models Ollama has (name, size), or [] if it cannot be asked."""
+        try:
+            r = requests.get(re.sub(r"/api/(?:chat|generate)\s*$", "/api/tags", self._ollama_url), timeout=10)
+            return list((r.json() or {}).get("models") or []) if r.status_code == 200 else []
+        except Exception:
+            return []
+
+    def _switch_from_reasoning(self, model: str) -> str:
+        """The configured model only thinks out loud here (qwen3:4b with 'think' off still wrote 200 tokens of analysis and no answer: every
+        turn was a long CPU burn and "my brain's not answering"). The best installed model that does not is used instead, and the
+        reasoning one is unloaded so both are not held in memory. "" if there is none -- then nothing is said, as before."""
+        pref = ("qwen2.5", "llama3", "phi3", "gemma", "mistral", "granite", "smollm")
+        cands = []
+        for m in self._tags():
+            name = str(m.get("name") or m.get("model") or "")
+            low = name.lower()
+            if not name or name == model or is_reasoning_model(name) or re.search(r"embed|nomic|bge|minilm|rerank", low):
+                continue
+            size = float(m.get("size") or 0) / 1e9
+            if size > 6.0:
+                continue
+            rank = next((i for i, k in enumerate(pref) if k in low), len(pref))
+            cands.append((rank, abs(size - 2.5), name))
+        if not cands:
+            self._no_fallback = True
+            self._notices.append(f"{model} only thinks out loud here and no other model is installed to answer instead.")
+            return ""
+        alt = sorted(cands)[0][2]
+        print(f"[LLM WARN] {model} answers with its own reasoning; using {alt} instead and unloading {model}.")
+        self._ollama_model = alt
+        self._notices.append(f"{model} only thinks out loud here, so I'm answering with {alt} now. (Set OLLAMA_MODEL to a model that does not "
+                            "think, to choose another.)")
+        try:                                                        # unload it: two resident models were 4 GB of memory
+            requests.post(re.sub(r"/api/(?:chat|generate)\s*$", "/api/generate", self._ollama_url),
+                          json={"model": model, "keep_alive": 0}, timeout=10)
+        except Exception:
+            pass
+        return alt
+
+    def pop_notice(self) -> str:
+        """What the model layer has to tell the person (once): said by the daemon, not buried in the log."""
+        return self._notices.pop(0) if self._notices else ""
 
     def _call_ollama_model(self, messages: List[dict], model: str) -> str:
         payload = {
@@ -339,6 +399,10 @@ class LLM(BaseChatModel):
         # ASH is always on, so the model stays resident for hours by default;
         # ASH_OLLAMA_KEEP_ALIVE overrides ("5m", "-1" forever, "0" unload at once).
         payload["keep_alive"] = os.environ.get("ASH_OLLAMA_KEEP_ALIVE", "").strip() or "6h"
+        # Ollama uses every core it can see for the layers that do not fit on the card: four of six cores for a minute and a half per
+        # answer, which starved the microphone's transcription (33 s for one second of speech). A quarter of the logical cores (half the real ones) by default.
+        nt = os.environ.get("ASH_OLLAMA_NUM_THREAD", "").strip()
+        payload["options"]["num_thread"] = int(nt) if nt.isdigit() else max(2, (os.cpu_count() or 4) // 4)
         n_gpu = os.environ.get("ASH_OLLAMA_NUM_GPU", "").strip()
         if n_gpu.lstrip("-").isdigit():
             payload["options"]["num_gpu"] = int(n_gpu)
@@ -386,30 +450,12 @@ class LLM(BaseChatModel):
                     "[LLM WARN] Ollama returned only reasoning tokens -- raise max_tokens "
                     f"(currently {self._max_tokens}) or use a non-reasoning model."
                 )
+                self._reasoned = True
             if looks_like_reasoning(response_text):
-                # Its thinking came out as the answer (qwen3:4b, 7 times in a day, spoken aloud). Never said; asked once more,
-                # directly and shorter. If that is thinking too, nothing is said.
-                print("[LLM WARN] the model answered with its own reasoning; asking once more, directly.")
-                retry = dict(payload)
-                retry["messages"] = list(payload.get("messages") or []) + [{
-                    "role": "user", "content": "Answer directly now: one or two short spoken sentences, as yourself. No analysis, "
-                                               "and never say 'the user'. /no_think"}]
-                retry["options"] = {**(payload.get("options") or {}), "num_predict": 100}
-                try:
-                    r2 = _post(self._ollama_url, json=retry, timeout=self._timeout)
-                    again = ""
-                    if r2.status_code == 200:
-                        for line in r2.text.splitlines():
-                            try:
-                                again += (json.loads(line).get("message") or {}).get("content") or ""
-                            except (json.JSONDecodeError, AttributeError):
-                                continue
-                    again = _strip_think(again).strip()
-                    if again and not looks_like_reasoning(again):
-                        return again
-                except Exception as e:
-                    print(f"[LLM WARN] the second ask failed: {e}")
-                print("[LLM WARN] still reasoning; dropped.")
+                # Its thinking came out as the answer. Never said, and not asked again from the same model: asking it again was a second
+                # generation of pure CPU for the same result (qwen3:4b: 90 s at 4 of 6 cores per question). The caller switches model.
+                print("[LLM WARN] the model answered with its own reasoning; dropped.")
+                self._reasoned = True
                 return ""
 
             return response_text
