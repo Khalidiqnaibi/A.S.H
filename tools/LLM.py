@@ -469,6 +469,11 @@ class LLM(BaseChatModel):
         `light=True` loads the small-talk model instead (False if none is set)."""
         if self._mode != "ollama" or (light and not self._light_model):
             return False
+        if (not light and is_reasoning_model(self._ollama_model) and not getattr(self, "_no_fallback", False)
+                and os.environ.get("ASH_ALLOW_REASONING", "").strip().lower() not in ("1", "true", "yes", "on")):
+            # Known before the first question, not found out by it: the first answer cost a minute of CPU (200 tokens of analysis, no answer)
+            # before the switch. ASH_ALLOW_REASONING=1 keeps the model that was set.
+            self._switch_from_reasoning(self._ollama_model)
         payload = {
             "model": self._light_model if light else self._ollama_model,
             "messages": [{"role": "user", "content": "hi"}],

@@ -92,6 +92,19 @@ def r2_switch():
         out = llm._call_ollama([{"role": "user", "content": "and now?"}])
         check("from then on that model answers, in one request", sent == [("qwen2.5:3b", sent[0][1])] and out == "At three.", str(sent))
         check("the CPU threads are capped to a quarter of the logical cores", isinstance(sent[0][1], int) and 2 <= sent[0][1] <= max(2, (os.cpu_count() or 4) // 4))
+        sent.clear(); unloaded.clear()
+        llm = L.LLM(mode="ollama", ollama_model="qwen3:4b", ollama_url="http://x/api/chat")
+        llm.warm()
+        check("at warm-up, before any question, a thinking model is already replaced and unloaded", llm._ollama_model == "qwen2.5:3b"
+              and unloaded == ["qwen3:4b"] and sent and sent[-1][0] == "qwen2.5:3b", str((llm._ollama_model, unloaded, sent)))
+        sent.clear()
+        os.environ["ASH_ALLOW_REASONING"] = "1"
+        try:
+            llm2 = L.LLM(mode="ollama", ollama_model="qwen3:4b", ollama_url="http://x/api/chat")
+            llm2.warm()
+            check("ASH_ALLOW_REASONING=1 keeps the model that was set", llm2._ollama_model == "qwen3:4b")
+        finally:
+            os.environ.pop("ASH_ALLOW_REASONING", None)
     finally:
         L.requests.get, L.requests.post = og, op
     # nothing else installed: nothing is said, and it does not try again and again
