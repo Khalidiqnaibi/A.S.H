@@ -2233,9 +2233,14 @@ class AmbientRuntime:
         """"What do you have in store for me for a free moment? This is a free moment." / "I'm free, ask me something": the user
         has opened the moment themselves, so what ASH has been saving for one (a question, a remark, a briefing) is offered now --
         the waiting rules do not apply. If there is nothing, it says so, and what is held back."""
-        if not self._user_source(ev) or not self._meant_for_ash(ev):
+        if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
             return False
         text = str(getattr(ev, "text", "") or "")
+        # "This is a free moment, ask me." said aloud has no 'Ash' in it and scored 0.17 (room talk), so nothing answered. The words
+        # "free moment" are ASH's own feature: nobody says them to somebody else, so they are an address in themselves.
+        said_to_ash = self._meant_for_ash(ev) or bool(re.search(r"\bfree\s+moment\b", text, re.I))
+        if not said_to_ash:
+            return False
         by_rule = bool(self._FREE_Q.search(text) and self._FREE_ASK.search(text)) and len(text.split()) <= 30
         from .freemoment import INVITE_SEEDS
         ch = self.chooser("invite", INVITE_SEEDS, accept=0.62, margin=0.1)

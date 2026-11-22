@@ -44,6 +44,17 @@ def i2_question():
     check("the saved question is asked", "Who is Omar to you?" in h.said(), str(h.said()))
 
 
+def i6_aloud_without_the_name():
+    print("\n=== I6. Said aloud with no 'Ash' in it ===")
+    h = tf.rt_rig()
+    h.step(2, 0.0)
+    n = len(h.said())
+    h.say("This is a free moment, ask me.", source="microphone", addressed=False)
+    h.step(1, 3.0)
+    said = h.said()
+    check("'This is a free moment, ask me.' (no name, scored 0.17 as room talk) is still answered", len(said) > n, str(said[n:]))
+
+
 def i3_nothing():
     print("\n=== I3. Nothing saved: it asks something ===")
     h = tf.rt_rig(disabled=["mood_check", "gap_closure", "system_assessment", "joke"])
@@ -94,5 +105,6 @@ if __name__ == "__main__":
     i3_nothing()
     i4_other_lines()
     i5_by_meaning()
+    i6_aloud_without_the_name()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)
