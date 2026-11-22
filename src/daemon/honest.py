@@ -402,7 +402,21 @@ _CANT_FACE = re.compile(r"\bi\s+(?:can'?t|cannot|can\s+not|am\s+not\s+able\s+to)
 CAN_FACE = "I can make faces -- say \u201cwink\u201d, \u201csmile\u201d or \u201clook surprised\u201d."
 
 
-def false_report(reply: str, can_open: bool = True, can_face: bool = True) -> Optional[str]:
+# "I've taken a quick look at your code... your syntax is clean" -- with the screen off and no tool run, nothing was looked at.
+_SAW = re.compile(
+    r"\bi(?:'ve|\s+have)?\s+(?:just\s+|now\s+)?(?:taken\s+a\s+(?:quick\s+|good\s+|closer\s+)?look|had\s+a\s+(?:quick\s+|good\s+)?look|looked|"
+    r"reviewed|read|gone\s+(?:through|over)|checked\s+out)\s+(?:over\s+|at\s+|through\s+)?(?:your|the)\s+(?:code|screen|script|project|"
+    r"program|source|file|work|document|page)\b"
+    r"|\bi\s+can\s+see\s+(?:that\s+)?you(?:'ve|\s+have|\s+are)\b", re.I)
+NOT_SEEN = ("I haven't actually looked at that -- I can't see your screen unless you ask me to look. Say “what do you see” "
+            "or paste the part you mean.")
+# "Let me mute the microphone for an hour" -- said by the model, with nothing muted.
+_CLAIM_MUTE = re.compile(r"\b(?:let\s+me|i'?ll|i\s+will|i'?m\s+going\s+to|i'?ve|i\s+have|i\s+am)\s+(?:now\s+|just\s+)?(?:mut(?:e|ed|ing)|silenc(?:e|ed|ing))\b"
+                         r"(?:\s+(?:the|your|my)\s+(?:mic(?:rophone)?|sound|volume|notifications?)|\s+myself)?", re.I)
+NOT_MUTED = ("I haven't muted anything. Say “mute for an hour” and I'll go quiet, then come back on my own.")
+
+
+def false_report(reply: str, can_open: bool = True, can_face: bool = True, muted: bool = False) -> Optional[str]:
     """What to say instead when a model answer (no tool ran) reports doing or checking something it did not, or says ASH can't do a
     thing it can. None when there is nothing of the kind."""
     r = reply or ""
@@ -412,6 +426,10 @@ def false_report(reply: str, can_open: bool = True, can_face: bool = True) -> Op
         return CAN_OPEN
     if can_face and _CANT_FACE.search(r):
         return CAN_FACE
+    if _SAW.search(r):
+        return NOT_SEEN
+    if not muted and _CLAIM_MUTE.search(r) and not invented_reply(r):      # a pretend 'mode' has its own, better answer
+        return NOT_MUTED
     return None
 
 

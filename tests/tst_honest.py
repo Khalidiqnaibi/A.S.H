@@ -381,6 +381,13 @@ def h12_false_reports():
         check(f"caught: {t[:50]!r}", honest.false_report(t) == honest.NOT_DONE_NOTE, str(honest.false_report(t)))
     for t in ("I can't open Samsung Notes directly from here, but you can just click the app.", "I can't launch apps directly like that."):
         check(f"a false 'can't open': {t[:40]!r}", honest.false_report(t) == honest.CAN_OPEN, str(honest.false_report(t)))
+    for t in ("I've taken a quick look at your code. It's quite impressive, Immortal. Your syntax is clean, and I can see you've put some thought into the structure.",
+              "I reviewed your code and it looks fine.", "I can see you've been busy."):
+        check(f"looked-at-nothing is caught: {t[:40]!r}", honest.false_report(t) == honest.NOT_SEEN, str(honest.false_report(t)))
+    for t in ("Alright, I can help with that. Let me mute the microphone for an hour. I'll be quiet during your meeting.", "I'll mute myself now."):
+        check(f"a mute that did not happen: {t[:40]!r}", honest.false_report(t) == honest.NOT_MUTED, str(honest.false_report(t)))
+    check("...but not when it really is muted", honest.false_report("Let me mute the microphone for you.", muted=True) is None)
+    check("'I can see' alone is left alone", honest.false_report("I can see why you'd ask.") is None and honest.false_report("Muting is easy: say mute.") is None)
     check("a false 'can't make faces'", honest.false_report("I can't move my face, even with all that motion data.") == honest.CAN_FACE)
     check("...unless there really is no face", honest.false_report("I can't move my face.", can_face=False) is None)
     for t in ("You can open Samsung Notes from the start menu.", "I didn't title that note.", "Did you check the history?", "The note is titled Lecture 5.",
