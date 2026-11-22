@@ -57,6 +57,8 @@ class Weekly:
                  activity=None, followups=None, wonder=None, reminders=None, day: str = "sunday",
                  extra: Optional[Callable[[float], Optional[str]]] = None):
         self.path = path
+        # Is this "name" not a person who came up (an app, a file, the user themself)? Set by the runtime; None keeps everything.
+        self.not_a_person: Optional[Callable[[str], bool]] = None
         self.extra = extra          # one more line for the review from somewhere else (the browser ledger), or None
         self.clock = clock
         self.activity = activity
@@ -165,12 +167,28 @@ class Weekly:
 
     def top_people(self, now: float, n: int = 2) -> List[str]:
         days = set(self._week_dates(now))
-        c: Counter = Counter()
+        raw: Counter = Counter()
         with self._lock:
             for d, m in self.people.items():
                 if d in days:
-                    c.update(m)
-        return [k for k, v in c.most_common(n) if v >= 2]
+                    raw.update(m)
+        # "Samsung Notes came up most, then Samsung Note": one app counted twice (a plural), and an app is not who came up. Names
+        # that differ only by a trailing s are one; the commonest spelling is the one said; apps and the user's own names are left out.
+        merged: Dict[str, List[Any]] = {}
+        for name, v in raw.items():
+            if self.not_a_person is not None:
+                try:
+                    if self.not_a_person(name):
+                        continue
+                except Exception:
+                    pass
+            key = " ".join(w[:-1] if len(w) > 3 and w.endswith("s") else w for w in name.lower().split())
+            m = merged.setdefault(key, [0, name, 0])
+            m[0] += v
+            if v > m[2]:
+                m[1], m[2] = name, v
+        ranked = sorted(merged.values(), key=lambda m: -m[0])
+        return [m[1] for m in ranked[:n] if m[0] >= 2]
 
     def compose(self, now: Optional[float] = None) -> str:
         now = self.clock() if now is None else now

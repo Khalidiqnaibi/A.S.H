@@ -892,6 +892,7 @@ class AmbientRuntime:
                                    knowledge=self.wonder.kb if self.wonder is not None else None, app_names=apps)
             if self.weekly is not None:
                 self.context.on_name = self.weekly.named
+                self.weekly.not_a_person = self._not_who_came_up
         self._awaiting_meaning: Optional[Dict[str, Any]] = None
         self._pending_correction: Optional[Dict[str, Any]] = None
         self._reaction = None            # the reaction the event being handled carried
@@ -1700,6 +1701,40 @@ class AmbientRuntime:
             return True
         addr = (getattr(ev, "meta", None) or {}).get("address") or {}
         return bool(addr.get("likely"))
+
+    def _not_who_came_up(self, name: str) -> bool:
+        """A name the weekly review should not list as someone who came up: the user's own, an app, a file or project they work on, or
+        anything entity memory knows is not a person."""
+        n = re.sub(r"[^a-z0-9]+", " ", (name or "").lower()).strip()
+        if not n:
+            return True
+        norm_ = lambda s: re.sub(r"[^a-z0-9]+", " ", str(s or "").lower()).strip()  # noqa: E731
+        mine = {norm_(getattr(self.brain, "user", ""))} | {norm_(a) for a in (getattr(self.ash, "user_aliases", None) or ())}
+        mine.discard("")
+        if n in mine:
+            return True
+        try:
+            from .identity import sounds_like
+            if any(sounds_like(n, m) for m in mine):
+                return True
+        except Exception:
+            pass
+        try:
+            a = self.activity
+            if a is not None:
+                with a._lock:
+                    for t in a.topics.values():
+                        names = [norm_(t.name)] + [norm_(x) for x in t.apps]
+                        if n in names or n.rstrip("s") in [x.rstrip("s") for x in names]:
+                            return True
+        except Exception:
+            logger.debug("activity topics not checked for names", exc_info=True)
+        try:
+            if self.taste is not None and self.taste._not_a_person(name):
+                return True
+        except Exception:
+            pass
+        return False
 
     def _is_guest(self, ev) -> bool:
         return bool((getattr(ev, "meta", None) or {}).get("guest"))

@@ -93,6 +93,13 @@ def w3_people():
     w.named("Lina", NOW - 10 * DAY)
     check("most first; once is not most; last week not counted", w.top_people(NOW) == ["Omar", "Sara"],
           str(w.top_people(NOW)))
+    v = Weekly()
+    for name, n in (("Samsung Notes", 4), ("Samsung Note", 3), ("Omar", 3), ("Omars", 1), ("Khalid", 5)):
+        for _ in range(n):
+            v.named(name, NOW)
+    check("'Samsung Notes' and 'Samsung Note' are one (a plural), counted together", v.top_people(NOW, 3)[0] == "Samsung Notes", str(v.top_people(NOW, 3)))
+    v.not_a_person = lambda n: n.lower().startswith("samsung") or n == "Khalid"
+    check("an app and the user's own name are not who came up", v.top_people(NOW, 3) == ["Omar"], str(v.top_people(NOW, 3)))
     one = Weekly()
     one.named("Karim", NOW)
     check("named once is not 'came up most'", one.top_people(NOW) == [])
