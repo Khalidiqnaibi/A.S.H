@@ -244,7 +244,7 @@ def t3_profile():
     check("a play heard to the end counts a little, and says nothing yet", watch(tt, **music(200)) == [])
     check("...it is kept, as habit", item("blinding lights by the weeknd")["by"] == "habit"
           and abs(item("blinding lights by the weeknd")["score"] - 0.1) < 1e-6, str(item("blinding lights by the weeknd")))
-    check("...and the artist gets half", abs(item("the weeknd")["score"] - 0.05) < 1e-6, str(item("the weeknd")))
+    check("...and the artist gets credit for a new song", abs(item("the weeknd")["score"] - 0.1) < 1e-6, str(item("the weeknd")))
     watch(tt, **music(200))
     said = watch(tt, **music(200))
     check("three listens make it something they like", said == ["The user likes Blinding Lights by The Weeknd."],
@@ -340,7 +340,7 @@ def t4_runtime():
     check("...and leave an undo with a label that reads",
           any("Blinding Lights" in lbl for lbl in [s[1] for s in rt.undo._steps]), str(rt.undo._steps))
     n = len(rt.undo._steps)
-    play(200, title="Starboy")
+    play(200, title="Get Lucky", artist="Daft Punk")      # (a second song by The Weeknd would now make the artist liked)
     check("a play that changes nothing worth saying leaves no undo step", len(rt.undo._steps) == n)
 
     rt.say("what do I like?")

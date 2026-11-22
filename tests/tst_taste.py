@@ -464,6 +464,33 @@ def t9_asked_to_keep():
         check(f"{said!r} -> {sorted(want)}", items == want, str(sorted(items)))
 
 
+def t10_what_you_play():
+    print("\n=== T10. What you play is what you like (said as that); one profile, not two ===")
+    def entry(item, score, n=1):
+        return {"item": item, "kind": "music", "score": score, "n": n, "first": NOW, "last": NOW, "by": "habit", "flips": 0, "when": {}}
+    kb = kb_with()
+    kb.tastes["user"] = {"name": "you", "user": True, "items": {"jumpy by blackpink": entry("JUMPY by BLACKPINK", 0.1)}}
+    kb.tastes["khalid"] = {"name": "Khalid", "user": True, "items": {"indila": entry("Indila", 0.15, 3),
+                                                                    "flowers by miley": entry("Flowers by Miley", -0.2)}}
+    t = taste(kb)
+    check("'user' and 'khalid' are one profile", list(kb.tastes) == ["khalid"] and len(kb.tastes["khalid"]["items"]) == 3, str(list(kb.tastes)))
+    said = t.answer("what do I like?")
+    check("'what do I like?' with only listening on record says what is played, not 'you haven't told me what you like'",
+          "from what you play" in said and "Indila" in said and "haven't told me what you like" not in said, said)
+    said = t.answer("what do I hate?")
+    check("...and what is skipped", "tend to skip" in said and "Flowers" in said, said)
+    check("an empty profile still says so", taste(kb_with()).answer("what do I like?").startswith("You haven't told me what you like"))
+    # three different songs by one artist make the artist something liked (it got half credit: five songs left it at 0.25)
+    kb = kb_with()
+    t = taste(kb)
+    for i in range(3):
+        t.watch({"finished": True, "finished_kind": "music", "finished_title": f"Song {i}", "finished_artist": "Indila",
+                 "finished_s": 200}, NOW)
+    got = kb.tastes["khalid"]["items"]["indila"]
+    check("three songs by one artist: the artist is liked", got["score"] >= 0.3, str(got))
+    check("'what do I like' now names the artist as a like", "like Indila" in t.answer("what do I like?"), t.answer("what do I like?"))
+
+
 if __name__ == "__main__":
     t1_reading()
     t2_keeping()
@@ -475,5 +502,6 @@ if __name__ == "__main__":
     t7_manual_and_control()
     t8_this_song()
     t9_asked_to_keep()
+    t10_what_you_play()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

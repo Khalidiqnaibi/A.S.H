@@ -452,6 +452,37 @@ class Taste:
         self.stats = {"heard": 0, "learned": 0, "ignored": 0}
         self.last: List[Tuple[str, str]] = []           # (subject key, item key) of the last learning
         self.last_undo: Optional[Callable[[], None]] = None   # reverses the last watch() that said something
+        try:
+            self._merge_user_profiles()
+        except Exception:
+            logger.debug("Could not merge the user's taste profiles", exc_info=True)
+
+    def _merge_user_profiles(self):
+        """What the user plays was kept under 'user' while ASH did not yet know the name and under 'immortal' after: one person,
+        two profiles (45 items and 20), each too thin to say anything. Folded into the one named now."""
+        key = self.user_key
+        with self.kb._lock:
+            tastes = self.kb.tastes
+            mine = tastes.setdefault(key, {"name": self.user or "you", "user": True, "items": {}}) if any(
+                k != key and v.get("user") for k, v in tastes.items()) or ("user" in tastes and key != "user") else None
+            if mine is None:
+                return
+            for k in [k for k, v in tastes.items() if k != key and (v.get("user") or k == "user")]:
+                other = tastes.pop(k)
+                items = mine.setdefault("items", {})
+                for ik, e in (other.get("items") or {}).items():
+                    cur = items.get(ik)
+                    if cur is None:
+                        items[ik] = e
+                    else:
+                        cur["n"] = int(cur.get("n", 0)) + int(e.get("n", 0))
+                        if cur.get("by") not in ("said", "opinion") and abs(float(e.get("score", 0))) > abs(float(cur.get("score", 0))):
+                            cur["score"] = e["score"]
+                        cur["last"] = max(float(cur.get("last", 0)), float(e.get("last", 0)))
+            mine["user"] = True
+            if self.user:
+                mine["name"] = self.user
+            self.kb.save()
 
     # -- who ---------------------------------------------------------------
     @property
@@ -624,7 +655,11 @@ class Taste:
         item = f"{title} by {artist}" if artist else title
         rows = [(item, "music" if kind == "music" else kind, delta)]
         if artist and delta > 0:
-            rows.append((artist, "music", delta / 2))             # the artist gets half the credit, never the blame
+            with self.kb._lock:
+                known = norm(item) in ((self.kb.tastes.get(self.user_key) or {}).get("items") or {})
+            # The artist is credited in full for each DIFFERENT song (three songs by one artist is a liking for the artist), in half
+            # for the same one again, and never blamed.
+            rows.append((artist, "music", delta / 2 if known else delta))
         key = self.user_key
         sentences: List[str] = []
         undo: List[Tuple[str, Optional[Dict[str, Any]]]] = []
@@ -835,12 +870,29 @@ class Taste:
         said = self.describe(key, pol, kind, you=you)
         if said:
             return said
+        if you:
+            seen = self._from_habit(key, pol, kind)
+            if seen:
+                return seen
         what = {1: "like", -1: "dislike", 0: "like or dislike"}[pol]
         of = f" in {kind}" if kind else ""
         if you:
             return (f"You haven't told me what you {what}{of} yet. Say \"I love Interstellar\" or \"I can't stand "
                     f"horror films\" and I'll remember it.")
         return f"I don't have anything on what {who} {what}s{of} yet."
+
+    def _from_habit(self, key: str, pol: int, kind: str) -> str:
+        """Nothing said, nothing strong -- but 65 songs were listened to. 'You haven't told me' was the answer to 'what do I like?'
+        with all of that on record, because each item sat below the bar for being worth saying (0.30). Said as what it is: what
+        they play, not what they declared."""
+        rows = self.items(key, 1 if pol >= 0 else -1, kind, 12, min_abs=0.05)
+        if pol >= 0 and rows:
+            rows.sort(key=lambda r: (-int(r.get("n", 0)), -abs(float(r.get("score", 0)))))
+            return (f"You haven't told me, but from what you play you seem to like {self._list(rows[:6])}. "
+                    f"Say \"I love ...\" and I'll be sure.")
+        if pol < 0 and rows:
+            return f"You haven't said, but you tend to skip {self._list(rows[:5])}."
+        return ""
 
     def linked(self, occ: str, key: str = "", kind: str = "", limit: int = 6) -> List[Dict[str, Any]]:
         """What a subject likes that goes with an occasion, said or seen often enough."""
