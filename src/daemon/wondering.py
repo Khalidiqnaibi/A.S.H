@@ -1683,11 +1683,13 @@ class Wonderer:
             if not name and not _YES.match(text) and not re.search(r"\b(?:sure|please|go ahead|ok(?:ay)?)\b",
                                                                    text, re.I):
                 return None
-            name = re.sub(r"^(?:my|the|a)\s+", "", name or "usual start", flags=re.I).strip()
+            default = "usual apps" if d.get("together") else "usual start"
+            name = re.sub(r"^(?:my|the|a)\s+", "", name or default, flags=re.I).strip()
             if len(name) > 40:                                   # cut between words: it was "something I do when I watch mo"
                 name = name[:40].rsplit(" ", 1)[0]
-            name = _clean(name, 40) or "usual start"
-            return {"name": name, "ack": f"Got it -- I'll remember \"{name}\": " + ", then ".join(d["steps"]) + "."}
+            name = _clean(name, 40) or default
+            joined = (", ".join(d["steps"][:-1]) + " and " + d["steps"][-1] if len(d["steps"]) > 1 else d["steps"][0]) if d.get("together") else ", then ".join(d["steps"])
+            return {"name": name, "ack": f"Got it -- I'll remember \"{name}\": " + joined + "."}
         if k == "conflict":
             if d.get("what") == "role":
                 if _YES.match(text):

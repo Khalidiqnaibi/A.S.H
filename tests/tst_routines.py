@@ -130,6 +130,48 @@ def r2_noticing():
     check("the same day three times is one day", kinds(w) == [])
 
 
+def worked(r, start, stints):
+    """A sitting of real work: (app, minutes) in turn, then a longer break so the next one is a new sitting."""
+    t = start
+    for app, minutes in stints:
+        r.observe(win(app), t)
+        t += minutes * 60
+    r.observe(win("explorer.exe"), t)
+    return t
+
+
+def tog(w):
+    """The questions about apps used together (the openings have their own)."""
+    return [q for q in w.wonders.values() if str(getattr(q, "key", "")).startswith("together:")]
+
+
+def r2b_together():
+    print("\n=== R2b. Apps used together, whenever in the sitting ===")
+    r, w = rrig()
+    day = [("code.exe", 10), ("chrome.exe", 6), ("code.exe", 8), ("spotify.exe", 5)]
+    for d in range(3):
+        worked(r, MORNING + d * DAY, day)
+    check("three days of the same apps going: not asked until the sitting is over", not tog(w))
+    r.observe(win("code.exe"), MORNING + 3 * DAY)               # the next sitting begins: the third one is closed
+    check("then asked, as a set", len(tog(w)) == 1, str(kinds(w)))
+    q = tog(w)[0]
+    check("the biggest set is the one asked", len(q.data["steps"]) == 3 and "going together" in q.question, q.question)
+    w.t[0] = MORNING + 4 * DAY
+    w.mark_asked(tog(w)[0].id, w.t[0])
+    rep = w.hear("yes", w.t[0] + 5)
+    check("a yes keeps the set, said as a set", rep is not None and "usual apps" in rep.say and " and " in rep.say, str(getattr(rep, "say", rep)))
+    r, w = rrig()
+    for d in range(3):
+        worked(r, MORNING + d * DAY, [("code.exe", 1), ("chrome.exe", 1)])
+    r.observe(win("code.exe"), MORNING + 3 * DAY)
+    check("a minute each is not 'using them together'", not tog(w))
+    r, w = rrig()
+    worked(r, MORNING, day)
+    r.observe(win("code.exe"), MORNING + DAY)
+    check("one day is not a habit", not tog(w) and any(len(v["days"]) == 1 for v in r.together.values()))
+    r.save()
+
+
 def asked(r, w):
     for d in range(3):
         sitting(r, MORNING + d * DAY, ["outlook.exe", "teams.exe", "jira.exe"])
@@ -249,7 +291,7 @@ def r5_runtime():
 
 
 if __name__ == "__main__":
-    for fn in (r1_watching, r2_noticing, r3_answers, r4_persist, r5_runtime):
+    for fn in (r1_watching, r2_noticing, r2b_together, r3_answers, r4_persist, r5_runtime):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

@@ -25,6 +25,7 @@ count as steps. The state file lives under state/routines/.
 
 from __future__ import annotations
 
+import itertools
 import json
 import logging
 import os
@@ -59,6 +60,8 @@ class RoutinesConfig:
     max_steps: int = 4
     min_days: int = 3               # seen on this many different days before it is asked about
     ask: bool = True
+    together_min_s: float = 120.0   # an app counts as part of a sitting once it has had this long in front
+    together_max: int = 4           # the most apps of a sitting looked at for sets
 
     @classmethod
     def from_dict(cls, d: Optional[Dict[str, Any]]) -> "RoutinesConfig":
@@ -88,6 +91,13 @@ class Routines:
         self.clock = clock
         self._lock = threading.RLock()
         self.seen: Dict[str, Dict[str, Any]] = {}     # "A > B > C" -> {"steps", "days", "hours", "asked"}
+        # Apps used in the same sitting, whenever in it: "VS Code + Edge + Spotify" -> {"apps", "days", "asked"}. The openings above
+        # only see the first ten minutes and their order; most of what goes together is not opened in a row.
+        self.together: Dict[str, Dict[str, Any]] = {}
+        self._used: Dict[str, float] = {}             # this sitting: app -> seconds in front
+        self._order: List[str] = []
+        self._cur_app: Optional[str] = None
+        self._cur_since = 0.0
         self._last_event = -1e18
         self._seq: List[str] = []
         self._seq_start = 0.0
@@ -103,6 +113,7 @@ class Routines:
             with open(self.path, "r", encoding="utf-8") as fh:
                 raw = json.load(fh)
             self.seen = {k: v for k, v in (raw.get("seen") or {}).items() if isinstance(v, dict)}
+            self.together = {k: v for k, v in (raw.get("together") or {}).items() if isinstance(v, dict)}
             self.stats.update({k: int(v) for k, v in (raw.get("stats") or {}).items() if k in self.stats})
         except Exception:
             logger.exception("Routine state unreadable; starting empty")
@@ -111,6 +122,7 @@ class Routines:
             except Exception:
                 pass
             self.seen = {}
+            self.together = {}
 
     def save(self):
         if not self.path:
@@ -121,7 +133,7 @@ class Routines:
                 os.makedirs(d, exist_ok=True)
             tmp = f"{self.path}.{os.getpid()}.tmp"
             with open(tmp, "w", encoding="utf-8") as fh:
-                json.dump({"version": 1, "seen": self.seen, "stats": self.stats}, fh, indent=1)
+                json.dump({"version": 1, "seen": self.seen, "together": self.together, "stats": self.stats}, fh, indent=1)
             os.replace(tmp, self.path)
         except Exception:
             logger.exception("Could not save routines")
@@ -144,7 +156,16 @@ class Routines:
             self.tick(now)
             new_day = (datetime.fromtimestamp(now).date()
                        != datetime.fromtimestamp(self._last_event).date()) if self._last_event > 0 else True
-            if now - self._last_event >= self.cfg.away_s or new_day:
+            fresh = now - self._last_event >= self.cfg.away_s or new_day
+            if fresh:
+                self._close_use(self._last_event if self._last_event > 0 else now)
+            usable = bool(app) and stem not in IGNORE and _norm(app) not in IGNORE
+            if self._cur_app and not fresh:
+                self._used[self._cur_app] = self._used.get(self._cur_app, 0.0) + max(0.0, now - self._cur_since)
+            self._cur_app, self._cur_since = (app if usable else None), now
+            if usable and app not in self._order:
+                self._order.append(app)
+            if fresh:
                 self._seq, self._seq_start, self._seq_done = [], now, False
                 self.stats["sittings"] += 1
             self._last_event = now
@@ -160,6 +181,8 @@ class Routines:
             return
         now = self.clock() if now is None else now
         with self._lock:
+            if self._cur_app and self._last_event > 0 and now - self._last_event >= self.cfg.away_s:
+                self._close_use(self._last_event)          # away: that sitting is over, whether or not another one starts
             if not self._seq_done and now - self._seq_start > self.cfg.window_s:
                 self._seq_done = True
                 if len(self._seq) >= self.cfg.min_steps:
@@ -181,6 +204,55 @@ class Routines:
         self.stats["recorded"] += 1
         self._maybe_ask(now)
         self.save()
+
+    def _close_use(self, end: float):
+        """A sitting is over: the apps that had real time in front go into the sets seen together."""
+        used, order = self._used, self._order
+        if self._cur_app and self._last_event > 0:
+            used[self._cur_app] = used.get(self._cur_app, 0.0) + max(0.0, min(end, self._last_event + 60.0) - self._cur_since)
+        self._used, self._order, self._cur_app = {}, [], None
+        apps = [a for a in order if used.get(a, 0.0) >= self.cfg.together_min_s]
+        if len(apps) < 2:
+            return
+        apps = sorted(sorted(apps, key=lambda a: -used[a])[:self.cfg.together_max], key=order.index)
+        day = datetime.fromtimestamp(end).strftime("%Y-%m-%d")
+        for n in range(2, min(len(apps), 3) + 1):
+            for combo in itertools.combinations(apps, n):
+                key = " + ".join(sorted(combo))
+                r = self.together.setdefault(key, {"apps": list(combo), "days": [], "asked": False})
+                if day not in r["days"]:
+                    r["days"] = (r["days"] + [day])[-30:]
+        if len(self.together) > 300:
+            for k in sorted(self.together, key=lambda k: len(self.together[k]["days"]))[:len(self.together) - 300]:
+                del self.together[k]
+        self._maybe_ask_together(end)
+        self.save()
+
+    def candidate_together(self) -> Optional[Dict[str, Any]]:
+        ok = [r for r in self.together.values() if len(r["days"]) >= self.cfg.min_days and not r.get("asked")]
+        return max(ok, key=lambda r: (len(r["apps"]), len(r["days"]))) if ok else None
+
+    def _maybe_ask_together(self, now: float):
+        if not self.cfg.ask or self.wonder is None:
+            return
+        r = self.candidate_together()
+        if r is None:
+            return
+        apps = r["apps"]
+        listed = ", ".join(apps[:-1]) + " and " + apps[-1]
+        q = f"You often have {listed} going together. Want me to remember them as a set, so I can open them all at once?"
+        try:
+            w = self.wonder.raise_wonder("routine", " + ".join(apps), q, key="together:" + _norm(" ".join(sorted(apps))),
+                                         data={"steps": list(apps), "together": True}, now=now, source="routine")
+        except Exception:
+            logger.exception("Could not raise a question about apps used together")
+            return
+        mine = set(apps)
+        for rr in self.together.values():
+            if set(rr["apps"]) <= mine:
+                rr["asked"] = True
+        if w is not None:
+            self.stats["asked"] += 1
 
     def candidate(self) -> Optional[Dict[str, Any]]:
         """The routine most worth asking about: seen on enough days, and the
@@ -222,7 +294,8 @@ class Routines:
     def report(self) -> str:
         with self._lock:
             rows = sorted(self.seen.values(), key=lambda r: (-len(r["days"]), -len(r["steps"])))[:15]
-            lines = [f"Routines: {'on' if self.cfg.enabled else 'off'}. {len(self.seen)} openings seen."]
+            lines = [f"Routines: {'on' if self.cfg.enabled else 'off'}. {len(self.seen)} openings seen, "
+                     f"{len(self.together)} sets of apps used together."]
             for r in rows:
                 lines.append(f"  {len(r['days'])}d  {' > '.join(r['steps'])}{'  (asked)' if r.get('asked') else ''}")
             return "\n".join(lines)
@@ -234,4 +307,5 @@ class Routines:
     def forget(self):
         with self._lock:
             self.seen = {}
+            self.together = {}
             self.save()
