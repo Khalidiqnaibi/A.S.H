@@ -156,8 +156,16 @@ def h4_runtime():
     rt.say("what can you do for now, Ash?")
     check("what it can do, from what is on, no model", rt.out[-1].startswith("I can set reminders") and rt.ash_.calls == [],
           rt.out[-1])
+    for q in ("what do you think of my code", "explain the code to me", "Ash, can you review my code please"):
+        n = len(rt.ash_.calls)
+        rt.say(q)
+        check(f"{q!r}: with the screen reader off it says it can't see it, at once, no model",
+              rt.out[-1].startswith("I can't see it") and "look at my screen" in rt.out[-1] and len(rt.ash_.calls) == n, rt.out[-1])
+    n = len(rt.ash_.calls)
+    rt.say("what do you think of my girlfriend")
+    check("...and other opinions are the model's", len(rt.ash_.calls) == n + 1)
     rt.say("send an email to Omar")
-    check("sending mail: said plainly", "only read your email" in rt.out[-1] and rt.ash_.calls == [])
+    check("sending mail: said plainly", "only read your email" in rt.out[-1] and len(rt.ash_.calls) == n + 1)
     n = len(rt.out)
     rt.say("show me pictures of cats online", source="microphone", addressed=False)
     check("said to the room, not to ASH: the rule does not answer it", not any("can't browse" in o for o in rt.out[n:]),

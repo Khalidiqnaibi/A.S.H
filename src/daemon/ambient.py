@@ -3367,6 +3367,39 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
 
+    _CODE_Q = re.compile(
+        r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:(?:can|could|would)\s+you\s+)?(?:what\s+do\s+you\s+think\s+(?:of|about)|"
+        r"what'?s\s+your\s+(?:take|opinion|view)\s+(?:on|of)|(?:have\s+a\s+|take\s+a\s+)?look\s+(?:at|over)|go\s+(?:through|over)|"
+        r"review|check(?:\s+out)?|read|explain|critique|rate|debug|fix|summari[sz]e|proofread)\s+"
+        r"(?:(?:my|this|the|that|our)\s+)(?:(?:current|open|whole|entire)\s+)?(?:code|script|program|function|class|file|project|"
+        r"page|document|essay|report|work|paper)\b[^.?!]{0,40}[.?!]*\s*$", re.I)
+
+    def _about_my_code_request(self, ev, now: float) -> bool:
+        """"What do you think of my code?" / "explain the code to me": ASH can only see the window's name unless the screen
+        reader is on. It answered (from the model, 66 s) "I've taken a quick look at your code... your syntax is clean", and a minute
+        later "I'm unable to see it". With the reader off it says so at once, with what it does know; with it on the model gets the
+        question as before."""
+        if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        if len(text.split()) > 14 or not self._CODE_Q.match(text):
+            return False
+        reader = self.periphery.sensors.get("screenshot")
+        if reader is not None and getattr(getattr(reader, "state", None), "value", "") == "active":
+            return False                                      # it can see: the model is given what was read
+        what = ""
+        try:
+            cur = getattr(self.activity, "_cur", None) if self.activity is not None else None
+            if cur is not None and cur.subject:
+                what = f" -- I can only tell you have {cur.subject}" + (f" open in {cur.project}" if cur.project else " open")
+        except Exception:
+            logger.debug("no current window to mention", exc_info=True)
+        say = (f"I can't see it: the screen reader is off{what}. Say \u201clook at my screen\u201d and I'll take a look, or paste "
+               f"the part you mean and I'll go through it.")
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "asked", "query": text[:80]}
+        return True
+
     def _browsing_request(self, ev, now: float) -> bool:
         """"What have I been browsing?", "when do I focus best?", "stop watching my tabs", "forget my browsing":
         from the ledger, by rule, never from the model. Not for a guest's voice."""
@@ -3968,6 +4001,8 @@ class AmbientRuntime:
         # The camera, when it is on: before "who was that?" below (a present "who is this?" is the camera's), and
         # before the memory's own "forget X" / "remember X" ("forget Omar's face" is the camera's).
         if self._look_request(ev, now):
+            return True
+        if self._about_my_code_request(ev, now):
             return True
 
         # "Open it", "remind me about that later": rewritten into the full
