@@ -211,13 +211,18 @@ def s7():
     now = time.mktime((2026, 11, 9, 22, 0, 0, 0, 0, -1))
     cases = [("quiet till 9", 11.0), ("be quiet until 9am", 11.0), ("do not disturb for 2 hours", 2.0),
              ("quiet for an hour", 1.0), ("quiet for 30 minutes", 0.5), ("quiet until noon", 14.0),
-             ("ash be quiet until 3:30 pm", 17.5)]
+             ("ash be quiet until 3:30 pm", 17.5), ("mute for 1 hour i have a meeting", 1.0), ("Mute for an hour, I have a meeting.", 1.0),
+             ("mute for 30 minutes", 0.5), ("be quiet for 2 hours because i'm studying", 2.0)]
     for text, hrs in cases:
         r = quiet.parse(text, now)
         check(f"{text!r} -> {hrs}h", r is not None and abs((r[0] - now) / 3600 - hrs) < 0.01, str(r))
-    for text in ("quiet mode", "quiet till 25", "what time is it", "quiet for 0 minutes", "be quiet"):
+    for text in ("mute", "mute the mic", "mute for a while", "quiet mode", "quiet till 25", "what time is it", "quiet for 0 minutes", "be quiet"):
         check(f"{text!r} is not a timed quiet", quiet.parse(text, now) is None)
 
+    rt = te.rig()
+    rt.say("mute for 1 hour i have a meeting")
+    check("typed 'mute for 1 hour i have a meeting' is a timed quiet, not a model question",
+          rt.out[-1].startswith("Okay, quiet until ") and rt.gate.muted is True and rt._quiet_until is not None, rt.out[-1])
     rt = te.rig()
     rt.say("quiet for 2 hours")
     check("it says until when", rt.out[-1].startswith("Okay, quiet until "), rt.out[-1])

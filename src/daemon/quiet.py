@@ -23,12 +23,14 @@ from typing import Optional, Tuple
 from .numwords import digits
 
 _LEAD = (r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:(?:be|go|stay)\s+quiet|quiet(?:\s+mode)?|"
-         r"do\s+not\s+disturb|don'?t\s+disturb\s+me|silence|mute\s+(?:yourself|ash)|no\s+interruptions|"
+         r"do\s+not\s+disturb|don'?t\s+disturb\s+me|silence|mute(?:\s+(?:yourself|ash))?(?=\s+(?:for|till|until|til|to)\b)|no\s+interruptions|"
          r"leave\s+me\s+alone|stop\s+talking)\s*")
+# "mute for 1 hour i have a meeting": the reason after the length is not part of the request
+_WHY = r"(?:\s*[,.;]?\s*(?:i|i'm|i\s+am|i\s+have|i've|we|we're|we\s+have|because|cause|as|since|so|im)\b[^.!?]{0,60})?\s*[.!]*\s*$"
 _FOR = re.compile(_LEAD + r"for\s+(?:(?:an?|one)\s+(?P<unit1>hour|minute|min)|(?P<n>\d+(?:\.\d+)?)\s*"
-                  r"(?P<unit>hours?|hrs?|h|minutes?|mins?|m))\s*[.!]*\s*$", re.I)
+                  r"(?P<unit>hours?|hrs?|h|minutes?|mins?|m))\b" + _WHY, re.I)
 _UNTIL = re.compile(_LEAD + r"(?:till|until|til|to)\s+(?:(?P<word>noon|midnight)|(?P<h>\d{1,2})(?::(?P<m>\d{2}))?\s*"
-                    r"(?P<ap>a\.?m\.?|p\.?m\.?)?)\s*(?:o'?clock)?\s*[.!]*\s*$", re.I)
+                    r"(?P<ap>a\.?m\.?|p\.?m\.?)?)\s*(?:o'?clock)?" + _WHY, re.I)
 
 
 def parse(text: str, now: float) -> Optional[Tuple[float, str]]:
