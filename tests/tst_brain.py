@@ -135,7 +135,11 @@ class StubEmotionEngine:
         return StubEmotionResult()
 
 
+SENT_CALLS = []
+
+
 def stub_sentiment(text):
+    SENT_CALLS.append(text)
     return {"sentiment": "NEUTRAL", "confidence": 0.5}
 
 
@@ -283,6 +287,9 @@ def main():
     r = brain.think(q)
     dt = (time.perf_counter() - t0) * 1000
     check("exact repeat hits REFLEX", r.pathway == Pathway.REFLEX, f"{dt:.2f}ms")
+    SENT_CALLS.clear()
+    brain.think("tell me about the weather on mars please")
+    check("a turn reads the sentiment of the words once, not at its start and again at its end", len(SENT_CALLS) == 1, str(len(SENT_CALLS)))
     # Small talk is not cached: "yes" answers whatever was asked last, so the same word a few seconds later is a new turn.
     brain.think("go on then")
     r = brain.think("go on then")

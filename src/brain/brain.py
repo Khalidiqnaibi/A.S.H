@@ -1051,12 +1051,19 @@ class Brain:
         the queries it already analyses, instead of guessing it again."""
         if self.sentiment_fn is None:
             return {"sentiment": "unknown", "confidence": 0.0}
+        # A turn reads the same words at its start and again when it settles the reward: the model (DistilBERT) ran twice on one
+        # sentence per slow turn. The last reading is reused for the same words within a minute.
+        last = getattr(self, "_sent_last", None)
+        if last is not None and last[0] == query and time.time() - last[1] < 60.0:
+            self.last_sentiment = {**last[2], "t": time.time()}
+            return last[2]
         try:
             r = self.sentiment_fn(query) or {"sentiment": "unknown", "confidence": 0.0}
         except Exception:
             logger.exception("sentiment_fn failed")
             return {"sentiment": "unknown", "confidence": 0.0}
         self.last_sentiment = {**r, "t": time.time()}
+        self._sent_last = (query, time.time(), r)
         return r
 
     def _telemetry(self, query, sentiment, proposal: Optional[ActionProposal],
