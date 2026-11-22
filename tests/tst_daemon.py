@@ -174,6 +174,9 @@ def main():
     check("the whole title is read, not just the first field",
           window_fields("brain.py - A.S.H - Visual Studio Code", "Code.exe")
           == ("brain.py", "A.S.H"))
+    check("a project whose name has the app's name inside it ('microcode' in Code.exe) is kept",
+          window_fields("main.py - microcode - Visual Studio Code", "Code.exe") == ("main.py", "microcode"))
+    check("'Microsoft Edge' is msedge.exe naming itself", window_fields("A.S.H - Microsoft Edge", "msedge.exe") == ("A.S.H", ""))
     check("...and a title with nothing to say yields neither field",
           window_fields("Discord", "Discord.exe") == ("", ""))
     check("the project beats the app as the container",

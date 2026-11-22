@@ -137,6 +137,8 @@ class ActivityConfig:
     idle_cut_s: float = 120.0          # this long away ends a stretch
     long_stretch_s: float = 1800.0     # an unbroken stretch is recorded in pieces
     session_gap_s: float = 900.0       # topics this close together were one sitting
+    glance_min_s: float = 10.0         # a flick between windows shorter than this is nothing
+    glance_merge_s: float = 900.0      # glances at one thing this close together add up to a stretch
     min_recurrence: int = 3            # stretches before a topic "recurs"
     ask_after_stretches: int = 2       # seen at least twice before it is asked about
     max_episodes_per_hour: int = 6
@@ -208,6 +210,7 @@ class ActivityMemory:
         self._lock = threading.RLock()
         self.topics: Dict[str, Topic] = {}
         self._cur: Optional[_Stretch] = None
+        self._glances: Dict[str, Dict[str, Any]] = {}       # topic key -> short looks that have not added up yet
         self._session: List[Tuple[str, float, str]] = []     # (topic key, end, project) of recent stretches
         self._episodes: Deque[float] = deque(maxlen=64)
         self._ent_cache: Tuple[float, List[Tuple[str, str, str]]] = (0.0, [])
@@ -316,9 +319,31 @@ class ActivityMemory:
         if st is None:
             return
         dur = end - st.start
-        if dur < self.cfg.min_stretch_s:
+        key = norm(st.project or st.subject)
+        if dur >= self.cfg.min_stretch_s:
+            self._glances.pop(key, None)
+            self._record(st, end, dur)
             return
-        self._record(st, end, dur)
+        # Working between VS Code and a browser tab is one piece of work, in many short looks: only 3 of 211 window changes in
+        # three days lasted three minutes, so almost none of it was ever remembered. Looks at the same thing, close together,
+        # add up.
+        if dur < self.cfg.glance_min_s or not key:
+            return
+        g = self._glances.get(key)
+        if g is None or st.start - g["last"] > self.cfg.glance_merge_s:
+            g = {"total": 0.0, "last": end, "terms": Counter()}
+        g["total"] += dur
+        g["last"] = end
+        g["terms"].update(st.terms)
+        if g["total"] >= self.cfg.min_stretch_s:
+            self._glances.pop(key, None)
+            total = g["total"]
+            self._record(_Stretch(st.subject, st.project, st.process, end - total, end, g["terms"]), end, total)
+        else:
+            self._glances[key] = g
+            if len(self._glances) > 64:
+                for k in sorted(self._glances, key=lambda k: self._glances[k]["last"])[:16]:
+                    self._glances.pop(k, None)
 
     # ---- recording -------------------------------------------------------
     def _record(self, st: _Stretch, end: float, dur: float):

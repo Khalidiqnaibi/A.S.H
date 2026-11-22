@@ -258,7 +258,11 @@ def window_fields(title: str, process: str = "", limit: int = 80) -> Tuple[str, 
     stem = _squash(re.sub(r"\.(?:exe|app|bin)$", "", (process or "").strip(), flags=re.I))
     while len(parts) > 1 and stem:
         tail = _squash(parts[-1])
-        if tail and (stem in tail or tail in stem):
+        words = {_squash(w) for w in re.findall(r"[A-Za-z0-9]+", parts[-1])}
+        # The app naming itself: "Visual Studio Code" in Code.exe. By word, not by substring -- "microcode" is a project, and
+        # "code" is inside it (the project of "main.py - microcode - Visual Studio Code" was thrown away as the app's name).
+        if tail and (tail == stem or stem in words or (stem.startswith("ms") and stem[2:] in words)          # msedge.exe: "Microsoft Edge"
+                     or (len(tail) >= 3 and tail in stem)):
             parts.pop()
         else:
             break

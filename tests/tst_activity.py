@@ -138,6 +138,24 @@ a.observe(win("other.py"), a.t[0])
 check("six minutes is a stretch", a.stats["stretches"] == 1, str(a.stats))
 
 a = rig()
+for _ in range(4):                                  # between the editor and a browser page, a minute at a time
+    a.spend("main.py", 1, "microcode")
+    a.spend("Transformer paper", 1, "", process="msedge.exe")
+a.observe(win("x.py"), a.t[0])
+check("short looks at one project, close together, add up to a stretch (alt-tabbing used to leave nothing)",
+      a.stats["stretches"] >= 1 and "project:microcode" in a.topics and a.topics["project:microcode"].seconds >= 180.0, str(a.stats))
+a = rig()
+a.spend("main.py", 1, "microcode")
+a.spend("Elsewhere", 40, "", process="msedge.exe")
+a.spend("main.py", 1, "microcode")
+a.observe(win("x.py"), a.t[0])
+check("...but not when they are far apart", "project:microcode" not in a.topics, str(list(a.topics)))
+a = rig()
+for _ in range(30):
+    a.spend("main.py", 0.05, "microcode")            # three seconds: a flick, not a look
+check("a flick between windows is nothing", a.stats["stretches"] == 0 and not a._glances)
+
+a = rig()
 a.spend("brain.py", 10, "A.S.H")
 a.t[0] += 20 * MIN
 a.tick(a.t[0], idle_s=20 * MIN)
