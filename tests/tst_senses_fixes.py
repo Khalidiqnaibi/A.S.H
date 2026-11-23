@@ -92,8 +92,27 @@ def s4_titles():
     check("ordinary windows are still named", "a.py" in t and "b.py" in t, t)
 
 
+def s5_mic_retry():
+    print("\n=== S5. A microphone that gave up is tried again ===")
+    from src.senses.mic import MicrophoneSensor
+    from src.senses.base import State
+    m = MicrophoneSensor.__new__(MicrophoneSensor)
+    m.state = State.ACTIVE
+    m.errored_at = 0.0
+    m.error_count, m.interval, m.base_interval, m.last_read = 0, 1.0, 1.0, 0.0
+    m.restarts = 9
+    started = []
+    m._start_capture = lambda: started.append(1)
+    m._give_up()
+    check("giving up is ERROR with a time", m.state == State.ERROR and m.errored_at > 0)
+    check("...not due before the wait", m.due(m.errored_at + 5) is False and m.state == State.ERROR)
+    m.due(m.errored_at + m.RETRY_AFTER_S + 1)
+    check("...and after it the capture is started again, with a clean count", m.state == State.ACTIVE and started == [1] and m.restarts == 0)
+
+
 if __name__ == "__main__":
     s1_idle()
+    s5_mic_retry()
     s4_titles()
     s2_name()
     s3_third_person()

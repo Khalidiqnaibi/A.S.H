@@ -415,7 +415,14 @@ class MicrophoneSensor(Sensor):
                             self._start_capture()
                 threading.Thread(target=again, daemon=True, name="ash-mic-retry").start()
             else:
-                self.state = self.state.__class__.ERROR
+                self._give_up()
+
+    def _give_up(self):
+        """Eight restarts did not bring the device back. ERROR, WITH the time: `Sensor.due()` tries a sensor that gave up again after
+        RETRY_AFTER_S only when `errored_at` is set, and it was never set here -- so a headset unplugged for three minutes left the
+        microphone dead until someone switched it off and on, the very thing the loop above says it is avoiding."""
+        self.state = self.state.__class__.ERROR
+        self.errored_at = time.time()
 
     def _live(self, frame):
         """Per frame: the wake word, and the user talking over ASH."""
