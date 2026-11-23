@@ -29,6 +29,7 @@ T0 = tw.T0
 ANSWERED_WITHOUT_THE_MODEL = [
     # ASH's memory and the people it knows
     ("who is khalid in your memory", "arbiter / notes"),
+    ("what do you reme", "notes (a truncated 'remember')"),
     ("What's your name?", "who it is, by rule"),
     ("what do you reme", "notes (a truncated 'remember')"),
     ("What can you do then?", "capabilities"),
@@ -61,7 +62,6 @@ ANSWERED_WITHOUT_THE_MODEL = [
 # Lines that still reach the model, to be taken one at a time: each is a known gap. When one is fixed this says so, and it moves out of
 # this list into the table above.
 TODO = {
-    "what do you reme",
     "You are so dumb today.",
     "You are hallucinating, boy.",
     "I'm just building my custom hardware chip ash.",

@@ -59,8 +59,8 @@ _RECALL = re.compile(r"^(?:where|when|what|which|who|how|is|are|am|was|were|did|
 _TOLD = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:what\s+(?:did|have)\s+i\s+(?:tell|told)\s+you|"
                    r"what\s+do\s+you\s+(?:remember|know)|what\s+have\s+you\s+(?:got|noted))\s+(?:about\s+|on\s+)(?P<s>.+?)\s*\??\s*$",
                    re.I)
-_ALL = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:what\s+(?:do\s+you\s+remember|have\s+i\s+(?:asked\s+you\s+to\s+remember|told\s+you\s+to\s+remember))|"
-                  r"what\s+(?:notes|have\s+you\s+noted)|(?:list|read)\s+(?:my|your|the)\s+notes)\s*\??\s*$", re.I)
+_ALL = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:what\s+(?:do\s+you\s+(?:remember|rem(?:e(?:m(?:b(?:er?)?)?)?)?(?=[ ?.!]*$))|have\s+i\s+(?:asked\s+you\s+to\s+remember|told\s+you\s+to\s+remember))|"
+                  r"what\s+(?:notes|have\s+you\s+noted)|(?:list|read)\s+(?:my|your|the)\s+notes)\s*[?.!]*\s*$", re.I)
 
 # "What do you know about me / the user / Khalid", "who is my friend", "who are my friends": the same question as "what do you
 # remember" -- what the person asked to be kept -- so it is answered the same way (the name is filled in from who the user is).

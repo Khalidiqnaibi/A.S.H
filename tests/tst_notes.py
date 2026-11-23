@@ -277,6 +277,10 @@ def n13_same_person_and_spelling():
 
 def n14_mom_mother_and_a_bad_file():
     print("\n=== N14. 'mom' is 'mother'; a notes file that will not load is kept, not wiped ===")
+    from src.daemon.notes import _ALL
+    for t in ("what do you reme", "what do you rem?", "what do you reme.", "what do you remember."):
+        check(f"{t!r} (whisper cuts the word short) is 'what do you remember'", bool(_ALL.match(t)))
+    check("...but 'what do you recall about it' is not", not _ALL.match("what do you recall about it"))
     n = Notes(None, clock=lambda: T)
     n.keep_note("my mother's birthday is May 3rd", T)
     found = n.find("when is my mom's birthday?")
