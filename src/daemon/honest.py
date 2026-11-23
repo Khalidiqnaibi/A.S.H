@@ -238,6 +238,41 @@ def self_intro(rt) -> str:
             f"and help with what you ask. Say \u201cwhat can you do?\u201d for the list.")
 
 
+_WITH = re.compile(_A + r"(?:what\s+(?:can|could)\s+you\s+do\s+(?:with|about|for|in|on)|can\s+you\s+(?:work|help)\s+(?:with|on|in)|"
+                    r"do\s+you\s+(?:work\s+with|support|handle|know)|can\s+you\s+(?:use|open|edit|read|control))\s+(?:my\s+|the\s+|a\s+|an\s+)?"
+                    r"(?P<x>[\w][\w .&+#'-]{1,40}?)\s*[?.!]*\s*$", re.I)
+_STOP_SUBJECT = frozenset("me you it that this them there here now then something anything everything".split())
+
+
+def with_subject(rt, text: str) -> Optional[str]:
+    """"What can you do with Google Docs?": from the manual ASH keeps about itself when it mentions the thing, and a plain "nothing on
+    my own" when it doesn't -- never the model's guess (it listed features that do not exist)."""
+    m = _WITH.match((text or "").strip())
+    if not m:
+        return None
+    what = m.group("x").strip(" .?!")
+    words = [w for w in re.findall(r"[a-z0-9]+", what.lower()) if len(w) > 2 and w not in _STOP_SUBJECT]
+    if not words or what.lower() in _STOP_SUBJECT:
+        return None
+    try:
+        from .manual import ENTRIES
+    except Exception:
+        ENTRIES = []
+    best, best_hits = None, 0
+    for _id, _p, body in ENTRIES:
+        low = body.lower()
+        hits = sum(1 for w in words if re.search(r"\b" + re.escape(w) + r"s?\b", low))
+        hits += 2 * sum(1 for w in words if w in _id)         # the entry named for it beats one that only mentions it
+        if hits > best_hits:
+            best, best_hits = body, hits
+    if best is not None and best_hits >= max(1, (len(words) + 1) // 2):
+        body = re.sub(r"^ASH manual,[^.]*\.\s*", "", best).strip()
+        cut = body[:300].rsplit(". ", 1)[0] if len(body) > 300 else body
+        return cut.rstrip(".") + "."
+    return (f"Nothing on my own with {what}: I'm not connected to it. I can open an app or a site if you say \u201copen\u201d and its name, "
+            f"and \u201cwhat can you do?\u201d gives the whole list.")
+
+
 def asks_capabilities(text: str) -> bool:
     t = (text or "").strip()
     if _ASK_FOR_HELP.match(t):

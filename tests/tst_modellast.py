@@ -32,7 +32,7 @@ ANSWERED_WITHOUT_THE_MODEL = [
     ("What's your name?", "who it is, by rule"),
     ("what do you reme", "notes (a truncated 'remember')"),
     ("What can you do then?", "capabilities"),
-    ("What can you do with Google Docs?", "capabilities: what it cannot do"),
+    ("What can you do with Google Docs?", "capabilities: it has nothing for it, said so"),
     # control
     ("cam off", "voice control"),
     ("camera off", "voice control"),
@@ -62,7 +62,6 @@ ANSWERED_WITHOUT_THE_MODEL = [
 # this list into the table above.
 TODO = {
     "what do you reme",
-    "What can you do with Google Docs?",
     "Give me your emotional telemetry.",
     "Did you do it?",
     "Why did you take that long to read the clock?",

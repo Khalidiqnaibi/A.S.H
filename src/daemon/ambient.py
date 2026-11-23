@@ -2271,6 +2271,8 @@ class AmbientRuntime:
             asks, about_me = label == "capabilities", label == "self"
         if about_me and not asks:
             say = honest.self_intro(self)
+        elif not asks and honest.with_subject(self, text):
+            say = honest.with_subject(self, text)
         elif asks:
             say = honest.capabilities(self)
         else:
