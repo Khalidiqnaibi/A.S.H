@@ -232,6 +232,7 @@ class MicrophoneSensor(Sensor):
         # Words worth hearing right: names of people, classes, ports. Handed to the LOCAL recogniser only, as the start of its
         # prompt (it makes "Linda" likelier than "Lender" and "port" than "board"); never to an online service.
         self.hint_words: Callable[[], List[str]] = lambda: []
+        self.corrector: Optional[Callable[[str], str]] = None       # learned mishearings put right (daemon/misheard.py)
 
         self._backend: Optional[str] = None
         self._vad = None
@@ -474,6 +475,11 @@ class MicrophoneSensor(Sensor):
                 return
             text = self.transcribe(audio)
         text = fix_name(text)
+        if text and self.corrector is not None:
+            try:
+                text = self.corrector(text) or text
+            except Exception:
+                logger.debug("transcript correction failed", exc_info=True)
         if not text:
             # Very frequent with the energy-VAD fallback (no webrtcvad) --
             # noise/room tone clears the level gate but transcribes to

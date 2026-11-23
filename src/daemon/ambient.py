@@ -355,6 +355,7 @@ class AmbientConfig:
     reminders: bool = False
     reminders_path: Optional[str] = None     # state/reminders.json
     focus_path: Optional[str] = None         # state/focus.json: a focus still running survives a restart
+    misheard_path: Optional[str] = None      # state/misheard.json: 'I said Opera, not Obra' learned, and put right in every later transcript
     unrouted_path: Optional[str] = None      # state/unrouted.jsonl: the lines that reached the language model, and why (unrouted.py)
     # Play (play.py): quick games on request, and at a free moment ASH may
     # say it is bored, or offer an evening story. Off on a bare runtime.
@@ -614,6 +615,8 @@ class AmbientRuntime:
             mic = self.periphery.sensors.get("microphone")
             if mic is not None and hasattr(mic, "voiceprint"):
                 mic.voiceprint = True
+        from .misheard import Misheard
+        self.misheard = Misheard(self.cfg.misheard_path)
         from .unrouted import Unrouted
         self.unrouted = Unrouted(self.cfg.unrouted_path, clock=lambda: self.clock(), scrub=self.privacy.scrub)
         self.reminders: Optional[Reminders] = None
@@ -1039,6 +1042,10 @@ class AmbientRuntime:
             logger.debug("vocabulary from people failed", exc_info=True)
         if self.timetable is not None:
             words += [c["name"] for c in self.timetable.classes[:10]]
+        try:
+            words += self.misheard.words()                  # what they said they meant, when it was misheard
+        except Exception:
+            logger.debug("vocabulary from corrections failed", exc_info=True)
         return words + ["ASH", "port", "console"]
 
     def _user_sentences(self) -> List[str]:
@@ -1069,6 +1076,8 @@ class AmbientRuntime:
         mic = getattr(self.periphery, "sensors", {}).get("microphone")
         if mic is not None and hasattr(mic, "hint_words"):
             mic.hint_words = self.vocab_hint
+        if mic is not None and hasattr(mic, "corrector"):
+            mic.corrector = self.misheard.fix
 
     def start(self):
         self._hint_the_microphone()
@@ -2865,6 +2874,17 @@ class AmbientRuntime:
             self.stats["errors"] += 1
             logger.exception("Dwell step failed")
 
+    def _misheard_request(self, ev, now: float) -> bool:
+        """"I said Opera, not Obra": kept, and every later transcript has it put right (misheard.py)."""
+        if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        say = self.misheard.hear(str(getattr(ev, "text", "") or ""))
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "correction"}
+        return True
+
     def _usage_request(self, ev, now: float) -> bool:
         """"How often do you use the model?": from the ledger's own numbers (unrouted.py)."""
         if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
@@ -4203,6 +4223,8 @@ class AmbientRuntime:
         if self._ask_followthrough(ev, now):
             return True
         if not loose and self._asks_request(ev, now):
+            return True
+        if not loose and self._misheard_request(ev, now):
             return True
         if not loose and self._usage_request(ev, now):
             return True

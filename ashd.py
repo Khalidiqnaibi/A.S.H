@@ -405,6 +405,7 @@ def main() -> int:
                 taste_cfg=cfg.get("taste", {}),
                 game_mode=bool(cfg.get("game_mode", {}).get("enabled", True)),
                 game_cfg=cfg.get("game_mode", {}),
+                misheard_path=os.path.join(os.getcwd(), "state", "misheard.json"),
                 unload_idle_s=float(cfg.get("llm", {}).get("unload_when_idle_min", 30)) * 60.0,
                 governor=bool(cfg.get("governor", {}).get("enabled", True)),
                 governor_cfg=cfg.get("governor", {}),
