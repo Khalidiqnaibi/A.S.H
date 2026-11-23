@@ -78,6 +78,9 @@ def c1_time_survives():
         for k in ("created", "last"):
             m.pop(k, None)
     json.dump(meta, open(gp, "w"))
+    import numpy as _np
+    pz = _np.load(os.path.join(folder, "prototypes.npz"))                 # a file from before the metadata rode inside the npz: ids and vectors only
+    _np.savez_compressed(os.path.join(folder, "prototypes.npz"), **{k: pz[k] for k in pz.files if k != "graph"})
     old = ConceptNetwork(dim=DIM)
     check("a file saved before this still loads, with creation time = now", old.load(folder) and abs(old.concepts[c.id].created - time.time()) < 60)
 

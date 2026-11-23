@@ -520,25 +520,38 @@ class ConceptNetwork:
             os.makedirs(directory, exist_ok=True)
             self._rebuild()
             from src.memory.atomic import write_with, write_json
+            # One file is the truth: the graph's metadata rides inside prototypes.npz beside the vectors, written in a single atomic swap.
+            # It used to be two files (prototypes.npz, then graph.json); a crash between them left the ids and vectors of one generation with
+            # the metadata of another (concepts with no label or history, synapses to ids that did not exist). graph.json is still written, as
+            # something a person can read, but load() trusts the one inside the npz. Built from copies: the daemon perceives while this runs.
+            for attempt in range(3):
+                try:
+                    concepts, synapses = list(self.concepts.values()), list(self.synapses.values())
+                    co = sorted(list(self.co_counts.items()), key=lambda kv: -kv[1])[:20000]
+                    break
+                except RuntimeError:                       # "dictionary changed size during iteration"
+                    if attempt == 2:
+                        raise
             ids = np.array(self._ids, dtype=np.int64)
             protos = self._matrix if self._matrix is not None else np.zeros((0, self.dim), dtype=np.float32)
             cand = self.candidates.matrix() if self.candidates is not None else None
-            if cand is not None:
-                write_with(os.path.join(directory, "prototypes.npz"),
-                           lambda f: np.savez_compressed(f, ids=ids, protos=protos, cand=cand), "wb")
-            else:
-                write_with(os.path.join(directory, "prototypes.npz"),
-                           lambda f: np.savez_compressed(f, ids=ids, protos=protos), "wb")
             meta = {
                 "dim": self.dim, "next_id": self._next_id, "cycles": self.cycles,
                 "candidates": self.candidates.meta() if self.candidates is not None else [],
                 "concepts": [
                     {**c.as_dict(), "plasticity": c.plasticity}
-                    for c in self.concepts.values()
+                    for c in concepts
                 ],
-                "synapses": [s.as_dict() for s in self.synapses.values()
+                "synapses": [s.as_dict() for s in synapses
                              if abs(s.w_slow) > 1e-4 or s.frozen],
+                # The statistics the PMI correction reads (plasticity.py): they started from nothing at every restart.
+                "co": [[int(k[0]), int(k[1]), int(v)] for k, v in co],
             }
+            blob = np.frombuffer(json.dumps(meta).encode("utf-8"), dtype=np.uint8)
+            arrays = {"ids": ids, "protos": protos, "graph": blob}
+            if cand is not None:
+                arrays["cand"] = cand
+            write_with(os.path.join(directory, "prototypes.npz"), lambda f: np.savez_compressed(f, **arrays), "wb", keep_backup=True)
             write_json(os.path.join(directory, "graph.json"), meta, indent=1)
         except Exception:
             logger.exception("Failed to persist concept network")
@@ -549,11 +562,25 @@ class ConceptNetwork:
         if not (os.path.exists(proto_path) and os.path.exists(meta_path)):
             return False
         try:
-            d = np.load(proto_path)
+            d, meta = None, None
+            for cand_path in (proto_path, proto_path + ".bak"):            # the file, else the last good copy of it
+                if not os.path.exists(cand_path):
+                    continue
+                try:
+                    d = np.load(cand_path)
+                    if "graph" in d.files:                                 # the metadata that was swapped in WITH these vectors
+                        meta = json.loads(bytes(d["graph"]).decode("utf-8"))
+                    else:                                                  # an older file: the metadata is beside it
+                        with open(meta_path, "r", encoding="utf-8") as fh:
+                            meta = json.load(fh)
+                    break
+                except Exception:
+                    logger.warning("Could not read %s%s", cand_path, "; trying its backup" if cand_path == proto_path else "", exc_info=True)
+                    d, meta = None, None
+            if d is None or meta is None:
+                return False
             ids = [int(i) for i in d["ids"]]
             protos = d["protos"]
-            with open(meta_path, "r", encoding="utf-8") as fh:
-                meta = json.load(fh)
             if int(meta.get("dim", self.dim)) != self.dim:
                 logger.warning("Saved concept graph has dim %s, expected %s -- ignoring",
                                meta.get("dim"), self.dim)
@@ -613,6 +640,11 @@ class ConceptNetwork:
                 self.candidates.restore(d["cand"] if "cand" in d.files else None, meta.get("candidates") or [])
             self._next_id = int(meta.get("next_id", max(ids, default=-1) + 1))
             self.cycles = int(meta.get("cycles", 0))
+            try:
+                self.co_counts = {(int(a), int(b)): int(n) for a, b, n in (meta.get("co") or [])
+                                  if int(a) in self.concepts and int(b) in self.concepts}
+            except (TypeError, ValueError):
+                self.co_counts = {}
             self._dirty = True
             logger.info("Concept network restored: %d units, %d synapses",
                         len(self.concepts), len(self.synapses))
