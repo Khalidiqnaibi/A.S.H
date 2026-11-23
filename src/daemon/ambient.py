@@ -4491,6 +4491,8 @@ class AmbientRuntime:
                 text = clip_reply(response.text, self.cfg.max_response_chars)
                 pathway = response.pathway.value
                 if to_ash and self._user_source(ev):
+                    self._last_turn = {"took_s": time.time() - t_model, "pathway": pathway, "tool": self._last_tool_used,
+                                       "timings": dict(getattr(getattr(response, "trace", None), "timings_ms", None) or {})}
                     from .unrouted import reason_of
                     if pathway in ("slow", "escalated"):
                         self.unrouted.model_turn(prompt, reason_of(response), time.time() - t_model, bool(self._last_tool_used),
@@ -5218,10 +5220,22 @@ class AmbientRuntime:
         said, without the model. The explanation itself leaves no note, so
         asking twice explains the same thing."""
         text = str(getattr(ev, "text", "") or "")
-        if not self._user_source(ev) or not (asked_why(text) or asks_source(text)):
+        from . import explain as explain_mod
+        did_it, slow = explain_mod.asks_did_it(text), explain_mod.asks_slow(text)
+        if not self._user_source(ev) or not (asked_why(text) or asks_source(text) or did_it or slow):
             return False
         try:
-            say = explain(self._last_why) if asked_why(text) else source_reply(self._last_why)
+            if did_it or slow:
+                mem = None
+                try:
+                    import psutil
+                    mem = float(psutil.virtual_memory().percent)
+                except Exception:
+                    mem = None
+                say = (explain_mod.did_reply(self._last_why, getattr(self, "_last_turn", None)) if did_it
+                       else explain_mod.slow_reply(getattr(self, "_last_turn", None), mem))
+            else:
+                say = explain(self._last_why) if asked_why(text) else source_reply(self._last_why)
             lw = (self._last_why or {}).get("learn")
             if lw and asked_why(text):
                 more = uxreport.about(self.learner, lw["kind"], lw["ctx"], now)

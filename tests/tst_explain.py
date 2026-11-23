@@ -177,8 +177,30 @@ def e3_runtime():
     check("text on the screen is not a question", not any("explain" in s for s in h.said()))
 
 
+def e4_did_it_and_slow():
+    print("\n=== E4. 'Did you do it?' and 'why so slow' are answered from ASH's own record ===")
+    from src.daemon import explain as ex
+    for t in ("Did you do it?", "did that work", "is it done", "did you open it"):
+        check(f"{t!r} asks whether it did it", ex.asks_did_it(t))
+    for t in ("Why did you take that long to read the clock?", "why so slow", "why are you so slow", "what took so long"):
+        check(f"{t!r} asks why it was slow", ex.asks_slow(t))
+    for t in ("did you see the game", "why did you say that", "what is the time", "did you like it"):
+        check(f"{t!r} is neither", not ex.asks_did_it(t) and not ex.asks_slow(t))
+    said = ex.did_reply({"kind": "answer", "query": "mute for an hour", "pathway": "slow"})
+    check("a model answer with no tool did nothing, and says so", said.startswith("No -- I only answered in words"), said)
+    said = ex.did_reply({"kind": "answer", "query": "what is 2 plus 2", "pathway": "fast", "tool": "calculate"})
+    check("a tool that ran is said to have run", said.startswith("Yes -- the calculate tool ran"), said)
+    check("nothing done yet: says so", "haven't done anything yet" in ex.did_reply(None))
+    said = ex.slow_reply({"took_s": 63.0, "pathway": "slow", "timings": {"narrate": 62300.0, "retrieve": 300.0}}, 95.0)
+    check("the slow one is said with its parts and the memory", "63 s" in said and "62 s phrasing it" in said and "Memory is at 95%" in said, said)
+    check("a fast one is not blamed on the model", "no language model" in ex.slow_reply({"took_s": 0.4, "pathway": "fast", "timings": {}}))
+    h = rt_rig()
+    h.say("Did you do it?")
+    check("in the runtime, from the record, no model", h.said() and "haven't done anything yet" in h.said()[-1] and not h.ash.calls, str(h.said()))
+
+
 if __name__ == "__main__":
-    for fn in (e1_reading, e2_wording, e3_runtime):
+    for fn in (e1_reading, e2_wording, e3_runtime, e4_did_it_and_slow):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

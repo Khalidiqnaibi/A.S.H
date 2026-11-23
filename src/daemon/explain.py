@@ -34,6 +34,73 @@ _ASKED = re.compile(
     r"|^\s*what made you (?:say|ask|do) (?:that|this)\s*\??\s*$", re.I)
 
 
+_DID_IT = re.compile(
+    r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:so|and|but|wait|ok(?:ay)?)[,\s]+)?(?:did\s+you\s+(?:actually\s+|really\s+|just\s+)?"
+    r"(?:do|make|finish|manage|get)\s+(?:it|that|this)|did\s+(?:it|that|this)\s+(?:work|happen|go\s+through)|is\s+(?:it|that)\s+done|"
+    r"(?:was|has)\s+(?:that|it)\s+(?:done|made|saved|sent)|did\s+you\s+(?:actually\s+)?(?:send|save|open|write|create|set|add)\s+(?:it|that|this))"
+    r"(?:\s+(?:though|then|yet|now|ash))*\s*[?.!]*\s*$", re.I)
+_SLOW = re.compile(
+    r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:so|and|but|wait|ok(?:ay)?)[,\s]+)?(?:why\s+so\s+(?:slow|long)|why\s+(?:did|does|was|is)\s+(?:that|it|this|everything)?\s*(?:take|took|so)?\s*"
+    r"(?:so\s+|that\s+|this\s+)?(?:long|slow|forever)|why\s+(?:are\s+you|were\s+you|you'?re)\s+(?:so\s+)?slow|"
+    r"what\s+(?:took|takes)\s+so\s+long|how\s+come\s+(?:that|it)\s+(?:took|takes)\s+so\s+long|why\s+did\s+you\s+take\s+(?:so|that|this)\s+long)"
+    r"(?:\s+(?:to\s+[\w\s'.-]{1,40}?|for\s+[\w\s'.-]{1,40}?|just\s+now|today))?\s*[?.!]*\s*$", re.I)
+
+
+def asks_did_it(text: str) -> bool:
+    """"Did you do it?", "did that work", "is it done"."""
+    t = (text or "").strip()
+    return bool(t) and len(t) <= 60 and bool(_DID_IT.match(t))
+
+
+def asks_slow(text: str) -> bool:
+    """"Why did you take that long (to read the clock)?", "why so slow"."""
+    t = (text or "").strip()
+    return bool(t) and len(t) <= 90 and bool(_SLOW.match(t))
+
+
+def did_reply(why: Optional[Dict[str, Any]], turn: Optional[Dict[str, Any]] = None) -> str:
+    """Whether ASH did the last thing: from its own record of it, never a guess. A model answer that ran no tool did nothing -- it only
+    said something, and the user is told so."""
+    turn = turn or {}
+    if why and why.get("kind") == "answer":
+        q = str(why.get("query", "")).strip()
+        tool = str(why.get("tool") or turn.get("tool") or "")
+        if tool:
+            return f"Yes -- the {tool.replace('_', ' ')} tool ran for \"{q}\"; what I said is its result."
+        if str(why.get("pathway", "")) in ("slow", "escalated") or turn.get("pathway") in ("slow", "escalated"):
+            return ("No -- I only answered in words. Nothing was done: that reply came from the language model, which says what "
+                    "sounds right, not what happened. If you wanted something done, say it as a command and I'll do it for real.")
+    if why and why.get("kind") in ("asked", "notes", "watch", "correction", "feelings", "facts", "file_created", "file_where"):
+        q = str(why.get("query", "")).strip()
+        return (f"By my own rules, yes: " + (f"you asked \"{q}\" and I did it." if q else "I did what you asked.") +
+                " If it didn't show up, tell me and I'll try again.")
+    if not why:
+        return "I haven't done anything yet that I can check."
+    return "I'm not sure what you mean I did -- ask me again with what it was, and I'll say whether I did it."
+
+
+def slow_reply(turn: Optional[Dict[str, Any]], mem_percent: Optional[float] = None) -> str:
+    """Why the last answer took the time it did, from the brain's own timings."""
+    if not turn:
+        return "I haven't answered anything slowly that I can remember."
+    took = float(turn.get("took_s") or 0.0)
+    path = str(turn.get("pathway") or "")
+    t = turn.get("timings") or {}
+    ms = lambda k: float(t.get(k, 0.0) or 0.0) / 1000.0  # noqa: E731
+    if path in ("fast", "reflex") and took < 5.0:
+        return f"That one took {took:.1f} s on my side -- no language model, just the tool. If it felt slow, it was something else on the machine."
+    parts = []
+    for k, label in (("narrate", "phrasing it"), ("deliberate", "deciding what to do"), ("retrieve", "looking through memory"), ("predict", "predicting")):
+        if ms(k) >= 1.0:
+            parts.append(f"{ms(k):.0f} s {label}")
+    where = ", ".join(parts)
+    s = f"That one took about {took:.0f} s: it went to the language model" + (f" ({where})" if where else "") + "."
+    if mem_percent is not None and mem_percent >= 85:
+        s += f" Memory is at {mem_percent:.0f}%, which slows the model down a lot."
+    s += " Questions a rule or a tool can answer don't wait for it."
+    return s
+
+
 def asked_why(text: str) -> bool:
     t = (text or "").strip()
     return bool(t) and bool(_ASKED.match(t))
