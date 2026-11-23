@@ -2874,6 +2874,25 @@ class AmbientRuntime:
         self._last_why = {"kind": "asked", "query": str(getattr(ev, "text", ""))[:80]}
         return True
 
+    def _working_request(self, ev, now: float) -> bool:
+        """"What am I working on?", "what have I been working on today / this week": from the stretches ASH keeps about the user's own windows
+        (working.py) -- it went to the model, which answered "Khalid, who you mentioned is Immortal"."""
+        if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        from . import working
+        text = str(getattr(ev, "text", "") or "")
+        kind = working.parse(text)
+        if kind is None:
+            return False
+        say = working.answer(self, kind, now, fallback=False)
+        if not say:
+            if self.dwell is not None and self.dwell.parse(text) is not None:
+                return False                      # nothing in the activity record: the per-window answer is better than none
+            say = working.answer(self, kind, now)
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "asked", "query": text[:80]}
+        return True
+
     def _dwell_request(self, ev, now: float) -> bool:
         """"How long have I been on this?" / "what have I been doing today?" / "how long was I away?": from where they were."""
         d = self.dwell
@@ -4169,6 +4188,8 @@ class AmbientRuntime:
         if not loose and self._asks_request(ev, now):
             return True
         if not loose and self._away_request(ev, now):
+            return True
+        if not loose and self._working_request(ev, now):
             return True
         if not loose and self._dwell_request(ev, now):
             return True
