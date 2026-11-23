@@ -171,6 +171,8 @@ def t4_runtime():
         touched = []
 
         def __getattr__(self, n):
+            if n == "pop_notice":
+                raise AttributeError(n)        # asked for with getattr(): not there, not 'touched'
             Boom.touched.append(n)
             raise AssertionError(f"the model was touched: {n}")
     rt = te.rig()

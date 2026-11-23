@@ -322,6 +322,8 @@ def t6_no_llm():
         touched = []
 
         def __getattr__(self, name):
+            if name == "pop_notice":
+                raise AttributeError(name)        # asked for with getattr(): not there, not 'touched'
             Boom.touched.append(name)
             raise AssertionError(f"the model was touched: {name}")
 
