@@ -1097,6 +1097,15 @@ class AmbientRuntime:
             self._lane.start()
         logger.info("Ambient runtime started")
 
+    def restart_loop(self, timeout: float = 3.0):
+        """The watchdog's restart: ask the loop to end, wait a little, start it again. Nothing of a shutdown -- no nap, no saves, no
+        sensors closed. (start() leaves a thread that is still stuck in a slow call where it is.)"""
+        logger.info("Ambient loop restarting")
+        self._stop.set()
+        if self._thread:
+            self._thread.join(timeout=timeout)
+        self.start()
+
     def stop(self, timeout: float = 5.0):
         logger.info("Ambient runtime stopping")
         self._stop.set()

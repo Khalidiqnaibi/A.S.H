@@ -806,7 +806,14 @@ class ControlServer:
                 return {"ok": True, "report": f"forgot {gone} taste(s)"}
             return {"ok": True, "report": t.report(), "status": t.status()}
         if cmd == "shutdown":
-            threading.Thread(target=rt.stop, daemon=True).start()
+            # The daemon's own single shutdown does the stopping (what "shut down" said to ASH does too). Starting rt.stop here as
+            # well ran it twice, at once: the loop in ashd.py leaves as soon as the ambient thread ends inside the first stop(), and
+            # its own shutdown() then ran nap() and the saves a second time, concurrently with the first.
+            ask = getattr(rt, "request_shutdown", None)
+            if callable(ask):
+                ask()
+            else:
+                threading.Thread(target=rt.stop, daemon=True).start()
             return {"ok": True, "stopping": True}
         return {"ok": False, "error": f"unknown command {cmd!r}",
                 "commands": ["status", "pause", "resume", "mute", "unmute", "say",
@@ -1008,8 +1015,15 @@ class Watchdog:
                     self.restarts += 1
                     logger.error("Watchdog: ambient loop unhealthy -- restarting (#%d)",
                                  self.restarts)
-                    self.runtime.stop(timeout=3)
-                    self.runtime.start()
+                    # Only the loop is restarted. runtime.stop() is the whole shutdown (nap, the learning saved, crashwatch marked
+                    # as ended, every sensor closed): run on a loop that was merely slow in a model call, it left the microphone
+                    # stopped but 'on', and marked the run as cleanly over.
+                    restart = getattr(self.runtime, "restart_loop", None)
+                    if callable(restart):
+                        restart(timeout=3)
+                    else:
+                        self.runtime.stop(timeout=3)
+                        self.runtime.start()
             except Exception:
                 logger.exception("Watchdog itself failed")
 
