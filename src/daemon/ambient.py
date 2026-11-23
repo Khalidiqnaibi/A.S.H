@@ -1402,8 +1402,12 @@ class AmbientRuntime:
         qu = getattr(self, "_quiet_until", None)
         if qu is not None and now >= qu:
             self._quiet_until = None
-            self.gate.mute(False)               # "quiet till 9" ended: back, without announcing it
-            logger.info("Quiet time is over; unmuted")
+            if self.gate.mute_epoch != getattr(self, "_quiet_epoch", self.gate.mute_epoch):
+                # Muted again since (a console Mute, 'go to sleep'): that one has no timer, and the hour running out must not undo it.
+                logger.info("Quiet time is over; staying muted (muted again since it began)")
+            else:
+                self.gate.mute(False)           # "quiet till 9" ended: back, without announcing it
+                logger.info("Quiet time is over; unmuted")
         try:
             if self.reactions is not None:
                 self.reactions.expire(now)
@@ -1793,6 +1797,7 @@ class AmbientRuntime:
         if scene.quiet_min > 0:
             self.gate.mute(True)
             self._quiet_until = now + scene.quiet_min * 60.0
+            self._quiet_epoch = self.gate.mute_epoch
             done.append(f"quiet for {int(scene.quiet_min)} minutes")
         if scene.face:
             self._scene_face(scene.face)
@@ -4866,6 +4871,7 @@ class AmbientRuntime:
             until, phrase = timed
             self.gate.mute(True)
             self._quiet_until = until
+            self._quiet_epoch = self.gate.mute_epoch
             return self._control_say(ev, f"Okay, quiet until {phrase}. I'll answer if you ask me something, "
                                          "and I'll be back on my own then.")
         cmd = voicectl.parse(text)

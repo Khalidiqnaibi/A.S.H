@@ -123,6 +123,7 @@ class AttentionGate:
         self._last_response: float = 0.0
         self._unsolicited: Deque[float] = deque(maxlen=64)
         self.muted = False
+        self.mute_epoch = 0          # how many times it has been muted: a timer can tell if someone muted it again since
 
         # Counters for the status endpoint.
         self.counts = {d.value: 0 for d in Disposition}
@@ -317,6 +318,8 @@ class AttentionGate:
 
     def mute(self, on: bool = True):
         self.muted = on
+        if on:
+            self.mute_epoch += 1
         logger.info("Attention gate %s", "MUTED" if on else "unmuted")
 
     def status(self) -> Dict[str, Any]:

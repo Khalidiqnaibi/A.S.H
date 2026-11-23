@@ -236,6 +236,12 @@ def s7():
     rt.say("quiet for an hour")
     rt.say("wake up")
     check("'wake up' ends it and forgets the timer", rt.gate.muted is False and rt._quiet_until is None)
+    rt.say("wake up")
+    rt.say("quiet for an hour")
+    rt.say("go to sleep")                       # muted again, with no timer of its own
+    rt.t[0] += 3700
+    rt._tick()
+    check("the hour running out does not undo a mute set since (it silently unmuted)", rt.gate.muted is True)
     rt.say("be quiet till 9")
     rt.say("quiet mode")
     check("an untimed 'quiet mode' still works", rt.gate.muted is True)
