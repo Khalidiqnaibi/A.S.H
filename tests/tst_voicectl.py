@@ -270,9 +270,15 @@ def v4_shutdown():
     rt.say("yes")
     check("anything else in between: the question is dropped", asked == [1])
     rt.say("shut down")
-    rt.t[0] += 60
+    rt.t[0] += 42
+    rt.say("ye'")
+    check("a 'ye' 42 seconds later (with a stray apostrophe) still confirms: the window is 90 s", asked == [1, 1], str(asked))
+    asked.clear()
+    asked.append(1)
+    rt.say("shut down")
+    rt.t[0] += 120
     rt.say("yes")
-    check("a yes too late: not shut down", asked == [1])
+    check("a yes too late: not shut down", asked == [1], str(asked))
     rt.say("shut down")
     rt.say("yes", addressed=False)
     check("an overheard yes: not shut down", asked == [1])

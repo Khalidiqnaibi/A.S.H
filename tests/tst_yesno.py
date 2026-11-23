@@ -26,7 +26,7 @@ def y1_words():
     for t in ("yes", "Yes!", "ye", "yea", "yeah", "yeh", "yep", "yup", "ya", "y", "yess", "yesss", "yeahh", "okay", "ok", "okey", "k", "kk",
               "sure", "sure thing", "alright", "alright then", "fine", "do it", "go ahead", "please", "yes please", "of course", "why not",
               "absolutely", "definitely", "confirm", "confirmed", "affirmative", "mhm", "uh huh", "yes, shut it down", "okay do it",
-              "yeah go ahead", "yes yes", "sure, why not", "Ash, yes", "proceed", "yeaah", "yeah sure", "yes ash"):
+              "ye'", "yes'", "'yeah'", "yeah go ahead", "yes yes", "sure, why not", "Ash, yes", "proceed", "yeaah", "yeah sure", "yes ash"):
         check(f"yes: {t!r}", is_yes(t))
     for t in ("no", "No.", "n", "nope", "nah", "nay", "negative", "cancel", "stop", "don't", "dont", "wait", "never mind", "nevermind",
               "no thanks", "not now", "not yet", "leave it", "forget it", "abort", "no no", "noo", "hold on", "nope not now"):

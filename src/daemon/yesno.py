@@ -40,6 +40,7 @@ _FILLER = {"then", "please", "thanks", "thank", "you", "do", "it", "go", "ahead"
 def _norm(text: str) -> str:
     t = str(text or "").lower().replace("’", "'")
     t = re.sub(r"[^a-z' ]+", " ", t)
+    t = re.sub(r"(?<![a-z])'+|'+(?![a-z])", "", t)             # a stray apostrophe at a word's edge ("ye'" for "ye") is not part of it
     t = re.sub(r"(.)\1{2,}", r"\1\1", t)                      # yesssss -> yess
     return re.sub(r"\s+", " ", t).strip()
 

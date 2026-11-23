@@ -4909,8 +4909,10 @@ class AmbientRuntime:
         if self._asks_feelings(text):
             return False                       # "what's your emotional status" is how ASH feels, not the CPU and battery
         pend = getattr(self, "_shutdown_asked", None)
-        if pend is not None and now - pend > 30.0:
-            self._shutdown_asked = pend = None                      # too late to say yes
+        if pend is not None and now - pend > 90.0:
+            # Too late to say yes. It was 30 s, shorter than the 45 s follow-up window around any other question: a 'ye' 42 seconds later
+            # went to the model.
+            self._shutdown_asked = pend = None
         elif pend is not None and not self._meant_for_ash(ev):
             pend = None            # a line from the room in between (a TV, a classmate) neither confirms nor cancels it
         if pend is not None:
