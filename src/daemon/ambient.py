@@ -1421,6 +1421,12 @@ class AmbientRuntime:
             except Exception:
                 logger.exception("Resource governor failed")
         self._unload_when_idle(now)
+        asked = getattr(self, "_shutdown_asked", None)
+        if asked is not None and not getattr(self, "_shutdown_nudged", False) and 20.0 <= now - asked <= 90.0:
+            # "Shut ASH down completely? Say yes" went unanswered for 42 s and then 'ye' went to the model: one reminder at 20 s.
+            self._shutdown_nudged = True
+            self._speech_say("Still want me to shut down? Say yes, or ignore me and I'll stay.", "control")
+            address.conversation.note_ash_spoke(self.clock(), asked=True)       # a spoken "yes" answers it
         if now - getattr(self, "_others_at", 0.0) >= 60.0:
             self._others_at = now
             self._known_others()
@@ -5098,6 +5104,7 @@ class AmbientRuntime:
             say = "I'm back."
         elif name == "shutdown":
             self._shutdown_asked = now
+            self._shutdown_nudged = False
             say = "Shut ASH down completely? Say yes to confirm."
         elif name == "face":
             face = getattr(self, "face", None)

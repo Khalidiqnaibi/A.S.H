@@ -424,7 +424,7 @@ def main() -> int:
                            **{k: v for k, v in (cfg.get("facts") or {}).items() if k != "enabled"}},
                 weekly=bool(cfg.get("weekly", {}).get("enabled", True)),
                 weekly_path=os.path.join(os.getcwd(), "state", "weekly.json"),
-                weekly_day=str(cfg.get("weekly", {}).get("day", "sunday")),
+                weekly_day=str(cfg.get("weekly", {}).get("day", "friday")),
                 email=bool(cfg.get("email", {}).get("enabled", True)),
                 email_cfg=cfg.get("email", {}),
                 weather=bool(cfg.get("weather", {}).get("enabled", True)),

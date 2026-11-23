@@ -270,7 +270,14 @@ def v4_shutdown():
     rt.say("yes")
     check("anything else in between: the question is dropped", asked == [1])
     rt.say("shut down")
-    rt.t[0] += 42
+    rt.t[0] += 25
+    n_out = len(rt.out)
+    rt._tick()
+    check("unanswered for 20 s: ONE reminder", any("Still want me to shut down" in o for o in rt.out[n_out:]), str(rt.out[n_out:]))
+    n_out = len(rt.out)
+    rt._tick()
+    check("...not on every tick", not any("Still want me" in o for o in rt.out[n_out:]))
+    rt.t[0] += 17
     rt.say("ye'")
     check("a 'ye' 42 seconds later (with a stray apostrophe) still confirms: the window is 90 s", asked == [1, 1], str(asked))
     asked.clear()

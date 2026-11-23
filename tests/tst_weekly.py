@@ -172,6 +172,8 @@ def w5_runtime():
     check("answered without the model", "Omar came up most." in out[-1] and
           ash.calls == ["I had lunch with Omar today", "tomorrow I see Omar again at the office"], str(out[-1:]))
     check("status", rt.status()["weekly"]["day"] == "sunday")
+    from src.daemon.service import DEFAULT_CONFIG
+    check("shipped, the review comes with Friday evening's briefing (the end of the working week), not Sunday's", DEFAULT_CONFIG["weekly"]["day"] == "friday")
     import json
     check("saved on a tick", json.load(open(os.path.join(dd, "weekly.json")))["people"][d(0)]["Omar"] == 2)
 

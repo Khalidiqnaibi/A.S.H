@@ -346,7 +346,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # and when asked. Nothing happens until an IMAP account is set; use an
     # app password. Bodies are never read, nothing is marked read or sent.
     # "How was my week?" -- and in the evening briefing on this day ("" for never).
-    "weekly": {"enabled": True, "day": "sunday"},
+    "weekly": {"enabled": True, "day": "friday"},     # the week's review ("this week: 9 hours on A.S.H ...") in Friday evening's briefing
     # Tells you about unexpected shutdowns (Windows event log), in the briefing
     # or when asked "did my computer crash?".
     "crashes": {"enabled": True},
