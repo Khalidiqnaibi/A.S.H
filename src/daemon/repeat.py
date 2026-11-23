@@ -37,6 +37,20 @@ def _words(s: str) -> tuple:
     return tuple(w for w in re.findall(r"[a-z0-9']+", (s or "").lower()) if w not in _STOP)
 
 
+def _same_question(a: tuple, b: tuple) -> bool:
+    """Were the two lines that drew the answers (nearly) the same question? An unknown question (a rule's line, an older entry) is the same as
+    any: the guard behaves as it did. Different questions may have the same answer -- "That's what I just said." in reply to a question
+    nobody had asked before was wrong twice on 22 Nov."""
+    if not a or not b:
+        return True
+    sa, sb = set(a), set(b)
+    if sa == sb:
+        return True
+    jac = len(sa & sb) / max(1, len(sa | sb))
+    # Two content words in common is the same thread ("why didn't you do it" / "but I did order you to do it, why not").
+    return jac >= 0.5 or len(sa & sb) >= 2 or SequenceMatcher(None, a, b).ratio() >= 0.6
+
+
 def _same(a: tuple, b: tuple) -> bool:
     """Same sentence, allowing for a word or two. In order: "the microphone is
     off and the camera is on" is not "the camera is off and the microphone is
@@ -49,20 +63,20 @@ def _same(a: tuple, b: tuple) -> bool:
 class RepeatGuard:
     def __init__(self, clock: Callable[[], float] = time.time):
         self.clock = clock
-        self._said: Deque[Tuple[float, tuple]] = deque(maxlen=KEEP)
+        self._said: Deque[Tuple[float, tuple, tuple]] = deque(maxlen=KEEP)      # (when, the sentence's words, the question's words)
         self.stats = {"trimmed": 0, "replaced": 0}
 
-    def _recent(self, now: float) -> List[tuple]:
-        return [w for t, w in self._said if now - t <= WINDOW_S]
+    def _recent(self, now: float, question: tuple = ()) -> List[tuple]:
+        return [w for t, w, q in self._said if now - t <= WINDOW_S and _same_question(q, question)]
 
-    def check(self, text: str, now: Optional[float] = None) -> str:
-        """`text` without the sentences ASH already said lately; remembers
-        what is left."""
+    def check(self, text: str, now: Optional[float] = None, question: str = "") -> str:
+        """`text` without the sentences ASH already said lately -- in answer to the same question; remembers what is left."""
         now = self.clock() if now is None else now
         sents = [s.strip() for s in _SENT.split((text or "").strip()) if s.strip()]
         if not sents:
             return text
-        recent = self._recent(now)
+        qw = _words(question)
+        recent = self._recent(now, qw)
         fresh, dropped = [], 0
         seen_here: List[tuple] = []                  # one answer saying the same sentence three times (a small model stuck in a loop)
         for s in sents:
@@ -74,16 +88,16 @@ class RepeatGuard:
                 seen_here.append(w)
         if not dropped:
             for s in sents:
-                self._said.append((now, _words(s)))
+                self._said.append((now, _words(s), qw))
             return text
         if not fresh:
-            if not any(now - t <= RECENT_S and _same(_words(s), w) for s in sents for t, w in self._said):
+            if not any(now - t <= RECENT_S and _same(_words(s), w) and _same_question(q, qw) for s in sents for t, w, q in self._said):
                 return text           # said ten minutes ago, asked again now: an answer, not a stutter
             self.stats["replaced"] += 1
             return NOTHING_NEW
         self.stats["trimmed"] += dropped
         for s in fresh:
-            self._said.append((now, _words(s)))
+            self._said.append((now, _words(s), qw))
         return " ".join(fresh)
 
     def note(self, text: str, now: Optional[float] = None):
@@ -93,4 +107,4 @@ class RepeatGuard:
         now = self.clock() if now is None else now
         for s in _SENT.split((text or "").strip()):
             if s.strip():
-                self._said.append((now, _words(s)))
+                self._said.append((now, _words(s), ()))

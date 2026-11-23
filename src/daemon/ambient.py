@@ -984,7 +984,8 @@ class AmbientRuntime:
             try:
                 if (meta.get("addressed") and str(meta.get("pathway", "")).lower() == "slow"
                         and not meta.get("degraded")):
-                    text = self.repeat.check(text)          # the model is not to say it twice
+                    # The model is not to say it twice -- to the same question. What was just asked is the user's last line.
+                    text = self.repeat.check(text, question=str(self._recent_user[-1]) if self._recent_user else "")
                 else:
                     self.repeat.note(text)                  # a rule's line: said, but never trimmed
             except Exception:

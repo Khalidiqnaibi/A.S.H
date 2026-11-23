@@ -62,6 +62,24 @@ def t1_transcripts():
     check("each phrase read on its own", got.get("condition_on_previous_text") is False)
 
 
+def t2b_repeat_other_question():
+    print("\n=== T2b. The same answer to a different question is an answer ===")
+    from src.daemon.repeat import NOTHING_NEW, RepeatGuard
+    g = RepeatGuard(clock=lambda: 0)
+    a = "The microphone is off, so I can't hear anything right now."
+    check("the first time, said as is", g.check(a, question="can you hear me") == a)
+    check("to the same question, a few seconds on: 'That's what I just said.'", g.check(a, question="can you hear me ash") == NOTHING_NEW)
+    check("to a DIFFERENT question, it is an answer and is said (it replaced answers 'twice' on 22 Nov)",
+          g.check(a, question="why is the camera not working") == a)
+    g2 = RepeatGuard(clock=lambda: 0)
+    g2.note("Going quiet, I won't bring anything up until you say wake up.")
+    check("a rule's line, with no question behind it, counts for any question",
+          g2.check("Going quiet, I won't bring anything up until you say wake up.", question="what are you doing") == NOTHING_NEW)
+    g3 = RepeatGuard(clock=lambda: 0)
+    g3.check(a, question="can you hear me")
+    check("no question known: it behaves as before", g3.check(a) == NOTHING_NEW)
+
+
 def t2_repeat():
     print("\n=== T2. Not twice ===")
     from src.daemon.repeat import NOTHING_NEW, RepeatGuard
@@ -321,7 +339,7 @@ def t5_crashes():
 
 
 if __name__ == "__main__":
-    for fn in (t1_transcripts, t2_repeat, t3_overtaken, t3b_repeat_runtime, t4_shared_model, t5_crashes):
+    for fn in (t1_transcripts, t2_repeat, t2b_repeat_other_question, t3_overtaken, t3b_repeat_runtime, t4_shared_model, t5_crashes):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)
