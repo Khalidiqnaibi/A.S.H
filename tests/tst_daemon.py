@@ -937,6 +937,20 @@ def main():
           0 < rep.get("blocks", 0) <= 4 and len(epi.episodes) == rep["blocks"],
           f"{rep.get('events')} events -> {rep.get('blocks')} blocks")
     check("rollup is idempotent", j.rollup(day=day, episodic=epi).get("skipped") is not None)
+    # A day is only done once something was kept: with no episodic store (or every write failing) the marker used to be written
+    # anyway, the day was skipped for good, and its raw file was swept a week later.
+    j2_dir = os.path.join(tempfile.mkdtemp(), "j2")
+    for label, store in (("no episodic store", None), ("every write failing", type("Bad", (), {"add_episode": lambda self, **k: 1 / 0})())):
+        import shutil
+        shutil.rmtree(j2_dir, ignore_errors=True)
+        shutil.copytree(j.dir, j2_dir)
+        for m in [f for f in os.listdir(j2_dir) if f.endswith(".rolled")]:
+            os.remove(os.path.join(j2_dir, m))
+        jj = Journal(j2_dir)
+        rep2 = jj.rollup(day=day, episodic=store)
+        check(f"{label}: the day is not marked done", not os.path.exists(os.path.join(j2_dir, f".{day}.rolled")) and rep2.get("skipped"), str(rep2.get("skipped")))
+        rep3 = jj.rollup(day=day, episodic=StubEpisodic())
+        check(f"...and is rolled up when a store is there ({label})", rep3.get("episodes_written", 0) > 0, str(rep3.get("skipped") or rep3.get("episodes_written")))
     if epi.episodes:
         print(f"     e.g. {epi.episodes[0][:110]}")
 

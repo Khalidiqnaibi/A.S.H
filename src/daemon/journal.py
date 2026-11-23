@@ -251,6 +251,12 @@ class Journal:
                 except Exception:
                     logger.exception("Failed to write rollup episode")
 
+        if summaries and written == 0:
+            # Nothing reached episodic memory (no store, or every write failed): the day is NOT done. The marker said it was, so the
+            # day was skipped for good and its raw file swept a week later with nothing kept.
+            logger.warning("Journal rollup %s: %d block(s) but none written to episodic memory; will try again", day, len(summaries))
+            return {"day": day, "events": len(rows), "blocks": len(summaries), "episodes_written": 0,
+                    "skipped": "nothing could be written", "summaries": [s["summary"] for s in summaries]}
         try:
             with open(marker, "w", encoding="utf-8") as fh:
                 fh.write(json.dumps({"rolled_at": time.time(), "blocks": len(summaries)}))
