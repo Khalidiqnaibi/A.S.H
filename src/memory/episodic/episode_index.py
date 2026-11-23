@@ -39,17 +39,29 @@ class EpisodeIndex:
         self.vectors = np.array(vecs)   
 
     def append_single(self, episode):
-        self.episodes.append(episode)
         if self.embedder is None:
+            self.episodes.append(episode)
             return
-        # Encode only the *one* new sentence
-        new_vec = self.embedder.encode([episode.summary]) 
-        
-        if self.vectors is None:
+        # Encode only the *one* new sentence -- BEFORE the episode joins the list. The episode was appended first, and an embedder
+        # that raised left `episodes` one longer than `vectors`: every search after that returned the wrong episode for each hit.
+        try:
+            new_vec = np.atleast_2d(np.array(self.embedder.encode([episode.summary])))
+        except Exception:
+            logger.warning("EpisodeIndex: could not embed a new episode; it is kept but not searchable until the next rebuild",
+                           exc_info=True)
+            return
+        if self.vectors is None and not self.episodes:
+            self.episodes.append(episode)
             self.vectors = new_vec
-        else:
-            # Concatenate it to the bottom of your existing matrix
-            self.vectors = np.vstack([self.vectors, new_vec]) 
+            return
+        if self.vectors is None or len(self.vectors) != len(self.episodes):
+            # Nothing indexed yet (or the two were already out of step): index them all again, with this one.
+            self.episodes.append(episode)
+            self.rebuild(self.episodes)
+            return
+        self.episodes.append(episode)
+        # Concatenate it to the bottom of your existing matrix
+        self.vectors = np.vstack([self.vectors, new_vec])
 
     def search(self, query: str, top_k=5):
         if self.vectors is None or self.embedder is None:
