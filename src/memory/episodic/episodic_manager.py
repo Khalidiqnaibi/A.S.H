@@ -34,10 +34,10 @@ class EpisodicMemory:
             importance=importance,
             concepts=concepts,
         )
-        self.store.add(ep)
-        
-        # Fast path: incremental update in RAM instead of full file re-encoding!
-        self.index.append_single(ep) 
+        with self.store.lock:                     # the same lock prune() holds: the store and the index change together
+            self.store.add(ep)
+            # Fast path: incremental update in RAM instead of full file re-encoding!
+            self.index.append_single(ep)
         return ep
 
     # ---------------------
@@ -69,26 +69,27 @@ class EpisodicMemory:
     def forget_since(self, t: float) -> int:
         """Remove every episode laid down at or after `t` (a turn the user cancelled: it must leave no trace). The file is
         rewritten and the search index loses just those rows -- nothing is re-encoded. Returns how many went."""
-        gone = [eid for eid, ep in self.store.episodes.items() if ep.timestamp >= t]
-        if not gone:
-            return 0
-        goneset = set(gone)
-        for eid in gone:
-            del self.store.episodes[eid]
-        self.store._save_all()
-        idx = self.index
-        keep = [i for i, ep in enumerate(idx.episodes) if ep.episode_id not in goneset]
-        if len(keep) != len(idx.episodes):
-            if idx.vectors is not None and len(idx.vectors) == len(idx.episodes):
-                idx.vectors = idx.vectors[keep] if keep else None
-            idx.episodes = [idx.episodes[i] for i in keep]
-        return len(gone)
+        with self.store.lock:
+            gone = [eid for eid, ep in list(self.store.episodes.items()) if ep.timestamp >= t]
+            if not gone:
+                return 0
+            goneset = set(gone)
+            for eid in gone:
+                del self.store.episodes[eid]
+            self.store._save_all()
+            idx = self.index
+            keep = [i for i, ep in enumerate(idx.episodes) if ep.episode_id not in goneset]
+            if len(keep) != len(idx.episodes):
+                if idx.vectors is not None and len(idx.vectors) == len(idx.episodes):
+                    idx.vectors = idx.vectors[keep] if keep else None
+                idx.episodes = [idx.episodes[i] for i in keep]
+            return len(gone)
 
     # ---------------------
     # Prune (maintenance-phase only)
     # ---------------------
 
-    def prune(self, min_age_seconds: float = 7 * 86400) -> int:
+    def prune(self, min_age_seconds: float = 7 * 86400, keep_importance: float = 0.7) -> int:
         """
         Drop episodes that are both old (created >= min_age_seconds
         ago) AND never retrieved (access_count == 0). An episode
@@ -107,24 +108,26 @@ class EpisodicMemory:
         Returns the number of episodes pruned.
         """
         now = time.time()
-        survivors = {}
         pruned_count = 0
 
-        for eid, ep in self.store.episodes.items():
-            age = now - ep.timestamp
-            never_used = ep.access_count == 0
+        # Under the store's lock for the whole of it: the daemon loop adds episodes while this runs on the maintenance thread. An episode
+        # added mid-prune used to be missing from the survivors (gone from RAM and from the rewritten file) and the iteration could raise.
+        # And importance is read now: journal.py says importance drives whether an episode survives pruning, but a 0.95 alert or something
+        # the user said was dropped like any other if it had never been retrieved.
+        with self.store.lock:
+            survivors = {}
+            for eid, ep in list(self.store.episodes.items()):
+                age = now - ep.timestamp
+                never_used = ep.access_count == 0
+                if age >= min_age_seconds and never_used and float(getattr(ep, "importance", 0.0) or 0.0) < keep_importance:
+                    pruned_count += 1
+                    continue  # drop it
+                survivors[eid] = ep
 
-            if age >= min_age_seconds and never_used:
-                pruned_count += 1
-                continue  # drop it
-            survivors[eid] = ep
-
-        self.store.episodes = survivors
-        self.store._save_all()  # full rewrite: removing rows requires it,
-                                 # and this is also where any in-RAM-only
-                                 # access_count/last_accessed bumps from
-                                 # mark_accessed() finally hit disk.
-        self._rebuild_index()   # index must be rebuilt after pruning
+            self.store.episodes = survivors
+            self.store._save_all()  # full rewrite: removing rows requires it, and this is also where any in-RAM-only
+                                    # access_count/last_accessed bumps from mark_accessed() finally hit disk.
+            self._rebuild_index()   # index must be rebuilt after pruning
 
         if pruned_count:
             logger.info("Pruned %d unused episode(s) older than %.0fs", pruned_count, min_age_seconds)

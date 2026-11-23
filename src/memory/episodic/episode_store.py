@@ -3,6 +3,7 @@
 from dataclasses import asdict, fields
 import json
 import os
+import threading
 
 from ..paths import memory_file
 from typing import Dict, List
@@ -29,6 +30,10 @@ class EpisodeStore:
     def __init__(self, path=None):
         self.path = memory_file("episodic_memory.jsonl", path)
         self.episodes: Dict[str, Episode] = {}
+        # One lock for everything that changes the set of episodes or rewrites the file: the daemon loop adds episodes while the maintenance
+        # thread prunes. Without it an episode added mid-prune was missing from the survivors (gone from RAM and from the rewritten file), the
+        # iteration could raise "dict changed size", and an append landing between the temp write and the replace was lost.
+        self.lock = threading.RLock()
         self._load()
 
     def _load(self):
@@ -85,12 +90,17 @@ class EpisodeStore:
         from ..atomic import write_with
 
         def _rows(f):
-            for ep in self.episodes.values():
+            for ep in list(self.episodes.values()):
                 f.write(json.dumps(asdict(ep)) + "\n")
-        write_with(self.path, _rows, "w")          # temp + fsync + replace
+        with self.lock:
+            write_with(self.path, _rows, "w")          # temp + fsync + replace
 
     def add(self, episode: Episode):
         """O(1): append one line, no full re-read/re-write."""
+        with self.lock:
+            self._append(episode)
+
+    def _append(self, episode: Episode):
         self.episodes[episode.episode_id] = episode
         try:
             lead = ""
@@ -117,8 +127,11 @@ class EpisodeStore:
         Trade-off: an access bump can be lost on a crash before the
         next sweep -- acceptable, since access_count is a pruning
         heuristic, not state anything depends on being exact."""
-        for ep in episodes:
-            self.episodes[ep.episode_id] = ep
+        with self.lock:
+            for ep in episodes:
+                if ep.episode_id in self.episodes:        # one pruned since it was retrieved is not brought back
+                    self.episodes[ep.episode_id] = ep
 
     def all(self) -> List[Episode]:
-        return list(self.episodes.values())
+        with self.lock:
+            return list(self.episodes.values())
