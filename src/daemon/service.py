@@ -805,6 +805,10 @@ class ControlServer:
                 gone = t.forget(what[len("forget"):].strip())
                 return {"ok": True, "report": f"forgot {gone} taste(s)"}
             return {"ok": True, "report": t.report(), "status": t.status()}
+        if cmd == "unrouted":
+            # What reached the language model and why; the repeated lines are the next things to answer without it.
+            emb = getattr(getattr(rt, "cfg", None), "chooser_embed", None)
+            return {"ok": True, "report": rt.unrouted.report(emb), "status": rt.unrouted.status()}
         if cmd == "shutdown":
             # The daemon's own single shutdown does the stopping (what "shut down" said to ASH does too). Starting rt.stop here as
             # well ran it twice, at once: the loop in ashd.py leaves as soon as the ambient thread ends inside the first stop(), and
@@ -818,7 +822,7 @@ class ControlServer:
         return {"ok": False, "error": f"unknown command {cmd!r}",
                 "commands": ["status", "pause", "resume", "mute", "unmute", "say",
                              "why", "history", "sleep", "rollup", "sensors", "hud", "face", "wonders", "wonder", "activity", "profile", "game", "vision", "asks", "followups", "corrections", "routines", "briefing", "watches", "review",
-                             "enable", "disable", "simulate", "shutdown"]}
+                             "enable", "disable", "simulate", "unrouted", "shutdown"]}
 
     # ------------------------------------------------------------------
     def _wonders(self, arg: str) -> Dict[str, Any]:

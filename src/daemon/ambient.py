@@ -352,6 +352,7 @@ class AmbientConfig:
     reminders: bool = False
     reminders_path: Optional[str] = None     # state/reminders.json
     focus_path: Optional[str] = None         # state/focus.json: a focus still running survives a restart
+    unrouted_path: Optional[str] = None      # state/unrouted.jsonl: the lines that reached the language model, and why (unrouted.py)
     # Play (play.py): quick games on request, and at a free moment ASH may
     # say it is bored, or offer an evening story. Off on a bare runtime.
     play: bool = False
@@ -607,6 +608,8 @@ class AmbientRuntime:
             mic = self.periphery.sensors.get("microphone")
             if mic is not None and hasattr(mic, "voiceprint"):
                 mic.voiceprint = True
+        from .unrouted import Unrouted
+        self.unrouted = Unrouted(self.cfg.unrouted_path, clock=lambda: self.clock(), scrub=self.privacy.scrub)
         self.reminders: Optional[Reminders] = None
         self._reminder_pending: List[str] = []
         if self.cfg.reminders:
@@ -3816,6 +3819,7 @@ class AmbientRuntime:
         else:
             self._last_why = {"kind": "answered"}
         meta = {"addressed": True, "source": "wonder", "attention": None, "pathway": "wonder", "outcome": outcome}
+        self.unrouted.answered_elsewhere()                 # a rule, a tool or memory answered: counts toward the share the model did not
         if outcome == "play" and self.cfg.game_voice:
             meta["voice"] = self.cfg.game_voice          # games in a character voice
         try:
@@ -4468,6 +4472,7 @@ class AmbientRuntime:
                         if tc:
                             context = (context + "\n" + tc).strip()
                     cue = self._thinking_cue(to_ash)
+                    t_model = time.time()
                     try:
                         with self._model_route(prompt, image is not None, bool(context.strip())):
                             response = self.ash.think(prompt, image=image, context=context)
@@ -4477,6 +4482,13 @@ class AmbientRuntime:
                 self._last_tool_used = str(getattr(response, "tool_used", None) or "")
                 text = clip_reply(response.text, self.cfg.max_response_chars)
                 pathway = response.pathway.value
+                if to_ash and self._user_source(ev):
+                    from .unrouted import reason_of
+                    if pathway in ("slow", "escalated"):
+                        self.unrouted.model_turn(prompt, reason_of(response), time.time() - t_model, bool(self._last_tool_used),
+                                                 guest=bool(meta.get("guest")))
+                    else:
+                        self.unrouted.answered_elsewhere()
                 if to_ash:
                     self._after_answer(prompt, response)
             except Exception:
@@ -5429,6 +5441,7 @@ class AmbientRuntime:
             "wondering": self.wonder.status() if self.wonder else None,
             "activity": self.activity.status() if self.activity else None,
             "taste": self.taste.status() if self.taste else None,
+            "unrouted": self.unrouted.status(),
             "game_mode": self.game.status() if self.game else None,
             "browsing": (lambda sn: sn.status() if sn is not None else None)(self.browsing._s()),
             "vision": ({**self.looking.status(), "presence_stuck": self.presence_stuck} if self.looking is not None else None),

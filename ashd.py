@@ -437,6 +437,7 @@ def main() -> int:
                 reminders=bool(cfg.get("reminders", {}).get("enabled", True)),
                 reminders_path=os.path.join(os.getcwd(), "state", "reminders.json"),
                 focus_path=os.path.join(os.getcwd(), "state", "focus.json"),
+                unrouted_path=os.path.join(os.getcwd(), "state", "unrouted.jsonl"),
                 smarthome=bool(cfg.get("smarthome", {}).get("enabled", True)),
                 smarthome_cfg=cfg.get("smarthome", {}),
                 timetable=bool(cfg.get("timetable", {}).get("enabled", True)),
