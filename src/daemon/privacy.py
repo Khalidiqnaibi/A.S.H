@@ -140,9 +140,12 @@ class PrivacyPolicy:
         now = time.time()
 
         def _purge(d: str, days: float, key: str, suffixes: tuple):
-            if not os.path.isdir(d) or days <= 0:
+            if not os.path.isdir(d):
                 return
-            cutoff = now - days * 86400
+            # 0 = do not keep at all (the policy's own words). It used to mean "never delete": `days <= 0` returned before touching
+            # anything, so a person who set raw_journal_days to 0 kept everything. Files from the last hour are left (the journal being
+            # written now is one of them); everything older goes.
+            cutoff = now - (days * 86400 if days > 0 else 3600)
             for f in os.listdir(d):
                 if not f.endswith(suffixes):
                     continue
