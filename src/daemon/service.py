@@ -220,6 +220,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     # Game mode: a game up (a known one, or any program that fills the screen) and ASH gets out of its way -- idle
     # priority, screen sensor and mic paused, vision and language models released -- and everything comes back after.
+    # Step aside when the MACHINE is struggling (memory over ~88% for two minutes, or the CPU pinned): the game-mode machinery without the
+    # microphone. It comes back after a few calm minutes.
+    "governor": {"enabled": True, "memory_high": 88.0, "memory_low": 75.0, "cpu_high": 97.0, "cpu_low": 75.0, "memory_for_s": 120.0,
+                 "cpu_for_s": 240.0, "calm_for_s": 180.0},
     "game_mode": {"enabled": True, "enter_after_s": 8.0, "leave_after_s": 45.0, "lower_priority": True,
                   "pause_screen": True, "pause_mic": True, "free_model": True, "fullscreen_counts": True},
     # Taste: what the user, and the people they talk about, like and dislike

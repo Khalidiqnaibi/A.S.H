@@ -405,6 +405,8 @@ def main() -> int:
                 taste_cfg=cfg.get("taste", {}),
                 game_mode=bool(cfg.get("game_mode", {}).get("enabled", True)),
                 game_cfg=cfg.get("game_mode", {}),
+                governor=bool(cfg.get("governor", {}).get("enabled", True)),
+                governor_cfg=cfg.get("governor", {}),
                 corrections=bool(cfg.get("corrections", {}).get("enabled", True)),
                 remarks_dir=(os.path.join(os.getcwd(), "state", "remarks")
                              if cfg.get("remarks", {}).get("enabled", True) else None),

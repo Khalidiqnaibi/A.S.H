@@ -131,6 +131,10 @@ class GameMode:
         self._last_scan = -1e9
         self._running: List[str] = []
         self.stats = {"entered": 0, "left": 0}
+        self.squeezes = 0
+        self.squeezed = False               # stepping aside because the MACHINE is struggling (governor.py), not for a game
+        self.squeeze_why = ""
+        self.squeeze_since = 0.0
         self._lock = threading.Lock()
 
     # -- looking ------------------------------------------------------------------------------------
@@ -178,6 +182,12 @@ class GameMode:
         self.active = False
         self.stats["left"] += 1
         logger.warning("Game mode off after %.0f minutes", (now - self.since) / 60.0)
+        if self.squeezed:
+            # The machine is still struggling: only what the game took beyond that comes back (the microphone), and ASH stays out of the way.
+            self._resume_sensors()
+            self._pause_sensors(mic=False)
+            self.why, self._seen_since = "", 0.0
+            return
         if self.cfg.lower_priority:
             self._safely(self._priority, False)
         self._resume_sensors()
@@ -185,12 +195,50 @@ class GameMode:
             threading.Thread(target=self._safely, args=(self._restore,), daemon=True, name="ash-wake").start()
         self.why, self._seen_since = "", 0.0
 
-    def _pause_sensors(self):
+    # -- resource pressure (the same machinery, for the machine's sake, with the microphone left on) ---------------
+    def squeeze(self, why: str, now: Optional[float] = None) -> bool:
+        """Memory nearly gone or the CPU saturated: lower ASH's own priority, pause screen reading, let go of the vision model and tell Ollama to
+        unload. The microphone stays on -- the person is still talking to it. False if it was already stepping aside (a game is up)."""
+        now = self.clock() if now is None else now
+        with self._lock:
+            if self.squeezed:
+                return False
+            self.squeezed, self.squeeze_why, self.squeeze_since = True, why, now
+            self.squeezes += 1
+            c = self.cfg
+            if self.active:
+                return True                 # a game already did all of it; it just must not be undone when the game ends
+            if c.lower_priority:
+                self._safely(self._priority, True)
+            if c.pause_screen:
+                self._pause_sensors(mic=False)
+                if self._release is not None:
+                    self._safely(self._release)
+            if c.free_model:
+                threading.Thread(target=self._safely, args=(self._unload,), daemon=True, name="ash-unload").start()
+        return True
+
+    def relax(self, now: Optional[float] = None) -> bool:
+        """The machine has been calm for a while: everything comes back (unless a game is up, which owns that now)."""
+        with self._lock:
+            if not self.squeezed:
+                return False
+            self.squeezed, self.squeeze_why = False, ""
+            if self.active:
+                return True
+            if self.cfg.lower_priority:
+                self._safely(self._priority, False)
+            self._resume_sensors()
+            if self._restore is not None:
+                threading.Thread(target=self._safely, args=(self._restore,), daemon=True, name="ash-wake").start()
+        return True
+
+    def _pause_sensors(self, mic: Optional[bool] = None):
         sensors = getattr(self.periphery, "sensors", None) or {}
         names = []
         if self.cfg.pause_screen:
             names.append("screenshot")
-        if self.cfg.pause_mic:
+        if (self.cfg.pause_mic if mic is None else mic):
             names.append("microphone")
         for n in names:
             s = sensors.get(n)
@@ -238,7 +286,7 @@ class GameMode:
 
     # -- saying ---------------------------------------------------------------------------------------
     def status(self) -> Dict[str, Any]:
-        return {"enabled": self.cfg.enabled, "active": self.active, "why": self.why,
+        return {"enabled": self.cfg.enabled, "active": self.active, "why": self.why, "squeezed": self.squeezed,
                 "since": round(self.since, 1) if self.active else None, "paused": list(self.paused),
                 "running": list(self._running), **self.stats}
 

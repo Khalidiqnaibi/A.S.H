@@ -220,6 +220,8 @@ class AmbientConfig:
     # language models, and keeps quiet (gamemode.py). On in the daemon; a bare test runtime leaves it off.
     game_mode: bool = False
     game_cfg: Optional[Dict[str, Any]] = None
+    governor: bool = False                   # step aside when memory is nearly gone or the CPU is pinned (governor.py); needs game_mode
+    governor_cfg: Optional[Dict[str, Any]] = None
     # Follow-ups: an event the user mentions ("my interview on Thursday") is
     # asked about after it happened, at a free moment (followups.py). Needs
     # moments to be asked. Off on a bare runtime; the daemon turns it on.
@@ -542,6 +544,9 @@ class AmbientRuntime:
                                  periphery=self.periphery, release=self._release_models, restore=self._wake_models,
                                  unload_model=self._unload_model, held=lambda: self.privacy.paused,
                                  on_held=lambda n: self._privacy_held.append(n) if n not in self._privacy_held else None)
+        from .governor import Governor, GovernorConfig
+        self.governor: Optional[Governor] = (Governor(self.game, GovernorConfig.from_dict(self.cfg.governor_cfg), clock=lambda: self.clock())
+                                             if (self.cfg.governor and self.game is not None) else None)
         # What the now-playing sensor last reported as on (None: nothing), so "this song" means something.
         self._playing: Optional[Dict[str, Any]] = None
         # What the browser-tab ledger says about the user, by rule (browsing.py). Inert without the sensor.
@@ -1409,6 +1414,11 @@ class AmbientRuntime:
     def _social_step(self, now: float, idle_s: Optional[float] = None):
         self._timed_restore(now)
         self._model_notice()
+        if self.governor is not None:
+            try:
+                self.governor.tick(now)
+            except Exception:
+                logger.exception("Resource governor failed")
         if now - getattr(self, "_others_at", 0.0) >= 60.0:
             self._others_at = now
             self._known_others()
@@ -5506,6 +5516,7 @@ class AmbientRuntime:
             "taste": self.taste.status() if self.taste else None,
             "unrouted": self.unrouted.status(),
             "game_mode": self.game.status() if self.game else None,
+            "governor": self.governor.status() if self.governor else None,
             "browsing": (lambda sn: sn.status() if sn is not None else None)(self.browsing._s()),
             "vision": ({**self.looking.status(), "presence_stuck": self.presence_stuck} if self.looking is not None else None),
             "notes": self.notes.status() if self.notes is not None else None,
