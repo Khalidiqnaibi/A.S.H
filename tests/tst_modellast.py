@@ -50,6 +50,7 @@ ANSWERED_WITHOUT_THE_MODEL = [
     ("you said the same joke 6 times already", "jokes: the book"),
     ("You are so dumb today.", "a complaint: owned, with what went wrong"),
     ("You are hallucinating, boy.", "a complaint: owned, with what went wrong"),
+    ("you're making things up", "a complaint"),
     # short replies with nothing pending
     ("kk", "an acknowledgement"),
     ("Later", "an acknowledgement"),
@@ -62,8 +63,6 @@ ANSWERED_WITHOUT_THE_MODEL = [
 # Lines that still reach the model, to be taken one at a time: each is a known gap. When one is fixed this says so, and it moves out of
 # this list into the table above.
 TODO = {
-    "You are so dumb today.",
-    "You are hallucinating, boy.",
     "I'm just building my custom hardware chip ash.",
     "Ash, I've bought a 3D printer and I worked on it for a little bit.",
 }

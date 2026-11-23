@@ -69,6 +69,17 @@ def y4_runtime():
     n, k = len(rt.ash.calls), len(rt.out)
     rt.say("what should I cook tonight")
     check("a real question still goes to the model", len(rt.ash.calls) > n)
+    n, k = len(rt.ash.calls), len(rt.out)
+    rt.say("You are so dumb today.")
+    check("a complaint about ASH is owned in a line, no model (it answered an insult with a paragraph)", len(rt.out) > k and len(rt.ash.calls) == n
+          and ("wrong" in rt.out[-1] or "off" in rt.out[-1] or "should I have done" in rt.out[-1]), f"{rt.out[-1:]}")
+    rt._last_turn = {"took_s": 63.0, "pathway": "slow", "tool": "", "timings": {}}
+    rt.say("You are hallucinating, boy.")
+    check("...and says what it knows went wrong: a model answer with nothing checked behind it", rt.out[-1].startswith("Fair -- that last answer came from the language model"), rt.out[-1])
+    for t in ("you are right", "you are wrong about that", "you are so kind"):
+        n = len(rt.ash.calls)
+        rt.say(t)
+        check(f"{t!r} is not a complaint", "get wrong" not in rt.out[-1] and "off" not in rt.out[-1].split()[-3:])
     bare = te.rig()
     n, k = len(bare.ash.calls), len(bare.out)
     bare.say("Later")

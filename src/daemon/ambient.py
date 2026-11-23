@@ -2232,6 +2232,14 @@ class AmbientRuntime:
             return False
         if not say:
             return False
+        if getattr(c, "last_kind", "") == "complaint":
+            # Owned with what ASH itself knows went wrong, not a stock line: a model answer that ran no tool said something it did not
+            # check, and a slow turn was slow.
+            turn = getattr(self, "_last_turn", None) or {}
+            if turn.get("pathway") in ("slow", "escalated") and not turn.get("tool"):
+                say = "Fair -- that last answer came from the language model with nothing checked behind it. " + say
+            elif turn.get("took_s", 0) >= 30:
+                say = f"Fair -- that last one took {turn['took_s']:.0f} s. " + say
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
         return True
 

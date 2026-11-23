@@ -32,7 +32,21 @@ _BYE = re.compile(r"^(?:ok(?:ay)?\s+|alright\s+|well\s+|cool\s+|ash\s+)*(?:later
 _NIGHT = re.compile(r"^(?:ok(?:ay)?\s+)?(?:good\s*night|goodnight|gn|night(?:\s+night)?|nighty\s+night|sleep\s+well)(?:\s+(?:ash|man|bro))*$")
 _BRB = re.compile(r"^(?:brb|be\s+right\s+back|back\s+in\s+a\s+(?:bit|sec|minute|moment)|one\s+sec(?:ond)?|give\s+me\s+a\s+(?:sec|minute|moment))$")
 
+# A complaint about ASH itself, said short ("You are so dumb today.", "you're hallucinating, boy", "stop making things up"). It went to the
+# model, which answered an insult with a paragraph. Owned in a line, and asked what was wrong: the daemon adds what it knows went wrong.
+_COMPLAINT = re.compile(
+    r"^(?:ok(?:ay)?\s+|wow\s+|man\s+|dude\s+|bro\s+|ash\s+|seriously\s+|honestly\s+)*(?:you(?:'re|\s+are|\s+r)|ur|u\s+r|this\s+is)\s+"
+    r"(?:so\s+|really\s+|just\s+|being\s+|too\s+|such\s+a\s+|completely\s+|totally\s+|very\s+)*"
+    r"(?:dumb|stupid|useless|hallucinating|lying|terrible|awful|slow|bad|annoying|broken|garbage|trash|incompetent|worthless|"
+    r"an\s+idiot|dumber|useless\s+today|not\s+(?:working|helping|listening|making\s+sense)|making\s+(?:things|stuff)\s+up|"
+    r"making\s+no\s+sense|so\s+wrong|wrong\s+again)(?:\s+(?:today|again|now|right\s+now|lately|ash|boy|man|bro|mate|dude))*$"
+    r"|^(?:you\s+suck|stop\s+(?:lying|hallucinating|making\s+(?:things|stuff)\s+up|being\s+(?:dumb|stupid))|you\s+keep\s+(?:lying|"
+    r"hallucinating|making\s+(?:things|stuff)\s+up|getting\s+it\s+wrong)|you\s+never\s+(?:listen|get\s+it\s+right)|"
+    r"what\s+is\s+wrong\s+with\s+you|you\s+make\s+no\s+sense)(?:\s+(?:today|again|now|ash|boy|man|bro|mate|dude))*$")
+
 _LINES: Dict[str, List[str]] = {
+    "complaint": ["Fair. Tell me what I got wrong and I'll fix it.", "That's on me. What did I get wrong?", "Sorry. Tell me what was off and I'll try again.",
+                  "You're right to be annoyed. What should I have done?"],
     "thanks": ["Anytime.", "You got it.", "No problem.", "Happy to."],
     "bye": ["Later.", "See you.", "Catch you later.", "Alright, later."],
     "night": ["Night. Sleep well.", "Good night.", "Night."],
@@ -61,6 +75,10 @@ SEEDS: Dict[str, List[str]] = {
             "gimme a minute", "hang on"],
     "ack": ["k", "kk", "okay cool", "got it", "gotcha", "noted", "makes sense", "i see", "understood", "fair enough", "no worries",
             "sounds good", "alright then", "cool", "nice", "makes sense thanks"],
+    "complaint": ["you are so dumb today", "you're useless", "you are hallucinating", "you're making things up", "stop making things up",
+                  "you're being stupid", "you suck", "you are not listening", "you make no sense", "what is wrong with you", "you keep getting it wrong",
+                  "you never listen", "you're so slow today", "you're terrible", "stop hallucinating", "you're not helping", "you're lying",
+                  "you are broken today", "you are so wrong again", "that was useless"],
     "none": ["what is the weather today", "play some music", "who is ada lovelace", "tell me a joke", "open the browser", "what time is it",
              "remind me to call mom at five", "what do you know about me", "yes", "no", "ok", "sure", "yeah", "maybe", "why is my computer slow",
              "can you help me with something", "i need to write an email", "search for pizza places", "how do i fix this error",
@@ -82,8 +100,11 @@ class Courtesy:
         self.chooser = chooser                      # a Chooser (chooser.py): what the rules do not list, by meaning
         self._recent: Dict[str, Deque[str]] = {k: deque(maxlen=2) for k in _LINES}
         self.stats = {"answered": 0, "by_meaning": 0}
+        self.last_kind = ""                         # what the last line was taken for ("thanks", "complaint", ...)
 
     def _by_rule(self, t: str, words: List[str]) -> Optional[str]:
+        if _COMPLAINT.match(t):
+            return "complaint"
         if _NIGHT.match(t):
             return "night"
         if _BRB.match(t):
@@ -115,6 +136,7 @@ class Courtesy:
 
     def hear(self, text: str, now: Optional[float] = None) -> Optional[str]:
         k = self.kind(text)
+        self.last_kind = k or ""
         if k is None:
             return None
         options = [x for x in _LINES[k] if x not in self._recent[k]] or _LINES[k]
