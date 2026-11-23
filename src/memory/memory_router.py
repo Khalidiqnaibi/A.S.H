@@ -1,5 +1,7 @@
 # memory_router.py
+import hashlib
 import logging
+import os
 import re
 import time
 from datetime import datetime
@@ -108,6 +110,9 @@ class MemoryRouter:
     ):
         self.core = core_mem
         self._candidates: Dict[str, List[Any]] = {}      # mention -> [[time, sentence hash], ...]
+        self._cand_saved = 0.0
+        self._cand_path = self._candidates_path(config)
+        self._load_candidates()
         self.entity = entity_mem
         self.episodic = episodic_mem
         self.ner = ner or NERExtractor()
@@ -314,6 +319,45 @@ class MemoryRouter:
         found.sort(key=lambda t: (t[0], t[1]), reverse=True)
         return [t[2] for t in found[:limit]]
 
+    # -- candidates that have not recurred yet, kept across restarts ------------------------------------------------
+    @staticmethod
+    def _candidates_path(config: Optional[Dict[str, Any]] = None) -> str:
+        """Where the half-seen names are kept: next to the memory files when ASH_MEMORY_DIR says where those are, else state/ (not tracked)."""
+        p = (config or {}).get("entity_candidates_path")
+        if p:
+            return str(p)
+        folder = os.environ.get("ASH_MEMORY_DIR", "").strip()
+        return os.path.join(folder, "entity_candidates.json") if folder else os.path.join("state", "entity_candidates.json")
+
+    def _load_candidates(self):
+        """A name must come up in two different sentences before it becomes an entity, within 30 days. The daemon restarts often (53 crashes or
+        power losses in a month are on record), so a name mentioned once before a restart and once after never became one."""
+        path = getattr(self, "_cand_path", "")
+        if not path or not os.path.exists(path):
+            return
+        try:
+            from .atomic import load_json
+            raw = load_json(path, default=None, logger=logger)
+            if isinstance(raw, dict):
+                horizon = time.time() - float((getattr(self, "config", None) or {}).get("entity_candidate_days", 30.0)) * 86400.0
+                for k, v in raw.items():
+                    seen = [[float(t), str(h)] for t, h in v if float(t) >= horizon]
+                    if seen:
+                        self._candidates[str(k)] = seen
+        except Exception:
+            logger.debug("entity candidates not loaded", exc_info=True)
+
+    def _save_candidates(self, now: float, every_s: float = 20.0):
+        path = getattr(self, "_cand_path", "")
+        if not path or now - getattr(self, "_cand_saved", 0.0) < every_s:
+            return
+        self._cand_saved = now
+        try:
+            from .atomic import write_json
+            write_json(path, self._candidates, keep_backup=False)
+        except Exception:
+            logger.debug("entity candidates not saved", exc_info=True)
+
     def _recurs(self, mention: str, text: str) -> bool:
         """Count this mention (once per different sentence) and say whether it has now been seen enough to keep."""
         if not hasattr(self, "_candidates"):                 # a router built without __init__ (a test double)
@@ -324,7 +368,8 @@ class MemoryRouter:
         now = time.time()
         horizon = now - float(self.config.get("entity_candidate_days", 30.0)) * 86400.0
         key = re.sub(r"\s+", " ", mention.lower()).strip()
-        h = hash(re.sub(r"\s+", " ", text.lower()).strip()[:200])
+        # A stable hash: the built-in hash() is different in every process, which would make a saved one meaningless.
+        h = hashlib.sha1(re.sub(r"\s+", " ", text.lower()).strip()[:200].encode("utf-8", "replace")).hexdigest()[:12]
         seen = [e for e in self._candidates.get(key, []) if e[0] >= horizon]
         if not any(e[1] == h for e in seen):
             seen.append([now, h])
@@ -332,6 +377,7 @@ class MemoryRouter:
         if len(self._candidates) > 2000:                  # forget the oldest candidates
             for k in sorted(self._candidates, key=lambda k: self._candidates[k][-1][0] if self._candidates[k] else 0)[:500]:
                 del self._candidates[k]
+        self._save_candidates(now)
         return len(seen) >= need
 
     # ----------------------
