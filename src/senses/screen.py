@@ -279,6 +279,13 @@ def window_fields(title: str, process: str = "", limit: int = 80) -> Tuple[str, 
     return subject[:limit], project[:limit]
 
 
+def idle_ms(tick: int, last_input: int) -> int:
+    """Milliseconds since the last input, from GetTickCount and LASTINPUTINFO.dwTime. Both are 32-bit unsigned and wrap at 49.7 days;
+    ctypes reads a bare GetTickCount() as a SIGNED int, so past 24.8 days of uptime the idle time came out as about -4 million seconds
+    (the user never 'away', never idle). Subtracted modulo 2**32."""
+    return ((int(tick) & 0xFFFFFFFF) - (int(last_input) & 0xFFFFFFFF)) & 0xFFFFFFFF
+
+
 def window_subject(title: str, process: str = "", limit: int = 80) -> str:
     """Just the subject. window_fields() is the whole of it."""
     return window_fields(title, process, limit)[0]
@@ -998,7 +1005,7 @@ class IdleSensor(Sensor):
                 info = LASTINPUTINFO()
                 info.cbSize = ctypes.sizeof(info)
                 ctypes.windll.user32.GetLastInputInfo(ctypes.byref(info))
-                millis = ctypes.windll.kernel32.GetTickCount() - info.dwTime
+                millis = idle_ms(ctypes.windll.kernel32.GetTickCount(), info.dwTime)
                 return millis / 1000.0
             if self._backend == "xprintidle":
                 out = subprocess.run(["xprintidle"], capture_output=True, text=True, timeout=3)
