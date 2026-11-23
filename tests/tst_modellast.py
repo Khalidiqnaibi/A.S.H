@@ -37,8 +37,8 @@ ANSWERED_WITHOUT_THE_MODEL = [
     ("cam off", "voice control"),
     ("camera off", "voice control"),
     ("Cry for me, Ash.", "faces"),
-    # about ASH's own state and what it did
     ("Give me your emotional telemetry.", "feelings"),
+    # about ASH's own state and what it did
     ("Did you do it?", "its own record of the last thing it did"),
     ("Why did you take that long to read the clock?", "the brain's own timing"),
     # code and screen
@@ -62,7 +62,6 @@ ANSWERED_WITHOUT_THE_MODEL = [
 # this list into the table above.
 TODO = {
     "what do you reme",
-    "Give me your emotional telemetry.",
     "Did you do it?",
     "Why did you take that long to read the clock?",
     "You are so dumb today.",

@@ -63,11 +63,12 @@ def user_mood_say(mood) -> str:
 _ASK = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:so|and|hey|hi|hello)[,\s]+)?"
                   r"(?:how\s+(?:are\s+you|r\s+u|are\s+you\s+(?:feeling|doing)|do\s+you\s+feel|'?s\s+it\s+going\s+with\s+you)(?:\s+today|\s+now)?|"
                   r"are\s+you\s+(?:ok(?:ay)?|alright|happy|sad|bored|tired)|what'?s\s+your\s+mood|how'?s\s+your\s+mood|"
-                  r"(?:what'?s|whats|what\s+is|how'?s|hows|how\s+is|tell\s+me)\s+(?:about\s+)?your\s+(?:emotional|mental|inner|current)\s+"
-                  r"(?:status|state|mood|condition|health)(?:\s+(?:right\s+)?now|\s+today)?|"
+                  r"(?:what'?s|whats|what\s+is|how'?s|hows|how\s+is|tell\s+me|give\s+me|show\s+me|read\s+me|let'?s\s+(?:see|have))\s+"
+                  r"(?:about\s+)?your\s+(?:emotional|mental|inner|current)\s+"
+                  r"(?:status|state|mood|condition|health|telemetry|readout|report|reading|levels?|check)(?:\s+(?:right\s+)?now|\s+today)?|"
                   r"(?:what'?s|whats|what\s+is)\s+your\s+(?:state\s+of\s+mind|vibe|energy)(?:\s+(?:right\s+)?now|\s+today)?|"
                   r"how\s+(?:is|are)\s+you\s+(?:feeling|doing)\s+(?:today|now|right\s+now)|"
-                  r"you\s+(?:ok(?:ay)?|good|alright))(?:\s*,?\s*ash)?\s*\??\s*$", re.I)
+                  r"you\s+(?:ok(?:ay)?|good|alright))(?:\s*,?\s*ash)?\s*[?.!]*\s*$", re.I)
 
 # What a Chooser (chooser.py) learns "is this asking how ASH feels, or for the machine's status?" from. The rules above catch the phrasings
 # somebody listed (and teach these as they do); "emotional status" was read as "status" and answered with the CPU, because one regex
@@ -77,7 +78,8 @@ SEEDS = {
                  "what's your emotional state", "are you happy", "are you sad today", "how's it going with you", "you doing alright",
                  "how's your day been", "what mood are you in", "are you in a good mood", "how are you doing today",
                  "what is your emotional status", "do you have feelings today", "are you feeling okay", "are you tired",
-                 "are you bored", "what's your vibe today", "how's your state of mind"],
+                 "are you bored", "what's your vibe today", "how's your state of mind", "give me your emotional telemetry",
+                 "show me your emotional readout", "read me your mood report", "give me an emotional status report", "what are your emotional levels"],
     "status": ["what's your status", "system status", "how's the cpu", "what's your cpu usage", "memory usage", "how much ram is free",
                "battery level", "give me a status report", "what's using my memory", "how much disk space is left", "what's your load",
                "show system stats", "how is the system doing", "check system resources", "how's the computer doing"],
