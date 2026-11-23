@@ -3564,8 +3564,8 @@ class AmbientRuntime:
     def _crash_request(self, ev, now: float) -> bool:
         """"Did my computer crash?": from the Windows event log, no model."""
         c = self.crashwatch
-        if c is None or not self._user_source(ev):
-            return False
+        if c is None or not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False                      # an explanation changes what is counted: not from the room, not from a guest
         try:
             say = c.hear(str(getattr(ev, "text", "") or ""), now)
         except Exception:

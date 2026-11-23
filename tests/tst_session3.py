@@ -255,6 +255,26 @@ def t5_crashes():
     part = c2.briefing_part("evening", t[0])
     check("two at once: said so, the latest first", part.startswith("2 unexpected shutdowns since I last told you")
           and "corrupted memory" in part, part)
+    # The user explains them: "that's just me force-shutting down my PC" went to the model (80 s, then no answer).
+    pe = os.path.join(tempfile.mkdtemp(), "c.json")
+    ex = CrashWatch(path=pe, clock=lambda: T0, reader=lambda: [{"t": T0 - 3 * HOUR, "code": 0}, {"t": T0 - 2 * DAY, "code": 0}, {"t": T0 - 4 * DAY, "code": 0}], background=False)
+    ex.refresh(force=True)
+    for said in ("that's just me force-shutting down my PC", "that was me, I forced it", "yeah it was the power cut"):
+        e1 = CrashWatch(clock=lambda: T0, reader=lambda: [{"t": T0 - 3 * HOUR, "code": 0}, {"t": T0 - 2 * DAY, "code": 0}], background=False)
+        e1.refresh(force=True)
+        got = e1.hear(said, T0)
+        check(f"{said!r} is taken as the cause, said back, and they stop being counted",
+              got and got.startswith("Got it -- 2 shutdowns down to") and not e1._recent(T0) and e1.hear("any crashes", T0) == "No unexpected shutdowns in the last 30 days.", str(got))
+    e2 = CrashWatch(clock=lambda: T0, reader=lambda: [{"t": T0 - 3 * HOUR, "code": 0}], background=False)
+    e2.refresh(force=True)
+    check("'that was me' on its own is not taken before ASH has told anything about the shutdowns", e2.hear("that was me", T0) is None)
+    e2.hear("any crashes", T0)
+    check("...but is, right after it did", (e2.hear("that was me", T0 + 60) or "").startswith("Got it -- 1 shutdown down to"))
+    check("with nothing to explain it is left to the model", CrashWatch(clock=lambda: T0, reader=lambda: [], background=False).hear("that was me", T0) is None)
+    ex.hear("the power went out", T0)
+    again = CrashWatch(path=pe, clock=lambda: T0, reader=lambda: [{"t": T0 - 3 * HOUR, "code": 0}, {"t": T0 - 2 * DAY, "code": 0}, {"t": T0 - 4 * DAY, "code": 0}], background=False)
+    again.refresh(force=True)
+    check("an explanation is kept across a restart", not again._recent(T0))
     quiet = CrashWatch(clock=lambda: T0, reader=lambda: [{"t": T0 - 40 * DAY, "code": 0}], background=False)
     quiet.refresh(force=True)
     check("nothing this month: said plainly", quiet.hear("did my computer crash", T0) == "No unexpected shutdowns in the "

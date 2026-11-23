@@ -60,6 +60,34 @@ _CAUSE = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:is|are|was|were)\s+(?:i
                     r"(?:did|do|does|could|can)\s+(?:ash|you)\s+(?:crash|cause|break)\s+(?:my\s+|the\s+)?"
                     r"(?:computer|laptop|pc|machine|system|crash(?:es)?|blue\s+screens?))\s*[?.!]*\s*$", re.I)
 
+# The user explaining the shutdowns ASH told them about: "that's just me force-shutting down my PC", "the power went out". It went to the model
+# (80 s, then no answer), and the eight were still counted as crashes in the next briefing.
+_LEAD_EXPLAIN = (r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:no|nah|yeah|yes|oh|well|ok(?:ay)?|relax|calm\s+down)[,\s]+)*"
+                 r"(?:that(?:'s|\s+is|\s+was)|those\s+(?:were|are)|it\s+(?:was|is)|they\s+(?:were|are)|these\s+(?:were|are)|all\s+(?:of\s+)?those\s+were)?\s*")
+_FORCED = re.compile(_LEAD_EXPLAIN + r"(?:just\s+|only\s+|all\s+)?(?:me|my\s+(?:doing|fault)|because\s+i|when\s+i)?[,\s]*"
+                     r"(?:(?:i\s+|me\s+)?(?:forc(?:ed|ing)\s+(?:it|them|the\s+(?:pc|computer|laptop)|a\s+shut\s*down)|force[\s-]*(?:shut|shutting|shutdown|restart|reboot|power|stop|killed?|closed?)|hard[\s-]*(?:reset|shut|reboot)|"
+                     r"(?:held|holding)\s+(?:down\s+)?(?:the\s+)?power|pull(?:ed|ing)\s+the\s+plug|turn(?:ed|ing)\s+(?:it|the\s+(?:pc|computer|laptop))\s+off\s+"
+                     r"(?:by\s+hand|manually|myself)|shut\s+(?:it|the\s+(?:pc|computer|laptop))\s+down\s+(?:by\s+hand|manually|myself))|force[\s-]*"
+                     r"(?:shutting|shut)\s+down)[\w\s'.,-]{0,50}$", re.I)
+_POWER = re.compile(_LEAD_EXPLAIN + r"(?:just\s+|only\s+)?(?:the\s+|a\s+|my\s+)?(?:power\s+(?:cut|loss|outage|went(?:\s+out)?|failure|was\s+out|ran\s+out)|"
+                    r"blackout|electricity\s+(?:went|was)|battery\s+(?:died|ran\s+out|was\s+dead)|ran\s+out\s+of\s+battery|(?:it\s+)?was\s+unplugged|"
+                    r"unplugged)[\w\s'.,-]{0,40}$", re.I)
+# "that was me" alone: only taken as the cause just after ASH told about the shutdowns (anywhere else it is about anything).
+_JUST_ME = re.compile(_LEAD_EXPLAIN + r"(?:just\s+|only\s+)?me(?:\s+(?:again|though|lol))?\s*[.!]*\s*$", re.I)
+_EXPLAINED = {"forced": "you shut it down by force", "power": "the power went"}
+
+
+def _cause_of(text: str, just_told: bool = False) -> str:
+    t = (text or "").strip()
+    if just_told and _JUST_ME.match(t):
+        return "forced"
+    if _FORCED.match(t):
+        return "forced"
+    if _POWER.match(t):
+        return "power"
+    return ""
+
+
 _PS = ("Get-WinEvent -FilterHashtable @{LogName='System'; Id=41} -MaxEvents 300 -ErrorAction SilentlyContinue | "
        "ForEach-Object { [pscustomobject]@{ t = ([DateTimeOffset]$_.TimeCreated).ToUnixTimeSeconds(); "
        "code = [int64]$_.Properties[0].Value } } | ConvertTo-Json -Compress")
@@ -109,6 +137,8 @@ class CrashWatch:
         self.events: List[Dict[str, int]] = []
         self.read_at = -1e18
         self.told_until = 0.0              # crashes up to here have been told
+        self._told_at = -1e18              # when ASH last said anything about the shutdowns
+        self.explained: Dict[str, str] = {}   # event time -> why ("forced", "power"): said by the user, and no longer counted as a crash
         self._first = True
         self._inflight = False
         self._lock = threading.Lock()
@@ -130,6 +160,7 @@ class CrashWatch:
         if isinstance(d, dict):
             try:
                 self.told_until = float(d.get("told_until", 0.0))
+                self.explained = {str(k): str(v) for k, v in (d.get("explained") or {}).items()}
                 self._first = False
             except (TypeError, ValueError):
                 logger.warning("Could not read %s", self.path)
@@ -138,7 +169,7 @@ class CrashWatch:
         if not self.path:
             return
         try:
-            write_json(self.path, {"told_until": self.told_until})
+            write_json(self.path, {"told_until": self.told_until, "explained": self.explained})
         except Exception as e:
             log_io_failure(logger, self.path, e)
 
@@ -267,7 +298,7 @@ class CrashWatch:
     # -- saying ----------------------------------------------------------------
     def _recent(self, now: float, days: float = 30.0) -> List[Dict[str, int]]:
         with self._lock:
-            return [e for e in self.events if now - e["t"] <= days * DAY]
+            return [e for e in self.events if now - e["t"] <= days * DAY and str(e["t"]) not in self.explained]
 
     def _line(self, e: Dict[str, int], now: float, n_month: int) -> str:
         s = f"The computer shut down unexpectedly {_when(e['t'], now)}"
@@ -287,7 +318,7 @@ class CrashWatch:
 
     def unreported(self, now: float) -> List[Dict[str, int]]:
         with self._lock:
-            return [e for e in self.events if e["t"] > self.told_until]
+            return [e for e in self.events if e["t"] > self.told_until and str(e["t"]) not in self.explained]
 
     def briefing_part(self, kind: str, now: float) -> Optional[str]:
         if not self.enabled or kind not in ("morning", "evening"):
@@ -296,6 +327,7 @@ class CrashWatch:
         if not new:
             return None
         n = len(self._recent(now))
+        self._told_at = now
         text = self._line(new[0], now, n)
         if len(new) > 1:
             text = f"{len(new)} unexpected shutdowns since I last told you; the latest: " + text[0].lower() + text[1:]
@@ -304,8 +336,31 @@ class CrashWatch:
         self._save()
         return text
 
+    def explain(self, cause: str, now: Optional[float] = None) -> Optional[str]:
+        """The user says why the shutdowns ASH counted happened. They stop being counted (and stay out of the briefings and the 'was ASH
+        running' comparison); said back. None when there is nothing unexplained to apply it to."""
+        now = self.clock() if now is None else now
+        recent = self._recent(now)
+        if not recent:
+            return None
+        with self._lock:
+            for e in recent:
+                self.explained[str(e["t"])] = cause
+            self.told_until = max(self.told_until, max(e["t"] for e in recent))
+        self._save()
+        n = len(recent)
+        what = f"{n} shutdown{'s' if n != 1 else ''}"
+        return (f"Got it -- {what} down to {_EXPLAINED.get(cause, cause)}. I won't count {'them' if n != 1 else 'it'} as crashes, and I'll "
+                f"leave {'them' if n != 1 else 'it'} out of the briefings.")
+
     def hear(self, text: str, now: Optional[float] = None) -> Optional[str]:
         t = (text or "").strip()
+        if self.enabled and t and len(t) <= 120:
+            cause = _cause_of(t, just_told=(self.clock() if now is None else now) - self._told_at <= 900.0)
+            if cause:
+                said = self.explain(cause, now)
+                if said:
+                    return said
         if not self.enabled or not t or len(t) > 90 or not (_ASK.match(t) or _CAUSE.match(t)):
             return None
         now = self.clock() if now is None else now
@@ -334,6 +389,7 @@ class CrashWatch:
         with self._lock:
             self.told_until = max(self.told_until, recent[0]["t"])
         self._save()
+        self._told_at = now
         line = self._line(recent[0], now, len(recent))
         extra = self._overlap_sentence(now)
         return line + (" " + extra if extra else "")
