@@ -55,7 +55,7 @@ def m2():
     check("each starts 'ASH manual'", all(t.startswith("ASH manual") for _i, _p, t in manual.ENTRIES))
     check("each is short enough to retrieve cheaply", all(len(t) < 760 for _i, _p, t in manual.ENTRIES), str(max(len(t) for _i, _p, t in manual.ENTRIES)))
     lim = [t for i, _p, t in manual.ENTRIES if i == "limits"][0]
-    check("the limits say no email, calls, buying", all(w in lim for w in ("send email", "make calls", "buy")))
+    check("the limits say no chat messages, calls, buying -- and that email and texts need \"send it\"", all(w in lim for w in ("send chat messages", "make calls", "buy", "send it")))
     areas = ["reminders", "home", "watch", "apps", "music", "plans", "quiet", "scenes", "pretend", "greetings", "facts", "memory",
              "face", "privacy", "clipboard", "info", "games", "care", "routines", "explain", "limits", "overview",
              "taste", "screen", "activity", "playing", "occasion", "game"]

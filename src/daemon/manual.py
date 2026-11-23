@@ -31,8 +31,8 @@ ENTRIES: List[Tuple[str, int, str]] = [
      "tell you when they happen; open, switch to and close apps; control music; do several steps after you approve a "
      "plan; keep scenes, quiet time and focus mode; answer short who/what facts from Wikipedia; read your calendar, "
      "weather and mail when set up; remember people, what you tell it and what you like; play games and tell stories; read or copy "
-     "your clipboard when asked; show a face and clock. ASH cannot browse the web, send email or messages, make calls, "
-     "buy things or see your location. Ask \"what can you do?\" for what is switched on right now."),
+     "your clipboard when asked; show a face and clock. ASH cannot browse the web, make calls, "
+     "buy things or see your location. Emails and texts: drafted, read back, sent only on \"send it\". Ask \"what can you do?\" for what is switched on right now."),
     ("reminders", 5,
      "ASH manual, reminders/timers/alarms. Say: \"remind me in 20 minutes to check the oven\", \"remind me tomorrow at 9 "
      "to send the report\", \"set a timer for 5 minutes\", \"wake me up at 7\". Right after one goes off, \"snooze\" or "
@@ -173,7 +173,8 @@ ENTRIES: List[Tuple[str, int, str]] = [
      "Control it: \"don't record the next hour\", \"never track youtube\", \"tag acme.dev as work\", \"keep social "
      "under 3 hours a week\", \"export my browsing data\", \"forget my browsing\". A guest is refused."),
     ("camera", 4,
-     "ASH manual, the camera. Off until switched on (vision.enabled in daemon.json). Then, when asked: \"look around\", "
+     "ASH manual, the camera. Looking when asked is on (vision.enabled in daemon.json, on by default; background watching needs "
+     "sensors.camera, which is off). When asked: \"look around\", "
      "\"what am I holding?\", \"remember this as my blue mug\", \"remember Omar's face\", \"who's this?\", \"is this my "
      "mug?\", \"where are my keys?\", \"what have you saved?\", \"forget Omar's face\", \"save that photo\". It keeps "
      "labels and numbers, not pictures, only on this computer, and never looks in privacy mode or for a guest. Things are "
@@ -212,10 +213,11 @@ ENTRIES: List[Tuple[str, int, str]] = [
      "it is doing; game_mode in daemon.json turns any part off. Limits: with the mic paused it cannot hear you, and "
      "the first question after a game takes a few seconds while the language model loads again."),
     ("limits", 7,
-     "ASH manual, what ASH cannot do. It cannot browse the web or open links, send email, texts or chat messages, make "
-     "calls, buy or order anything, know your location, control other people's devices, or see the screen unless "
-     "screen capture is on. It must never say it did one of these: only say something was done when a tool really did "
-     "it. If asked, say plainly that it can't, and offer the nearest thing it can do."),
+     "ASH manual, what ASH cannot do. It cannot browse the web or open links, send chat messages, make calls, buy or order "
+     "anything, know your location, control other people's devices, or see the screen unless screen capture is on (or you "
+     "say \"look at my screen\"). Email and texts it can send, only after reading the draft back and hearing \"send it\" "
+     "(email needs email.allow_send; texts need KDE Connect). It must never say it did one of these: only say something "
+     "was done when a tool really did it."),
 ]
 
 
