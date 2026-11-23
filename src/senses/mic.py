@@ -475,9 +475,10 @@ class MicrophoneSensor(Sensor):
                 return
             text = self.transcribe(audio)
         text = fix_name(text)
-        if text and self.corrector is not None:
+        corrector = getattr(self, "corrector", None)         # (a sensor built without __init__, as the tests do, has none)
+        if text and corrector is not None:
             try:
-                text = self.corrector(text) or text
+                text = corrector(text) or text
             except Exception:
                 logger.debug("transcript correction failed", exc_info=True)
         if not text:
