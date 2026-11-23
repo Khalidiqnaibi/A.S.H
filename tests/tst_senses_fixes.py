@@ -30,7 +30,32 @@ def s1_idle():
     check("never negative", idle_ms(0, 0) == 0 and idle_ms(3, 3) == 0)
 
 
+def s2_name():
+    print("\n=== S2. The name is stripped the way address.py reads it ===")
+    from src.senses.mic import MicrophoneSensor as M
+    for said, want in [("Hey, Ash, what time is it?", "what time is it?"), ("hi ash open Spotify", "open Spotify"),
+                       ("Hello Ash, how are you", "how are you"), ("A.S.H., stop", "stop"), ("what time is it, ash", "what time is it"),
+                       ("hey ash what's up", "what's up"), ("Ash.", "Ash."), ("the ash cloud is big", "the ash cloud is big"),
+                       ("what do you think of Ashley", "what do you think of Ashley")]:
+        got = M.strip_address(said)
+        check(f"{said!r} -> {want!r}", got == want, repr(got))
+
+
+def s3_third_person():
+    print("\n=== S3. 'Ash' talked about, not to ===")
+    from src.senses import address
+    now = 1_800_000_000.0
+    for said in ("I told Linda about ash.", "Ash is slow today.", "Ash never answers me."):
+        v = address.score(said, now=now) if hasattr(address, "score") else None
+        check(f"{said!r} is not certainly addressed (was 0.95)", v is not None and v.confidence < 0.6, str(getattr(v, "confidence", v)))
+    for said in ("Ash, what time is it?", "what time is it, ash", "Hey Ash, open Chrome", "Ash is it raining?"):
+        v = address.score(said, now=now)
+        check(f"{said!r} still is", v.confidence >= 0.6, str(v.confidence))
+
+
 if __name__ == "__main__":
     s1_idle()
+    s2_name()
+    s3_third_person()
     print("\n" + ("ALL PASS" if OK else "FAILED"))
     sys.exit(0 if OK else 1)

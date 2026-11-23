@@ -56,8 +56,10 @@ FRAME_SAMPLES = SAMPLE_RATE * FRAME_MS // 1000
 
 WAKE_WORDS = ["ash", "hey ash", "ok ash", "yo ash"]
 
-_LEADING_WAKE = re.compile(r"^\s*((hey|ok|okay|yo)\s+)?ash\b[\s,.!?:;-]*", re.I)
-_TRAILING_WAKE = re.compile(r"[\s,]*\b((hey|ok|okay|yo)\s+)?ash[\s.!?]*$", re.I)
+# The same name and openers address.py recognises: "Hey, Ash, ..." (whisper puts a comma after "hey"), "hi ash", "hello ash", "A.S.H.".
+_ASH = r"(?:ash|a\.\s?s\.\s?h\.?)"
+_LEADING_WAKE = re.compile(r"^\s*(?:(?:hey|hi|hello|ok|okay|yo)[\s,]+)?" + _ASH + r"(?=[\s,.!?:;-]|$)[\s,.!?:;-]*", re.I)
+_TRAILING_WAKE = re.compile(r"[\s,]*(?<![\w.])(?:(?:hey|hi|hello|ok|okay|yo)[\s,]+)?" + _ASH + r"[\s.!?]*$", re.I)
 
 
 # faster-whisper scores every phrase it writes. A phrase it is unsure of is

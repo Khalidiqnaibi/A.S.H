@@ -345,6 +345,10 @@ def score(text: str, now: Optional[float] = None,
     command = bool(_COMMAND.search(raw))
     polite = bool(_POLITE_OPENER.search(raw))
     vocative = bool(_VOCATIVE.search(raw))
+    if vocative and _NAME_REFERENTIAL.search(raw) and not (second or command or question):
+        # "I told Linda about ash." (the name closes the sentence) and "Ash is slow today." (it opens it) have the vocative's shape and
+        # are about ASH, not to it: they scored 0.95 'named' because the vocative was checked first and the veto only ran after.
+        vocative = False
     open_now = convo.openness(now)
 
     # ---- a noise made to show someone is listening -----------------------
