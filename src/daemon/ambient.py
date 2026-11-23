@@ -926,14 +926,14 @@ class AmbientRuntime:
                 in_class = self.timetable.in_class(self.clock())
             except Exception:
                 logger.exception("Timetable in_class failed")
-        if (text and not meta.get("addressed") and ((av is not None and av.state in ("call", "presenting")) or in_class)
+        if (text and not meta.get("addressed") and ((av is not None and av.state in ("call", "presenting", "gaming")) or in_class)
                 and meta.get("source") not in ("reminder", "watch", "guard", "cue", "control")):
-            # In a call, a lecture or a presentation nothing is volunteered, whoever thought of it (a routine suggestion,
+            # In a call, a lecture, a presentation or a game nothing is volunteered, whoever thought of it (a routine suggestion,
             # a joke, "you keep switching windows"). A reminder or a watch they asked for still gets through.
             self.stats["held_busy"] = self.stats.get("held_busy", 0) + 1
             if self.focus is not None:
                 self.focus.hold(str(meta.get("source") or "remark"))
-            logger.info("Held a remark while the user is %s: %r", (av.why if av is not None and av.state in ("call", "presenting")
+            logger.info("Held a remark while the user is %s: %r", (av.why if av is not None and av.state in ("call", "presenting", "gaming")
                                                                     else f"in {in_class['name']}"), text[:80])
             return None
         kids = getattr(self, "kids", None)
