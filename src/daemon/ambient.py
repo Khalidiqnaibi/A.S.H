@@ -2841,6 +2841,13 @@ class AmbientRuntime:
                 env = self._wonder_env(now, idle_s)
                 if not (env.muted or env.paused or env.quiet_hours or self._stranger_hold(now)):
                     text = d.welcome_back(wb)
+                    try:
+                        from . import away
+                        extra = away.digest(self, wb.since, now, welcome=True)     # only when something happened (away.py)
+                        if extra:
+                            text = f"{text} {extra}"
+                    except Exception:
+                        logger.debug("away digest failed", exc_info=True)
                     self.submit(SensorEvent(source="flow", modality=Modality.TEXT, text=text, salience=0.6, ts=now, persistable=False,
                                             meta={"offer": "moment", "offer_strength": 0.9, "say": text, "moment": "welcome_back",
                                                   "topic": "welcome_back", "accept_context": f"You had just said: {text}"}))
@@ -2851,6 +2858,21 @@ class AmbientRuntime:
         except Exception:
             self.stats["errors"] += 1
             logger.exception("Dwell step failed")
+
+    def _away_request(self, ev, now: float) -> bool:
+        """"What's new?", "what did I miss?", "catch me up": from what really happened since they left -- the reminders that fired, the questions
+        saved, a shutdown, the window left open -- never the model's guess (away.py)."""
+        if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        from . import away
+        if not away.asks_digest(str(getattr(ev, "text", "") or "")):
+            return False
+        d = self.dwell
+        back = getattr(d, "last_back", None) if d is not None else None
+        since = back.since if back is not None else max(getattr(self, "started_at", 0.0) or 0.0, now - 3 * 3600.0)
+        self._wonder_say(ev, type("R", (), {"say": away.digest(self, since, now), "outcome": "desktop"})())
+        self._last_why = {"kind": "asked", "query": str(getattr(ev, "text", ""))[:80]}
+        return True
 
     def _dwell_request(self, ev, now: float) -> bool:
         """"How long have I been on this?" / "what have I been doing today?" / "how long was I away?": from where they were."""
@@ -4145,6 +4167,8 @@ class AmbientRuntime:
         if self._ask_followthrough(ev, now):
             return True
         if not loose and self._asks_request(ev, now):
+            return True
+        if not loose and self._away_request(ev, now):
             return True
         if not loose and self._dwell_request(ev, now):
             return True
