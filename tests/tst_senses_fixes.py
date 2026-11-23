@@ -53,8 +53,48 @@ def s3_third_person():
         check(f"{said!r} still is", v.confidence >= 0.6, str(v.confidence))
 
 
+def s4_titles():
+    print("\n=== S4. A hidden window's title does not leak into the next event ===")
+    from src.senses.screen import ActiveWindowSensor, set_private_content_protection
+    ws = ActiveWindowSensor(enabled=False)
+    seq = [("Bank of America - Opera", "opera.exe"), ("notes.txt - Notepad", "notepad.exe")]
+    cur = [seq[0]]
+    ws.current = lambda: cur[0]
+    ws.blocklist = ["bank of america"]
+    first = ws.read()
+    cur[0] = seq[1]
+    second = ws.read()
+    txt = second[0].text if second else ""
+    check("leaving a blocked window: the next event says '[redacted window]', not its title",
+          "Bank of America" not in txt and "[redacted window]" in txt, txt)
+    check("...and the first event never had it", first and "Bank of America" not in first[0].text and first[0].data["title"] is None)
+    ws2 = ActiveWindowSensor(enabled=False)
+    ws2.blocklist = []
+    cur2 = [("Inbox (3) - Gmail", "chrome.exe")]
+    ws2.current = lambda: cur2[0]
+    set_private_content_protection(True)
+    try:
+        a = ws2.read()
+        cur2[0] = ("todo.md - Notepad", "notepad.exe")
+        b = ws2.read()
+    finally:
+        set_private_content_protection(False)
+    check("with private-content protection on, a mailbox title is not in its own event", a and "Gmail" not in a[0].text and a[0].data["title"] is None,
+          a[0].text if a else "")
+    check("...nor in the one after it", b and "Gmail" not in b[0].text, b[0].text if b else "")
+    ws3 = ActiveWindowSensor(enabled=False)
+    ws3.blocklist = []
+    cur3 = [("a.py - Code", "code.exe")]
+    ws3.current = lambda: cur3[0]
+    ws3.read()
+    cur3[0] = ("b.py - Code", "code.exe")
+    t = ws3.read()[0].text
+    check("ordinary windows are still named", "a.py" in t and "b.py" in t, t)
+
+
 if __name__ == "__main__":
     s1_idle()
+    s4_titles()
     s2_name()
     s3_third_person()
     print("\n" + ("ALL PASS" if OK else "FAILED"))

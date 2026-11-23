@@ -113,11 +113,9 @@ def looks_private(title: str, process: str = "") -> bool:
     return bool(stem) and any(stem == p or stem.startswith(p) for p in PRIVATE_CONTENT_PROCESSES)
 
 
-# Whether chat and mail contents are withheld at all. On by default, because
-# ASH is meant to be run by people other than its author, some of whom share
-# a machine, sit in calls, or just would rather it did not read their DMs.
-# Everything ASH does is local, so for someone who does not mind it reading
-# their own screen it is a switch, privacy.protect_private_content.
+# Whether chat and mail contents are withheld at all. OFF by default (this comment said "on" while the code, the shipped config and
+# the manual all said off): ASH is local, and most people who run it want it to read their own screen. Anyone who shares a machine,
+# sits in calls, or would rather it did not read their DMs turns it on: privacy.protect_private_content.
 _PROTECT_PRIVATE_CONTENT = False
 
 
@@ -370,6 +368,7 @@ class ActiveWindowSensor(Sensor):
         entries = list(blocklist or []) + (DEFAULT_BLOCKLIST if use_default_blocklist else [])
         self.blocklist = list(dict.fromkeys(b.lower() for b in entries))
         self._last_title: Optional[str] = None
+        self._last_hidden = False              # was the title just left one that must not be written down?
         self._since: float = time.time()
         # Why the last rect() lookup came back empty. Cropping to the
         # focused window is what makes the title blocklist honest, so
@@ -524,14 +523,18 @@ class ActiveWindowSensor(Sensor):
             return []   # no change; dwell keeps accumulating silently
 
         dwell = now - self._since
-        prev = self._last_title
-        self._last_title, self._since = title, now
+        prev, prev_hidden = self._last_title, self._last_hidden
+        hidden = blocked or is_private_content(title, proc)
+        self._last_title, self._last_hidden, self._since = title, hidden, now
 
-        shown = "[redacted window]" if blocked else title
+        shown = "[redacted window]" if hidden else title
+        # The window just LEFT is written into this event too ("was on ..."): a bank, a call or a mailbox left for Notepad put its title
+        # into the Notepad event, and the journal kept it. What was hidden when it was current stays hidden here.
         # A blocked window gets no subject either -- the title is exactly what
         # the blocklist exists to keep out, and the subject is made of it.
         subject, project = ("", "") if blocked else window_fields(title, proc)
-        text = f"switched to {shown}" + (f" (was on {prev[:60]} for {dwell:.0f}s)" if prev else "")
+        was = "[redacted window]" if prev_hidden else (prev or "")[:60]
+        text = f"switched to {shown}" + (f" (was on {was} for {dwell:.0f}s)" if prev else "")
 
         # A rapid flurry of switches is a different signal from settling into
         # one app for an hour -- salience tracks how unusual the change is.
@@ -540,7 +543,7 @@ class ActiveWindowSensor(Sensor):
         return [SensorEvent(
             source=self.name, modality=Modality.TEXT, text=text,
             salience=salience,
-            data={"title": None if blocked else title, "process": proc,
+            data={"title": None if hidden else title, "process": proc,
                   "subject": subject, "project": project, "dwell": dwell},
             persistable=not blocked,
             meta={"process": proc, "subject": subject, "project": project,
