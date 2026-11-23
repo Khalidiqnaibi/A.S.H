@@ -84,6 +84,21 @@ def r3_noises():
         check(f"a real sentence from the microphone is still learned from: {t!r}", not is_telemetry(t, "microphone"))
 
 
+def r5_scoring_is_not_seeing():
+    print("\n=== R5. Scoring the graph at sleep does not make its concepts fire ===")
+    from src.concepts.bindings import RoutingEvaluator
+    n = ConceptNetwork(dim=DIM)
+    for i in range(4):
+        n.add_concept(rnd(900 + i), seed_text=f"c{i}", origin=Origin.GROWN)
+    ev = RoutingEvaluator(n)
+    for i in range(12):
+        ev.pairs.append((rnd(900 + i % 4), "calculate"))
+    before = (sum(c.activations for c in n.concepts.values()), n.cycles)
+    ev.score()
+    after = (sum(c.activations for c in n.concepts.values()), n.cycles)
+    check("twelve held-out pairs scored: no concept counted as seen again", after[0] == before[0], f"{before} -> {after}")
+
+
 def r4_cap():
     print("\n=== R4. A hub earns its wires ===")
     n = ConceptNetwork(dim=DIM)
@@ -167,6 +182,7 @@ if __name__ == "__main__":
     r2_potentiation()
     r3_noises()
     r4_cap()
+    r5_scoring_is_not_seeing()
     r5_causal()
     r6_lonely()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))

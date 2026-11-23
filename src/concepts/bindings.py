@@ -345,7 +345,7 @@ class RoutingEvaluator:
             return 1.0
         correct = 0
         for vec, intent in self.pairs:
-            act = self.net.perceive(vec, allow_growth=False, learn_prototypes=False)
+            act = self.net.perceive(vec, allow_growth=False, learn_prototypes=False, count=False)   # scoring is not seeing again
             scores = self.net.intent_activation(act)
             if scores and max(scores.items(), key=lambda kv: kv[1])[0] == intent:
                 correct += 1
