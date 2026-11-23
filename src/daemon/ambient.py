@@ -5278,7 +5278,8 @@ class AmbientRuntime:
                     return False          # "forget start work" is a saved task: tasks.py forgets it, not the memory
             w = self.wonder
             gone = forget_subject(subject, kb=(w.kb if w else None),
-                                  entities=getattr(self.ash, "entity_memory", None), wonderer=w, now=now)
+                                  entities=getattr(self.ash, "entity_memory", None), wonderer=w, now=now,
+                                  episodic=getattr(self.ash, "episodic_memory", None), concepts=getattr(self.ash, "concepts", None))
             if self.notes is not None:
                 gone = list(gone) + [f"the note that {n}" for n in self.notes.forget(subject)]
             say = (f"Forgotten: {', '.join(gone)} -- for {subject}." if gone

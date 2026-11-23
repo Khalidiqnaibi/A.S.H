@@ -16,8 +16,9 @@ plain label, and:
         them, terms, routines, entity memory -- and closes the questions about
         it, so it is not asked straight back
 
-Conversation history and the journal are not rewritten: what was said was
-said. What ASH *believes* from it is what goes.
+What ASH *believes* from it is what goes: people, relations, terms, noted facts, tastes, the entity -- and the name is taken out of the
+places that would bring it straight back (the summaries of remembered moments, other entries' context and relations, the concept graph's
+copies of what was said). The moments themselves stay, as "someone". The raw journal is not rewritten (it is swept after a week).
 """
 
 from __future__ import annotations
@@ -164,13 +165,98 @@ def remove_entity(entities, eid: str) -> bool:
     return False
 
 
-def forget_subject(name: str, kb=None, entities=None, wonderer=None, now: Optional[float] = None) -> List[str]:
+def _name_rx(names) -> "re.Pattern":
+    parts = sorted({str(x).strip() for x in names if x and len(str(x).strip()) >= 2}, key=len, reverse=True)
+    return re.compile(r"(?<!\w)(?:" + "|".join(re.escape(x) for x in parts) + r")(?!\w)", re.I) if parts else re.compile(r"(?!x)x")
+
+
+def _scrub(text: str, rx) -> str:
+    """`text` with the name taken out: a "[mentions: ...]" tag that names it goes, and the name itself becomes "someone"."""
+    if not text or not rx.search(text):
+        return text
+    text = re.sub(r"\s*\[mentions:[^\]]*\]", lambda m: "" if rx.search(m.group(0)) else m.group(0), text)
+    return rx.sub("someone", text).strip()
+
+
+def scrub_memories(rx, removed_ids: set, entities=None, episodic=None, concepts=None) -> List[str]:
+    """The name out of the places that would bring it back: remembered moments, other entries, the concept graph's copies of the words."""
+    gone: List[str] = []
+    if episodic is not None:
+        try:
+            changed = 0
+            with episodic.store.lock:
+                for ep in list(episodic.store.episodes.values()):
+                    new = _scrub(ep.summary, rx)
+                    keep = [e for e in (ep.related_entities or []) if e not in removed_ids and not rx.search(str(e))]
+                    if new != ep.summary or keep != list(ep.related_entities or []):
+                        ep.summary, ep.related_entities = new, keep
+                        changed += 1
+                if changed:
+                    episodic.store._save_all()
+                    episodic._rebuild_index()           # the vectors were made from the old words
+            if changed:
+                gone.append(f"the name in {changed} remembered moment{'s' if changed != 1 else ''}")
+        except Exception:
+            logger.exception("Could not scrub episodes while forgetting")
+    if entities is not None:
+        try:
+            changed = 0
+            for e in list(entities.store.all()):
+                attrs = e.attributes if isinstance(getattr(e, "attributes", None), dict) else None
+                if not attrs:
+                    continue
+                hit = False
+                for k in ("last_seen_context", "summary", "notes"):
+                    if isinstance(attrs.get(k), str) and rx.search(attrs[k]):
+                        attrs[k] = _scrub(attrs[k], rx)
+                        hit = True
+                rel = attrs.get("relations")
+                if isinstance(rel, dict):
+                    for k in [k for k in rel if rx.search(str(k))]:
+                        del rel[k]
+                        hit = True
+                changed += int(hit)
+            if changed:
+                entities.store._save()
+                gone.append(f"the name in {changed} other entr{'ies' if changed != 1 else 'y'}")
+        except Exception:
+            logger.exception("Could not scrub entities while forgetting")
+    net = getattr(concepts, "net", None) if concepts is not None else None
+    if net is not None:
+        try:
+            changed = 0
+            for c in list(net.concepts.values()):
+                if rx.search(getattr(c, "seed_text", "") or ""):
+                    c.seed_text = _scrub(c.seed_text, rx)
+                    changed += 1
+                ex = [e for e in (getattr(c, "exemplars", None) or []) if not rx.search(str(e[1]))]
+                if len(ex) != len(getattr(c, "exemplars", None) or []):
+                    c.exemplars = ex
+                    changed += 1
+            cand = getattr(net, "candidates", None)
+            if cand is not None:
+                for k in list(cand.items):
+                    keep = [t for t in (k.texts or []) if not rx.search(str(t))]
+                    if len(keep) != len(k.texts or []):
+                        k.texts = keep
+                        changed += 1
+            if changed:
+                gone.append("what the concept graph kept of it")
+        except Exception:
+            logger.exception("Could not scrub the concept graph while forgetting")
+    return gone
+
+
+def forget_subject(name: str, kb=None, entities=None, wonderer=None, now: Optional[float] = None,
+                   episodic=None, concepts=None) -> List[str]:
     """Remove `name` from everything ASH believes. Returns what went, as words."""
     from .wondering import norm
     n = norm(name)
     gone: List[str] = []
     if not n:
         return gone
+    names = {str(name).strip()}
+    removed_ids: set = set()
     felt: List[str] = []
     if kb is not None:
         with kb._lock:
@@ -192,6 +278,12 @@ def forget_subject(name: str, kb=None, entities=None, wonderer=None, now: Option
             if n in kb.procedures:
                 del kb.procedures[n]
                 gone.append("the routine")
+            facts = getattr(kb, "facts", None)
+            if facts:
+                for k in [k for k, v in facts.items() if n in norm(k).split() or n == norm(k) or n == norm(str(v))]:
+                    del facts[k]
+                    if "what it noted about them" not in gone:
+                        gone.append("what it noted about them")
             tastes = getattr(kb, "tastes", None)
             if tastes:
                 # Both ways: "forget Omar" drops what Omar likes, and
@@ -216,13 +308,16 @@ def forget_subject(name: str, kb=None, entities=None, wonderer=None, now: Option
     if entities is not None:
         try:
             for e in list(entities.store.all()):
-                names = [str(v) for v in (e.primary_identifiers.get("name"), (e.attributes or {}).get("canonical_name"),
-                                         (e.attributes or {}).get("full_name")) if v]
-                if any(norm(x) == n for x in names) and remove_entity(entities, e.entity_id):
+                names_of_e = [str(v) for v in (e.primary_identifiers.get("name"), (e.attributes or {}).get("canonical_name"),
+                                               (e.attributes or {}).get("full_name")) if v]
+                if any(norm(x) == n for x in names_of_e) and remove_entity(entities, e.entity_id):
+                    removed_ids.add(e.entity_id)
+                    names.update(names_of_e)
                     if "the memory entry" not in gone:
                         gone.append("the memory entry")
         except Exception:
             logger.exception("Could not forget from entity memory")
+    gone.extend(scrub_memories(_name_rx(names), removed_ids, entities=entities, episodic=episodic, concepts=concepts))
     if wonderer is not None:
         try:
             now = wonderer.clock() if now is None else now
