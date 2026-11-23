@@ -29,8 +29,8 @@ T0 = tw.T0
 ANSWERED_WITHOUT_THE_MODEL = [
     # ASH's memory and the people it knows
     ("who is khalid in your memory", "arbiter / notes"),
+    ("What's your name?", "who it is, by rule"),
     ("what do you reme", "notes (a truncated 'remember')"),
-    ("What's your name?", "identity"),
     ("What can you do then?", "capabilities"),
     ("What can you do with Google Docs?", "capabilities: what it cannot do"),
     # control
@@ -62,7 +62,6 @@ ANSWERED_WITHOUT_THE_MODEL = [
 # this list into the table above.
 TODO = {
     "what do you reme",
-    "What's your name?",
     "What can you do with Google Docs?",
     "Give me your emotional telemetry.",
     "Did you do it?",

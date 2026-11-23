@@ -204,12 +204,38 @@ SEEDS = {
                      "what sort of things are you able to do", "explain what you can do for me", "what could you do for me", "what are you good for",
                      "give me an overview of your abilities", "what's your skill set", "what kinds of requests do you handle", "what can you take care of",
                      "what types of things are you built for", "which tasks can you take on", "what is your toolkit", "what can you actually do for me"],
+    # "What's your name?" went to the model (62 of 112 addressed lines did, and about one in ten needed to): ASH knows who it is.
+    "self": ["what's your name", "what is your name", "who are you", "what are you", "tell me about yourself", "introduce yourself",
+             "what should i call you", "what do i call you", "who am i talking to", "what is your name again", "so who are you exactly",
+             "tell me who you are", "what are you called", "do you have a name", "what exactly are you", "describe yourself",
+             "give me a quick intro"],
     "none": ["can you help me", "can you help me with my code", "what can i do about this error", "what do you think about this", "what do you remember",
-             "what do you know about me", "who are you", "what's your name", "how are you", "what time is it", "tell me a joke", "play some music",
+             "what do you know about me", "how are you", "what time is it", "tell me a joke", "play some music",
              "what is the weather", "what can you see", "what did you do yesterday", "what should i do tonight", "what do you do when i'm away",
-             "do you do windows", "can you do it again", "what does the camera do", "how do you work", "how do i use this", "thanks", "yes", "no",
+             "who built you", "who made you", "are you a robot", "where do you come from", "do you do windows", "can you do it again", "what does the camera do", "how do you work", "how do i use this", "thanks", "yes", "no",
              "open spotify", "set a timer", "who is omar", "what is a transformer", "what is my cpu usage", "how are you feeling"],
 }
+
+
+_SELF = re.compile(_A + r"(?:what(?:'s|\s+is)\s+your\s+name(?:\s+again)?|who\s+are\s+you(?:\s+(?:exactly|again))?|what\s+are\s+you(?:\s+called)?|"
+                   r"tell\s+me\s+(?:about\s+yourself|who\s+you\s+are)|introduce\s+yourself|what\s+should\s+i\s+call\s+you|"
+                   r"who\s+am\s+i\s+talking\s+to|do\s+you\s+have\s+a\s+name|describe\s+yourself)" + _Z, re.I)
+
+
+def asks_self(text: str) -> bool:
+    """"What's your name?", "who are you?", "tell me about yourself"."""
+    t = (text or "").strip()
+    return bool(t) and len(t) <= 60 and (bool(_SELF.match(t)) or bool(_SELF.match(_TAIL.sub("", t))))
+
+
+def self_intro(rt) -> str:
+    """Who ASH is, in a sentence or two, with the user's name when it has one."""
+    brain = getattr(rt, "brain", None)
+    name = str(getattr(brain, "name", "") or "A.S.H")
+    user = str(getattr(brain, "user", "") or "")
+    who = f" and you're {user}" if user and user.lower() not in ("user", "you") else ""
+    return (f"I'm {name} -- Ash for short{who}. I live on this computer: I notice what you're working on, remember what you tell me, "
+            f"and help with what you ask. Say \u201cwhat can you do?\u201d for the list.")
 
 
 def asks_capabilities(text: str) -> bool:
