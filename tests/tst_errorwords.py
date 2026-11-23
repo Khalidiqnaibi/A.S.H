@@ -69,7 +69,7 @@ def t2_plan_and_tools():
         check("an empty folder", f({"ok": True, "operation": "list_directory", "entry_count": 0, "entries": []}) == "That folder is empty.")
         s = f({"ok": True, "words": 1, "characters": 5, "estimated_reading_time_sec": 0})
         check("a word count is a sentence", s == "1 word, 5 characters.", s)
-        check("a conversion keeps its unit", f({"ok": True, "result": 6.2137, "unit": "mi"}) == "That's 6.2137 mi.")
+        check("a conversion keeps its unit", f({"ok": True, "result": 6.2137, "unit": "mi"}) == "6.2137 mi.")
         check("a plain result is still just the result", f({"ok": True, "result": 84}) == "84")
         s = f({"ok": True, "operation": "search_files", "match_count": 2, "matches": [{"file": "C:/x/a.py"}, {"file": "C:/x/b.py"}]})
         check("a search says where", s == "2 matches, in a.py, b.py.", s)

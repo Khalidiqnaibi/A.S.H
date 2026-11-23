@@ -113,6 +113,9 @@ def brain_part():
         check(f"{q!r} is fast, with no model call", r.pathway.value in ("fast", "reflex") and CALLS["n"] == 0,
               f"{r.pathway.value}, llm calls={CALLS['n']}")
     print("\n=== R2. Conversation goes to the model ===")
+    said = str(ash.brain.think("convert 12 km to miles").text)
+    check("a conversion is said with one lead-in and its unit, not 'That's That's ...'",
+          "That's That's" not in said and "mi" in said and said.count("That") <= 1, said)
     for q in SLOW:
         r = ash.brain.think(q)
         check(f"{q!r} is slow", r.pathway.value in ("slow", "escalated"), r.pathway.value)

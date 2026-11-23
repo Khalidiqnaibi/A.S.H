@@ -173,7 +173,7 @@ def _spoken_dict(out: Dict[str, Any]) -> str:
         if out.get("unit") and isinstance(out.get("result"), (int, float)):
             r = out["result"]
             r = int(r) if float(r).is_integer() else r
-            return f"That's {r} {out['unit']}."
+            return f"{r} {out['unit']}."          # the fast path adds its own lead-in ("That's ...", "That works out to ...")
     except Exception:
         return ""
     return ""
