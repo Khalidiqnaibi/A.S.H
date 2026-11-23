@@ -98,6 +98,27 @@ def u2b_suggestions():
     check("the sleep phase writes them", rep.get("unrouted_groups") == 1 and os.path.exists(rt.unrouted.path + ".suggest.json"), str(rep))
 
 
+def u2c_usage():
+    print("\n=== U2c. Asked how much it uses the model ===")
+    for t in ("how often do you use the model", "how many times did you use the LLM today", "how much do you use the language model",
+              "your model usage today", "how many of my questions went to the model"):
+        check(f"{t!r} asks", Unrouted.asks_usage(t))
+    for t in ("what model are you", "use the model for this", "how often do I use spotify", "what is the language model"):
+        check(f"{t!r} does not", not Unrouted.asks_usage(t))
+    u = Unrouted(None)
+    check("nothing yet: says so", "nothing went to the language model" in u.usage_reply())
+    for _ in range(3):
+        u.answered_elsewhere()
+    u.model_turn("tell me about octopuses", "conversation", took_s=63.0)
+    u.model_turn("tell me about octopuses", "conversation", took_s=5.0)
+    s = u.usage_reply()
+    check("how many, the share, the slowest and what keeps going to it", "answered 2 of 5 turns (40%)" in s and "slowest took 63 s" in s and "octopuses" in s, s)
+    import tst_modellast as tm
+    rt = tm.rig()
+    used, said = rt.say("how often do you use the model")
+    check("in the runtime: by rule, from its own numbers", not used and said and ("language model" in said[-1]), f"{used} {said}")
+
+
 def u3_runtime():
     print("\n=== U3. In the runtime ===")
     import tst_honest as th
@@ -120,6 +141,7 @@ if __name__ == "__main__":
     u1_ledger()
     u2_common()
     u2b_suggestions()
+    u2c_usage()
     u3_runtime()
     print("\n" + ("ALL PASS" if tw.OK else "FAILED"))
     sys.exit(0 if tw.OK else 1)

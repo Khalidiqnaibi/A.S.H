@@ -16,6 +16,7 @@ repeated ones are the next things to answer without the model; `rate()` is the s
 from __future__ import annotations
 
 import json
+import re
 import logging
 import os
 import threading
@@ -55,6 +56,7 @@ class Unrouted:
         self._lock = threading.Lock()
         self.rows: List[Dict[str, Any]] = []
         self.stats = {"turns": 0, "model": 0}
+        self.slowest_s = 0.0               # the longest a model turn took this run
         self._load()
 
     def _load(self):
@@ -78,6 +80,7 @@ class Unrouted:
     def model_turn(self, text: str, reason: str, took_s: float = 0.0, tool: bool = False, guest: bool = False):
         self.stats["turns"] += 1
         self.stats["model"] += 1
+        self.slowest_s = max(self.slowest_s, float(took_s or 0.0))
         if guest or not (text or "").strip():
             return
         row = {"t": round(self.clock(), 1), "text": str(self.scrub(text))[:300], "why": reason, "tool": bool(tool),
@@ -172,4 +175,30 @@ class Unrouted:
         return "\n".join(lines)
 
     def status(self) -> Dict[str, Any]:
-        return {"turns": self.stats["turns"], "model": self.stats["model"], "kept": len(self.rows), "rate": round(self.rate(), 3)}
+        return {"turns": self.stats["turns"], "model": self.stats["model"], "kept": len(self.rows), "rate": round(self.rate(), 3),
+                "slowest_s": round(self.slowest_s, 1)}
+
+    _ASK = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:so|and|ok(?:ay)?)[,\s]+)?(?:how\s+(?:often|much|many\s+times)\s+(?:do|did|have)\s+you\s+(?:use|used|call|called|ask|asked|need|needed)\s+(?:the\s+)?"
+                      r"(?:model|llm|language\s+model|ai|brain)(?:\s+(?:today|so\s+far|this\s+(?:session|run)|lately))?|how\s+(?:many|much)\s+(?:of\s+)?(?:my\s+)?"
+                      r"(?:questions|messages|requests)\s+(?:go|went|did\s+you\s+send)\s+to\s+the\s+(?:model|llm)|(?:how\s+(?:is|are)\s+)?your\s+(?:model\s+)?(?:usage|stats|numbers)"
+                      r"(?:\s+(?:today|so\s+far))?)\s*[?.!]*\s*$", re.I)
+
+    @classmethod
+    def asks_usage(cls, text: str) -> bool:
+        t = (text or "").strip()
+        return bool(t) and len(t) <= 80 and bool(cls._ASK.match(t))
+
+    def usage_reply(self) -> str:
+        """How much of this run the language model answered, said plainly."""
+        t, m = self.stats["turns"], self.stats["model"]
+        if not t:
+            return "Nothing asked of me yet this run, so nothing went to the language model."
+        pct = round(100.0 * m / t)
+        s = f"This run, the language model answered {m} of {t} turns ({pct}%); the rest were rules, tools and memory."
+        if m and self.slowest_s >= 10:
+            s += f" The slowest took {self.slowest_s:.0f} s."
+        if self.rows:
+            common = self.common(limit=1, min_size=2)
+            if common:
+                s += f" What keeps going to it most: \"{common[0]['example'][:60]}\" ({common[0]['n']} times)."
+        return s

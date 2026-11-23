@@ -2865,6 +2865,17 @@ class AmbientRuntime:
             self.stats["errors"] += 1
             logger.exception("Dwell step failed")
 
+    def _usage_request(self, ev, now: float) -> bool:
+        """"How often do you use the model?": from the ledger's own numbers (unrouted.py)."""
+        if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        if not self.unrouted.asks_usage(text):
+            return False
+        self._wonder_say(ev, type("R", (), {"say": self.unrouted.usage_reply(), "outcome": "desktop"})())
+        self._last_why = {"kind": "asked", "query": text[:80]}
+        return True
+
     def _away_request(self, ev, now: float) -> bool:
         """"What's new?", "what did I miss?", "catch me up": from what really happened since they left -- the reminders that fired, the questions
         saved, a shutdown, the window left open -- never the model's guess (away.py)."""
@@ -4192,6 +4203,8 @@ class AmbientRuntime:
         if self._ask_followthrough(ev, now):
             return True
         if not loose and self._asks_request(ev, now):
+            return True
+        if not loose and self._usage_request(ev, now):
             return True
         if not loose and self._away_request(ev, now):
             return True
