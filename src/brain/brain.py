@@ -261,8 +261,12 @@ class Brain:
         self.system1 = System1Policy(classifier=classifier, registry=registry, shapes=shapes)
         self.vla = VLAChannel(registry=registry)
         self.executive = ExecutiveCore(core_memory=core_memory, vla=self.vla)
+        # The language model is the last resort, not a second opinion on the classifier: asked to nominate a tool from the classifier's own
+        # shortlist it could only re-rank it (confidence capped at the match + a margin), and cost a whole round trip -- 21 s on the real
+        # machine -- before the answer itself even started. Off unless ASH_LLM_PROPOSALS=1.
         self.system2 = System2Deliberator(
             llm=llm, registry=registry, candidate_fn=candidate_fn, shapes=shapes,
+            allow_llm_proposals=os.environ.get("ASH_LLM_PROPOSALS", "") == "1",
         )
 
         self.registry = registry

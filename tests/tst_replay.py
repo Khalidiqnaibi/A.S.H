@@ -119,6 +119,9 @@ def brain_part():
     for q in SLOW:
         r = ash.brain.think(q)
         check(f"{q!r} is slow", r.pathway.value in ("slow", "escalated"), r.pathway.value)
+    CALLS["n"] = 0
+    ash.brain.think("calculate the area of my room")
+    check("a slow turn is ONE model call (a second one only re-ranked the classifier's shortlist: 21 s)", CALLS["n"] == 1, str(CALLS["n"]))
     print("\n=== R3. The same, second time round (the reflex has learned them) ===")
     for q in ("what time is it", "what's 16 times 23"):
         CALLS["n"] = 0
