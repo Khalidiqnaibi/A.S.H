@@ -2243,6 +2243,34 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
         return True
 
+    def _statement_request(self, ev, now: float) -> bool:
+        """The user says what they are doing ("I'm just building my custom hardware chip"): acknowledged in a line, and kept as what they
+        said -- by rule, with no model (statements.py). The last rule but one, so everything with a use for the line has had it first."""
+        if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        st = getattr(self, "_statements", None)
+        if st is None:
+            from .statements import SEEDS, Statements
+            st = self._statements = Statements(chooser=self.chooser("statement", SEEDS, accept=0.72, margin=0.12), clock=lambda: self.clock())
+        try:
+            from src.senses.mic import MicrophoneSensor
+            say = st.hear(MicrophoneSensor.strip_address(text) or text)
+        except Exception:
+            logger.exception("Statements failed")
+            return False
+        if not say:
+            return False
+        try:
+            # Kept as what was said: the model path wrote the turn to memory, and a rule that answers must not make it vanish.
+            self.brain.memory.commit_turn(text, say, str(getattr(self.brain, "user", "") or "user"), str(getattr(self.brain, "name", "") or "ASH"),
+                                          importance=0.45)
+        except Exception:
+            logger.debug("statement not written to memory", exc_info=True)
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
+        self._last_why = {"kind": "asked", "query": text[:80]}
+        return True
+
     def _cheer_request(self, ev, now: float) -> bool:
         """"I'm nervous about the interview": a good moment brought back."""
         c = self.cheer
@@ -4222,6 +4250,8 @@ class AmbientRuntime:
                 self._wonder_say(ev, type("R", (), {"say": said, "outcome": "moment"})())
                 return True
         if not loose and self._courtesy_request(ev, now):
+            return True
+        if not loose and self._statement_request(ev, now):
             return True
         return False
 
