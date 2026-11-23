@@ -8,6 +8,7 @@ tst_unrouted.py -- which lines reached the language model, and why.
 Run:  PYTHONIOENCODING=utf-8 python tests/tst_unrouted.py
 """
 
+import json
 import os
 import sys
 import tempfile
@@ -76,6 +77,27 @@ def u2_common():
     check("the report says it", "x3" in u.report(embed) and "answered" in u.report(embed))
 
 
+def u2b_suggestions():
+    print("\n=== U2b. Written at sleep ===")
+    p = os.path.join(tempfile.mkdtemp(), "u.jsonl")
+    u = Unrouted(p, clock=lambda: 50.0)
+    for t in ["what is the plan", "what is the plan", "what is the plan", "once only", "twice", "twice"]:
+        u.model_turn(t, "conversation")
+    n = u.write_suggestions()
+    sp = p + ".suggest.json"
+    got = json.load(open(sp, encoding="utf-8")) if os.path.exists(sp) else {}
+    check("only the groups that came up three times or more are suggested", n == 1 and [g["example"] for g in got.get("groups", [])] == ["what is the plan"], str(got))
+    check("with how many turns the model had of all", got.get("model") == 6 and got.get("turns") == 6)
+    check("none: an empty list, no error", Unrouted(None).write_suggestions() == 0)
+    import tst_honest as th
+    rt = th.rig("Sure.")
+    rt.unrouted = Unrouted(os.path.join(tempfile.mkdtemp(), "u.jsonl"), clock=lambda: 1.0)
+    for _ in range(3):
+        rt.unrouted.model_turn("tell me about octopuses", "conversation")
+    rep = rt._sleep_phase(force=True)
+    check("the sleep phase writes them", rep.get("unrouted_groups") == 1 and os.path.exists(rt.unrouted.path + ".suggest.json"), str(rep))
+
+
 def u3_runtime():
     print("\n=== U3. In the runtime ===")
     import tst_honest as th
@@ -97,6 +119,7 @@ def u3_runtime():
 if __name__ == "__main__":
     u1_ledger()
     u2_common()
+    u2b_suggestions()
     u3_runtime()
     print("\n" + ("ALL PASS" if tw.OK else "FAILED"))
     sys.exit(0 if tw.OK else 1)

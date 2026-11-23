@@ -5543,6 +5543,11 @@ class AmbientRuntime:
         except Exception:
             logger.exception("Journal rollup failed")
         try:
+            # The lines that kept reaching the language model, grouped by meaning: the next things to answer without it (unrouted.py).
+            report["unrouted_groups"] = self.unrouted.write_suggestions(getattr(self.cfg, "chooser_embed", None))
+        except Exception:
+            logger.exception("Writing the unrouted suggestions failed")
+        try:
             from ..senses.screen import SCREEN_DIR
             report["privacy_sweep"] = self.privacy.sweep(self.journal.dir, SCREEN_DIR)
         except Exception:

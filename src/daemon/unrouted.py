@@ -144,6 +144,22 @@ class Unrouted:
             g.pop("i0", None)
         return groups[:limit]
 
+    def write_suggestions(self, embed: Optional[Callable[[List[str]], Any]] = None, path: Optional[str] = None, min_size: int = 3) -> int:
+        """At sleep: the lines that keep reaching the model, grouped by meaning, written beside the ledger for whoever decides what to teach it next
+        (a rule, a chooser seed, a tool). Only groups that came up `min_size` times or more. Returns how many groups."""
+        path = path or ((self.path + ".suggest.json") if self.path else "")
+        groups = self.common(embed, limit=20, min_size=min_size)
+        if not path:
+            return len(groups)
+        try:
+            from src.memory.atomic import write_json
+            write_json(path, {"made": round(self.clock(), 1), "turns": self.stats["turns"], "model": self.stats["model"],
+                              "groups": [{"example": g["example"], "n": g["n"], "why": g["why"], "texts": g["texts"][:6]} for g in groups]},
+                       keep_backup=False, indent=1, ensure_ascii=False)
+        except Exception:
+            logger.debug("suggestions not written", exc_info=True)
+        return len(groups)
+
     def report(self, embed: Optional[Callable[[List[str]], Any]] = None) -> str:
         by: Dict[str, int] = {}
         for r in self.rows:
