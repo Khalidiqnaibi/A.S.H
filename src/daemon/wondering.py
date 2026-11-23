@@ -497,8 +497,12 @@ class Knowledge:
         if not self.path or not os.path.exists(self.path):
             return
         try:
-            with open(self.path, "r", encoding="utf-8") as fh:
-                raw = json.load(fh)
+            # As the other memory files are read (memory/atomic.py): the file, else its .bak, else empty -- a power cut that left it empty
+            # or torn must not be the end of everyone ASH knows and what they like.
+            from src.memory.atomic import load_json
+            raw = load_json(self.path, default=None, logger=logger)
+            if not isinstance(raw, dict):
+                return
             self.people = dict(raw.get("people") or {})
             self.roles = dict(raw.get("roles") or {})
             self.terms = dict(raw.get("terms") or {})
@@ -513,9 +517,15 @@ class Knowledge:
     def save(self):
         if not self.path:
             return
-        _atomic_write(self.path, {"people": self.people, "roles": self.roles, "terms": self.terms,
-                                  "facts": self.facts, "aliases": self.aliases,
-                                  "procedures": self.procedures, "tastes": self.tastes})
+        # Forced to disk and swapped in, with the last good copy kept as .bak (memory/atomic.py). The plain temp-and-replace here had no
+        # fsync and no backup, and its temp name was only per-process: two threads saving at once could write the same temp file.
+        from src.memory.atomic import log_io_failure, write_json
+        try:
+            write_json(self.path, {"people": self.people, "roles": self.roles, "terms": self.terms,
+                                   "facts": self.facts, "aliases": self.aliases,
+                                   "procedures": self.procedures, "tastes": self.tastes}, indent=1)
+        except Exception as e:                     # noqa: BLE001
+            log_io_failure(logger, "what ASH knows (people, tastes, facts)", e)
 
     # -- entity memory as a source ----------------------------------------
     def _entity_people(self) -> List[Any]:

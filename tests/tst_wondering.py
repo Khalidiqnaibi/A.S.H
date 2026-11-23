@@ -667,7 +667,12 @@ def w7_persistence():
     k2 = Knowledge(kb)
     check("knowledge round-trips", k2.person_known("Omar") and k2.term_known("zxq") and k2.fact("birthday") == "March 3")
     open(kb, "w").write("garbage")
-    check("a corrupt knowledge file does not crash", Knowledge(kb).status()["people"] == 0)
+    check("a corrupt knowledge file does not crash, and is recovered from its backup (memory/atomic.py)", Knowledge(kb).status()["people"] >= 1)
+    for junk in (kb + ".bak", kb + ".bad"):
+        if os.path.exists(junk):
+            os.remove(junk)
+    open(kb, "w").write("garbage")
+    check("...and with no backup it starts empty, without crashing", Knowledge(kb).status()["people"] == 0)
 
     # a very long run keeps the files bounded
     w = Wonderer(WonderingConfig(min_gap_s=0, max_pending=10), Knowledge(), path=tmp(), clock=lambda: T0)
