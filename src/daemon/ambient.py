@@ -220,6 +220,7 @@ class AmbientConfig:
     # language models, and keeps quiet (gamemode.py). On in the daemon; a bare test runtime leaves it off.
     game_mode: bool = False
     game_cfg: Optional[Dict[str, Any]] = None
+    unload_idle_s: float = 0.0               # the language model is unloaded after this long with no question (0: never); Ollama's own keep_alive is hours
     governor: bool = False                   # step aside when memory is nearly gone or the CPU is pinned (governor.py); needs game_mode
     governor_cfg: Optional[Dict[str, Any]] = None
     # Follow-ups: an event the user mentions ("my interview on Thursday") is
@@ -1419,6 +1420,7 @@ class AmbientRuntime:
                 self.governor.tick(now)
             except Exception:
                 logger.exception("Resource governor failed")
+        self._unload_when_idle(now)
         if now - getattr(self, "_others_at", 0.0) >= 60.0:
             self._others_at = now
             self._known_others()
@@ -3826,6 +3828,23 @@ class AmbientRuntime:
         if light:
             unload_ollama(light, str(getattr(llm, "_ollama_url", "") or ""))
 
+    def _unload_when_idle(self, now: float):
+        """No question for a long while: let Ollama drop the model (it reloads on the next one, a few seconds). Ollama keeps it for hours by
+        default, which is gigabytes of RAM held for nobody -- on a machine that sits at 95% memory."""
+        limit = float(getattr(self.cfg, "unload_idle_s", 0.0) or 0.0)
+        last = getattr(self, "_last_model_at", 0.0)
+        if limit <= 0 or not last or getattr(self, "_model_unloaded", False) or now - last < limit:
+            return
+        self._model_unloaded = True
+        logger.info("No question for %.0f min: asking the language model to unload", (now - last) / 60.0)
+        threading.Thread(target=self._safe_unload, daemon=True, name="ash-idle-unload").start()
+
+    def _safe_unload(self):
+        try:
+            self._unload_model()
+        except Exception:
+            logger.exception("Idle unload failed")
+
     def _release_models(self):
         """What can be let go of while a game runs: the vision model and the OCR engines."""
         v = getattr(getattr(self.brain, "sensory", None), "vision", None)
@@ -4530,6 +4549,7 @@ class AmbientRuntime:
                             context = (context + "\n" + tc).strip()
                     cue = self._thinking_cue(to_ash)
                     t_model = time.time()
+                    self._last_model_at, self._model_unloaded = self.clock(), False
                     try:
                         with self._model_route(prompt, image is not None, bool(context.strip())):
                             response = self.ash.think(prompt, image=image, context=context)

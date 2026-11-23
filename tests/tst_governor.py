@@ -132,7 +132,42 @@ def h3_runtime():
     check("a hot machine, for long enough, puts the runtime aside", rt.game.squeezed and rt.status()["governor"]["squeezed"], str(rt.status()["governor"]))
 
 
+def h4_idle_unload():
+    print("\n=== H4. The model is let go of after a long idle ===")
+    import tst_effects as te
+    rt = te.rig(unload_idle_s=600.0)
+    calls = []
+    rt._unload_model = lambda: calls.append(1)
+    t0 = rt.clock()
+    rt._unload_when_idle(t0 + 9999)
+    time.sleep(0.2)
+    check("before any question there is nothing to unload", calls == [])
+    rt.say("what should I cook tonight")                 # a question to the model
+    last = rt._last_model_at
+    rt._unload_when_idle(last + 300)
+    time.sleep(0.2)
+    check("five minutes on: still loaded", calls == [])
+    rt._unload_when_idle(last + 700)
+    time.sleep(0.2)
+    check("ten minutes without a question: Ollama is asked to unload", calls == [1], str(calls))
+    rt._unload_when_idle(last + 900)
+    time.sleep(0.2)
+    check("once, not every tick", calls == [1])
+    rt.say("and what about dessert")
+    rt._unload_when_idle(rt._last_model_at + 700)
+    time.sleep(0.2)
+    check("after the next question it can be unloaded again", calls == [1, 1], str(calls))
+    off = te.rig()
+    c2 = []
+    off._unload_model = lambda: c2.append(1)
+    off.say("what should I cook tonight")
+    off._unload_when_idle(off._last_model_at + 10 ** 6)
+    time.sleep(0.2)
+    check("switched off (0), never", c2 == [])
+
+
 if __name__ == "__main__":
+    h4_idle_unload()
     h1_governor()
     h2_machinery()
     h3_runtime()
