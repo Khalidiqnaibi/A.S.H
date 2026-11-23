@@ -280,6 +280,13 @@ def u3_hooks():
         h3.on_control(c, "")
     st = h3.state()["status"]
     check("and are undone", not st["paused"] and not st["muted"])
+    h4 = wired()
+    from src.senses import address as _addr
+    _addr.conversation.note_ash_spoke(time.time(), asked=True)
+    open_before = _addr.conversation.expects_reply(time.time())
+    h4.on_control("mute", "")
+    h4.on_control("unmute", "")
+    check("the console's Mute ends the conversation (a line after it is not a reply to the old talk)", open_before and not _addr.conversation.expects_reply(time.time()))
     check("an unknown command is refused", h3.on_control("format_disk", "")["ok"] is False)
     check("a missing face is reported, not crashed on", h3.on_control("face", "happy")["ok"] is False)
     check("presence without a face is harmless", h3.on_control("presence", "")["ok"] is True)

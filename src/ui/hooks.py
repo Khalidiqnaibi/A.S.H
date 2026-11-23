@@ -178,6 +178,15 @@ def attach_ui(runtime, bus, opener: Optional[Callable[[], Any]] = None,
                                    salience=0.9, urgency=0.6, addressed=True,
                                    meta={"typed": True}))
 
+    def _end_conversation():
+        """Pause and Mute end whatever was being said (the control socket's do too): otherwise the follow-up window outlives them and
+        the first thing overheard after Resume is read as a reply to a conversation from before."""
+        try:
+            from src.senses import address
+            address.conversation.close()
+        except Exception:
+            logger.debug("conversation not closed", exc_info=True)
+
     def on_control(cmd: str, arg: str) -> Dict[str, Any]:
         cmd = cmd.lower().strip()
         if cmd == "presence":
@@ -210,10 +219,12 @@ def attach_ui(runtime, bus, opener: Optional[Callable[[], Any]] = None,
             return {"ok": True}
         if cmd == "pause":
             runtime.privacy.pause("console")
+            _end_conversation()
         elif cmd == "resume":
             runtime.privacy.resume()
         elif cmd == "mute":
             runtime.gate.mute(True)
+            _end_conversation()
         elif cmd == "unmute":
             runtime.gate.mute(False)
         elif cmd == "face":
