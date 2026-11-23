@@ -171,6 +171,8 @@ def h4_runtime():
     n_w = len(rt.ash_.calls)
     rt.say("What can you do with Google Docs?")
     check("'what can you do with <a thing it has nothing for>': said so, no model, no invented features", rt.out[-1].startswith("Nothing on my own with Google Docs") and len(rt.ash_.calls) == n_w, rt.out[-1])
+    check("'can you open notepad for me please' is a command, not a capability question (it was caught as 'what can you do with X')",
+          honest.with_subject(rt, "Ash, can you open notepad for me please") is None and honest.with_subject(rt, "can you edit my file") is None)
     rt.say("what can you do with reminders")
     check("...and with a thing it has, from its own manual", "remind me" in rt.out[-1].lower() and len(rt.ash_.calls) == n_w, rt.out[-1])
     rt.say("send an email to Omar")

@@ -239,7 +239,7 @@ def self_intro(rt) -> str:
 
 
 _WITH = re.compile(_A + r"(?:what\s+(?:can|could)\s+you\s+do\s+(?:with|about|for|in|on)|can\s+you\s+(?:work|help)\s+(?:with|on|in)|"
-                    r"do\s+you\s+(?:work\s+with|support|handle|know)|can\s+you\s+(?:use|open|edit|read|control))\s+(?:my\s+|the\s+|a\s+|an\s+)?"
+                    r"do\s+you\s+(?:work\s+with|support|handle|know))\s+(?:my\s+|the\s+|a\s+|an\s+)?"
                     r"(?P<x>[\w][\w .&+#'-]{1,40}?)\s*[?.!]*\s*$", re.I)
 _STOP_SUBJECT = frozenset("me you it that this them there here now then something anything everything".split())
 
