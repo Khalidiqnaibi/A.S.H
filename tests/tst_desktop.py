@@ -77,6 +77,13 @@ def d1_open():
     print("\n=== D1. Opening ===")
     d = drig()
     check("open Outlook", d.hear("open Outlook") == "Opening Outlook." and d.ex_.opened == ["outlook"])
+    # An app as the microphone heard it: "Open Obra" (Opera), "chorme", "outlok" -- by sound, and only when ONE known app fits.
+    d2 = drig()
+    for heard, opened in (("open obra", "opera"), ("open chorme", "chrome"), ("open outlok", "outlook"), ("open spotifi", "spotify:")):
+        got = d2.hear(heard)
+        check(f"{heard!r} opens {opened!r}", got is not None and d2.ex_.opened and d2.ex_.opened[-1] == opened, f"{got} {d2.ex_.opened[-1:]}")
+    for heard in ("open the door", "open table", "open every", "open cat"):
+        check(f"{heard!r} is not an app", drig().hear(heard) is None)
     check("launch spotify (a protocol)", d.hear("launch spotify please") == "Opening spotify." and
           d.ex_.opened[-1] == "spotify:")
     check("can you open VS Code", d.hear("can you open VS Code") == "Opening VS Code." and d.ex_.opened[-1] == "code")

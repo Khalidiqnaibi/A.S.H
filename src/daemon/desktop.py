@@ -26,6 +26,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+from difflib import SequenceMatcher
 import shutil
 import subprocess
 import sys
@@ -194,8 +195,34 @@ class Desktop:
                 self.apps[_norm(name)] = (v, os.path.basename(v).lower()
                                           if v.lower().endswith(".exe") else f"{_norm(name)}.exe")
 
+    @staticmethod
+    def _skeleton(word: str) -> str:
+        """How a word sounds, roughly: vowels and soft letters dropped, voiced/unvoiced pairs folded (b~p, d~t, g~k, v~f, z~s), repeats collapsed."""
+        w = re.sub(r"[^a-z]", "", word.lower())
+        w = w.translate(str.maketrans("bdgvzcq", "ptkfssk"))
+        w = re.sub(r"[aeiouyhw]", "", w)
+        return re.sub(r"(.)+", r"", w)
+
+    def _fuzzy_app(self, n: str) -> Optional[str]:
+        """An app name as the microphone heard it: "Obra" for Opera, "chorme" for Chrome. One word, four letters or more, and ONE known app
+        that sounds the same (or is a single typo away) -- never a guess between two."""
+        if " " in n or len(n) < 4:
+            return None
+        sk = self._skeleton(n)
+        found = set()
+        for key in self.apps:
+            if " " in key or len(key) < 4 or abs(len(key) - len(n)) > 2:
+                continue
+            same_sound = len(sk) >= 2 and sk == self._skeleton(key) and key[0] == n[0]
+            one_typo = len(key) >= 5 and len(n) >= 5 and SequenceMatcher(None, n, key).ratio() >= 0.83
+            if same_sound or one_typo:
+                found.add(key)
+        return next(iter(found)) if len(found) == 1 else None
+
     def _app(self, name: str) -> Optional[Tuple[str, str, str]]:
         n = _norm(name)
+        if n not in self.apps:
+            n = self._fuzzy_app(n) or n
         if n in self.apps:
             t, p = self.apps[n]
             return name.strip(" .!?"), t, p
