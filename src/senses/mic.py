@@ -337,6 +337,23 @@ class MicrophoneSensor(Sensor):
                 stream.close()
                 pa.terminate()
 
+    def _rise_floor(self, rms: float) -> None:
+        """The floor could only FALL: it follows frames under twice itself, so a room that got louder (a fan, a game, the street) than twice what it was
+        in the quiet hour it started from never raised it, and everything counted as speech. The quietest tenth of the last minute or so is what the room
+        is doing even while someone talks (people pause); the floor climbs towards it, a tenth at a time, never past 0.05."""
+        hist = getattr(self, "_rms_hist", None)
+        if hist is None:
+            import collections
+            hist = self._rms_hist = collections.deque(maxlen=2000)
+            self._rms_n = 0
+        hist.append(rms)
+        self._rms_n += 1
+        if self._rms_n % 100 or len(hist) < 1000:
+            return
+        quiet = sorted(hist)[len(hist) // 10]
+        if quiet > self._noise_floor * 1.5:
+            self._noise_floor = min(0.05, quiet, self._noise_floor * 1.1)
+
     def _is_speech(self, frame) -> bool:
         import numpy as np
 
@@ -347,6 +364,7 @@ class MicrophoneSensor(Sensor):
         # doesn't drag the threshold up until nothing registers as speech.
         if rms < self._noise_floor * 2.0:
             self._noise_floor = 0.995 * self._noise_floor + 0.005 * rms
+        self._rise_floor(rms)
 
         if rms < max(0.006, self._noise_floor * 3.0):
             return False
