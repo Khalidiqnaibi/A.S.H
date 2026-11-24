@@ -70,6 +70,26 @@ def w2_answers():
     check("no activity memory at all is the same", "a few minutes" in working.answer(NS(activity=None, dwell=None), "now", NOW))
 
 
+def w2b_time_on():
+    print("\n=== W2b. How much did I work on X ===")
+    for t, want in [("how much did I work on A.S.H this week", ("A.S.H", 7, "this week")), ("how long was I on youtube today", ("youtube", 1, "today")),
+                    ("how much time did I spend on NoSQL", ("NoSQL", 1, "today")), ("how long did I work on the thesis yesterday", ("the thesis", -1, "yesterday")),
+                    ("how much have I worked on microcode lately?", ("microcode", 7, "over the last week"))]:
+        check(f"{t!r} -> {want}", working.parse_time(t) == want, str(working.parse_time(t)))
+    for t in ("how long have I been on this", "how long was I on it", "how much did I work", "how long was I away", "how much did I spend on lunch and dinner and a very long list of other things",
+              "how much is that", "what am I working on"):
+        check(f"{t!r} is not this", working.parse_time(t) is None, str(working.parse_time(t)))
+    a = act([topic("A.S.H", "project", today=5400, yest=3600, old=9000), topic("Devil's Advocate (Part 3) - YouTube", "subject", today=1200), topic("microcode", "project", today=40)])
+    rt = NS(activity=a)
+    check("this week: today's and yesterday's, not last week's", working.answer_time(rt, "A.S.H", 7, "this week", NOW) == "About 2 hours 30 minutes on A.S.H this week.",
+          working.answer_time(rt, "A.S.H", 7, "this week", NOW))
+    check("yesterday alone", working.answer_time(rt, "A.S.H", -1, "yesterday", NOW) == "About 1 hour on A.S.H yesterday.")
+    check("a page by part of its title", working.answer_time(rt, "youtube", 1, "today", NOW) == "About 20 minutes on youtube today.")
+    check("under a minute is not claimed", working.answer_time(rt, "microcode", 1, "today", NOW).startswith("I haven't tracked anything on microcode today"))
+    check("never heard of: said so", working.answer_time(rt, "gardening", 7, "this week", NOW).startswith("I haven't tracked anything on gardening"))
+    check("no activity memory at all: said so, no crash", working.answer_time(NS(activity=None), "x", 1, "today", NOW).startswith("I haven't tracked"))
+
+
 def w3_runtime():
     print("\n=== W3. In the runtime ===")
     import tst_modellast as tm
@@ -80,6 +100,12 @@ def w3_runtime():
     rt2 = tm.rig()
     used, said = rt2.say("what have I been doing today")
     check("with nothing in the activity record, the per-window answer (dwell) still takes it", not used and said, f"{used} {said}")
+    rt3 = tm.rig()
+    day = time.strftime("%Y-%m-%d", time.localtime(rt3.clock()))
+    rt3.activity = NS(_lock=threading.RLock(), topics={"A.S.H": NS(name="A.S.H", kind="project", by_day={day: 7200})}, _cur=None,
+                      observe=lambda *a, **k: None, tick=lambda *a, **k: None, save=lambda *a, **k: None, status=lambda: {})
+    used, said = rt3.say("how much did I work on A.S.H this week")
+    check("'how much did I work on X' is answered by rule, from the per-day record", not used and said and said[-1] == "About 2 hours on A.S.H this week.", f"{used} {said}")
     print("\n" + ("ALL PASS" if tw.OK else "FAILED"))
     sys.exit(0 if tw.OK else 1)
 
@@ -87,4 +113,5 @@ def w3_runtime():
 if __name__ == "__main__":
     w1_parse()
     w2_answers()
+    w2b_time_on()
     w3_runtime()

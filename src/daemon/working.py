@@ -27,6 +27,67 @@ _WEEK = re.compile(_LEAD + r"(?:what\s+(?:have\s+i\s+been|did\s+i)\s+(?:working\
                    r"|what\s+(?:projects|things)\s+(?:have\s+i\s+been|am\s+i)\s+(?:working\s+on|on)\s+(?:this\s+week|lately))\s*[?.!]*\s*$", re.I)
 
 
+# "How much did I work on A.S.H this week?" / "how long was I on YouTube today?" / "how much time did I spend on NoSQL?": the same per-day seconds the
+# weekly review adds up, for the one thing asked about. Nothing for "how long have I been on this" (that is the window in front: dwell.py).
+_HOW = re.compile(_LEAD + r"how\s+(?:much|long)(?:\s+time)?\s+(?:did\s+i\s+(?:work|spend|spent)|have\s+i\s+(?:worked|spent|been)|was\s+i|do\s+i\s+spend)"
+                  r"(?:\s+(?:working|time|spent))?\s+(?:on|in|with|at)\s+(?P<name>[\w.' &-]{2,40}?)"
+                  r"(?:\s+(?P<span>today|yesterday|this\s+week|all\s+week|so\s+far|lately|this\s+month|over\s+the\s+(?:last|past)\s+(?:week|few\s+days)))?\s*[?.!]*\s*$", re.I)
+_PRONOUN = re.compile(r"^(?:this|that|it|here|there|them|these|those|the\s+(?:screen|window|page|tab))$", re.I)
+
+
+def parse_time(text: str) -> Optional[Tuple[str, int, str]]:
+    """(thing, days, how it was put) for "how much did I work on X this week"; None for anything else."""
+    t = (text or "").strip()
+    if not t or len(t) > 100:
+        return None
+    m = _HOW.match(t)
+    if not m:
+        return None
+    name = " ".join(m.group("name").split()).strip(" .")
+    if not name or _PRONOUN.match(name):
+        return None
+    span = re.sub(r"\s+", " ", (m.group("span") or "").lower())
+    if span in ("this week", "all week", "lately", "over the last week", "over the past week", "over the last few days", "over the past few days"):
+        return name, 7, "this week" if span in ("this week", "all week") else "over the last week"
+    if span == "this month":
+        return name, 14, "in the last two weeks (that is as far back as I keep it)"
+    if span == "yesterday":
+        return name, -1, "yesterday"
+    return name, 1, "today"
+
+
+def time_on(activity: Any, name: str, days: int, now: float) -> Tuple[float, List[str]]:
+    """(seconds, the topics that matched) for what the name is part of (or is part of); days -1 is yesterday alone."""
+    from .activity import norm
+    if activity is None:
+        return 0.0, []
+    want = set(_days(now, 2)[1:2]) if days == -1 else set(_days(now, days))
+    q = norm(name)
+    total, hit = 0.0, []
+    try:
+        with activity._lock:
+            topics = list(activity.topics.values())
+    except Exception:
+        return 0.0, []
+    for t in topics:
+        n = norm(t.name)
+        if not q or not n or not (q in n or (len(n) >= 3 and n in q)):
+            continue
+        s = sum(v for d, v in (t.by_day or {}).items() if d in want)
+        if s > 0:
+            total += s
+            hit.append(t.name)
+    return total, hit
+
+
+def answer_time(rt: Any, name: str, days: int, when: str, now: Optional[float] = None) -> str:
+    now = time.time() if now is None else now
+    secs, hit = time_on(getattr(rt, "activity", None), name, days, now)
+    if secs < 60:
+        return f"I haven't tracked anything on {name} {when} -- I only note a stretch once you've been on it for a few minutes."
+    return f"About {_span(secs)} on {name} {when}."
+
+
 def parse(text: str) -> Optional[str]:
     t = (text or "").strip()
     if not t or len(t) > 90:

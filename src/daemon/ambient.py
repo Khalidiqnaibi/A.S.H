@@ -3049,6 +3049,12 @@ class AmbientRuntime:
             return False
         from . import working
         text = str(getattr(ev, "text", "") or "")
+        how = working.parse_time(text)
+        if how is not None and getattr(self, "activity", None) is not None:
+            say = working.answer_time(self, how[0], how[1], how[2], now)
+            self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+            self._last_why = {"kind": "asked", "query": text[:80]}
+            return True
         kind = working.parse(text)
         if kind is None:
             return False
