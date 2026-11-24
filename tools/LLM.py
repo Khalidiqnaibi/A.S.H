@@ -38,6 +38,21 @@ _REASONING = re.compile(
 # when it finally arrived but left the loop waiting for it. `_post` runs the request on its own thread and waits in short
 # steps, so `cancel_inflight()` frees the caller at once (the server may finish its answer; nobody is listening). Until
 # `resume()` every further call fails fast, so a brain that makes several calls for one question stops asking.
+
+def context_for(messages: List[dict], max_tokens: int) -> int:
+    """The context window to ask Ollama for: what this call needs (the prompt, about 3 characters a token, and the answer), not a fixed 4096. A smaller
+    window is less memory and a quicker start for a 3B model; it stays one size for most calls because a change of size makes Ollama reload the model.
+    ASH_OLLAMA_NUM_CTX fixes it."""
+    fixed = os.environ.get("ASH_OLLAMA_NUM_CTX", "").strip()
+    if fixed.isdigit() and int(fixed) >= 512:
+        return int(fixed)
+    chars = sum(len(str(m.get("content", ""))) for m in messages if isinstance(m, dict))
+    need = chars // 3 + int(max_tokens) + 64
+    for size in (3072, 4096, 6144, 8192):
+        if need <= size:
+            return size
+    return 8192
+
 class LLMCancelled(Exception):
     pass
 
@@ -426,6 +441,7 @@ class LLM(BaseChatModel):
         payload["keep_alive"] = os.environ.get("ASH_OLLAMA_KEEP_ALIVE", "").strip() or "6h"
         # Ollama uses every core it can see for the layers that do not fit on the card: four of six cores for a minute and a half per
         # answer, which starved the microphone's transcription (33 s for one second of speech). A quarter of the logical cores (half the real ones) by default.
+        payload["options"]["num_ctx"] = context_for(messages, int(self._max_tokens))
         nt = os.environ.get("ASH_OLLAMA_NUM_THREAD", "").strip()
         payload["options"]["num_thread"] = int(nt) if nt.isdigit() else max(2, (os.cpu_count() or 4) // 4)
         n_gpu = os.environ.get("ASH_OLLAMA_NUM_GPU", "").strip()
