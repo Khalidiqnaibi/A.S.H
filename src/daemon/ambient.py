@@ -2359,6 +2359,59 @@ class AmbientRuntime:
         r"\b(?:what|anything|something|any\s+questions?|got\s+any|do\s+you\s+have|have\s+you\s+got|in\s+store|for\s+me|ask\s+me|"
         r"tell\s+me|say)\b", re.I)
 
+    # "What are you saving for me?" / "what's in your queue" / "clear your queue": the free-moment system made visible -- what is waiting (questions,
+    # a briefing owed), and a way to drop it. By rule, from the wonder store and the briefings: no model.
+    _SAVED_LIST = re.compile(
+        r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:so[,\s]+|ok(?:ay)?[,\s]+)?(?:"
+        r"what(?:'s|\s+is|\s+are)?\s+(?:you(?:'re|\s+are)?\s+)?(?:saving|holding|keeping|saved|queued)(?:\s+up)?(?:\s+(?:for\s+me|for\s+later|for\s+a\s+free\s+moment))?"
+        r"|what\s+(?:questions|things)\s+(?:do\s+you\s+have\s+)?(?:saved|queued|waiting|lined\s+up)(?:\s+(?:for\s+me|up))?"
+        r"|what(?:'s|\s+is)\s+in\s+(?:your|the)\s+(?:queue|store)|(?:list|show)\s+(?:me\s+)?(?:your\s+|the\s+)?(?:saved|queued)\s+(?:questions|things|stuff)"
+        r"|(?:how\s+many|any)\s+questions\s+(?:do\s+you\s+have|are\s+(?:saved|waiting)|saved\s+up)(?:\s+for\s+me)?)\s*[?.!]*\s*$", re.I)
+    _SAVED_CLEAR = re.compile(
+        r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:clear|empty|drop|forget|throw\s+away|delete)\s+(?:all\s+)?(?:(?:of\s+)?(?:your|the)\s+)?"
+        r"(?:queue|saved\s+(?:questions|things)|questions\s+(?:you(?:'ve|\s+have)\s+)?saved|(?:those|the|your)\s+(?:saved\s+)?questions)(?:\s+(?:you\s+saved|you\s+have))?\s*[.!]*\s*$", re.I)
+
+    def _saved_request(self, ev, now: float) -> bool:
+        if (self.wonder is None or not self._user_source(ev) or not self._meant_for_ash(ev)
+                or bool((getattr(ev, "meta", None) or {}).get("guest"))):
+            return False
+        from src.senses.mic import MicrophoneSensor
+        text = str(getattr(ev, "text", "") or "")
+        t = MicrophoneSensor.strip_address(text) or text
+        if len(t) > 90:
+            return False
+        if self._SAVED_CLEAR.match(t):
+            try:
+                n = len(self.wonder.pending())
+                self.wonder.clear()
+            except Exception:
+                return False
+            say = (f"Dropped {n} saved question{'s' if n != 1 else ''}." if n else "There was nothing saved up.")
+        elif self._SAVED_LIST.match(t):
+            try:
+                rows = self.wonder.pending()
+            except Exception:
+                return False
+            owed = ""
+            try:
+                b = self.briefings
+                due = b.due(now) if b is not None else ""
+                owed = f" and the {due} briefing is waiting for a pause" if due else ""
+            except Exception:
+                owed = ""
+            if not rows:
+                say = f"No questions saved up{owed}." if owed else "Nothing saved up for a free moment."
+            else:
+                subs = [str(r.get("subject") or r.get("kind") or "something") for r in rows]
+                shown = ", ".join(dict.fromkeys(subs[:5]))
+                say = (f"{len(rows)} question{'s' if len(rows) != 1 else ''} saved up -- about {shown}"
+                       + ("..." if len(rows) > 5 else "") + f"{owed}. Say “clear your queue” to drop them.")
+        else:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
+        self._last_why = {"kind": "asked", "query": text[:80]}
+        return True
+
     def _free_moment_request(self, ev, now: float) -> bool:
         """"What do you have in store for me for a free moment? This is a free moment." / "I'm free, ask me something": the user
         has opened the moment themselves, so what ASH has been saving for one (a question, a remark, a briefing) is offered now --
@@ -4434,6 +4487,8 @@ class AmbientRuntime:
         if not loose and self._facts_request(ev, now):
             return True
         if not loose and self._dispute_request(ev, now):
+            return True
+        if not loose and self._saved_request(ev, now):
             return True
         if not loose and self._free_moment_request(ev, now):
             return True
