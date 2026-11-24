@@ -121,7 +121,8 @@ class Governor:
 
     def status(self) -> Dict[str, Any]:
         return {"enabled": self.cfg.enabled, "squeezed": self.squeezed, "memory": self.mem, "cpu": self.cpu,
-                "why": getattr(self.game, "squeeze_why", "") if self.squeezed else "", **self.stats}
+                "why": getattr(self.game, "squeeze_why", "") if self.squeezed else "",
+                "squeezes": self.stats["squeezed"], "relaxes": self.stats["relaxed"]}
 
     def report(self) -> str:
         if not self.cfg.enabled:

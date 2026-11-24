@@ -621,6 +621,11 @@ def main() -> int:
         shutdown = Stopper(_shutdown)
         install_signal_handlers(shutdown, on_console_close=lambda: shutdown(quick=True))
 
+        try:
+            from src.ui import settings as _ui_settings
+            _ui_settings.apply_saved(runtime, cfg)             # the saved model, its threads, the second speech pass
+        except Exception:
+            logger.debug("could not apply the saved settings", exc_info=True)
         runtime.start()
         if control:
             control.start()

@@ -623,6 +623,7 @@ function onMessage(m) {
       Object.assign(cues, m.cues || {});
       if (m.status) applyStatus(m.status);
       if (m.settings) settingsList = m.settings;
+      if (m.health) settingsHealth = m.health;
       renderThinking(); updateStatePill();
       return;
   }
@@ -871,6 +872,7 @@ function renderUpTo() {
     ul.appendChild(li);
   }
 }
+let settingsHealth = "";
 let lastNote = null;                   // {key, text, bad}: shown under the setting just changed
 function setMsg(key, text, bad) { lastNote = key ? { key, text, bad } : null; }
 async function changeSetting(key, value) {
@@ -882,6 +884,7 @@ async function changeSetting(key, value) {
 }
 function renderSettings() {
   const box = $("settings"); box.textContent = "";
+  if (settingsHealth) { const h = el("p", "none", settingsHealth); h.id = "health"; box.appendChild(h); }
   let group = null;
   settingsList.forEach((s, i) => {
     if (s.group !== group) { group = s.group; box.appendChild(el("h3", null, group)); }
@@ -892,6 +895,20 @@ function renderSettings() {
       inp = el("input"); inp.type = "checkbox"; inp.checked = !!s.value;
       inp.onchange = () => changeSetting(s.key, inp.checked ? "on" : "off");
       row.append(lab, inp);
+    } else if (s.type === "choice") {
+      inp = el("select");
+      const opts = (s.options && s.options.length) ? s.options.slice() : [];
+      if (s.value && !opts.includes(s.value)) opts.unshift(s.value);
+      opts.forEach(o => { const op = el("option", null, o); op.value = o; inp.appendChild(op); });
+      inp.value = s.value || "";
+      inp.onchange = () => changeSetting(s.key, inp.value);
+      row.append(lab, inp);
+    } else if (s.type === "number") {
+      inp = el("input"); inp.type = "number"; inp.min = s.min; inp.max = s.max; inp.step = "any"; inp.value = s.value == null ? "" : s.value;
+      const save = el("button", "btn", "Save"); save.type = "button";
+      save.onclick = () => changeSetting(s.key, inp.value);
+      inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); save.click(); } };
+      row.append(lab, inp, save);
     } else {
       inp = el("input"); inp.type = s.type === "secret" ? "password" : "text";
       inp.value = s.type === "secret" ? "" : Array.isArray(s.value) ? s.value.join(", ") : (s.value || "");
@@ -913,14 +930,14 @@ function renderSettings() {
   });
 }
 function focusSetting(key) {            // the list was rebuilt: keep the keyboard where it was
-  const i = [...$("settings").querySelectorAll("input")].find(x => x.dataset.key === key);
+  const i = [...$("settings").querySelectorAll("input,select")].find(x => x.dataset.key === key);
   if (i) i.focus({ preventScroll: true });
 }
 function openDrawer(open) {
   $("drawer").hidden = !open; $("statusBtn").setAttribute("aria-expanded", String(open));
   if (!open) return;
   setMsg(null); renderUpTo(); renderSettings();
-  post("/api/control", { cmd: "settings" }).then(r => { if (r && r.settings) { settingsList = r.settings; renderSettings(); } });
+  post("/api/control", { cmd: "settings" }).then(r => { if (r && r.settings) { settingsList = r.settings; settingsHealth = r.health || ""; renderSettings(); } });
   $("drawerClose").focus();
 }
 $("statusBtn").onclick = () => openDrawer($("drawer").hidden);

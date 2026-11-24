@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import tempfile
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -29,7 +30,7 @@ PART = {
     "smarthome": "smarthome", "reminders": "reminders", "play": "play", "focus": "focus",
     "weather": "weather", "watch": "watcher", "briefings": "briefings", "routines": "routines",
     "free_moments": "moments", "desktop": "desktop", "remarks": "remarks", "tasks": "tasks", "email": "inbox", "face": "face",
-    "crashes": "crashwatch", "facts": "facts",
+    "crashes": "crashwatch", "facts": "facts", "governor": "governor",
 }
 
 # key -> (type, label, group). Types: bool, str, secret, list (comma separated).
@@ -66,7 +67,40 @@ SETTINGS: Dict[str, Tuple[str, str, str]] = {
                       "the internet)", "Looking things up"),
     "wondering.lookup.roots": ("folders", "Folders to look terms up in, comma separated", "Looking things up"),
     "wondering.lookup.web": ("bool", "Look acronyms up on Wikipedia", "Looking things up"),
+    "search.engine": ("choice", "Search engine for \u201clook up...\u201d", "Looking things up"),
+    "llm.model": ("choice", "Language model (installed in Ollama)", "Model"),
+    "llm.threads": ("number", "Processor threads for the language model (0 = automatic)", "Model"),
+    "mic.second_pass": ("bool", "Read a phrase it is unsure of again with a bigger speech model (only if already installed)", "Hearing"),
+    "governor.enabled": ("bool", "Step aside when the machine is under load", "Machine"),
+    "governor.memory_high": ("number", "Memory use (%) that counts as pressure", "Machine"),
+    "governor.cpu_high": ("number", "Processor use (%) that counts as pressure", "Machine"),
 }
+
+# number settings: (low, high). choice settings: the fixed list (the model's is asked of Ollama, see choices()).
+RANGE = {"llm.threads": (0, 32), "governor.memory_high": (50, 99), "governor.cpu_high": (50, 100)}
+FIXED_CHOICES = {"search.engine": ["google", "bing", "duckduckgo"]}
+_MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,79}$")
+
+
+def choices(runtime, key: str) -> List[str]:
+    """The options of a choice setting; for the model, what Ollama has installed (and the one in use, so it is never missing)."""
+    if key in FIXED_CHOICES:
+        return list(FIXED_CHOICES[key])
+    if key == "llm.model":
+        llm = getattr(getattr(runtime, "ash", None), "llm", None)
+        out: List[str] = []
+        cur = str(getattr(llm, "_ollama_model", "") or "")
+        try:
+            import requests
+            url = re.sub(r"/api/(?:chat|generate)\s*$", "/api/tags", str(getattr(llm, "_ollama_url", "") or ""))
+            if url:
+                out = [str(m.get("name")) for m in (requests.get(url, timeout=2).json().get("models") or []) if m.get("name")]
+        except Exception:
+            out = []
+        if cur and cur not in out:
+            out.insert(0, cur)
+        return out
+    return []
 
 _TRUE = ("1", "true", "yes", "on")
 _FALSE = ("0", "false", "no", "off")
@@ -98,6 +132,23 @@ def parse(key: str, raw: Any) -> Any:
     s = str(raw if raw is not None else "").strip()
     if len(s) > 400 or any(c in s for c in "\r\n\x00"):
         raise ValueError(f"{key}: too long or not one line")
+    if kind == "number":
+        try:
+            n = float(s)
+        except ValueError:
+            raise ValueError(f"{key} takes a number")
+        lo, hi = RANGE[key]
+        if not (lo <= n <= hi):
+            raise ValueError(f"{key} takes a number from {lo} to {hi}")
+        return int(n) if key == "llm.threads" else n
+    if kind == "choice":
+        if key == "llm.model":
+            if not _MODEL_NAME.match(s):
+                raise ValueError("not a model name")
+            return s
+        if s.lower() not in FIXED_CHOICES[key]:
+            raise ValueError(f"{key} is one of: " + ", ".join(FIXED_CHOICES[key]))
+        return s.lower()
     if key == "identity.user_name":
         s = " ".join(s.split())
         if not s or len(s) > 40 or not all(c.isalpha() or c in " '.-" for c in s):
@@ -164,6 +215,16 @@ def current(runtime, key: str, saved: Optional[Dict[str, Any]] = None) -> Any:
     val: Any = None
     if key == "identity.user_name":
         return str(getattr(getattr(runtime, "ash", None), "user", "") or _saved(saved or {}, key) or "")
+    if key == "search.engine":
+        return str(getattr(getattr(runtime, "cfg", None), "search_engine", "") or _saved(saved or {}, key) or "google")
+    if key == "llm.model":
+        return str(getattr(getattr(getattr(runtime, "ash", None), "llm", None), "_ollama_model", "") or _saved(saved or {}, key) or "")
+    if key == "llm.threads":
+        nt = os.environ.get("ASH_OLLAMA_NUM_THREAD", "").strip()
+        return int(nt) if nt.isdigit() else int(_saved(saved or {}, key) or 0)
+    if key == "mic.second_pass":
+        m = getattr(getattr(runtime, "periphery", None), "sensors", {}).get("microphone")
+        return bool(getattr(m, "second_pass_model", "")) if m is not None else bool(_saved(saved or {}, key))
     if key == "llm.gpu":
         val = os.environ.get("ASH_OLLAMA_NUM_GPU", "").strip() != "0"
         if saved is not None and not os.environ.get("ASH_OLLAMA_NUM_GPU") and _saved(saved, key) is False:
@@ -200,6 +261,27 @@ def apply(runtime, key: str, value: Any) -> bool:
             os.environ.pop("ASH_OLLAMA_NUM_GPU", None)
         else:
             os.environ["ASH_OLLAMA_NUM_GPU"] = "0"
+        return True
+    if key == "search.engine":
+        runtime.cfg.search_engine = str(value)
+        return True
+    if key == "llm.model":
+        llm = getattr(getattr(runtime, "ash", None), "llm", None)
+        if llm is None or not hasattr(llm, "_ollama_model"):
+            return False
+        llm._ollama_model = str(value)                 # read on every call; the model loads on the next question
+        return True
+    if key == "llm.threads":
+        if int(value) > 0:
+            os.environ["ASH_OLLAMA_NUM_THREAD"] = str(int(value))
+        else:
+            os.environ.pop("ASH_OLLAMA_NUM_THREAD", None)
+        return True
+    if key == "mic.second_pass":
+        m = getattr(getattr(runtime, "periphery", None), "sensors", {}).get("microphone")
+        if m is None:
+            return False
+        m.second_pass_model = "small.en" if value else ""
         return True
     if key == "identity.user_name":
         a = getattr(runtime, "ash", None)
@@ -262,9 +344,53 @@ def listing(runtime, path: Optional[str]) -> List[Dict[str, Any]]:
             val = current(runtime, key, saved)
         except Exception:
             val = None
-        out.append({"key": key, "type": kind, "label": label, "group": group, "value": val,
-                    "live": _part(runtime, key) is not None or key in ("llm.gpu", "identity.user_name")})
+        row = {"key": key, "type": kind, "label": label, "group": group, "value": val,
+               "live": _part(runtime, key) is not None or key in LIVE}
+        if kind == "choice":
+            row["options"] = choices(runtime, key)
+        elif kind == "number":
+            row["min"], row["max"] = RANGE[key]
+        out.append(row)
     return out
+
+
+LIVE = ("llm.gpu", "identity.user_name", "search.engine", "llm.model", "llm.threads", "mic.second_pass")
+
+
+def apply_saved(runtime, saved: Dict[str, Any]) -> None:
+    """At start: the saved values of the settings no part reads from daemon.json itself (the model, its threads, the second speech pass)."""
+    for key in ("llm.model", "llm.threads", "mic.second_pass"):
+        v = _saved(saved or {}, key)
+        if v is None or v == "":
+            continue
+        try:
+            apply(runtime, key, bool(v) if key == "mic.second_pass" else parse(key, v))
+        except Exception:
+            logger.debug("could not apply the saved %s", key, exc_info=True)
+
+
+def health(runtime) -> str:
+    """One line on how the machine and ASH are doing right now (the top of the settings panel)."""
+    bits: List[str] = []
+    g = getattr(runtime, "governor", None)
+    try:
+        st = g.status() if g is not None else None
+    except Exception:
+        st = None
+    if st and st.get("memory") is not None:
+        bits.append(f"memory {st['memory']:.0f}%" + (f", CPU {st['cpu']:.0f}%" if st.get("cpu") is not None else ""))
+    if st and st.get("squeezed"):
+        bits.append("keeping out of the way: " + str(st.get("why") or "the machine is busy"))
+    llm = getattr(getattr(runtime, "ash", None), "llm", None)
+    if llm is not None and getattr(llm, "_ollama_model", ""):
+        bits.append(f"model {llm._ollama_model}")
+    m = getattr(getattr(runtime, "periphery", None), "sensors", {}).get("microphone")
+    if m is not None:
+        try:
+            bits.append("microphone " + str(getattr(getattr(m, "state", None), "value", "") or "off"))
+        except Exception:
+            pass
+    return ("Now: " + "; ".join(bits) + ".") if bits else ""
 
 
 def change(runtime, path: Optional[str], key: str, raw: Any) -> Dict[str, Any]:

@@ -251,7 +251,7 @@ def attach_ui(runtime, bus, opener: Optional[Callable[[], Any]] = None,
             return mind.build(net=cn)
         elif cmd == "settings":
             from . import settings
-            return {"ok": True, "settings": settings.listing(runtime, config_path)}
+            return {"ok": True, "settings": settings.listing(runtime, config_path), "health": settings.health(runtime)}
         elif cmd == "setting":
             from . import settings
             key, sep, value = arg.partition("=")
@@ -285,6 +285,7 @@ def attach_ui(runtime, bus, opener: Optional[Callable[[], Any]] = None,
         out: Dict[str, Any] = {"status": _status(runtime)}
         try:
             out["settings"] = settings.listing(runtime, config_path)
+            out["health"] = settings.health(runtime)
         except Exception:
             logger.debug("settings listing failed", exc_info=True)
         return out
