@@ -67,6 +67,7 @@ _TRAILING_WAKE = re.compile(r"[\s,]*(?<![\w.])(?:(?:hey|hi|hello|ok|okay|yo)[\s,
 # emote", "Your step is..." were all answered as if they were requests, and
 # ASH made up a clarification ("did you mean to ask if I have ever purchased
 # anything?") for one. Below these it is better to say nothing.
+SECOND_PASS_LOGPROB = -0.5   # a kept phrase averaging below this is read again by the bigger model
 MIN_LOGPROB = -1.0        # average log-probability of the words (0 = certain)
 NOISE_PROB = 0.5          # chance the phrase is not speech at all...
 NOISE_LOGPROB = -0.6      # ...and it is not sure of the words either
@@ -207,6 +208,7 @@ class MicrophoneSensor(Sensor):
         # privacy.require_local_asr: with it (the default) speech is recognised on this machine or not at all. The online
         # fallback used to run whenever Whisper failed to load or ran out of memory, which sent the room's audio to Google.
         self.local_only = bool(local_only)
+        self.second_pass_model = "small.en"       # '' turns the second look off
         self.restarts = 0
         # Live voice (livevoice.py). speculative: start transcribing `early_ms` into the end-of-turn silence, so the
         # words are ready when the silence is long enough (a word after that throws the guess away). barge: a
@@ -553,6 +555,31 @@ class MicrophoneSensor(Sensor):
                 keep.append(w)
         return base if not keep else base + " Words I use: " + ", ".join(keep[:25]) + "."
 
+    @staticmethod
+    def _unsure(segs) -> bool:
+        """True when the phrases whisper kept average below the confidence that is worth a second look (0 is certain)."""
+        lps = [getattr(x, "avg_logprob", None) for x in segs if (getattr(x, "text", "") or "").strip()]
+        lps = [v for v in lps if v is not None]
+        return bool(lps) and sum(lps) / len(lps) < SECOND_PASS_LOGPROB
+
+    def _second_pass(self, audio) -> str:
+        """The same audio read by a bigger model. Only one already on disk (local_files_only, so never a download), loaded the first time it is
+        needed and left alone for good if it is not there. Empty means 'keep the first reading'."""
+        if getattr(self, "_second_dead", False):
+            return ""
+        try:
+            import numpy as np
+            from faster_whisper import WhisperModel  # type: ignore
+            if not hasattr(self, "_whisper2"):
+                self._whisper2 = WhisperModel(self.second_pass_model, device="cpu", compute_type="int8", cpu_threads=2, local_files_only=True)
+            segs, _ = self._whisper2.transcribe(audio.astype(np.float32) / 32768.0, language="en", vad_filter=True,
+                                                initial_prompt=self.prompt_hint(), condition_on_previous_text=False)
+            return trusted_text(list(segs))
+        except Exception:
+            self._second_dead = True
+            logger.info("Mic: no second-pass model (%s) on disk; keeping the first reading", self.second_pass_model)
+            return ""
+
     def transcribe(self, audio) -> str:
         """Pluggable ASR. Whisper if installed, then Google via
         speech_recognition, then nothing. A custom callable can be injected
@@ -580,7 +607,13 @@ class MicrophoneSensor(Sensor):
                                                # each phrase is read on its own: carrying the last one
                                                # forward is how whisper invents words from room noise
                                                condition_on_previous_text=False)
-            return trusted_text(list(segs))
+            segs = list(segs)
+            text = trusted_text(segs)
+            if text and getattr(self, "second_pass_model", "") and self._unsure(segs):
+                better = self._second_pass(audio)          # the fast model was unsure: once more with a bigger one, if it is already on disk
+                if better:
+                    return better
+            return text
         except Exception:
             if self.local_only:
                 logger.warning("Local speech recognition failed; not sending audio anywhere (privacy.require_local_asr)")
