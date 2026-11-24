@@ -101,6 +101,28 @@ _REASONING_MORE = re.compile(
 _ABOUT_USER = re.compile(r"\b(?:the\s+)?user\s+(?:is|has|has been|was|says|said|asks|asked|wants|wanted|mentioned|seems|query|message|just|might|probably)\b", re.IGNORECASE)
 
 
+def told_before(key: str, path: Optional[str] = None) -> bool:
+    """Has this notice already been given on an earlier start? Records it when not. A notice about the model layer (the model was swapped) is news once;
+    said at every start it is noise. Kept in state/llm_notices.json (ASH_LLM_STATE moves it); a file that cannot be read or written means "say it"."""
+    p = path or os.environ.get("ASH_LLM_STATE") or os.path.join(os.getcwd(), "state", "llm_notices.json")
+    try:
+        seen = json.load(open(p, encoding="utf-8")) if os.path.exists(p) else {}
+        if not isinstance(seen, dict):
+            seen = {}
+    except Exception:
+        seen = {}
+    if key in seen:
+        return True
+    seen[key] = True
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(p)), exist_ok=True)
+        with open(p, "w", encoding="utf-8") as fh:
+            json.dump(seen, fh)
+    except Exception:
+        pass
+    return False
+
+
 def is_reasoning_model(name: str) -> bool:
     """A model that thinks before it answers (qwen3, deepseek-r1, qwq ...), not the instruct builds that do not."""
     n = (name or "").lower()
@@ -361,13 +383,16 @@ class LLM(BaseChatModel):
             cands.append((rank, abs(size - 2.5), name))
         if not cands:
             self._no_fallback = True
-            self._notices.append(f"{model} only thinks out loud here and no other model is installed to answer instead.")
+            if not told_before(f"{model}->none"):
+                self._notices.append(f"{model} only thinks out loud here and no other model is installed to answer instead.")
             return ""
         alt = sorted(cands)[0][2]
         print(f"[LLM WARN] {model} answers with its own reasoning; using {alt} instead and unloading {model}.")
         self._ollama_model = alt
-        self._notices.append(f"{model} only thinks out loud here, so I'm answering with {alt} now. (Set OLLAMA_MODEL to a model that does not "
-                            "think, to choose another.)")
+        # Said once, ever -- not at every start (it was spoken aloud each time, because .env still names the reasoning model).
+        if not told_before(f"{model}->{alt}"):
+            self._notices.append(f"{model} only thinks out loud here, so I'm answering with {alt} now. (Set OLLAMA_MODEL to a model that does not "
+                                 "think, to choose another.)")
         try:                                                        # unload it: two resident models were 4 GB of memory
             requests.post(re.sub(r"/api/(?:chat|generate)\s*$", "/api/generate", self._ollama_url),
                           json={"model": model, "keep_alive": 0}, timeout=10)
