@@ -4290,6 +4290,7 @@ class AmbientRuntime:
         if self._overtaken(ev):
             self.stats["overtaken"] = self.stats.get("overtaken", 0) + 1
             logger.info("Skipped answering %r: the user has since said it again, or corrected it", ev.text[:80])
+            self._one_at_a_time(ev)
             return
         self.stats["responded"] += 1
         self._last_activity = time.time()
@@ -5136,6 +5137,17 @@ class AmbientRuntime:
             else:
                 ev._lane_skip = True              # not for us after all: the loop gets it, in order
                 self.submit(ev)
+
+    def _one_at_a_time(self, ev) -> None:
+        """The old question was dropped for the newer one: say so, once in a while, so the silence is not a mystery (not every time: it is a nudge)."""
+        now = self.clock()
+        if now - getattr(self, "_told_one_at_a_time", -1e9) < 600.0:
+            return
+        self._told_one_at_a_time = now
+        try:
+            self._wonder_say(ev, type("R", (), {"say": "One at a time -- I'll answer the latest.", "outcome": "moment"})())
+        except Exception:
+            logger.debug("could not say the one-at-a-time notice", exc_info=True)
 
     def _overtaken(self, ev) -> bool:
         """A question the user has already said again (or corrected) while ASH

@@ -151,6 +151,11 @@ def t3_overtaken():
     check("said again, a little differently: only the later one is answered",
           rt.ash_.calls == ["what do you see on the camera"], str(rt.ash_.calls))
     check("counted", rt.stats.get("overtaken") == 1)
+    check("and it is said, once: 'One at a time'", any("One at a time" in str(x) for x in rt.out), str(rt.out))
+    rt.submit_only("what do you see")
+    rt.submit_only("what do you see on the screen")
+    rt._tick()
+    check("not said again straight after", sum("One at a time" in str(x) for x in rt.out) == 1, str(rt.out))
     rt = rig()
     rt.submit_only("what's the capital of France")
     rt.submit_only("no, I meant Spain")
