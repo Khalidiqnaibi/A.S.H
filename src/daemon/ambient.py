@@ -2874,6 +2874,23 @@ class AmbientRuntime:
             self.stats["errors"] += 1
             logger.exception("Dwell step failed")
 
+    def _word_request(self, ev, now: float) -> bool:
+        """"Spell Segway", "how do you spell segue", "spell it again": a letter at a time, by rule (wordtools.py) -- it went to the model (28 s, and wrong)."""
+        if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        wt = getattr(self, "_wordtools", None)
+        if wt is None:
+            from .wordtools import WordTools
+            wt = self._wordtools = WordTools()
+        from src.senses.mic import MicrophoneSensor
+        text = str(getattr(ev, "text", "") or "")
+        say = wt.spell(MicrophoneSensor.strip_address(text) or text)
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "asked", "query": text[:80]}
+        return True
+
     def _misheard_request(self, ev, now: float) -> bool:
         """"I said Opera, not Obra": kept, and every later transcript has it put right (misheard.py)."""
         if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
@@ -4223,6 +4240,8 @@ class AmbientRuntime:
         if self._ask_followthrough(ev, now):
             return True
         if not loose and self._asks_request(ev, now):
+            return True
+        if not loose and self._word_request(ev, now):
             return True
         if not loose and self._misheard_request(ev, now):
             return True
