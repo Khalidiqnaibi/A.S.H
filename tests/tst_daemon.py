@@ -346,12 +346,14 @@ def main():
     finally:
         _sr.pressure = real_pressure
     _sr._RUN_LOCK.acquire()
+    _sr.pressure = lambda: ""             # the machine's own memory must not decide this one (the real number was 91%: it said 'memory', not 'busy')
     try:
         eng.calls = 0
         check("a background read never queues behind one already running",
               r.read_text(text_img, ambient=True) == "" and eng.calls == 0
               and r.status()["skipped"]["busy"] == 1)
     finally:
+        _sr.pressure = real_pressure
         _sr._RUN_LOCK.release()
 
     # The sensor: no OCR of video, and the worker reads as the background.
