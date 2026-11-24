@@ -2919,7 +2919,7 @@ class AmbientRuntime:
 
     def _redo_request(self, ev, now: float) -> bool:
         """"Do that again" / "one more time": the last thing a rule did for them, run once more -- the line is put back through the same rules, so it does
-        exactly what it did (and asks what it asked). Within ten minutes; never a guest's."""
+        exactly what it did (and asks what it asked). Within a couple of minutes; never a guest's."""
         if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
             return False
         from src.senses.mic import MicrophoneSensor
@@ -2927,7 +2927,7 @@ class AmbientRuntime:
         if not self._REDO.match(MicrophoneSensor.strip_address(text) or text):
             return False
         last = getattr(self, "_last_cmd", None)
-        if not last or now - last[1] > 600.0:
+        if not last or now - last[1] > 150.0:
             return False                          # nothing to redo: the line goes on (a game's "again", a joke's "one more time")
         again = SensorEvent(source=ev.source, modality=ev.modality, text=last[0], addressed=True, salience=getattr(ev, "salience", 0.9),
                             urgency=getattr(ev, "urgency", 0.6), meta=dict(getattr(ev, "meta", None) or {}))

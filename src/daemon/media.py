@@ -40,15 +40,17 @@ KEYS = {"play_pause": 0xB3, "next": 0xB0, "previous": 0xB1, "volume_up": 0xAF, "
 _THING = (r"(?:(?:the|this|that|my|some|a)\s+)?(?:(?:youtube|netflix|stremio|twitch|spotify|opera|chrome|browser)\s+)?"
           r"(?:music|songs?|tunes|video|movie|film|show|episode|stream|clip|tab|playback|podcast|track|it)")
 _WHERE = r"(?:\s+(?:in\s+front\s+of\s+me|on\s+(?:the\s+)?screen|right\s+now|for\s+me|please|there|here|now))*"
+# (a trailing "please" is not enough for "next one": overheard, it is just speech)
+_WHERE_NEXT = _WHERE.replace("please|", "")
 _PAUSE = r"(?:pause|stop)"
 _PLAY = r"(?:resume|play|continue|un-?\s?pause|unboss|un\s?paws|on\s+pause|un\s?pass)"
 _MUSIC = [
     (re.compile(r"^\s*(?:please\s+)?" + _PAUSE + r"\s+" + _THING + _WHERE + r"\s*[.!]?\s*$"
                 r"|^\s*(?:please\s+)?(?:pause|stop)\s*[.!]?\s*$", re.I), "play_pause", "Paused."),
     (re.compile(r"^\s*(?:please\s+)?" + _PLAY + r"(?:\s+" + _THING + r")?" + _WHERE + r"\s*[.!]?\s*$", re.I), "play_pause", "Playing."),
-    (re.compile(r"^\s*(?:please\s+)?(?:next|skip)(?:\s+(?:this\s+|the\s+)?(?:song|track|one|video|episode|clip))?" + _WHERE + r"\s*[.!]?\s*$"
+    (re.compile(r"^\s*(?:please\s+)?(?:next|skip)(?:\s+(?:this\s+|the\s+)?(?:song|track|one|video|episode|clip))?" + _WHERE_NEXT + r"\s*[.!]?\s*$"
                 r"|^\s*(?:play\s+)?(?:the\s+)?next\s+(?:song|track|video|episode)" + _WHERE + r"\s*[.!]?\s*$", re.I), "next", "Next one."),
-    (re.compile(r"^\s*(?:please\s+)?(?:previous|go back|last)(?:\s+(?:song|track|one|video|episode))?" + _WHERE + r"\s*[.!]?\s*$"
+    (re.compile(r"^\s*(?:please\s+)?(?:previous|go back|last)(?:\s+(?:song|track|one|video|episode))?" + _WHERE_NEXT + r"\s*[.!]?\s*$"
                 r"|^\s*(?:play\s+)?(?:the\s+)?previous\s+(?:song|track|video|episode)" + _WHERE + r"\s*[.!]?\s*$", re.I), "previous", "Going back."),
     (re.compile(r"^\s*(?:please\s+)?(?:(?:can|could)\s+you\s+)?(?:make\s+it\s+(?:a\s+(?:bit|little)\s+)?louder"
                 r"|(?:turn|bring|pump|crank)\s+(?:it|the\s+(?:volume|music|sound))\s+up(?:\s+(?:a\s+)?(?:bit|little|notch))?"
