@@ -90,6 +90,15 @@ def h3_sanitize():
          "I'll let you scroll.\n\nFacts:\n{\n  \"intent\": \"clarification\",\n  \"tool_used\": null\n}")
     check("fake tool calls and the pasted Facts block go", honest.sanitize(r) == "Alright, here's how I can help.\n\nI'll let you scroll.",
           repr(honest.sanitize(r)))
+    for before, after in [("The capital of Jordan is Amman. What would you like to discuss while you're here?", "The capital of Jordan is Amman."),
+                          ("I see you're watching a video. How can I assist you today?", "I see you're watching a video."),
+                          ("Segue means a smooth transition. Is there anything else I can help with?", "Segue means a smooth transition."),
+                          ("It's 3 pm.\n\nLet me know if you need anything else!", "It's 3 pm."),
+                          ("Done. Feel free to ask me anything. I'm here to help.", "Done.")]:
+        check(f"a closing offer goes: {before[-40:]!r}", honest.sanitize(before) == after, repr(honest.sanitize(before)))
+    for keep in ("What would you like to discuss?", "How can I assist you?", "Let me know if you need anything.", "I can help with that. Which file do you mean?",
+                 "Is there anything else I can help with? Also, your battery is low.", "I'm here to help, and the answer is 42."):
+        check(f"nothing real before it, or it is not last: kept ({keep[:36]!r})", honest.sanitize(keep) == keep or "battery" in honest.sanitize(keep) or "42" in honest.sanitize(keep), repr(honest.sanitize(keep)))
     check("an inline fake call goes too", honest.sanitize("Sure [web_browser open new tab] thing.") == "Sure thing.")
     check("a brackets-and-words note is not a tool call", honest.sanitize("See [the docs] now.") == "See [the docs] now.")
     check("a trailing JSON briefing goes", honest.sanitize('Done.\n{"intent": "x", "tool_used": null}') == "Done.")
