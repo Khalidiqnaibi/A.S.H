@@ -224,6 +224,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # microphone. It comes back after a few calm minutes.
     # "Define X" / "what does X mean": Wiktionary's definition; only the WORD leaves the machine (define.py).
     "define": {"enabled": True, "timeout_s": 3.0},
+    # "Look up cat pics" / "search YouTube for X": opens this engine (google, bing, duckduckgo) in your browser -- a URL, nothing read or sent by ASH.
+    "search": {"engine": "google"},
     "governor": {"enabled": True, "memory_high": 88.0, "memory_low": 75.0, "cpu_high": 97.0, "cpu_low": 75.0, "memory_for_s": 120.0,
                  "cpu_for_s": 240.0, "calm_for_s": 180.0},
     "game_mode": {"enabled": True, "enter_after_s": 8.0, "leave_after_s": 45.0, "lower_priority": True,

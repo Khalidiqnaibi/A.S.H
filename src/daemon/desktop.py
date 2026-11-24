@@ -82,8 +82,8 @@ class Executor:
     def open(self, target: str) -> bool:
         try:
             if sys.platform.startswith("win"):
-                if target.endswith(":"):
-                    os.startfile(target)                            # a protocol handler
+                if target.endswith(":") or target.lower().startswith(("http://", "https://")):
+                    os.startfile(target)                            # a protocol handler, or a page (cmd's `start` splits a URL at every '&')
                 else:
                     subprocess.Popen(["cmd", "/c", "start", "", target], shell=False,
                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

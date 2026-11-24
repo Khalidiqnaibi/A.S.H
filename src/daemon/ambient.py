@@ -221,6 +221,7 @@ class AmbientConfig:
     game_mode: bool = False
     game_cfg: Optional[Dict[str, Any]] = None
     unload_idle_s: float = 0.0               # the language model is unloaded after this long with no question (0: never); Ollama's own keep_alive is hours
+    search_engine: str = "google"            # "look up X" opens this engine in the default browser (websearch.py)
     define: bool = False                     # "define X", "what does X mean": a Wiktionary definition (define.py); only the word leaves the machine
     define_cfg: Optional[Dict[str, Any]] = None
     governor: bool = False                   # step aside when memory is nearly gone or the CPU is pinned (governor.py); needs game_mode
@@ -2488,6 +2489,25 @@ class AmbientRuntime:
             logger.debug("Could not read the memory context", exc_info=True)
         return "\n".join(parts)
 
+    def _search_request(self, ev, now: float) -> bool:
+        """"Look up cat pics", "search YouTube for lo-fi", "google segue": the default browser opened on the search page -- a URL and nothing else, nothing read or
+        sent by ASH (websearch.py). Through the desktop executor that already opens apps; without it, not taken."""
+        d = self.desktop
+        if d is None or not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        from . import websearch
+        from src.senses.mic import MicrophoneSensor
+        text = str(getattr(ev, "text", "") or "")
+        got = websearch.parse(MicrophoneSensor.strip_address(text) or text, self.cfg.search_engine)
+        if got is None:
+            return False
+        engine, query = got
+        ok = bool(d.ex.open(websearch.url_for(engine, query)))
+        say = websearch.say(engine, query) if ok else "I couldn't open the browser for that."
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "asked", "query": text[:80]}
+        return True
+
     def _define_request(self, ev, now: float) -> bool:
         """"Define segue", "what does ubiquitous mean": a Wiktionary definition, only the word sent, only when said to ASH (define.py). Offline: not answered
         here, and the model answers as before."""
@@ -4388,6 +4408,8 @@ class AmbientRuntime:
         if not loose and self._free_moment_request(ev, now):
             return True
         if not loose and self._filemake_request(ev, now):
+            return True
+        if not loose and self._search_request(ev, now):
             return True
         if not loose and self._honest_request(ev, now):
             return True
