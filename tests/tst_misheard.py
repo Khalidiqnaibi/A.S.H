@@ -50,6 +50,25 @@ def m2_apply():
     check("a line that is not a correction is not its business", m.hear("what time is it") is None)
 
 
+def m2b_terms():
+    print("\n=== M2b. Names and terms spelled out ===")
+    m = Misheard()
+    for t, want in [("its called Co.Te.De. actually", ("Co.Te.De.", None)), ("its called Co.Te.De., not CODT", ("Co.Te.De.", "CODT")),
+                    ("it's called NoSQL", ("NoSQL", None)), ("the name is Stremio though", ("Stremio", None)), ("that's spelled Khalid, not Khaled", ("Khalid", "Khaled"))]:
+        check(f"{t!r} -> {want}", m.parse_term(t) == want, str(m.parse_term(t)))
+    for t in ("it's called a day", "its called a night", "it's called off", "it's called that because it is long", "its called it", "that's called the end"):
+        check(f"{t!r} is not a name", m.parse_term(t) is None, str(m.parse_term(t)))
+    p = os.path.join(tempfile.mkdtemp(), "m.json")
+    m = Misheard(p)
+    check("said back, as a term", m.hear("its called Co.Te.De. actually") == "Got it -- \u201cCo.Te.De.\u201d. I'll listen for it.")
+    check("it is a hint word", "Co.Te.De." in m.words())
+    said = m.hear("its called Co.Te.De., not CODT")
+    check("with 'not Y', Y is put right in transcripts", said and "CODT" in said and m.fix("open codt now") == "open Co.Te.De. now", str(said))
+    again = Misheard(p)
+    check("kept across a restart", "Co.Te.De." in again.words() and again.fix("the CODT page") == "the Co.Te.De. page", str(again.words()))
+    check("'forget that correction' takes the last pair back, keeps the term", "won't change" in m.hear("forget that correction") and "Co.Te.De." in m.words() and m.fix("the CODT page") == "the CODT page")
+
+
 def m3_runtime():
     print("\n=== M3. In the runtime ===")
     import tst_modellast as tm
@@ -72,4 +91,5 @@ def m3_runtime():
 if __name__ == "__main__":
     m1_parse()
     m2_apply()
+    m2b_terms()
     m3_runtime()

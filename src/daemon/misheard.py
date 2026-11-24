@@ -29,6 +29,10 @@ _SAID_NOT = re.compile(_LEAD + r"(?:i\s+(?:said|meant|was\s+saying)|the\s+word\s
                        r"[,\s]+(?:and\s+)?not\s+\"?(?P<heard>" + _PHRASE + r")\"?\s*[.!]*\s*$", re.I)
 _NOT_SAID = re.compile(_LEAD + r"(?:i\s+(?:didn'?t|did\s+not)\s+say|not)\s+\"?(?P<heard>" + _PHRASE + r")\"?"
                        r"[,\s]+(?:i\s+(?:said|meant)|the\s+word\s+(?:is|was))\s+\"?(?P<meant>" + _PHRASE + r")\"?\s*[.!]*\s*$", re.I)
+# "its called Co.Te.De. actually" / "its called Co.Te.De., not CODT": a NAME the recogniser will not know. Kept as a hint word (it leans towards it), and when
+# "not Y" is said too, Y becomes a mishearing of it. "it's called a day" is not a name: nothing starting with an article or a function word.
+_CALLED = re.compile(_LEAD + r"(?:(?:it(?:'s|\s+is|\s+was)|that(?:'s|\s+is)|they(?:'re|\s+are)|its)\s+(?:called|spelled|spelt|written|named|pronounced)|the\s+(?:name|word)\s+is)\s+\"?(?P<term>" + _PHRASE + r")\"?"
+                     r"(?:[,\s]+(?:and\s+)?not\s+\"?(?P<heard>" + _PHRASE + r")\"?)?(?:\s+(?:actually|though|by\s+the\s+way|btw))?\s*[.!]*\s*$", re.I)
 _FORGET = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:forget|undo|remove|drop|ignore)\s+(?:that|the\s+last)\s+(?:correction|mishearing|spelling)\s*[.!]*\s*$", re.I)
 
 
@@ -44,6 +48,7 @@ class Misheard:
     def __init__(self, path: Optional[str] = None):
         self.path = path
         self.pairs: Dict[str, str] = {}               # heard (lowercase) -> meant (as said)
+        self.terms: Dict[str, str] = {}               # names and terms the user spelled out (lowercase -> as written): hint words
         self.last: Optional[str] = None
         self._lock = threading.RLock()
         self._rx: Optional[re.Pattern] = None
@@ -58,6 +63,7 @@ class Misheard:
             d = load_json(self.path, default=None, logger=logger)
             if isinstance(d, dict):
                 self.pairs = {str(k).lower(): str(v) for k, v in (d.get("pairs") or {}).items()}
+                self.terms = {str(k).lower(): str(v) for k, v in (d.get("terms") or {}).items()}
                 self._rx = None
         except Exception:
             logger.debug("misheard pairs not loaded", exc_info=True)
@@ -67,7 +73,7 @@ class Misheard:
             return
         try:
             from src.memory.atomic import write_json
-            write_json(self.path, {"pairs": self.pairs}, indent=1, ensure_ascii=False)
+            write_json(self.path, {"pairs": self.pairs, "terms": self.terms}, indent=1, ensure_ascii=False)
         except Exception:
             logger.debug("misheard pairs not saved", exc_info=True)
 
@@ -87,6 +93,26 @@ class Misheard:
                     return heard, meant
         return None
 
+    @staticmethod
+    def parse_term(text: str) -> Optional[Tuple[str, Optional[str]]]:
+        """(term, heard-or-None) from "its called Co.Te.De., not CODT" / "its called NoSQL actually"; else None."""
+        t = (text or "").strip()
+        if not t or len(t) > 90:
+            return None
+        m = _CALLED.match(t)
+        if not m:
+            return None
+        term = re.sub(r"\s+", " ", m.group("term")).strip(" ,\"'")
+        if "." not in term.rstrip("."):
+            term = term.rstrip(".")                          # a sentence's full stop; but "Co.Te.De." is an abbreviation and keeps its last dot
+        heard = _clean(m.group("heard") or "")
+        if (not term or len(term) < 3 or len(term.split()) > 3 or _FUNCTION.match(term) or re.match(r"^(?:an?|some|one)\b", term, re.I)
+                or re.fullmatch(r"(?:day|night|it|that|this|time|bed|off)", term, re.I)):
+            return None
+        if heard and (heard.lower() == term.lower() or len(heard) < 3 or len(heard.split()) > 3 or _FUNCTION.match(heard)):
+            heard = ""
+        return term, (heard or None)
+
     def hear(self, text: str) -> Optional[str]:
         """A correction (kept, and said back) or 'forget that correction'; None for anything else."""
         if _FORGET.match(text or ""):
@@ -100,7 +126,19 @@ class Misheard:
             return "I haven't learned a correction I can take back."
         got = self.parse(text)
         if got is None:
-            return None
+            named = self.parse_term(text)
+            if named is None:
+                return None
+            term, heard = named
+            with self._lock:
+                self.terms[term.lower()] = term
+                if heard:
+                    self.pairs[heard.lower()] = term
+                    self.last = heard.lower()
+                    self._rx = None
+                self._save()
+            return (f"Got it -- \u201c{term}\u201d, and when I hear \u201c{heard}\u201d I'll take it as that." if heard
+                    else f"Got it -- \u201c{term}\u201d. I'll listen for it.")
         heard, meant = got
         with self._lock:
             self.pairs[heard.lower()] = meant
@@ -131,7 +169,7 @@ class Misheard:
     def words(self) -> List[str]:
         """What the recogniser should lean towards: the words the user said they meant."""
         with self._lock:
-            return list(dict.fromkeys(self.pairs.values()))[:20]
+            return list(dict.fromkeys(list(self.terms.values()) + list(self.pairs.values())))[:30]
 
     def status(self) -> Dict[str, int]:
-        return {"pairs": len(self.pairs)}
+        return {"pairs": len(self.pairs), "terms": len(self.terms)}
