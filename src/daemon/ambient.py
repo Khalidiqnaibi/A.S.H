@@ -2917,6 +2917,23 @@ class AmbientRuntime:
             self.stats["errors"] += 1
             logger.exception("Dwell step failed")
 
+    def _redo_request(self, ev, now: float) -> bool:
+        """"Do that again" / "one more time": the last thing a rule did for them, run once more -- the line is put back through the same rules, so it does
+        exactly what it did (and asks what it asked). Within ten minutes; never a guest's."""
+        if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        from src.senses.mic import MicrophoneSensor
+        text = str(getattr(ev, "text", "") or "")
+        if not self._REDO.match(MicrophoneSensor.strip_address(text) or text):
+            return False
+        last = getattr(self, "_last_cmd", None)
+        if not last or now - last[1] > 600.0:
+            return False                          # nothing to redo: the line goes on (a game's "again", a joke's "one more time")
+        again = SensorEvent(source=ev.source, modality=ev.modality, text=last[0], addressed=True, salience=getattr(ev, "salience", 0.9),
+                            urgency=getattr(ev, "urgency", 0.6), meta=dict(getattr(ev, "meta", None) or {}))
+        self._last_cmd = (last[0], now)
+        return bool(self._rules(again, now))
+
     def _word_request(self, ev, now: float) -> bool:
         """"Spell Segway", "how do you spell segue", "spell it again": a letter at a time, by rule (wordtools.py) -- it went to the model (28 s, and wrong)."""
         if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
@@ -4019,11 +4036,21 @@ class AmbientRuntime:
             except Exception:
                 logger.exception("brain.observe failed on a learned fact")
 
+    # "Do that again", "one more time", "same again": the last thing a rule did for them, done once more.
+    _REDO = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:ok(?:ay)?|so|and|please|now)[,\s]+)*(?:(?:do|try|run|say)\s+(?:that|it|the\s+same(?:\s+thing)?)\s+again|"
+                       r"(?:one|once)\s+more(?:\s+time)?|same\s+(?:again|thing)|again(?:\s+please)?|do\s+it\s+once\s+more|(?:and\s+)?(?:another\s+)?one\s+more)(?:\s+please)?\s*[.!?]*\s*$", re.I)
+
     def _wonder_say(self, ev, rep):
         if self._capture is not None:            # a step of a task: said once, all together
             self._capture.append(str(getattr(rep, "say", "") or ""))
             return
         outcome = getattr(rep, "outcome", "")
+        try:
+            t = str(getattr(ev, "text", "") or "").strip()
+            if outcome == "desktop" and t and len(t) <= 80 and not self._REDO.match(t) and self._user_source(ev):
+                self._last_cmd = (t, self.clock())          # what 'do that again' means
+        except Exception:
+            pass
         if outcome in ("watch", "desktop", "research", "briefing", "batch"):
             self._last_why = {"kind": "asked", "query": str(getattr(ev, "text", "") or "")[:80]}
         elif outcome == "followup" and self._awaiting_meaning is not None:
@@ -4283,6 +4310,8 @@ class AmbientRuntime:
         if self._ask_followthrough(ev, now):
             return True
         if not loose and self._asks_request(ev, now):
+            return True
+        if not loose and self._redo_request(ev, now):
             return True
         if not loose and self._word_request(ev, now):
             return True
