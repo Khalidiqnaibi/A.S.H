@@ -34,15 +34,22 @@ logger = logging.getLogger("ash.daemon.media")
 KEYS = {"play_pause": 0xB3, "next": 0xB0, "previous": 0xB1, "volume_up": 0xAF, "volume_down": 0xAE,
         "mute": 0xAD, "stop": 0xB2}
 
+# What a pause/play/next is aimed at: the music, and also the video, the movie, the YouTube video, the tab in front -- the same media keys reach any
+# player that listens to them. "Unpause the YouTube video in front of me" (heard as "Unboss ...") went to the model twice, which said "I see you're
+# watching ... What would you like to discuss?"
+_THING = (r"(?:(?:the|this|that|my|some|a)\s+)?(?:(?:youtube|netflix|stremio|twitch|spotify|opera|chrome|browser)\s+)?"
+          r"(?:music|songs?|tunes|video|movie|film|show|episode|stream|clip|tab|playback|podcast|track|it)")
+_WHERE = r"(?:\s+(?:in\s+front\s+of\s+me|on\s+(?:the\s+)?screen|right\s+now|for\s+me|please|there|here|now))*"
+_PAUSE = r"(?:pause|stop)"
+_PLAY = r"(?:resume|play|continue|un-?\s?pause|unboss|un\s?paws|on\s+pause|un\s?pass)"
 _MUSIC = [
-    (re.compile(r"^\s*(?:please\s+)?(?:pause|stop)\s+(?:the\s+)?(?:music|song|video|playback|it)\s*[.!]?\s*$"
-                r"|^\s*(?:pause|stop)\s*[.!]?\s*$", re.I), "play_pause", "Paused."),
-    (re.compile(r"^\s*(?:please\s+)?(?:resume|play|unpause|continue)(?:\s+(?:the\s+|some\s+|my\s+)?(?:music|songs?|playback|it|tunes))?"
-                r"\s*[.!]?\s*$", re.I), "play_pause", "Playing."),
-    (re.compile(r"^\s*(?:please\s+)?(?:next|skip)(?:\s+(?:this\s+|the\s+)?(?:song|track|one))?\s*[.!]?\s*$"
-                r"|^\s*(?:play\s+)?(?:the\s+)?next\s+(?:song|track)\s*[.!]?\s*$", re.I), "next", "Next one."),
-    (re.compile(r"^\s*(?:please\s+)?(?:previous|go back|last)(?:\s+(?:song|track|one))?\s*[.!]?\s*$"
-                r"|^\s*(?:play\s+)?(?:the\s+)?previous\s+(?:song|track)\s*[.!]?\s*$", re.I), "previous", "Going back."),
+    (re.compile(r"^\s*(?:please\s+)?" + _PAUSE + r"\s+" + _THING + _WHERE + r"\s*[.!]?\s*$"
+                r"|^\s*(?:please\s+)?(?:pause|stop)\s*[.!]?\s*$", re.I), "play_pause", "Paused."),
+    (re.compile(r"^\s*(?:please\s+)?" + _PLAY + r"(?:\s+" + _THING + r")?" + _WHERE + r"\s*[.!]?\s*$", re.I), "play_pause", "Playing."),
+    (re.compile(r"^\s*(?:please\s+)?(?:next|skip)(?:\s+(?:this\s+|the\s+)?(?:song|track|one|video|episode|clip))?" + _WHERE + r"\s*[.!]?\s*$"
+                r"|^\s*(?:play\s+)?(?:the\s+)?next\s+(?:song|track|video|episode)" + _WHERE + r"\s*[.!]?\s*$", re.I), "next", "Next one."),
+    (re.compile(r"^\s*(?:please\s+)?(?:previous|go back|last)(?:\s+(?:song|track|one|video|episode))?" + _WHERE + r"\s*[.!]?\s*$"
+                r"|^\s*(?:play\s+)?(?:the\s+)?previous\s+(?:song|track|video|episode)" + _WHERE + r"\s*[.!]?\s*$", re.I), "previous", "Going back."),
     (re.compile(r"^\s*(?:please\s+)?(?:(?:can|could)\s+you\s+)?(?:make\s+it\s+(?:a\s+(?:bit|little)\s+)?louder"
                 r"|(?:turn|bring|pump|crank)\s+(?:it|the\s+(?:volume|music|sound))\s+up(?:\s+(?:a\s+)?(?:bit|little|notch))?"
                 r"|(?:raise|increase|boost)\s+the\s+volume(?:\s+(?:a\s+)?(?:bit|little|notch))?"

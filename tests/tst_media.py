@@ -73,9 +73,16 @@ def m1_music():
                            ("volume down", "volume_down", "Quieter."), ("mute the sound", "mute", "Done.")):
         r = m.hear(text)
         check(f"{text!r} -> {key}", r == say and m.ex_.keys[-1] == key, str(r))
+    # A video, a movie, the tab in front: the same keys reach any player that listens (and the microphone's "unpause" came out "unboss").
+    for text, key, say in (("Unpause the YouTube video in front of me", "play_pause", "Playing."), ("unboss the youtube video", "play_pause", "Playing."),
+                           ("pause the movie", "play_pause", "Paused."), ("stop the video", "play_pause", "Paused."), ("pause the YouTube video right now please", "play_pause", "Paused."),
+                           ("continue the show", "play_pause", "Playing."), ("on pause the video", "play_pause", "Playing."),
+                           ("next video", "next", "Next one."), ("play the next video please", "next", "Next one."), ("previous episode", "previous", "Going back.")):
+        r = m.hear(text)
+        check(f"{text!r} -> {key}", r == say and m.ex_.keys[-1] == key, str(r))
     n = len(m.ex_.keys)
     for text in ("play the number game", "pause for a second and think", "next week", "turn it up to 11 in the pitch",
-                 "", None, "pause " * 30):
+                 "", None, "pause " * 30, "pause the game", "pause my homework", "hold it", "freeze it", "start", "stop talking", "play something"):
         check(f"not music: {str(text)[:30]!r}", m.hear(text) is None)
     check("(no keys pressed for those)", len(m.ex_.keys) == n)
     check("music off: not taken", mrig(music=False).hear("pause the music") is None)
