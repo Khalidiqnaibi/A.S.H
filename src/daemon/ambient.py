@@ -3655,6 +3655,46 @@ class AmbientRuntime:
                             r"(?:[,\s]+ash)?\s*[.!?]*\s*$", re.I)
     _BARE_SEE = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?what\s+(?:can|do|could)\s+you\s+see(?:\s+(?:now|here|right\s+now))?(?:[,\s]+ash)?\s*[.!?]*\s*$", re.I)
 
+    # "Read it to me" / "read this out loud" / "read the screen": the text of the window in front, read aloud -- from the screen reader that already
+    # answers "what do you see" (the same refusals: blocked and private windows, chats, ASH's own output). Asking is the consent; nothing leaves the machine.
+    _READ_ALOUD = re.compile(
+        r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?(?:read\s+(?:it|this|that|the\s+(?:screen|page|text|article|window)|my\s+screen|what(?:'s|\s+is)\s+(?:on\s+(?:the|my)\s+screen|here))"
+        r"(?:\s+(?:to\s+me|out\s+loud|aloud|for\s+me))*|what\s+does\s+(?:it|this|that|the\s+(?:screen|page))\s+say)(?:\s+(?:to\s+me|out\s+loud|aloud|for\s+me|please))*\s*[?.!]*\s*$", re.I)
+
+    def _read_aloud_request(self, ev, now: float) -> bool:
+        if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        if len(text) > 80 or not self._READ_ALOUD.match(text):
+            return False
+        sc = self.periphery.sensors.get("screenshot") if getattr(self, "periphery", None) is not None else None
+        if sc is None or not hasattr(sc, "look_now"):
+            return False                                   # no screen reader: it goes where it did
+        try:
+            v = sc.look_now()
+        except Exception:
+            logger.exception("Reading the screen failed")
+            return False
+        who = (v.get("subject") or v.get("title") or "").strip()
+        if not v.get("ok", True):
+            say = "I can't read the screen right now."
+        elif v.get("withheld"):
+            say = "I don't read that window -- it's private or blocked."
+        elif not v.get("reader", True):
+            say = "I don't have a screen reader installed, so I can only see the window's name."
+        elif not (v.get("text") or "").strip():
+            say = "I couldn't make out any text there."
+        else:
+            body = " ".join(str(v["text"]).split())
+            if len(body) > 420:
+                cut = body[:420]
+                end = max(cut.rfind(". "), cut.rfind("? "), cut.rfind("! "))
+                body = (cut[:end + 1] if end > 150 else cut.rsplit(" ", 1)[0] + "...")
+            say = (f"{who}: " if who else "") + body
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "asked", "query": text[:80]}
+        return True
+
     def _look_request(self, ev, now: float) -> bool:
         """"Look around", "what am I holding?", "who's this?": the camera, asked, answered by rule. Not for a guest's
         voice, and only on a line meant for ASH -- overheard speech never opens the camera."""
@@ -4381,6 +4421,8 @@ class AmbientRuntime:
         if not loose and self._usage_request(ev, now):
             return True
         if not loose and self._away_request(ev, now):
+            return True
+        if not loose and self._read_aloud_request(ev, now):
             return True
         if not loose and self._working_request(ev, now):
             return True
