@@ -24,6 +24,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def load():
+    os.environ["ASH_LLM_STATE"] = os.path.join(tempfile.mkdtemp(), "llm_notices.json")      # the 'said once, ever' record: not this machine's
     spec = importlib.util.spec_from_file_location("ash_llm_reasonleak", os.path.join(ROOT, "tools", "LLM.py"))
     L = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(L)
