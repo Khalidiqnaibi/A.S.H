@@ -96,7 +96,7 @@ def topic_of(text: str) -> Optional[str]:
     topic = re.sub(r"^(?:the\s+word\s+)", "", topic, flags=re.I)
     topic = re.sub(r"^(?:a|an|the)\s+", "", topic, flags=re.I).strip()
     low = topic.lower()
-    if (re.match(r"(?:capital|population|meaning|price|cost|difference|way|reason|point|purpose|name|age|height|"
+    if (re.match(r"(?:capital|population|definition|meaning|price|cost|difference|way|reason|point|purpose|name|age|height|"
                  r"distance|temperature|number|score|answer|plan|problem|status|rate|value|weather)\s+"
                  r"(?:of|between|for|in|to|at)\b", low) or re.match(r"(?:best|weather)\b", low)):
         return None                                  # a question about a quantity, not a topic

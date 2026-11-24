@@ -221,6 +221,8 @@ class AmbientConfig:
     game_mode: bool = False
     game_cfg: Optional[Dict[str, Any]] = None
     unload_idle_s: float = 0.0               # the language model is unloaded after this long with no question (0: never); Ollama's own keep_alive is hours
+    define: bool = False                     # "define X", "what does X mean": a Wiktionary definition (define.py); only the word leaves the machine
+    define_cfg: Optional[Dict[str, Any]] = None
     governor: bool = False                   # step aside when memory is nearly gone or the CPU is pinned (governor.py); needs game_mode
     governor_cfg: Optional[Dict[str, Any]] = None
     # Follow-ups: an event the user mentions ("my interview on Thursday") is
@@ -615,6 +617,8 @@ class AmbientRuntime:
             mic = self.periphery.sensors.get("microphone")
             if mic is not None and hasattr(mic, "voiceprint"):
                 mic.voiceprint = True
+        from .define import Define, DefineConfig
+        self.define: Optional[Define] = Define(DefineConfig.from_dict({**(self.cfg.define_cfg or {}), "enabled": True})) if self.cfg.define else None
         from .misheard import Misheard
         self.misheard = Misheard(self.cfg.misheard_path)
         from .unrouted import Unrouted
@@ -2483,6 +2487,25 @@ class AmbientRuntime:
         except Exception:
             logger.debug("Could not read the memory context", exc_info=True)
         return "\n".join(parts)
+
+    def _define_request(self, ev, now: float) -> bool:
+        """"Define segue", "what does ubiquitous mean": a Wiktionary definition, only the word sent, only when said to ASH (define.py). Offline: not answered
+        here, and the model answers as before."""
+        d = self.define
+        if d is None or not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        from src.senses.mic import MicrophoneSensor
+        text = str(getattr(ev, "text", "") or "")
+        try:
+            say = d.hear(MicrophoneSensor.strip_address(text) or text)
+        except Exception:
+            logger.exception("Define failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "facts"}
+        return True
 
     def _facts_request(self, ev, now: float) -> bool:
         """"Who was Ada Lovelace?": a Wikipedia summary, only if switched on and only
@@ -4355,6 +4378,8 @@ class AmbientRuntime:
         if self._weekly_request(ev, now):
             return True
         if self._crash_request(ev, now):
+            return True
+        if not loose and self._define_request(ev, now):
             return True
         if not loose and self._facts_request(ev, now):
             return True
