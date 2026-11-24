@@ -1800,14 +1800,15 @@ class AmbientRuntime:
         d = self.desktop
         if d is None or not self._user_source(ev):
             return False
-        if not self._meant_for_ash(ev) and getattr(d, "_pending", None) is None:
+        waiting = getattr(d, "_pending", None) is not None or getattr(d, "_say_back", None) is not None
+        if not self._meant_for_ash(ev) and not waiting:
             return False                  # overheard; but a bare "yes" to "Close Word?" answers it
-        if getattr(d, "_pending", None) is not None and not self._may_confirm(ev, now):
+        if waiting and not self._may_confirm(ev, now):
             return False                  # ...only the user's, in that conversation: not a guest, not the TV
         try:
             from src.senses.mic import MicrophoneSensor
             text = MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or ""))
-            say = d.hear(text, now)
+            say = d.hear(text, now, conf=(getattr(ev, "meta", None) or {}).get("asr_conf"))
         except Exception:
             logger.exception("Desktop command failed")
             return False

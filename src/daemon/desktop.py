@@ -236,7 +236,10 @@ class Desktop:
         except Exception:
             return None
 
-    def hear(self, text: str, now: Optional[float] = None) -> Optional[str]:
+    # A phrase the recogniser was this unsure of (average log-probability, 0 = certain) is said back before it opens or switches anything.
+    DOUBT = -0.6
+
+    def hear(self, text: str, now: Optional[float] = None, conf: Optional[float] = None) -> Optional[str]:
         """A desktop command: returns what to say back, or None if the
         sentence is not one this handles."""
         if not self.cfg.enabled:
@@ -245,6 +248,16 @@ class Desktop:
         t = (text or "").strip()
         if not t or len(t) > 80:
             return None
+
+        # the answer to "Did you say 'open notepad'?"
+        sb = getattr(self, "_say_back", None)
+        if sb is not None:
+            self._say_back = None
+            if now - sb[1] <= self.cfg.confirm_window_s:
+                if _YES.match(t) or _yesno.is_yes(t):
+                    return self.hear(sb[0], now)
+                if re.match(r"^\s*(?:no|nope|nah|don'?t|cancel|never\s*mind)", t, re.I) or _yesno.is_no(t):
+                    return "Okay, never mind."
 
         # the answer to "Close Word?"
         p = self._pending
@@ -256,6 +269,11 @@ class Desktop:
                                                                       t, re.I) or _yesno.is_no(t)):
                 return "Okay, I'll leave it open."
 
+        if conf is not None and conf < self.DOUBT and (_ROUTINE.match(t) or _OPEN.match(t) or _SWITCH.match(t)):
+            if (_OPEN.match(t) or _SWITCH.match(t)) and self._app((_OPEN.match(t) or _SWITCH.match(t)).group("t")) is None:
+                return None                       # not an app of ours: nothing to act on, nothing to ask
+            self._say_back = (t, now)
+            return f"Did you say “{t.rstrip('.!?')}”?"
         m = _ROUTINE.match(t)
         if m:
             r = self._routine(m.group("t"))

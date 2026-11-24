@@ -528,6 +528,9 @@ class MicrophoneSensor(Sensor):
                     verdict.confidence, "/".join(verdict.reasons) or "nothing", text)
 
         extra = {}
+        conf = getattr(self, "_last_asr_conf", None)         # how sure the recogniser was (0 = certain): a doubtful command is said back first
+        if conf is not None:
+            extra["asr_conf"] = round(float(conf), 3)
         if self.voiceprint:
             from .voiceprint import fingerprint
             vp = fingerprint(audio, SAMPLE_RATE)
@@ -572,6 +575,12 @@ class MicrophoneSensor(Sensor):
                 seen.add(k)
                 keep.append(w)
         return base if not keep else base + " Words I use: " + ", ".join(keep[:25]) + "."
+
+    @staticmethod
+    def _mean_conf(segs) -> Optional[float]:
+        lps = [getattr(x, "avg_logprob", None) for x in segs if (getattr(x, "text", "") or "").strip()]
+        lps = [v for v in lps if v is not None]
+        return (sum(lps) / len(lps)) if lps else None
 
     @staticmethod
     def _unsure(segs) -> bool:
@@ -627,6 +636,7 @@ class MicrophoneSensor(Sensor):
                                                condition_on_previous_text=False)
             segs = list(segs)
             text = trusted_text(segs)
+            self._last_asr_conf = self._mean_conf(segs)
             if text and getattr(self, "second_pass_model", "") and self._unsure(segs):
                 better = self._second_pass(audio)          # the fast model was unsure: once more with a bigger one, if it is already on disk
                 if better:
