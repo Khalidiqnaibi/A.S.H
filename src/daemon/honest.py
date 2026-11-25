@@ -297,6 +297,10 @@ def capabilities(rt) -> str:
         can.append("open, switch to and close your apps")
     if on("media") is not None:
         can.append("control the music")
+    if on("control") is not None:
+        can.append("press keys, scroll, click and type on your computer when you ask")
+    if on("inventory") is not None:
+        can.append("tell you which apps and games are installed")
     h = on("smarthome")
     if h is not None and getattr(getattr(h, "cfg", None), "url", ""):
         can.append("turn your lights and plugs on and off")

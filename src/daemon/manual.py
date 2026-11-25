@@ -33,6 +33,12 @@ ENTRIES: List[Tuple[str, int, str]] = [
      "weather and mail when set up; remember people, what you tell it and what you like; play games and tell stories; read or copy "
      "your clipboard when asked; show a face and clock. ASH cannot browse the web, make calls, "
      "buy things or see your location. Emails and texts: drafted, read back, sent only on \"send it\". Ask \"what can you do?\" for what is switched on right now."),
+    ("control", 5,
+     "ASH manual, computer control. By voice, for whatever is in front of you: \"press space\" / \"click space\" / \"press enter\" / \"press control S\", \"full screen\", "
+     "\"scroll down\" / \"scroll up a lot\", \"click\" / \"double click\" / \"right click\", \"move the mouse left\", \"click subscribe\" (it finds the words on the screen), "
+     "\"type hello there\", \"copy\", \"paste\", \"undo\", \"new tab\", \"close this tab\", \"go back a page\", \"minimize\", \"show the desktop\", \"take a screenshot\", "
+     "\"what devices are connected\", \"what games do I have\", \"open <a game or app>\", \"restart yourself\". Delete, closing a window and long typing ask first. "
+     "Never into a window on the privacy blocklist or while privacy mode is on, and never lock, Run or Ctrl+Alt+Delete."),
     ("reminders", 5,
      "ASH manual, reminders/timers/alarms. Say: \"remind me in 20 minutes to check the oven\", \"remind me tomorrow at 9 "
      "to send the report\", \"set a timer for 5 minutes\", \"wake me up at 7\". Right after one goes off, \"snooze\" or "
