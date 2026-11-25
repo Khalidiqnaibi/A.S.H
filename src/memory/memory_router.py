@@ -282,7 +282,8 @@ class MemoryRouter:
                 event_type="interaction",
                 related_entities=linked_entities,
                 importance=importance,
-                **({"concepts": active} if active else {})
+                **({"concepts": active} if active else {}),
+                **({"mood": getattr(self, "user_mood", None)} if (source != "ash" and getattr(self, "user_mood", None) is not None) else {})
             )
             result["routed_as"] = "episodic"
             result["details"] = {"episode_id": ep.episode_id, "linked_entities": linked_entities}

@@ -49,8 +49,57 @@ def wants_user_mood(text: str) -> bool:
     return bool(_USER_MOOD.match(text or ""))
 
 
-def user_mood_say(mood) -> str:
-    """What ASH can honestly say about how the person feels: a reading of their WORDS (the sentiment model), said as that."""
+_DETAIL = re.compile(r"\b(?:telemetry|numbers?|vector|victor|vitals?|stats|readings?|breakdown|details?|exactly|data|values?|metrics?|drives?)\b", re.I)
+
+
+def wants_detail(text: str) -> bool:
+    return bool(_DETAIL.search(text or ""))
+
+
+def from_engine(res, drives=None, detail: bool = False, extra: str = "") -> str:
+    """How ASH feels, from the SAME state the prompt, the face and the thinking budget use (the brain's emotion engine and drives) -- not from a
+    second, separate set of canned moods. Short: the feeling and what is strongest. `detail`: the numbers, and why."""
+    mod = getattr(res, "modulation", None)
+    label = str(getattr(mod, "tone_label", "") or "").strip().rstrip(".")
+    emos = sorted(((k, float(v)) for k, v in (getattr(res, "emotions", None) or {}).items()), key=lambda t: -t[1])
+    top = [(k, v) for k, v in emos if v >= 0.25][:3]
+    s = (label[:1].upper() + label[1:] + ".") if label else "I don't have a feeling to report yet."
+    if not detail:
+        if top:
+            s += " Strongest: " + ", ".join(k for k, _ in top[:2]) + "."
+        return (s + (" " + extra if extra else "")).strip()
+    bits = [s]
+    if emos:
+        bits.append("Emotions: " + ", ".join(f"{k} {v:.2f}" for k, v in emos[:5]) + ".")
+    mood = getattr(res, "mood", None) or {}
+    if mood:
+        bits.append("Mood baseline: " + ", ".join(f"{k} {float(v):.2f}" for k, v in list(mood.items())[:4]) + ".")
+    if drives is not None:
+        bits.append("Drives: " + ", ".join(f"{k} {float(getattr(drives, k, 0.0)):.2f}" for k in
+                                           ("urgency", "caution", "curiosity", "effort_budget", "social", "fatigue")).replace("effort_budget", "effort") + ".")
+    why = [str(r) for r in (getattr(res, "reasons", None) or [])][:2]
+    if why:
+        bits.append("Because: " + "; ".join(why) + ".")
+    return " ".join(bits)
+
+
+def mood_trend(episodes, now: float, hours: float = 24.0):
+    """(how many lines, average mood, share that sounded low) over the episodes in the last `hours` that carry a reading; None if too few."""
+    vals = [float(e.mood) for e in episodes if getattr(e, "mood", None) is not None and now - float(getattr(e, "timestamp", 0.0) or 0.0) <= hours * 3600.0]
+    if len(vals) < 5:
+        return None
+    return len(vals), sum(vals) / len(vals), sum(1 for v in vals if v <= -0.3) / len(vals)
+
+
+def user_mood_say(mood, trend=None) -> str:
+    """What ASH can honestly say about how the person feels: a reading of their WORDS (the sentiment model), said as that. With `trend`
+    (mood_trend over the stored episodes) it says how the last day has been, from what is actually remembered."""
+    if trend is not None:
+        n, avg, low = trend
+        word = "upbeat" if avg >= 0.3 else "low" if avg <= -0.3 else "mixed" if low >= 0.3 else "fairly level"
+        now_part = "" if mood is None else (" Right now you sound " + ("upbeat" if mood >= 0.3 else "low" if mood <= -0.3 else "level") + ".")
+        return (f"Going by the {n} things you said in the last day, you've sounded {word} -- {int(round(low * 100))}% of them read as low."
+                f"{now_part} That's from your words only, so tell me if I've got it wrong.")
     if mood is None:
         return "I can't tell from here -- I only read your words, and you haven't said how you feel. How are you?"
     if mood >= 0.3:

@@ -26,13 +26,14 @@ class EpisodicMemory:
     # Add Episode
     # ---------------------
 
-    def add_episode(self, summary, event_type, related_entities=None, importance=0.5, concepts=None):
+    def add_episode(self, summary, event_type, related_entities=None, importance=0.5, concepts=None, mood=None):
         ep = Episode.create(
             summary=summary,
             event_type=event_type,
             related_entities=related_entities,
             importance=importance,
             concepts=concepts,
+            mood=mood,
         )
         with self.store.lock:                     # the same lock prune() holds: the store and the index change together
             self.store.add(ep)

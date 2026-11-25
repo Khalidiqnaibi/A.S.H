@@ -2759,7 +2759,13 @@ class AmbientRuntime:
                 mood = mood_of(ls)
         except Exception:
             logger.debug("no mood reading", exc_info=True)
-        self._wonder_say(ev, type("R", (), {"say": _fe.user_mood_say(mood), "outcome": "moment"})())
+        trend = None
+        try:
+            eps = getattr(getattr(getattr(self.ash, "episodic_memory", None), "store", None), "episodes", None) or {}
+            trend = _fe.mood_trend(list(eps.values())[-2000:], time.time())
+        except Exception:
+            logger.debug("no mood trend", exc_info=True)
+        self._wonder_say(ev, type("R", (), {"say": _fe.user_mood_say(mood, trend), "outcome": "moment"})())
         self._last_why = {"kind": "feelings"}
         return True
 
@@ -2771,7 +2777,16 @@ class AmbientRuntime:
         from . import feelings as _fe
         if _fe.wants_user_mood(str(getattr(ev, "text", "") or "")):
             return False                                   # that asks about the person, not about ASH
-        self._wonder_say(ev, type("R", (), {"say": f.say(now), "outcome": "moment"})())
+        said = f.say(now)
+        try:
+            # One state: the brain's emotion engine and drives (what the prompt, the face and the thinking budget already use), with the numbers on request.
+            res = getattr(getattr(self.brain, "homeostasis", None), "last_emotion_result", None)
+            if res is not None:
+                said = _fe.from_engine(res, getattr(getattr(self.brain, "homeostasis", None), "drives", None),
+                                       detail=_fe.wants_detail(str(getattr(ev, "text", "") or "")))
+        except Exception:
+            logger.debug("emotion engine not readable", exc_info=True)
+        self._wonder_say(ev, type("R", (), {"say": said, "outcome": "moment"})())
         if self.moments is not None and getattr(self.moments, "_awaiting", None) is not None:
             self.moments._awaiting = None              # "I'm good, how are you?" answered the mood question; the next line is not its answer
         return True

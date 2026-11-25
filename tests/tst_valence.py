@@ -50,7 +50,7 @@ def v2_brain():
     b = net.add_concept(vec(2), origin=Origin.GROWN, seed_text="b").id
     froz = net.add_concept(vec(3), origin=Origin.INTENT, label="calc", intent="calc")
     froz.frozen = True
-    brain = NS(concepts=NS(net=net), _SENTIMENT_VALUE=Brain._SENTIMENT_VALUE, _topic={})
+    brain = NS(concepts=NS(net=net), _SENTIMENT_VALUE=Brain._SENTIMENT_VALUE, _topic={}, _note_mood=lambda v: None)
     act = NS(top=lambda n: [(a, 1.0), (b, 0.8), (froz.id, 0.5)])
     for _ in range(4):
         Brain._feel(brain, act, {"sentiment": "NEGATIVE", "confidence": 0.9})

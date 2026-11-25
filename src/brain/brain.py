@@ -1026,14 +1026,22 @@ class Brain:
         try:
             v = self._SENTIMENT_VALUE.get(str((sentiment or {}).get("sentiment", "")).lower())
             if v is None:
+                self._note_mood(None)
                 return
             conf = float((sentiment or {}).get("confidence", 0.0) or 0.0)
+            self._note_mood(round(v * conf, 3))      # the episode this turn becomes remembers how the person sounded
             for cid, _a in activation.top(3):
                 c = self.concepts.net.concepts.get(cid)
                 if c is not None and not c.frozen:
                     c.feel(v, weight=conf)
         except Exception:
             logger.debug("valence not updated", exc_info=True)
+
+    def _note_mood(self, value) -> None:
+        try:
+            self.memory.router.user_mood = value
+        except Exception:
+            pass
 
     def topic_valence(self) -> float:
         """How the user has felt about what they are talking about now: the mean valence of the concepts the conversation holds
