@@ -3498,6 +3498,24 @@ class AmbientRuntime:
         self._last_why = {"kind": "notes"}
         return True
 
+    def _selfmodel_request(self, ev, now: float) -> bool:
+        """"What model are you using", "what hardware", "what's new in the update", "what do you know about yourself", "how much do you
+        remember": answered from the live runtime (selfmodel.py), not by the model, which has no facts about the machine it runs on."""
+        if not self._user_source(ev) or not self._meant_for_ash(ev) or self._is_guest(ev):
+            return False
+        from . import selfmodel
+        kind = selfmodel.parse(str(getattr(ev, "text", "") or ""))
+        if kind is None:
+            return False
+        try:
+            say = selfmodel.say(kind, self)
+        except Exception:
+            logger.exception("Self-model answer failed")
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "self", "about": kind}
+        return True
+
     def _identity_request(self, ev, now: float) -> bool:
         """"Who am I?": from the name and the people on record, not the model."""
         w = self.wonder
@@ -4460,6 +4478,8 @@ class AmbientRuntime:
         if not loose and self._about_me_request(ev, now):
             return True
         if not loose and self._who_request(ev, now):
+            return True
+        if not loose and self._selfmodel_request(ev, now):
             return True
         if not loose and self._identity_request(ev, now):
             return True
