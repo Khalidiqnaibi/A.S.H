@@ -77,7 +77,7 @@ class Unrouted:
         """A turn answered by a rule, a tool or memory: it counts in the rate, and is not written."""
         self.stats["turns"] += 1
 
-    def model_turn(self, text: str, reason: str, took_s: float = 0.0, tool: bool = False, guest: bool = False):
+    def model_turn(self, text: str, reason: str, took_s: float = 0.0, tool: bool = False, guest: bool = False, note: str = ""):
         self.stats["turns"] += 1
         self.stats["model"] += 1
         self.slowest_s = max(self.slowest_s, float(took_s or 0.0))
@@ -85,6 +85,8 @@ class Unrouted:
             return
         row = {"t": round(self.clock(), 1), "text": str(self.scrub(text))[:300], "why": reason, "tool": bool(tool),
                "took_s": round(float(took_s), 1)}
+        if note:
+            row["note"] = str(note)[:160]                    # why it may have been slow (digest.py prints it)
         with self._lock:
             self.rows.append(row)
             if len(self.rows) > self.max_lines:

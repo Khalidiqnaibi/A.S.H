@@ -86,7 +86,7 @@ def render(s: Dict[str, Any], day: str) -> str:
     if s["by_why"]:
         lines += ["## Why lines reached the model", ""] + [f"- {n} x {w}" for w, n in s["by_why"].most_common(8)] + [""]
     if s["slow"]:
-        lines += ["## Slow (15 s or more)", ""] + [f"- {float(r.get('took_s') or 0):.0f} s -- “{str(r.get('text') or '')[:90]}”" for r in s["slow"][:10]] + [""]
+        lines += ["## Slow (15 s or more)", ""] + [f"- {float(r.get('took_s') or 0):.0f} s -- “{str(r.get('text') or '')[:90]}”" + (f" -- {r['note']}" if r.get("note") else "") for r in s["slow"][:10]] + [""]
     if s["repeated"]:
         lines += ["## Said more than once and still sent to the model (the next rules)", ""]
         lines += [f"- {len(v)} x “{str(v[0].get('text') or '')[:90]}”" for _, v in s["repeated"][:12]] + [""]

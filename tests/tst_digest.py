@@ -29,7 +29,10 @@ def files():
     with open(u, "w", encoding="utf-8") as fh:
         for i, (txt, why, tool, took) in enumerate([("Spell Segway", "no_tool_matched", False, 27.9), ("Spell Segway", "no_tool_matched", False, 12.0),
                                                     ("What do you see?", "tool_narrated", True, 5.6), ("tell me a story about space", "no_tool_matched", False, 40.0)]):
-            fh.write(json.dumps({"t": NOW - 600 * (i + 1), "text": txt, "why": why, "tool": tool, "took_s": took}) + "\n")
+            row = {"t": NOW - 600 * (i + 1), "text": txt, "why": why, "tool": tool, "took_s": took}
+            if took == 40.0:
+                row["note"] = "the model had to be loaded first; memory was at 91%"
+            fh.write(json.dumps(row) + "\n")
     return f, u, d
 
 
@@ -45,6 +48,19 @@ def d1_summary():
     text = open(path, encoding="utf-8").read()
     check("a file, named for the day", path.endswith(".md") and "digest-2026-11-" in path, path)
     check("the file names the failures, the slow ones and the next rule", "repair mode started" in text and "fact corrected" in text and "40 s" in text and "2 x “Spell Segway”" in text, text)
+    check("a slow line carries why it was slow", "40 s -- \u201ctell me a story about space\u201d -- the model had to be loaded first; memory was at 91%" in text, text)
+    from src.daemon.unrouted import Unrouted
+    from src.daemon.ambient import AmbientRuntime
+    ur = Unrouted(os.path.join(d, "x.jsonl"))
+    ur.model_turn("a slow one", "no_tool_matched", 50.0, note="the machine was squeezed (memory is at 90%)")
+    ur.model_turn("a quick one", "no_tool_matched", 1.0)
+    check("the ledger keeps the note, and only when there is one", ur.rows[0].get("note") == "the machine was squeezed (memory is at 90%)" and "note" not in ur.rows[1])
+    import types
+    rt = types.SimpleNamespace(governor=types.SimpleNamespace(status=lambda: {"squeezed": False, "memory": 91.0, "cpu": 95.0, "why": ""}))
+    check("the runtime names the reasons it can know", AmbientRuntime._slow_note(rt, True) == "the model had to be loaded first; memory was at 91%; CPU was at 95%", AmbientRuntime._slow_note(rt, True))
+    rt.governor.status = lambda: {"squeezed": True, "memory": 91.0, "cpu": 10.0, "why": "memory is at 91%"}
+    check("squeezed: said, with why", AmbientRuntime._slow_note(rt, False) == "the machine was squeezed (memory is at 91%)")
+    check("calm and warm: nothing to say", AmbientRuntime._slow_note(types.SimpleNamespace(governor=None), False) == "")
     check("nothing kept: said so", "Nothing went wrong" in digest.render(digest.summary(None, None, NOW), "2026-11-25"))
 
 

@@ -5229,6 +5229,7 @@ class AmbientRuntime:
                             context = (context + "\n" + tc).strip()
                     cue = self._thinking_cue(to_ash)
                     t_model = time.time()
+                    cold = bool(getattr(self, "_model_unloaded", False))                     # was the model out of memory when this question came? (a load is most of a minute)
                     self._last_model_at, self._model_unloaded = self.clock(), False
                     try:
                         with self._model_route(prompt, image is not None, bool(context.strip())):
@@ -5245,7 +5246,7 @@ class AmbientRuntime:
                     from .unrouted import reason_of
                     if pathway in ("slow", "escalated"):
                         self.unrouted.model_turn(prompt, reason_of(response), time.time() - t_model, bool(self._last_tool_used),
-                                                 guest=bool(meta.get("guest")))
+                                                 guest=bool(meta.get("guest")), note=self._slow_note(cold))
                     else:
                         self.unrouted.answered_elsewhere()
                 if to_ash:
@@ -5585,6 +5586,24 @@ class AmbientRuntime:
             else:
                 ev._lane_skip = True              # not for us after all: the loop gets it, in order
                 self.submit(ev)
+
+    def _slow_note(self, cold: bool) -> str:
+        """Why a model call may have been slow, in words, for the digest: the model had to be loaded, the machine was squeezed, memory or CPU were high."""
+        bits = []
+        if cold:
+            bits.append("the model had to be loaded first")
+        try:
+            g = self.governor.status() if self.governor is not None else None
+            if g and g.get("squeezed"):
+                bits.append("the machine was squeezed" + (f" ({g['why']})" if g.get("why") else ""))
+            elif g:
+                if (g.get("memory") or 0) >= 85:
+                    bits.append(f"memory was at {g['memory']:.0f}%")
+                if (g.get("cpu") or 0) >= 90:
+                    bits.append(f"CPU was at {g['cpu']:.0f}%")
+        except Exception:
+            pass
+        return "; ".join(bits)
 
     def _one_at_a_time(self, ev) -> None:
         """The old question was dropped for the newer one: say so, once in a while, so the silence is not a mystery (not every time: it is a nudge)."""
