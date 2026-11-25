@@ -99,6 +99,11 @@ def h3_sanitize():
     for keep in ("What would you like to discuss?", "How can I assist you?", "Let me know if you need anything.", "I can help with that. Which file do you mean?",
                  "Is there anything else I can help with? Also, your battery is low.", "I'm here to help, and the answer is 42."):
         check(f"nothing real before it, or it is not last: kept ({keep[:36]!r})", honest.sanitize(keep) == keep or "battery" in honest.sanitize(keep) or "42" in honest.sanitize(keep), repr(honest.sanitize(keep)))
+    for t in ("that's all wrong and invented", "nope that's wrong there was never any lecture 5", "that's fake", "this is all made up and wrong",
+              "no that's wrong, there is no such class", "that's incorrect and fabricated"):
+        check(f"{t!r} disputes the last answer", honest.disputes_last_answer(t), t)
+    for t in ("that's wrong, open notepad", "is that fake news?", "my wrong answer", "that was a great answer", "there was never any lecture", "the fake one"):
+        check(f"{t!r} does not", not honest.disputes_last_answer(t), t)
     check("an inline fake call goes too", honest.sanitize("Sure [web_browser open new tab] thing.") == "Sure thing.")
     check("a brackets-and-words note is not a tool call", honest.sanitize("See [the docs] now.") == "See [the docs] now.")
     check("a trailing JSON briefing goes", honest.sanitize('Done.\n{"intent": "x", "tool_used": null}') == "Done.")

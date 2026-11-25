@@ -138,11 +138,15 @@ _DISPUTE = re.compile(
     _A + r"(?:(?:no|nope|but|well|wait|hold on|actually|bro)[,\s]+)*(?:"
     r"(?:that'?s|that\s+is|that\s+was|this\s+is|it'?s|what\s+you\s+(?:just\s+)?said\s+(?:is|was)|all\s+of\s+(?:this|that|it)\s+(?:is|was)|"
     r"everything\s+you\s+(?:just\s+)?said\s+(?:is|was)|that\s+answer\s+(?:is|was))\s+(?:all\s+|totally\s+|completely\s+|just\s+|so\s+|"
-    r"actually\s+)*(?:wrong|incorrect|false|not\s+true|untrue|made\s+up|a\s+lie|nonsense|bs|bullshit)"
+    r"actually\s+)*(?:(?:wrong|incorrect|false|not\s+true|untrue|made\s+up|a\s+lie|nonsense|bs|bullshit|invented|fake|fabricated|hallucinated|rubbish|bogus|garbage)"
+    r"(?:(?:,\s*|\s+and\s+|\s+and\s+all\s+|\s+and\s+just\s+)(?:wrong|incorrect|false|untrue|made\s+up|invented|fake|fabricated|hallucinated|rubbish|bogus|garbage|a\s+lie|nonsense))*)"
     r"|you(?:'re|\s+are)\s+(?:just\s+|totally\s+|completely\s+|all\s+)*(?:wrong|lying|making\s+(?:(?:things|stuff|it|that|all\s+of\s+it)\s+up|up\s+(?:things|stuff|facts|answers)))"
     r"|you\s+(?:just\s+)?made\s+(?:that|it|this|all\s+of\s+(?:that|it)|that\s+all)\s+up|you\s+(?:just\s+)?(?:made|make)\s+(?:stuff|things)\s+up"
     r"|that\s+never\s+happened|i\s+never\s+said\s+that)(?:\s+(?:actually|bro|man|dude|mate))?(?:[.,!\s]+(?:you(?:'re|\s+are)\s+"
-    r"(?:just\s+)?making\s+(?:stuff|things)\s+up|you\s+made\s+(?:it|that)\s+up))?" + _Z, re.I)
+    r"(?:just\s+)?making\s+(?:stuff|things)\s+up|you\s+made\s+(?:it|that)\s+up|"
+    # "...there was never any lecture 5": the denial and what it denies, in one breath
+    r"there\s+(?:was|were|is|are)\s+(?:never|no|not)\s+(?:any\s+)?[\w .'-]{1,40}|there\s+never\s+(?:was|were)\s+(?:any\s+)?[\w .'-]{1,40}|"
+    r"i\s+never\s+(?:said|had|did|wrote)\s+[\w .'-]{1,40}))?" + _Z, re.I)
 DISPUTE_FIRST = ("You're right to doubt it -- I can't back that up, so please ignore what I just said. Tell me what's right and I'll "
                  "keep it, or ask me again and I'll say if I don't know.")
 DISPUTE_AGAIN = "Okay. I won't defend it. Tell me what the right answer is, or leave it, and I'll leave it."
