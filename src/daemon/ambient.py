@@ -1071,6 +1071,10 @@ class AmbientRuntime:
             dump = core.dump_all() if hasattr(core, "dump_all") else {}
             for it in (dump.values() if isinstance(dump, dict) else (dump or [])):
                 d = it if isinstance(it, dict) else getattr(it, "__dict__", {})
+                # Never ASH's own manual: its examples ("remember my brother is Omar") were read as things the user said -- one was stored
+                # as a fact (brother = Omar) and another quoted back as "what you've said before".
+                if str(d.get("rule_id", "")).startswith("manual_") or str(d.get("category", "")) == "capability":
+                    continue
                 if d.get("text"):
                     out.append(str(d["text"]))
         except Exception:
