@@ -1037,27 +1037,65 @@ class AmbientRuntime:
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
+    _NOT_WORDS = frozenset("the this that there then they them their and but for with from what when where who why how i i'm it its my your our ash "
+                           "remember note notes today tomorrow yesterday monday tuesday wednesday thursday friday saturday sunday".split())
+
     def vocab_hint(self) -> List[str]:
-        """Words the recogniser should lean towards: the user's name, the people ASH was told about, the classes on the
-        timetable, and the few technical words that were misheard ("port" for "board")."""
-        words: List[str] = []
+        """Words the recogniser should lean towards, most useful first, each group capped (the recogniser reads about 25): the user's name, the
+        people ASH was told about, the terms it learned, the names in the notes the person asked it to keep, the things and places that keep
+        coming up, the apps it can open, the classes, and the words that were misheard. "Lieth" was heard as "Lai" and "life" and then looked
+        up on Wikipedia -- he was in the notes, but nothing told the recogniser."""
+        groups: List[List[str]] = []
         user = str(getattr(self.brain, "user", "") or "").strip()
-        if user and user.lower() not in ("user", "the user"):
-            words.append(user)
+        groups.append([user] if user and user.lower() not in ("user", "the user") else [])
+        people: List[str] = []
+        terms: List[str] = []
         try:
             w = self.wonder
             if w is not None:
                 with w.kb._lock:
-                    words += [str(p.get("name") or "") for p in list(w.kb.people.values())[:15]]
+                    people = [str(p.get("name") or "") for p in list(w.kb.people.values())[:8]]
+                    terms = [str(t.get("term") or "") for t in list(w.kb.terms.values())[:4]]
         except Exception:
             logger.debug("vocabulary from people failed", exc_info=True)
-        if self.timetable is not None:
-            words += [c["name"] for c in self.timetable.classes[:10]]
+        groups += [people, terms]
+        names: List[str] = []
         try:
-            words += self.misheard.words()                  # what they said they meant, when it was misheard
+            for n in list(getattr(getattr(self, "notes", None), "items", None) or [])[-30:]:
+                for m in re.findall(r"\b[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})?\b", str(getattr(n, "said", "") or "")):
+                    if m.lower() not in self._NOT_WORDS and m not in names:
+                        names.append(m)
+        except Exception:
+            logger.debug("vocabulary from notes failed", exc_info=True)
+        groups.append(names[:5])
+        ents: List[str] = []
+        try:
+            store = getattr(getattr(self.ash, "entity_memory", None), "store", None)
+            rows = sorted((e for e in (getattr(store, "entities", None) or {}).values() if int(e.attributes.get("mentions", 0) or 0) >= 2),
+                          key=lambda e: -int(e.attributes.get("mentions", 0) or 0))
+            ents = [str(e.attributes.get("canonical_name") or "") for e in rows[:5]]
+        except Exception:
+            logger.debug("vocabulary from entities failed", exc_info=True)
+        groups.append(ents)
+        try:
+            groups.append([n.title() for n in list(self.desktop.apps)[:60] if len(n) > 3][:5] if self.desktop is not None else [])
+        except Exception:
+            logger.debug("vocabulary from apps failed", exc_info=True)
+        groups.append([c["name"] for c in self.timetable.classes[:4]] if self.timetable is not None else [])
+        try:
+            groups.append(list(self.misheard.words()))        # what they said they meant, when it was misheard
         except Exception:
             logger.debug("vocabulary from corrections failed", exc_info=True)
-        return words + ["ASH", "port", "console"]
+        groups.append(["ASH", "port", "console"])
+        out: List[str] = []
+        seen = set()
+        for g in groups:
+            for w in g:
+                k = str(w).strip().lower()
+                if k and k not in seen:
+                    seen.add(k)
+                    out.append(str(w).strip())
+        return out
 
     def _user_sentences(self) -> List[str]:
         """What the user has said that ASH still holds: their lines in episodic memory, and core memory. For the question
@@ -2621,12 +2659,42 @@ class AmbientRuntime:
         self._last_why = {"kind": "facts"}
         return True
 
+    def _sounds_like_someone_known(self, text: str) -> Optional[str]:
+        """"Who is Lai?" / "Who is life?" (heard for "Lieth", a friend who is in the notes) went to Wikipedia: a German municipality. A "who is X" whose X
+        is not a person ASH knows but sounds like one (same first letter, close spelling) is answered as that person, with what was heard said back, so a
+        wrong guess is corrected at once."""
+        m = re.match(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:who(?:'s|\s+is|\s+was)|do\s+you\s+know)\s+([A-Za-z][A-Za-z'-]{1,20})\s*[?.!]*\s*$", text or "", re.I)
+        if not m:
+            return None
+        heard = m.group(1)
+        known = [w for w in self.vocab_hint()[:20] if w.lower() not in ("ash", "port", "console") and " " not in w]
+        low = {w.lower(): w for w in known}
+        if heard.lower() in low:
+            return None                                        # exactly a known name: the other rules answer
+        import difflib
+        close = [w for k, w in low.items() if k[:1] == heard.lower()[:1] and difflib.SequenceMatcher(None, heard.lower(), k).ratio() >= 0.5]
+        if len(close) != 1:
+            return None
+        name = close[0]
+        kb = getattr(self.wonder, "kb", None)
+        said = remembering.who_is(kb, f"who is {name}", str(getattr(self.brain, "user", "") or "")) if kb is not None else None
+        if not said and getattr(self, "notes", None) is not None:
+            said = self.notes.about_name(name)
+        if not said:
+            return None
+        return f"Did you mean {name}? (I heard “{heard}”.) {said}"
+
     def _facts_request(self, ev, now: float) -> bool:
         """"Who was Ada Lovelace?": a Wikipedia summary, only if switched on and only
         when said to ASH. No connection: not answered here, the model answers."""
         f = self.facts
         if f is None or not f.enabled or not self._user_source(ev) or not self._meant_for_ash(ev):
             return False
+        near = self._sounds_like_someone_known(str(getattr(ev, "text", "") or ""))
+        if near:
+            self._wonder_say(ev, type("R", (), {"say": near, "outcome": "desktop"})())
+            self._last_why = {"kind": "memory"}
+            return True
         try:
             say = f.hear(str(getattr(ev, "text", "") or ""))
         except Exception:
