@@ -466,7 +466,7 @@ class System2Deliberator:
     def narrate(self, name: str, query: str, facts: Dict[str, Any], memory: Dict[str, str],
                 working: str, drives: Drives, modulation_block: str,
                 trace_note: str = "", context: str = "", gist=None, embed_fn=None,
-                user: str = "", query_label: str = "User query") -> str:
+                user: str = "", query_label: str = "User query", about: str = "") -> str:
         """Render the reply.
 
         With a `gist` (the content already decided) the plain cases are
@@ -489,6 +489,8 @@ class System2Deliberator:
         for key in ("core", "episodic", "entity"):
             if memory.get(key):
                 parts.append(f"{MEMORY_FRAMES[key]}\n{memory[key]}\n")
+        if about:
+            parts.append(about + "\n")        # true things about ASH itself (selfmodel.block): so the model does not deny what it can do
         if facts:
             parts.append("Facts you can use:\n" + json.dumps(facts, indent=2, default=str) + "\n")
         parts.append(drives.as_prompt_block() + "\n")

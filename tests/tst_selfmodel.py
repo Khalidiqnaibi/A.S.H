@@ -82,9 +82,28 @@ def s3_runtime():
     check("and other subjects are untouched", "I'm A.S.H" not in rt.out[-1])
 
 
+def s4_prompt():
+    print("\n=== S4. The model is told what is true about ASH ===")
+    from src.brain.system2 import System2Deliberator
+    rt = fake()
+    blk = selfmodel.block(rt)
+    check("a short block, with the real model", blk.startswith("[ABOUT YOU]") and "qwen2.5:3b" in blk and len(blk) < 900, blk)
+    s2 = System2Deliberator.__new__(System2Deliberator)
+    seen = []
+    s2._call_llm = lambda human, system="": (seen.append(human), "ok")[1]
+    s2.last_narration = {}
+    from src.brain.signals import Drives
+    s2.narrate("A.S.H", "hello", {}, {"core": "", "episodic": "", "entity": ""}, "", Drives(), "", about=blk)
+    check("it is in the prompt when given", seen and "[ABOUT YOU]" in seen[0] and "qwen2.5:3b" in seen[0], str(seen)[:200])
+    seen.clear()
+    s2.narrate("A.S.H", "hello", {}, {"core": "", "episodic": "", "entity": ""}, "", Drives(), "")
+    check("and not when it is not", seen and "[ABOUT YOU]" not in seen[0])
+
+
 if __name__ == "__main__":
     s1_parse()
     s2_answers()
     s3_runtime()
+    s4_prompt()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

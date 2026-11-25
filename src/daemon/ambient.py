@@ -1432,8 +1432,20 @@ class AmbientRuntime:
             logger.warning("Model notice: %s", say)
             self._speech_say(say, "model_note")
 
+    def _refresh_about_you(self, now: float):
+        """The model is told, in a few lines, what ASH really is and can do (selfmodel.block) -- refreshed once a minute."""
+        if now - getattr(self, "_about_at", -1e12) < 60.0:
+            return
+        self._about_at = now
+        try:
+            from . import selfmodel
+            self.brain.about_you = selfmodel.block(self)
+        except Exception:
+            logger.debug("about-you block not built", exc_info=True)
+
     def _social_step(self, now: float, idle_s: Optional[float] = None):
         self._timed_restore(now)
+        self._refresh_about_you(now)
         self._model_notice()
         if self.governor is not None:
             try:

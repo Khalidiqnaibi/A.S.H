@@ -727,7 +727,7 @@ class Brain:
                 self.name, query, facts, ctx, self.memory.working_block(),
                 drives, modulation_block, trace_note=note, context=context,
                 gist=gist, embed_fn=(self._embed_text if gist is not None else None),
-                user=self.user,
+                user=self.user, about=str(getattr(self, "about_you", "") or ""),
             )
         if gist is not None:
             trace.notes.append(f"narration: {self.system2.last_narration['mode']}"
