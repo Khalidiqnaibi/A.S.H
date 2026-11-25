@@ -86,6 +86,27 @@ def y4_runtime():
     check("with the switch off (a bare runtime) it goes on as before, to the model", len(bare.ash.calls) > n)
 
 
+def y4b_nothing_asked():
+    print("\n=== Y4b. A bare 'no thanks' / 'ok' with nothing asked ===")
+    c = Courtesy()
+    for t in ("No thanks.", "nope", "never mind", "I'm good", "not now", "it's fine", "nah"):
+        check(f"{t!r}, nothing asked: courtesy", c.kind(t, open_q=False) == "decline", str(c.kind(t, open_q=False)))
+        check(f"{t!r} after a question: not courtesy (it answers it)", c.kind(t) is None, str(c.kind(t)))
+    for t in ("ok", "yes", "sure", "yeah"):
+        check(f"{t!r}, nothing asked: an ack", c.kind(t, open_q=False) == "ack")
+        check(f"{t!r} after a question: left alone", c.kind(t) is None)
+    check("a request is never courtesy", c.kind("no thanks, open notepad", open_q=False) is None and c.kind("no what is the weather", open_q=False) is None)
+    import tst_effects as te
+    rt = te.rig(courtesy=True)
+    n, k = len(rt.ash.calls), len(rt.out)
+    rt.say("No thanks.")
+    check("in the runtime: no model call, a short line (it took 62 s)", len(rt.out) > k and len(rt.ash.calls) == n and rt.out[-1] in ("Okay.", "No problem.", "Alright.", "Sure."), f"{rt.out[-1:]} {len(rt.ash.calls) - n}")
+    rt._last_out, rt._last_out_at = "Want me to open it?", rt.clock()
+    n = len(rt.ash.calls)
+    rt.say("nope")
+    check("right after ASH asked something, 'nope' is not taken as courtesy", rt.out[-1] not in ("Okay.", "No problem.", "Alright.", "Sure.") or len(rt.ash.calls) > n, f"{rt.out[-1:]}")
+
+
 def y5_by_meaning():
     print("\n=== Y5. By meaning ===")
     import semantic_fake as sf
@@ -117,7 +138,7 @@ def y5_by_meaning():
 
 
 if __name__ == "__main__":
-    for fn in (y1_what_counts, y2_what_does_not, y3_not_the_same_twice, y4_runtime, y5_by_meaning):
+    for fn in (y1_what_counts, y2_what_does_not, y3_not_the_same_twice, y4_runtime, y4b_nothing_asked, y5_by_meaning):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)

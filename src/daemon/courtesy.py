@@ -26,6 +26,12 @@ _THANKS_EXTRA = frozenset("""you a lot so much very many it man bro mate dude as
     perfect sweet yeah yep will do sure thing bet got that again for everything the help""".split())
 _ACK_LINES = frozenset({"k", "kk", "kay", "okie", "okey", "got it", "gotcha", "noted", "makes sense", "i see", "cool", "nice", "aight",
                         "will do", "on it", "sure thing", "no worries", "np", "all good", "fair enough", "understood"})
+# "No thanks." / "nope" / "never mind" / "I'm good" / "ok" with NOTHING asked (the last thing ASH said was not a question): it went to the model for 62 s.
+# Only then -- after a question these answer it, and which way is not for this module to guess.
+_DECLINE = frozenset({"no thanks", "no thank you", "no thanks ash", "nope", "nah", "no", "no no", "not now", "not right now", "not today", "never mind", "nevermind",
+                      "nvm", "im good", "i'm good", "i am good", "no need", "its fine", "it's fine", "thats fine", "that's fine", "forget it", "its okay", "it's okay",
+                      "no its fine", "no it's fine", "no worries", "all good", "never mind that", "dont worry about it", "don't worry about it", "skip it", "leave it"})
+_BARE_YES = frozenset({"ok", "okay", "alright", "all right", "sure", "yeah", "yep", "yes", "fine", "right", "ok ok", "okay okay", "yup", "mhm", "uh huh"})
 _BYE = re.compile(r"^(?:ok(?:ay)?\s+|alright\s+|well\s+|cool\s+|ash\s+)*(?:later|laters|see\s+(?:you|ya)(?:\s+(?:later|soon|tomorrow))?|"
                   r"cya|bye(?:\s+bye)?|goodbye|talk\s+(?:to\s+you\s+)?later|ttyl|gotta\s+go|i(?:'m|\s+am)\s+(?:off|out|heading\s+out|"
                   r"going)|heading\s+out|catch\s+you\s+later|peace|peace\s+out|take\s+care)(?:\s+(?:ash|man|bro|mate))*$")
@@ -52,6 +58,7 @@ _LINES: Dict[str, List[str]] = {
     "night": ["Night. Sleep well.", "Good night.", "Night."],
     "brb": ["I'll be here.", "Take your time.", "Sure."],
     "ack": ["Okay.", "Got it.", "Mm-hm."],
+    "decline": ["Okay.", "No problem.", "Alright.", "Sure."],
 }
 
 
@@ -117,11 +124,17 @@ class Courtesy:
             return "ack"
         return None
 
-    def kind(self, text: str) -> Optional[str]:
+    def kind(self, text: str, open_q: bool = True) -> Optional[str]:
+        """What a short line is. `open_q` (the default, the safe side): ASH may have just asked something, so a bare no / ok is its answer, not courtesy."""
         t = _norm(text)
         words = t.split()
         if not words or len(words) > 6 or len(t) > 40:
             return None
+        if not open_q:
+            if t in _DECLINE or t.replace("'", "") in _DECLINE:
+                return "decline"
+            if t in _BARE_YES:
+                return "ack"
         k = self._by_rule(t, words)
         if k is not None:
             if self.chooser is not None:
@@ -134,8 +147,8 @@ class Courtesy:
                 return v.label
         return None
 
-    def hear(self, text: str, now: Optional[float] = None) -> Optional[str]:
-        k = self.kind(text)
+    def hear(self, text: str, now: Optional[float] = None, open_q: bool = True) -> Optional[str]:
+        k = self.kind(text, open_q)
         self.last_kind = k or ""
         if k is None:
             return None

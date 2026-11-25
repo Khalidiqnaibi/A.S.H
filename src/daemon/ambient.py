@@ -2471,7 +2471,11 @@ class AmbientRuntime:
         if c is None or not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
             return False
         try:
-            say = c.hear(str(getattr(ev, "text", "") or ""), now)
+            # Only after a question is a bare "no thanks" / "ok" its answer; with nothing asked (what ASH last said lately was no question) it is courtesy.
+            last = str(getattr(self, "_last_out", "") or "").rstrip()
+            lately = now - float(getattr(self, "_last_out_at", 0.0) or 0.0) < 300.0
+            open_q = bool(last and lately and "?" in last[-160:])
+            say = c.hear(str(getattr(ev, "text", "") or ""), now, open_q=open_q)
         except Exception:
             logger.exception("Courtesy failed")
             return False
