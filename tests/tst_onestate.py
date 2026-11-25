@@ -36,6 +36,11 @@ def o1_engine():
     long = feelings.from_engine(res(), drives, detail=True)
     check("detail: emotions, mood, drives and why", "frustration 0.42" in long and "Mood baseline" in long and "urgency 0.73" in long and "effort 0.26" in long
           and "Because: three answers" in long, long)
+    r10 = NS(modulation=NS(tone_label="a little short-tempered"), emotions={"happy": 10.0, "trust": 9.72, "frustration": 2.0}, mood={"happy": 7.0}, reasons=[])
+    t10 = feelings.from_engine(r10, detail=True)
+    check("0..10 numbers say their scale and are not printed as 0..1", "out of 10" in t10 and "happy 10.0" in t10 and "10.00" not in t10, t10)
+    check("a label that contradicts the strongest emotions is dropped", "short-tempered" not in feelings.from_engine(r10) and feelings.from_engine(r10).startswith("Mostly happy"), feelings.from_engine(r10))
+    check("'what about my emotional state' is about the person", feelings.wants_user_mood("What about my emotional state?") and feelings.wants_user_mood("and what about my mood"))
     check("no reading yet: it says so", "don't have a feeling" in feelings.from_engine(NS(modulation=NS(tone_label=""), emotions={}, mood={}, reasons=[])))
     for t in ["What's your emotional telemetry?", "I'm asking you about your emotional victor", "give me the numbers", "what are your drives"]:
         check(f"asks for the numbers: {t!r}", feelings.wants_detail(t))

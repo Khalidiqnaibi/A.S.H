@@ -37,7 +37,7 @@ _KIND = [
 # PERSON, not ASH. These were answered with ASH's own mood ("Pretty happy -- you've thanked me 3 times") or looked up on Wikipedia.
 _USER_MOOD = re.compile(
     r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:so|and|but|ok(?:ay)?|now)[,\s]+)?(?:"
-    r"(?:what'?s|whats|what\s+is|how'?s|hows|how\s+is|tell\s+me)\s+(?:about\s+)?(?:my|the\s+user'?s?)\s+(?:emotional\s+|mental\s+|current\s+)?"
+    r"(?:what'?s|whats|what\s+is|how'?s|hows|how\s+is|tell\s+me|what\s+about)\s+(?:about\s+)?(?:my|the\s+user'?s?)\s+(?:emotional\s+|mental\s+|current\s+)?"
     r"(?:status|state|mood|condition|feelings?|vibe|energy|state\s+of\s+mind)(?:\s+(?:right\s+)?now|\s+today)?|"
     r"(?:how|what)\s+(?:am\s+i|do\s+i)\s+(?:feeling|feel)(?:\s+(?:today|now|right\s+now))?|how\s+am\s+i(?:\s+doing)?(?:\s+(?:today|now))?|"
     r"what\s+do\s+you\s+think\s+(?:i'?m|i\s+am)\s+feeling(?:\s+(?:right\s+)?now)?|"
@@ -56,26 +56,44 @@ def wants_detail(text: str) -> bool:
     return bool(_DETAIL.search(text or ""))
 
 
+_POS = frozenset("happy love trust excitement relief pride optimism joy calm curiosity confidence anticipation surprise".split())
+_NEG = frozenset("frustration angry sad fear anxiety boredom shame guilt disgust envy jealousy pessimism".split())
+_NEG_LABEL = re.compile(r"short[-\s]?tempered|irritab|annoy|frustrat|tense|upset|down|gloomy|anxious|sad|angry|grumpy|bored", re.I)
+
+
+def _scale(emos) -> float:
+    """The emotion engine keeps 0..10; other callers hand over 0..1. Numbers are printed against the scale they are on."""
+    return 10.0 if any(v > 1.0 for _, v in emos) else 1.0
+
+
 def from_engine(res, drives=None, detail: bool = False, extra: str = "") -> str:
     """How ASH feels, from the SAME state the prompt, the face and the thinking budget use (the brain's emotion engine and drives) -- not from a
-    second, separate set of canned moods. Short: the feeling and what is strongest. `detail`: the numbers, and why."""
+    second, separate set of canned moods. Short: the feeling and what is strongest. `detail`: the numbers, and why.
+    25 Nov: the numbers were printed as 10.00 / 9.72 as if 0..1, and "short-tempered" sat next to "happy, trust" -- the label is dropped when the
+    strongest emotions say the opposite, and the numbers carry their scale."""
     mod = getattr(res, "modulation", None)
     label = str(getattr(mod, "tone_label", "") or "").strip().rstrip(".")
     emos = sorted(((k, float(v)) for k, v in (getattr(res, "emotions", None) or {}).items()), key=lambda t: -t[1])
-    top = [(k, v) for k, v in emos if v >= 0.25][:3]
+    sc = _scale(emos)
+    top = [(k, v) for k, v in emos if v >= 0.25 * sc][:3]
+    if label and top and _NEG_LABEL.search(label) and top[0][0] in _POS:
+        neg = max((v for k, v in emos if k in _NEG), default=0.0)
+        if top[0][1] > neg:
+            label = "Mostly " + " and ".join(k for k, _ in top[:2] if k in _POS)
     s = (label[:1].upper() + label[1:] + ".") if label else "I don't have a feeling to report yet."
     if not detail:
         if top:
             s += " Strongest: " + ", ".join(k for k, _ in top[:2]) + "."
         return (s + (" " + extra if extra else "")).strip()
     bits = [s]
+    unit = " (out of 10)" if sc == 10.0 else ""
     if emos:
-        bits.append("Emotions: " + ", ".join(f"{k} {v:.2f}" for k, v in emos[:5]) + ".")
+        bits.append("Emotions" + unit + ": " + ", ".join(f"{k} {v:.1f}" if sc == 10.0 else f"{k} {v:.2f}" for k, v in emos[:5]) + ".")
     mood = getattr(res, "mood", None) or {}
     if mood:
-        bits.append("Mood baseline: " + ", ".join(f"{k} {float(v):.2f}" for k, v in list(mood.items())[:4]) + ".")
+        bits.append("Mood baseline: " + ", ".join(f"{k} {float(v):.1f}" if sc == 10.0 else f"{k} {float(v):.2f}" for k, v in list(mood.items())[:4]) + ".")
     if drives is not None:
-        bits.append("Drives: " + ", ".join(f"{k} {float(getattr(drives, k, 0.0)):.2f}" for k in
+        bits.append("Drives (0 to 1): " + ", ".join(f"{k} {float(getattr(drives, k, 0.0)):.2f}" for k in
                                            ("urgency", "caution", "curiosity", "effort_budget", "social", "fatigue")).replace("effort_budget", "effort") + ".")
     why = [str(r) for r in (getattr(res, "reasons", None) or [])][:2]
     if why:
