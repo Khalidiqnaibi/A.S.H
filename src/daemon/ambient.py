@@ -2151,6 +2151,16 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": r["say"], "outcome": "play"})())
         return True
 
+    def _front_title(self) -> str:
+        """The title of the window in front ('' when the window sensor is off or has nothing)."""
+        try:
+            aw = getattr(self.periphery, "sensors", {}).get("active_window")
+            if aw is not None and hasattr(aw, "current"):
+                return str(aw.current()[0] or "")
+        except Exception:
+            logger.debug("no window title", exc_info=True)
+        return ""
+
     def _control_request(self, ev, now: float) -> bool:
         """"Press space", "full screen", "scroll down", "click subscribe", "copy", "new tab", "what's connected" (control.py): the keyboard and mouse
         for whatever is in front. Only a line meant for ASH, never a guest's, never into a blocklisted window; the sharp ones ask first."""
@@ -2159,14 +2169,12 @@ class AmbientRuntime:
             return False
         if not self._meant_for_ash(ev) and not (c.waiting and self._may_confirm(ev, now)):
             return False                         # overheard speech (a video saying "click here") never presses anything
-        title, blocked = "", False
+        title, blocked = self._front_title(), False
         try:
             aw = getattr(self.periphery, "sensors", {}).get("active_window")
-            if aw is not None and hasattr(aw, "current"):
-                title = str(aw.current()[0] or "")
-                blocked = bool(aw.is_blocked(title))
+            blocked = bool(aw is not None and title and aw.is_blocked(title))
         except Exception:
-            logger.debug("no window title for control", exc_info=True)
+            logger.debug("no blocklist answer for control", exc_info=True)
         try:
             from src.senses.mic import MicrophoneSensor
             text = MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or "")) or str(getattr(ev, "text", "") or "")
@@ -2193,7 +2201,11 @@ class AmbientRuntime:
                 return False
         elif self._playing is None and re.match(r"^\s*(?:please\s+)?(?:pause|stop)\b", text, re.I):
             np = getattr(self.periphery, "sensors", {}).get("now_playing")
-            if np is not None and getattr(np, "state", None) == State.ACTIVE:
+            # 25 Nov: "stop the video" with a YouTube/Stremio window in front said "Nothing seems to be playing" -- the now-playing sensor only
+            # knows audio sessions, not a video page. A video in front is playing for this purpose.
+            from .control import _VIDEO_TITLE
+            video_up = bool(_VIDEO_TITLE.search(self._front_title()))
+            if np is not None and getattr(np, "state", None) == State.ACTIVE and not video_up:
                 # The sensor is watching and nothing is on: a play/pause key would START something.
                 self._wonder_say(ev, type("R", (), {"say": "Nothing seems to be playing.", "outcome": "desktop"})())
                 return True

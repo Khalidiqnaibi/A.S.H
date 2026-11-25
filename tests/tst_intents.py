@@ -291,6 +291,12 @@ def d_safety():
     check("'pause' when the sensor is watching and nothing is on does not START something",
           rt.fake_media.keys == [] and "Nothing seems to be playing" in " ".join(rt.out), f"{rt.fake_media.keys} {rt.out}")
     rt = fresh()
+    rt.periphery.sensors["now_playing"] = NowPlayingSensor(enabled=True, windows=lambda: [])
+    rt._front_title = lambda: "Lecture 5 - YouTube - Opera"
+    hear(rt, "stop the video", force=True)
+    check("'stop the video' with a video page in front presses the key (the now-playing sensor only knows audio sessions)",
+          rt.fake_media.keys == ["play_pause"], f"{rt.fake_media.keys} {rt.out}")
+    rt = fresh()
     hear(rt, "pause the music", force=True)
     check("...with no sensor to ask, it trusts the user", rt.fake_media.keys == ["play_pause"], str(rt.fake_media.keys))
     check("nothing real was touched", REAL_TOUCHES == [])
