@@ -58,7 +58,7 @@ def wants_detail(text: str) -> bool:
 
 _POS = frozenset("happy love trust excitement relief pride optimism joy calm curiosity confidence anticipation surprise".split())
 _NEG = frozenset("frustration angry sad fear anxiety boredom shame guilt disgust envy jealousy pessimism".split())
-_NEG_LABEL = re.compile(r"short[-\s]?tempered|irritab|annoy|frustrat|tense|upset|down|gloomy|anxious|sad|angry|grumpy|bored", re.I)
+_NEG_LABEL = re.compile(r"short[-\s]?tempered|irritab|annoy|frustrat|tense|upset|down\b|gloomy|anxious|sad|angry|grumpy|bored", re.I)
 
 
 def _scale(emos) -> float:
