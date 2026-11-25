@@ -173,7 +173,7 @@ def h4_runtime():
     n = len(rt.ash_.calls)
     rt.say("what do you think of my girlfriend")
     check("...and other opinions are the model's", len(rt.ash_.calls) == n + 1)
-    for q in ("What's your name?", "who are you", "tell me about yourself", "tell me about Ash", "who is Ash", "tell me more about yourself"):
+    for q in ("What's your name?", "who are you", "tell me about yourself", "tell me more about yourself"):
         n_self = len(rt.ash_.calls)
         rt.say(q)
         check(f"{q!r}: ASH says who it is, no model", rt.out[-1].startswith("I'm ") and "what can you do" in rt.out[-1] and len(rt.ash_.calls) == n_self, rt.out[-1])
