@@ -410,6 +410,12 @@ _DROP = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:cancel|discard|scratch|forg
 _READ_LAST = re.compile(_LEAD + r"(?:read|show|open(?:\s+up)?|what'?s\s+in)\s+(?:me\s+)?(?:my\s+|the\s+)?(?:last|latest|newest|most\s+recent)\s+note\s+(?:in|on|from|of|and|into)\s+" + _SN +
                         r"\s*[.!?]*\s*$|" + _LEAD + r"(?:read|show|open(?:\s+up)?|what'?s\s+in)\s+(?:me\s+)?(?:my\s+)?(?:last|latest|newest|most\s+recent)\s+" + _SN +
                         r"(?:\s+note)?\s*[.!?]*\s*$|" + _LEAD + r"what\s+(?:was|is)\s+my\s+(?:last|latest)\s+" + _SN + r"(?:\s+note)?\s*\??\s*$", re.I)
+# "What did I work on in Samsung Notes?" / "what about Samsung Notes, what did I do on it": which notes changed, from the app's own modified times. Both went to the
+# language model (50-63 s) and were answered from nothing. And the bare "latest note on Samsung Notes" (heard as "Lasted note ...").
+_ACTIVITY = re.compile(_LEAD + r"(?:what\s+about\s+" + _SN + r"[,\s]+)?what\s+(?:did\s+i|have\s+i|was\s+i)\s+(?:been\s+)?(?:do(?:ing|ne)?|work(?:ed|ing)?(?:\s+on)?|writ(?:e|ing|ten)|add(?:ed|ing)?|"
+                       r"chang(?:e|ed|ing)|edit(?:ed|ing)?)\s+(?:on|in|with|at)\s+(?:(?:my\s+)?" + _SN + r"|it)"
+                       r"(?:\s+(?P<span>today|yesterday|this\s+week|lately|recently|this\s+(?:morning|afternoon)|last\s+week))?\s*\??\s*[.!]*\s*$", re.I)
+_LATEST_BARE = re.compile(_LEAD + r"(?:the\s+|my\s+)?(?:last|lasted|latest|newest)\s+note\s+(?:in|on|from)\s+(?:my\s+)?" + _SN + r"\s*[.!?]*\s*$", re.I)
 _READ = re.compile(_LEAD + r"(?:read|what'?s\s+in|what\s+does|tell\s+me\s+what'?s\s+in)\s+(?:me\s+)?(?:my\s+)?(?P<t>[\w .'\-]{2,60}?)\s+" + _SN +
                    r"(?:\s+note)?(?:\s+say)?\s*[.!?]*\s*$", re.I)
 _FIND = re.compile(_LEAD + r"(?:find|search(?:\s+for)?|look\s+for|look\s+up|what\s+did\s+i\s+write\s+about)\s+(?P<q>.+?)\s+(?:in|on|through)\s+(?:my\s+)?" + _SN +
@@ -574,8 +580,11 @@ class SamsungNotes:
         m = _FOLDER.match(t)
         if m:
             return self._folder(_clean(m.group("f") or m.group("f2")))
-        if _READ_LAST.match(t):
+        if _READ_LAST.match(t) or _LATEST_BARE.match(t):
             return self._read_last()
+        m = _ACTIVITY.match(t)
+        if m:
+            return self._worked((m.group("span") or "").lower(), now)
         m = _FIND.match(t) or _FIND2.match(t)
         if m:
             return self._find(_clean(m.group("q")))
@@ -595,6 +604,33 @@ class SamsungNotes:
     def _speak_text(self, s: str, n: int = 420) -> str:
         s = re.sub(r"\s+", " ", s).strip()
         return s if len(s) <= n else s[:n].rsplit(" ", 1)[0] + "..."
+
+    def _worked(self, span: str, now: float) -> str:
+        """Which notes were changed today / yesterday / this week: the app's own modified times, newest first."""
+        if (m := self._need_db()):
+            return m
+        self.stats["read"] += 1
+        mid = time.mktime(time.localtime(now)[:3] + (0, 0, 0, 0, 0, -1))
+        if span == "yesterday":
+            lo, hi, label = mid - 86400, mid, "Yesterday"
+        elif span in ("this week", "lately", "recently"):
+            lo, hi, label = now - 7 * 86400, now + 1, "In the last week"
+        elif span == "last week":
+            lo, hi, label = now - 14 * 86400, now - 7 * 86400, "The week before"
+        else:
+            lo, hi, label = mid, now + 1, "Today"
+        rows = self.db.recent(60)
+        hit = [r for r in rows if lo <= r["modified"] < hi]
+        if not hit:
+            last = rows[0] if rows else None
+            tail = ""
+            if last and last["modified"]:
+                days = max(0, int((now - last["modified"]) // 86400))
+                tail = f" The last one changed was {_say_list([last['title']])}, " + ("today." if days == 0 else "yesterday." if days == 1 else f"{days} days ago.")
+            return f"I don't see any Samsung notes changed {label.lower() if label != 'In the last week' else 'in the last week'}." + tail
+        names = _say_list([h["title"] for h in hit[:5]])
+        more = f" and {len(hit) - 5} more" if len(hit) > 5 else ""
+        return f"{label} you changed {len(hit)} note{'s' if len(hit) != 1 else ''}: {names}{more}."
 
     def _read_last(self) -> str:
         if (m := self._need_db()):

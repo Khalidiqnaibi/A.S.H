@@ -19,6 +19,7 @@ Run:  PYTHONIOENCODING=utf-8 python tests/tst_samsungnotes.py
 import os
 import sqlite3
 import sys
+import time
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -144,6 +145,31 @@ def s1_hearing():
               "I take notes in Samsung Notes every day", "put the kettle on"):
         check(f"not for it: {t!r}", rig().hear(t, NOW) in (None,) or "yes" not in (rig().hear(t, NOW) or "").lower(),
               str(rig().hear(t, NOW)))
+
+
+def s2b_activity():
+    print("\n=== S2b. What did I do in Samsung Notes ===")
+    import sqlite3
+    sn = rig()
+    c = sqlite3.connect(sn.dbpath)
+    mid = time.mktime(time.localtime(NOW)[:3] + (0, 0, 0, 0, 0, -1))
+    for u, ts in (("n5", NOW - 600), ("n4", mid + 60), ("n2", mid - 3600), ("n1", NOW - 3 * 86400)):
+        c.execute("update NoteDB set LastModifiedAt=? where UUID=?", (int(ts * 1000), u))
+    c.commit()
+    c.close()
+    for t in ("what did i work on in samsung notes", "what about samsung notes what did i do on it", "what did I do in my Samsung Notes today"):
+        say = sn.hear(t, NOW)
+        check(f"{t!r} -> today's two", say == "Today you changed 2 notes: Chapter 5 summary and Chapter 5 sketch.", str(say))
+    say = sn.hear("what did I work on in Samsung Notes yesterday", NOW)
+    check("yesterday", say == "Yesterday you changed 1 note: NoSQL lecture.", str(say))
+    say = sn.hear("what have I done in Samsung Notes this week", NOW)
+    check("this week: all four, newest first", say.startswith("In the last week you changed 4 notes: Chapter 5 summary, Chapter 5 sketch, NoSQL lecture and Groceries"), str(say))
+    say = sn.hear("what did I do on Samsung Notes last week", NOW)
+    check("nothing then: said so, with the last one changed", say.startswith("I don't see any Samsung notes changed the week before") and "The last one changed was" in say, str(say))
+    for t in ("Lasted note on Samsung Notes.", "the latest note on Samsung Notes", "last note in my Samsung Notes"):
+        say = sn.hear(t, NOW)
+        check(f"{t!r} reads the last note", say and "Chapter 5 summary" in say, str(say))
+    check("not an activity question: what did I write about X is a search", "mention" in (sn.hear("what did i write about cassandra in samsung notes", NOW) or ""))
 
 
 def s2_reading():
@@ -334,6 +360,7 @@ def s6_runtime():
 if __name__ == "__main__":
     s1_hearing()
     s2_reading()
+    s2b_activity()
     s3_writing()
     s4_append()
     s5_dictation()
