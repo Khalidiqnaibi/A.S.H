@@ -50,10 +50,54 @@ _RULES = [
 _COMPILED = [(k, re.compile(_A + r"(?:" + p + r")" + _Z, re.I)) for k, p in _RULES]
 
 
+# "How do you use your emotions?", "how do you remember", "what happens when you sleep", "what is repair mode": 25 Nov these went to the model, which
+# had nothing to go on. Each is a short, true description of the mechanism, said as it stands.
+_HOW = {
+    "emotions": (r"(?:emotions?|feelings?|moods?)", "I keep one emotional state: about two dozen feelings on a scale of 0 to 10 that move with what happens -- thanks and "
+                 "success lift them, cancelled answers, slowness and being told off lower them. That same state sets my tone and how long I think, "
+                 "and it shows on my face. Separately, I note how you sounded on each thing you say, from your words only, and keep it with that memory. "
+                 "Ask for my emotional telemetry and I'll read the numbers."),
+    "memory": (r"(?:memory|memories|remember(?:ing)?)", "Everything you say becomes a remembered moment, stored with the time, what it was about and how you sounded. "
+               "People, places and things you mention are kept as entries, and the ideas in them are linked into a web of concepts. When you ask, I look "
+               "for moments that share your question's concepts, then answer from those. Anything you ask me to keep goes in your notes."),
+    "sleep": (r"(?:sleep|sleeping|nap|napping|dream\w*)", "When it's quiet I take a short nap, and at night a longer one. I replay recent moments, strengthen links between "
+              "ideas that keep coming up together, let weak ones fade, and check cause-and-effect links I'd guessed. Nothing is sent anywhere."),
+    "concepts": (r"(?:concepts?|ideas?)", "A concept is an idea that keeps coming up -- a word or topic, like NoSQL or a person's name. Concepts are linked "
+                 "when they show up together, and the links grow with use and fade without it. They are how I find related memories when the words differ."),
+    "repair": (r"repair\s+mode", "When you sound frustrated -- \"bruh\", \"never mind\", \"that's wrong\" a few times in a few minutes -- I apologise once, stop "
+               "the thinking fillers, answer in a sentence, and say \"I don't know\" instead of guessing. A thanks, or ten quiet minutes, ends it. "
+               "The lines that led to it are kept in a failures file."),
+    "privacy": (r"(?:privacy|private|data|information)", "Hearing, memory and the language model all run on this computer. The only things that leave it are what you "
+                "ask for: a web search opens in your own browser, and the weather sends your town to the forecast service. Say \"go private\" and I stop "
+                "listening and looking."),
+}
+_HOWQ = re.compile(_A + r"(?:how\s+(?:do|does|can)\s+(?:you|ash|your)\s+(?:use|work\s+with|handle|have|make\s+use\s+of)?\s*(?:your\s+|the\s+|my\s+)?(?P<a>[a-z ]{3,30}?)(?:\s+work)?"
+                   r"|why\s+do\s+you\s+(?:use|have|need)\s+(?:your\s+)?(?P<b>[a-z ]{3,30}?)"
+                   r"|what\s+(?:happens|do\s+you\s+do)\s+when\s+you\s+(?P<c>sleep|nap|dream)"
+                   r"|what(?:'s|\s+is)\s+(?:a\s+|an\s+|the\s+)?(?P<d>concepts?|repair\s+mode|sleep|napping)(?:\s+in\s+your\s+(?:memory|brain))?"
+                   r"|do\s+you\s+(?P<e>sleep|dream|nap)|how\s+(?:is|are)\s+my\s+(?P<f>privacy|data|information)\s+(?:handled|kept|protected))" + _Z, re.I)
+
+
+def _how_topic(t: str) -> Optional[str]:
+    m = _HOWQ.match(t)
+    if not m:
+        return None
+    what = " ".join(x for x in m.groupdict().values() if x).strip().lower()
+    for key, (pat, _) in _HOW.items():
+        if re.fullmatch(pat, what, re.I) or (key == "repair" and "repair" in what):
+            return "how:" + key
+    if what.startswith(("sleep", "nap", "dream")):
+        return "how:sleep"
+    return None
+
+
 def parse(text: str) -> Optional[str]:
     t = (text or "").strip()
     if not t or len(t) > 90:
         return None
+    h = _how_topic(t)
+    if h:
+        return h
     for kind, rx in _COMPILED:
         if rx.match(t):
             return kind
@@ -157,6 +201,8 @@ def _span(sec: float) -> str:
 
 def say(kind: str, rt) -> str:
     f = facts(rt)
+    if kind.startswith("how:"):
+        return _HOW[kind[4:]][1]
     if kind == "model":
         if not f["model"]:
             return "I have no language model loaded right now -- the rules answer what they can."

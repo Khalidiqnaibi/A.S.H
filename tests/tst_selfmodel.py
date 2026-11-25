@@ -37,6 +37,14 @@ def s1_parse():
         if k is None:
             continue
         check(f"{t!r} -> {k}", selfmodel.parse(t) == k, str(selfmodel.parse(t)))
+    for said, k in {"how do you use your emotions": "how:emotions", "Why do you use your emotions?": "how:emotions", "how do you remember things": None,
+                    "how does your memory work": "how:memory", "what happens when you sleep": "how:sleep", "do you sleep": "how:sleep",
+                    "what is a concept": "how:concepts", "what is repair mode": "how:repair", "how do you work with my data": "how:privacy",
+                    "how are my privacy handled": None}.items():
+        if k:
+            check(f"{said!r} -> {k}", selfmodel.parse(said) == k, str(selfmodel.parse(said)))
+    for t in ["how do you open chrome", "how do you spell necessary", "what is a hash map", "how do i use my memory better"]:
+        check(f"not a how-do-you-work question: {t!r}", selfmodel.parse(t) is None, str(selfmodel.parse(t)))
     for t in ["What's the temperature today?", "what is a hash map", "what's the news", "who is Linda", "what do you know about me", "what can you do",
               "who are you", "tell me about yourself", "what do you know about Linda", "what's new on YouTube", "how are you", "tell me about Samsung Notes"]:
         check(f"not about itself: {t!r}", selfmodel.parse(t) is None, str(selfmodel.parse(t)))
