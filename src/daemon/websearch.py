@@ -39,6 +39,10 @@ _NOT_WEB = re.compile(r"^(?:(?:my|our|the)\s+)?(?:files?|documents?|folders?|not
                       r"everything|nothing)$|^(?:my|your)\b", re.I)
 
 
+_QLEAD = re.compile(r"^(?:(?P<eng>google\s+images|youtube|google|wikipedia|bing|duckduckgo)\s+(?:for|about|on)\s+|"
+                    r"(?:(?:a|an|the|some)\s+)?(?P<pics>pictures?|photos?|images?|pics?)\s+(?:of|for)\s+)", re.I)
+
+
 def parse(text: str, default: str = "google") -> Optional[Tuple[str, str]]:
     """(engine, query) for a search to open, or None."""
     t = (text or "").strip()
@@ -51,6 +55,15 @@ def parse(text: str, default: str = "google") -> Optional[Tuple[str, str]]:
     e = (m.group("e") or m.group("e2") or m.group("e3") or "").strip().lower()
     if not q or len(q.split()) > 12 or _NOT_WEB.match(q):
         return None
+    # 25 Nov: "Look up a picture of a cat" searched for "a picture of a cat"; "Look up Google images for potatoes" searched for "Google images for potatoes".
+    lead = _QLEAD.match(q)
+    if lead and lead.end() < len(q):
+        word = lead.group("eng")
+        if lead.group("pics") or (word and word.lower().endswith("images")):
+            e = e or "images"
+        elif word:
+            e = e or word.lower()
+        q = re.sub(r"^(?:a|an|the|some)\s+", "", q[lead.end():].strip(), flags=re.I).strip()
     if m.group("pics"):
         e = e or "images"
     if re.search(r"\b(?:pics|pictures|photos|images)\b\s*$", q, re.I) and not e:

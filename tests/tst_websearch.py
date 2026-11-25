@@ -26,7 +26,10 @@ def s1_parse():
                     ("search YouTube for lo-fi", ("youtube", "lo-fi")), ("google segue", ("google", "segue")), ("search on youtube for cats", ("youtube", "cats")),
                     ("search the web for python 3.13 release", ("google", "python 3.13 release")), ("look up cat pics on youtube", ("youtube", "cat pics")),
                     ("find me pictures of cats", ("images", "cats")), ("search wikipedia for segue", ("wikipedia", "segue")),
-                    ("search for a good pizza place in amman please", ("google", "a good pizza place in amman"))]:
+                    ("search for a good pizza place in amman please", ("google", "a good pizza place in amman")),
+                    ("Look up a picture of a cat.", ("images", "cat")), ("Look up Google images for potatoes.", ("images", "potatoes")),
+                    ("look up youtube for lo-fi", ("youtube", "lo-fi")), ("look up some photos of the sea", ("images", "sea")),
+                    ("Look up potatoes.", ("google", "potatoes"))]:
         check(f"{t!r} -> {want}", websearch.parse(t) == want, str(websearch.parse(t)))
     check("the default engine can be moved", websearch.parse("google segue", "duckduckgo") == ("duckduckgo", "segue") or websearch.parse("search for segue", "duckduckgo") == ("duckduckgo", "segue"))
     for t in ("search my files for the report", "look up my notes", "find the report", "search memory for omar", "google it", "search for it", "find a file called x",
