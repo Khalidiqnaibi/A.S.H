@@ -406,6 +406,27 @@ def remembering_parse(t):
     return remember.parse_correction(t)
 
 
+def r17_provenance():
+    print("\n=== R17. Where it came from ===")
+    rt = rig()
+    try:
+        rt.say("remember lieth is khalid's best friend")
+        n = len(rt.ash.calls)
+        rt.say("where did you get that")
+        check("said from the record: the sentence it was told in", "You told me" in rt.out[-1] and "remember lieth is khalid's best friend" in rt.out[-1], rt.out[-1])
+        rt.say("how do you know Lieth is my friend")
+        check("asked about the person and role", "You told me" in rt.out[-1], rt.out[-1])
+        check("the model was not asked", len(rt.ash.calls) == n, str(rt.ash.calls[n:]))
+        rt.wonder.kb.people["omar"] = {"name": "Omar", "relation": "cousin", "desc": "", "between": {}}
+        rt.say("how do you know Omar is my cousin?")
+        check("a relation from before sources were kept says so, plainly", "didn't keep where that came from" in rt.out[-1], rt.out[-1])
+        m = len(rt.ash.calls)
+        rt.say("where did you get that recipe")
+        check("not about a person: left alone", len(rt.ash.calls) == m + 1)
+    finally:
+        te.stop_all(rt)
+
+
 if __name__ == "__main__":
     r1_parse()
     r2_r3_stored()
@@ -422,5 +443,6 @@ if __name__ == "__main__":
     r14_who_is()
     r15_ask_about()
     r16_correct()
+    r17_provenance()
     print("\nALL PASS" if tw.OK else "\nSOME FAILED")
     sys.exit(0 if tw.OK else 1)

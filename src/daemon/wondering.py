@@ -650,6 +650,14 @@ class Knowledge:
             self.save()
         self._mirror("person", name, {"relation_to_user": "", "description": f"former {role}"})
 
+    def provenance(self, name: str) -> Optional[Dict[str, Any]]:
+        """{"relation", "via", "text", "at"} for what is on record about `name`, or None if the person is not known."""
+        with self._lock:
+            p = self.people.get(norm(name))
+            if p is None or not p.get("relation"):
+                return None
+            return {"name": p.get("name", name), "relation": p["relation"], **(p.get("src") or {})}
+
     def unrelate(self, name: str, role: str = "") -> str:
         """The person said this was wrong: the relation is taken out (not kept as a 'former' one). Returns the relation that was on record
         ('' if there was none, or it was a different one than `role`)."""
@@ -668,12 +676,16 @@ class Knowledge:
         self._mirror("person", name, {"relation_to_user": ""})
         return have
 
-    def store_relation(self, name: str, role: str = "", desc: str = "") -> None:
+    def store_relation(self, name: str, role: str = "", desc: str = "", via: str = "", source: str = "") -> None:
+        """`via`: how it was learned ('said' in a sentence, 'answered' a question ASH asked, 'corrected'); `source` the sentence. Kept, so "where did you
+        get that" is answered from the record -- not from the model, which would invent a source."""
         with self._lock:
             p = self._person(name)
             if role:
                 p["relation"] = ROLE_CANON.get(role, role)
                 p["t"] = self.clock()
+                if via:
+                    p["src"] = {"via": via, "text": _clean(source, 160), "at": self.clock()}
                 if role in UNIQUE_ROLES or ROLE_CANON.get(role) in UNIQUE_ROLES:
                     self.roles[ROLE_CANON.get(role, role)] = p["name"]
             if desc:
@@ -855,6 +867,14 @@ _RE_DEFINE = [
 
 def _role_of(word: str) -> str:
     return ROLE_CANON.get(word.lower(), "")
+
+
+_QUESTION = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:so|and|but|wait|ok(?:ay)?)[,\s]+)*(?:how|where|why|who|what|when|which|is|are|do|does|did|can|could|would|will|was|were|have|has)\b", re.I)
+
+
+def _question(sent: str) -> bool:
+    """A question states nothing: "how do you know Omar is my cousin?" was learned as 'Omar is the user's cousin', with the question as its source."""
+    return sent.rstrip().endswith("?") or bool(_QUESTION.match(sent))
 
 
 def _shouting(sent: str) -> bool:
@@ -1096,7 +1116,8 @@ class Wonderer:
                 if _shouting(sent):
                     continue
                 self._stated_roles = set()
-                rep.learned.extend(self._learn_statements(sent, now))
+                if not _question(sent):
+                    rep.learned.extend(self._learn_statements(sent, now))
                 self._detect(sent, source, now)
             if (len(self.wonders), self.stats["detected"], self.stats["learned"]) != before or rep.learned:
                 self._touch()
@@ -1120,7 +1141,7 @@ class Wonderer:
             if holder and norm(holder) != norm(name):
                 self._conflict("role", name, holder, name, sent, now, role=canon)
                 return
-            self.kb.store_relation(name, role=role)
+            self.kb.store_relation(name, role=role, via="said", source=sent)
             self._resolve_open(("person", f"person:{norm(name)}"), now)
             self._resolve_open(("role", f"role:{ROLE_CANON.get(role, role)}"), now)
             self.stats["learned"] += 1
@@ -1773,7 +1794,7 @@ class Wonderer:
             return f"{v['name']} is the user's {d['role']}."
         if k == "person":
             if v.get("role"):
-                self.kb.store_relation(d["name"], role=v["role"])
+                self.kb.store_relation(d["name"], role=v["role"], via="answered", source="you answered a question I asked about " + str(d["name"]))
                 return f"{d['name']} is the user's {v['role']}."
             self.kb.store_relation(d["name"], desc=v["desc"])
             return f"{d['name']} is {v['desc']}."

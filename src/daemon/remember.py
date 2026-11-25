@@ -25,6 +25,7 @@ the activity log or an introduction of ASH itself.
 from __future__ import annotations
 
 import re
+import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from .wondering import FAMILY, ROLE_CANON, norm, relations_conflict
@@ -143,7 +144,7 @@ def remember(kb, text: str, user: str = "") -> Optional[Tuple[str, Any]]:
         return f"I already have {name} as your {role}.", None
     if prev and prev in FAMILY and relations_conflict(prev, role):
         return f"I have {name} as your {prev}, so I haven't changed that to {role}. Tell me if it was wrong.", None
-    kb.store_relation(name, role=role)
+    kb.store_relation(name, role=role, via="said", source=text)
     return f"Got it -- {name} is your {role}.", undo
 
 
@@ -185,12 +186,41 @@ def correct(kb, text: str) -> Optional[Tuple[str, Any]]:
             return f"I already have {name} as your {role}.", None
         if old:
             kb.unrelate(name)
-        kb.store_relation(name, role=role)
+        kb.store_relation(name, role=role, via="corrected", source=text)
         return (f"Fixed -- {name} is your {role}, not your {old}." if old else f"Got it -- {name} is your {role}."), undo
     had = kb.unrelate(name, role)
     if had:
         return f"Okay -- I've taken out {name} as your {role}.", undo
     return f"I don't have {name} as your {role}, so there was nothing to take out.", None
+
+
+# "Where did you get that?" (about the person just named) / "how do you know Omar is my brother" / "where did you learn that Lieth is my friend".
+_WHERE = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:but|so|and|wait|ok(?:ay)?)[,\s]+)*(?:where\s+did\s+you\s+(?:get|learn|hear|find)\s+(?:that|this|it)(?:\s+from)?|"
+                    r"how\s+do\s+you\s+know\s+(?:that|this)|who\s+told\s+you\s+(?:that|this)|"
+                    r"(?:where\s+did\s+you\s+(?:get|learn|hear)\s+(?:that\s+)?|how\s+do\s+you\s+know\s+(?:that\s+)?)(?P<n>" + _NAME + r")\s+is\s+my\s+" + _ADJ + r"(?P<r>" + _ROLES + r"))\s*[?.!]*\s*$", re.I)
+
+
+def where_from(kb, text: str, last_name: str = "", now: float = 0.0) -> Optional[str]:
+    """Where a relation on record came from, as recorded; None if this is not that question or there is no one it could be about."""
+    m = _WHERE.match((text or "").strip())
+    if not m or kb is None:
+        return None
+    name = (m.group("n") or "").strip() or last_name
+    if not name:
+        return None
+    pv = kb.provenance(name) if hasattr(kb, "provenance") else None
+    if not pv:
+        return None
+    n, rel = pv["name"], pv["relation"]
+    via, src, at = pv.get("via", ""), pv.get("text", ""), pv.get("at")
+    when = (" on " + time.strftime("%d %b", time.localtime(at))) if at else ""
+    if via == "said" and src:
+        return f"You told me{when}: “{src}” -- that's where I have {n} as your {rel}. If it's wrong, say “{n} isn't my {rel}” and I'll take it out."
+    if via == "answered":
+        return f"I asked you about {n}{when} and you answered -- that's how I have {n} as your {rel}."
+    if via == "corrected" and src:
+        return f"You corrected me{when}: “{src}”."
+    return f"I have {n} as your {rel}, but I didn't keep where that came from -- it's from before I recorded sources. Say “{n} isn't my {rel}” if it's wrong."
 
 
 _WHO_IS = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:but|so|and|ok(?:ay)?)\s+)?(?:please\s+)?(?:do\s+you\s+(?:know|remember)\s+)?"

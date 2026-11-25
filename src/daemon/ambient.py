@@ -2784,6 +2784,31 @@ class AmbientRuntime:
         self._last_why = {"kind": "correction"}
         return True
 
+    def _provenance_request(self, ev, now: float) -> bool:
+        """"Where did you get that?" / "how do you know Omar is my brother": from the record kept when the relation was learned (which sentence, when,
+        or that it came from an answer to a question ASH asked) -- not from the model, which has nothing to go on and invents a source."""
+        w = self.wonder
+        if w is None or not self._user_source(ev) or self._is_guest(ev) or not self._meant_for_ash(ev):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        c = self.context
+        last = ""
+        if c is not None:
+            for when, name in reversed(c.people):
+                if now - when <= 600.0:
+                    last = name
+                    break
+        try:
+            say = remembering.where_from(w.kb, text, last, now)
+        except Exception:
+            logger.exception("Provenance failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "memory"}
+        return True
+
     def _log_failure(self, what: str, heard: str, said: str):
         """One line in state/failures.jsonl (the same file repair mode writes): what went wrong, what was heard, what was done about it."""
         path = getattr(self.cfg, "repair_path", None)
@@ -4666,6 +4691,8 @@ class AmbientRuntime:
         if not loose and self._forget_request(ev, now):
             return True
         if not loose and self._correct_request(ev, now):
+            return True
+        if not loose and self._provenance_request(ev, now):
             return True
         if not loose and self._remember_request(ev, now):
             return True
