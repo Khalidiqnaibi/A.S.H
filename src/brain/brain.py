@@ -705,6 +705,9 @@ class Brain:
             # Only when two ACTIONS tie. With no tool in play (plain conversation) the proposals all score the same, and the note
             # made the model answer everything with "Do you mean ...?" -- "yes" to which was asked again, three times, live.
             note = "Multiple interpretations scored equally. Ask one clarifying question."
+        rn = str(getattr(self, "repair_note", "") or "")
+        if rn:                                   # the person is frustrated (daemon/repair.py): short, no guessing, no questions back
+            note = (note + " " + rn).strip()
 
         gist = None
         if self.gist_first:

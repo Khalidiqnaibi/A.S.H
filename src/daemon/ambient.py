@@ -310,6 +310,8 @@ class AmbientConfig:
     # BMO's moods: feelings that last (cheer, energy), from what happened; "how are you feeling?" (feelings.py).
     feelings: bool = False
     feelings_path: Optional[str] = None
+    repair: bool = True                          # frustration changes the behaviour (repair.py)
+    repair_path: Optional[str] = None            # where the lines that led to it are kept (state/failures.jsonl)
     # BMO-style play: jokes, made-up songs, inside jokes remembered from what made you laugh (fun.py).
     fun: bool = False
     fun_path: Optional[str] = None
@@ -785,6 +787,8 @@ class AmbientRuntime:
                 # What the answers have taught about timing multiplies into every free-moment candidate.
                 self.moments.add_fit(lambda c, env: self.asks.timing.fit(self._ask_ctx(self.clock(), env.idle_s)))
         self.feelings = None
+        from .repair import Repair
+        self.repair = Repair(clock=lambda: self.clock(), path=self.cfg.repair_path) if self.cfg.repair else None
         self._feeling_shown = ("", 0.0)
         self._feelings_at = 0.0
         if self.cfg.feelings:
@@ -1431,6 +1435,24 @@ class AmbientRuntime:
         if say:
             logger.warning("Model notice: %s", say)
             self._speech_say(say, "model_note")
+
+    def _repair_hear(self, ev, now: float):
+        """Frustration in what the person says ("bruh", "never mind", "that's wrong", "you are really frustrating me") puts ASH in repair mode
+        (repair.py): one apology, no thinking fillers, and the model told to be brief and not to guess."""
+        r = getattr(self, "repair", None)
+        if r is None or not self._user_source(ev) or self._is_guest(ev) or not self._meant_for_ash(ev):
+            return
+        text = str(getattr(ev, "text", "") or "")
+        if not text:
+            return
+        try:
+            apology = r.hear(text, now)
+            self.brain.repair_note = r.note(now)
+            if apology:
+                logger.info("Repair mode on: %r", text[:80])
+                self._speech_say(apology, "repair")
+        except Exception:
+            logger.exception("Repair mode failed")
 
     def _refresh_about_you(self, now: float):
         """The model is told, in a few lines, what ASH really is and can do (selfmodel.block) -- refreshed once a minute."""
@@ -4234,6 +4256,7 @@ class AmbientRuntime:
             address.conversation.note_user_turn(now)
 
         self._reaction = None
+        self._repair_hear(ev, now)
         if self._user_source(ev) and getattr(ev, "text", ""):
             self._recent_user.append(str(ev.text))
             if self.feelings is not None and self._meant_for_ash(ev) and not (getattr(ev, "meta", None) or {}).get("guest"):
@@ -4995,6 +5018,8 @@ class AmbientRuntime:
         wait = float(getattr(self.cfg, "think_cue_s", 0) or 0)
         if not to_ash or wait <= 0:
             return None
+        if getattr(self, "repair", None) is not None and self.repair.active(self.clock()):
+            return None                          # a filler ("Let me see.") to someone who is frustrated with the waiting is one more thing to wait through
         import random as _random
         last = getattr(self, "_cue_last", "")
         line = _random.choice([c for c in self._CUES if c != last] or list(self._CUES))
@@ -5236,6 +5261,7 @@ class AmbientRuntime:
             except Exception:
                 logger.exception("A command failed in the fast lane")
             if done:
+                self._repair_hear(ev, now)          # "never mind" said while it was thinking is a signal too (and not seen by _handle)
                 self.stats["lane"] = self.stats.get("lane", 0) + 1
                 logger.info("Ran %r while the model was still answering", str(ev.text)[:60])
             else:
@@ -5719,7 +5745,11 @@ class AmbientRuntime:
             return
         self._last_no_reply_notice = now
         try:
-            self.response_sink(NO_MODEL_TEXT, {
+            repairing = getattr(self, "repair", None) is not None and self.repair.active(now)
+            if repairing:
+                from .repair import NOTHING
+                self.repair.stats["nothing"] += 1
+            self.response_sink((NOTHING + " Ask me “what can you do” for what I do well.") if repairing else NO_MODEL_TEXT, {
                 "addressed": True, "source": ev.source, "attention": decision.as_dict(),
                 "pathway": "degraded", "degraded": True,
             })

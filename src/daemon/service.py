@@ -385,6 +385,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # BMO's moods: feelings that last (thanks and laughs lift them, being told off lowers them, hours alone bore it,
     # late nights make it sleepy), shown on the face; "how are you feeling?" answered from them. state/feelings.json.
     "feelings": {"enabled": True},
+    # Frustration (bruh, never mind, that's wrong, "you are frustrating me") puts ASH in repair mode: one apology, no fillers, short answers, no guessing.
+    "repair": {"enabled": True},
     # What ASH asked and what you said back: kept in state/asks/ (one line per ask, with the situation and the reply), written to
     # episodic memory, and the answers teach it when asking is welcome ("what have you asked me?", "when do I like to be asked things?").
     "asks": {"enabled": True, "keep_replies": True},
