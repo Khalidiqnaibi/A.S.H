@@ -36,7 +36,12 @@ _RULES = [
                  r"|what\s+(?:has\s+)?changed(?:\s+(?:in|with)\s+(?:you|the\s+(?:update|version)))?"
                  r"|what(?:'s|\s+is|\s+was)\s+(?:recently\s+)?(?:added|updated)\s+(?:to|in)\s+(?:your\s+)?(?:memory|code|brain|system)?"
                  r"|what\s+did\s+(?:you\s+)?(?:they\s+)?(?:add|update|change)(?:\s+in\s+(?:the\s+)?update)?|what(?:'s|\s+is)\s+in\s+the\s+(?:new\s+)?update"
-                 r"|(?:the\s+)?(?:release\s+notes|changelog|change\s+log)"),
+                 r"|(?:the\s+)?(?:release\s+notes|changelog|change\s+log)"
+                 # 25 Nov 14:xx: "What was the last update?" / "what was added last" matched nothing and went to the model.
+                 r"|what(?:'s|\s+is|\s+was)\s+(?:the\s+)?(?:last|latest|most\s+recent|newest)\s+(?:update|change|feature|thing\s+(?:added|you\s+got))"
+                 r"|what\s+(?:was|did\s+(?:you|they)\s+get)\s+(?:added|updated|changed)\s+(?:last|most\s+recently|latest)"
+                 r"|what\s+(?:is|was)\s+(?:added|new)\s+(?:last|most\s+recently)"
+                 r"|when\s+were\s+you\s+(?:last\s+)?updated"),
     ("self", r"what\s+do\s+you\s+know\s+about\s+yourself|describe\s+yourself|what\s+do\s+you\s+know\s+about\s+(?:you|ash)"
              r"|what\s+(?:all\s+)?do\s+you\s+know\s+(?:of|about)\s+(?:yourself|your\s+own\s+(?:self|system))"),   # ("who are you" / "tell me about yourself": honest.py)
     ("size", r"how\s+(?:much|many\s+things)\s+do\s+you\s+(?:remember|know)|how\s+big\s+is\s+your\s+memory|how\s+much\s+(?:is\s+)?(?:in\s+)?your\s+memory"

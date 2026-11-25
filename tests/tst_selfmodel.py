@@ -29,6 +29,8 @@ def s1_parse():
             "what are your specs": "hardware", "what gpu do you have": None, "what's your hardware": "hardware",
             "What's new with you in the new update?": "whatsnew", "what's new": "whatsnew", "what changed in the update": "whatsnew",
             "What's recently added to your memory.": "whatsnew",
+            "What was the last update?": "whatsnew", "what's the latest update": "whatsnew", "what was added last": "whatsnew",
+            "what was the most recent change": "whatsnew", "when were you last updated": "whatsnew",
             "What do you know about yourself Ash?": "self", "describe yourself": "self", "what do you know about you": "self",
             "How much do you remember?": "size", "what did you learn today": "size"}
     for t, k in want.items():
