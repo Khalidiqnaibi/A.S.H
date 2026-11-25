@@ -96,6 +96,7 @@ class SpeakActuator(Actuator):
         self._lock = threading.Lock()
         self.speaking = False
         self.ended_at = 0.0                # when ASH last went quiet (wall clock)
+        self.speed = 1.0                   # how fast it talks; the daemon follows the emotion state with it (slower when low, brisker when keen)
         super().__init__(**kw)
 
     def stop(self) -> bool:
@@ -109,6 +110,10 @@ class SpeakActuator(Actuator):
                 self.ended_at = time.time()
                 _echo_done()
         return was
+
+    def _speed_kw(self) -> Dict[str, float]:
+        """The speed only when it is not the usual one (an engine that does not take it is not handed it)."""
+        return {} if abs(float(self.speed) - 1.0) < 0.01 else {"speed": float(self.speed)}
 
     def act(self, args: Any) -> Dict[str, Any]:
         # A line, or {"text": ..., "voice": ...} for a character voice (games).
@@ -170,7 +175,7 @@ class SpeakActuator(Actuator):
                 made = 0
                 if voice:
                     try:
-                        for wav in self.tts.stream_audio(text, voice=voice):
+                        for wav in self.tts.stream_audio(text, voice=voice, **self._speed_kw()):
                             if stop.is_set():
                                 return
                             if not _put(wav):
@@ -179,7 +184,7 @@ class SpeakActuator(Actuator):
                     except Exception:
                         logger.warning("Voice %r failed; using the usual one", voice)
                 if not made:
-                    for wav in self.tts.stream_audio(text):
+                    for wav in self.tts.stream_audio(text, **self._speed_kw()):
                         if stop.is_set():
                             return
                         if not _put(wav):

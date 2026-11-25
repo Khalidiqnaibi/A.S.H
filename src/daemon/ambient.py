@@ -3064,6 +3064,22 @@ class AmbientRuntime:
             self.moments._awaiting = None              # "I'm good, how are you?" answered the mood question; the next line is not its answer
         return True
 
+    def _voice_follows_state(self):
+        """How fast ASH talks follows its state (the emotion engine's energy): a little slower when low or while repair mode is on, a little brisker when
+        keen. Within 0.9-1.1 -- noticeable, never silly."""
+        try:
+            sp = self.periphery.actuators.get("speak") if hasattr(self.periphery, "actuators") else None
+            if sp is None or not hasattr(sp, "speed"):
+                return
+            res = getattr(getattr(self.brain, "homeostasis", None), "last_emotion_result", None)
+            energy = float(getattr(getattr(res, "modulation", None), "energy", 0.5))
+            speed = 0.9 + 0.2 * max(0.0, min(1.0, energy))
+            if self.repair is not None and self.repair.active(self.clock()):
+                speed = min(speed, 0.93)
+            sp.speed = round(speed, 2)
+        except Exception:
+            logger.debug("voice speed not set", exc_info=True)
+
     def _feelings_step(self, now: float):
         """Once a minute: let the feelings drift; a feeling that has held for five minutes shows on the face."""
         f = self.feelings
@@ -3072,6 +3088,7 @@ class AmbientRuntime:
         self._feelings_at = now
         try:
             f.tick(now)
+            self._voice_follows_state()
             anim = f.face(now)
             shown, since = self._feeling_shown
             if anim != shown:
