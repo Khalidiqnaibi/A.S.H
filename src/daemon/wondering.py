@@ -650,6 +650,24 @@ class Knowledge:
             self.save()
         self._mirror("person", name, {"relation_to_user": "", "description": f"former {role}"})
 
+    def unrelate(self, name: str, role: str = "") -> str:
+        """The person said this was wrong: the relation is taken out (not kept as a 'former' one). Returns the relation that was on record
+        ('' if there was none, or it was a different one than `role`)."""
+        with self._lock:
+            p = self.people.get(norm(name))
+            if p is None:
+                return ""
+            have = p.get("relation", "")
+            if not have or (role and have != ROLE_CANON.get(role, role)):
+                return ""
+            p["relation"] = ""
+            p.pop("t", None)
+            if self.roles.get(have) and norm(self.roles[have]) == norm(name):
+                del self.roles[have]
+            self.save()
+        self._mirror("person", name, {"relation_to_user": ""})
+        return have
+
     def store_relation(self, name: str, role: str = "", desc: str = "") -> None:
         with self._lock:
             p = self._person(name)

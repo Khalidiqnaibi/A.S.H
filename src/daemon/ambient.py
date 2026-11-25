@@ -2762,6 +2762,42 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
         return True
 
+    def _correct_request(self, ev, now: float) -> bool:
+        """"My brother is not Omar" / "Omar isn't my brother" / "that's wrong, Linda is my cousin": the wrong relation comes out (or is replaced), what
+        changed is said, and the line is kept in state/failures.jsonl (a fact it held that was wrong is a failure worth reading later)."""
+        w = self.wonder
+        if w is None or not self._user_source(ev) or self._is_guest(ev) or not self._meant_for_ash(ev):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        try:
+            done = remembering.correct(w.kb, text)
+        except Exception:
+            logger.exception("Correcting a fact failed")
+            return False
+        if done is None:
+            return False
+        say, undo = done
+        if undo is not None:
+            self.undo.push(say.rstrip("."), undo, now)
+            self._log_failure("fact corrected", text, say)
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "correction"}
+        return True
+
+    def _log_failure(self, what: str, heard: str, said: str):
+        """One line in state/failures.jsonl (the same file repair mode writes): what went wrong, what was heard, what was done about it."""
+        path = getattr(self.cfg, "repair_path", None)
+        if not path:
+            return
+        try:
+            import json as _json
+            os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write(_json.dumps({"t": round(self.clock()), "when": time.strftime("%Y-%m-%d %H:%M"), "what": what, "heard": heard[:200], "said": said[:200]},
+                                     ensure_ascii=False) + "\n")
+        except OSError:
+            pass
+
     _HUD = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:please|can\s+you|could\s+you)[,\s]+)*"
                       r"(?:show|open|bring\s+up|pop\s+up|put\s+up)\s+(?:me\s+)?(?:the\s+|your\s+|a\s+)?"
                       r"(?:hud|heads[-\s]?up(?:\s+(?:display|panel|widget))?|widget|status\s+panel)\s*(?:please)?\s*[.!]?\s*$", re.I)
@@ -4628,6 +4664,8 @@ class AmbientRuntime:
         if self._ux_request(ev, now):
             return True
         if not loose and self._forget_request(ev, now):
+            return True
+        if not loose and self._correct_request(ev, now):
             return True
         if not loose and self._remember_request(ev, now):
             return True

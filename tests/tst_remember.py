@@ -380,6 +380,32 @@ def remembering_wants(t):
     return remember.wants_identity(t)
 
 
+def r16_correct():
+    print("\n=== R16. A wrong relation is taken out, by rule ===")
+    rt = rig()
+    try:
+        rt.wonder.kb.store_relation("Omar", role="brother")
+        n = len(rt.ash.calls)
+        rt.say("my brother is not Omar, where did you get that")
+        check("it is taken out and said", rt.wonder.kb.relation_of("Omar") == "" and rt.out[-1] == "Okay -- I've taken out Omar as your brother.", rt.out[-1])
+        check("the model was not asked", len(rt.ash.calls) == n, str(rt.ash.calls[n:]))
+        rt.say("Omar isn't my brother")
+        check("again: nothing to take out, said so", "nothing to take out" in rt.out[-1], rt.out[-1])
+        rt.wonder.kb.store_relation("Linda", role="friend")
+        rt.say("that's wrong, Linda is my cousin")
+        check("replaced, and says what it was", rt.wonder.kb.relation_of("Linda") == "cousin" and rt.out[-1] == "Fixed -- Linda is your cousin, not your friend.", rt.out[-1])
+        rt.say("undo that")
+        check("and it can be undone", rt.wonder.kb.relation_of("Linda") == "friend", rt.wonder.kb.relation_of("Linda"))
+        check("a true statement is still a 'remember', not a correction", remembering_parse("Omar is my brother") is None)
+    finally:
+        te.stop_all(rt)
+
+
+def remembering_parse(t):
+    from src.daemon import remember
+    return remember.parse_correction(t)
+
+
 if __name__ == "__main__":
     r1_parse()
     r2_r3_stored()
@@ -395,5 +421,6 @@ if __name__ == "__main__":
     r13_reasoning()
     r14_who_is()
     r15_ask_about()
+    r16_correct()
     print("\nALL PASS" if tw.OK else "\nSOME FAILED")
     sys.exit(0 if tw.OK else 1)

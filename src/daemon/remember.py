@@ -147,6 +147,52 @@ def remember(kb, text: str, user: str = "") -> Optional[Tuple[str, Any]]:
     return f"Got it -- {name} is your {role}.", undo
 
 
+# "My brother is not Omar, where did you get that" / "Omar isn't my brother" / "that's wrong, Linda is my cousin": a correction of what is on record.
+# 25 Nov 14:xx it went to the model, which answered the question about where, and Omar stayed.
+_WRONG = r"(?:(?:no|nope|wrong|incorrect|actually|that'?s\s+(?:wrong|not\s+(?:true|right)|incorrect)),?\s*)?"
+_TAIL = r"(?:\s*[,.;]\s*.{0,60})?\s*[.!?]*\s*$"
+_LEAD2 = r"^\s*(?:(?:hey\s+)?ash[,\s]+)?" + _WRONG
+_NOT_A = re.compile(_LEAD2 + r"(?P<n>" + _NAME + r")\s+(?:is\s+not|isn'?t|was\s+not|wasn'?t)\s+(?:my|your)\s+" + _ADJ + r"(?P<r>" + _ROLES + r")\b" + _TAIL, re.I)
+_NOT_B = re.compile(_LEAD2 + r"my\s+" + _ADJ + r"(?P<r>" + _ROLES + r")\s+(?:is\s+not|isn'?t|was\s+not|wasn'?t)\s+(?P<n>" + _NAME + r")\b" + _TAIL, re.I)
+_FIX = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:that'?s\s+(?:wrong|not\s+(?:true|right)|incorrect)|no|nope|wrong|incorrect|actually)\s*,?\s*(?P<n>" + _NAME +
+                  r")\s+is\s+my\s+" + _ADJ + r"(?P<r>" + _ROLES + r")\b\s*[.!]*\s*$", re.I)
+
+
+def parse_correction(text: str) -> Optional[Dict[str, str]]:
+    """{"name", "role", "fix": bool}: the person says `name` is not their `role` (fix=False), or says no, `name` IS their `role` (fix=True)."""
+    t = (text or "").strip()
+    if not t or len(t) > 140:
+        return None
+    for rx, fix in ((_NOT_A, False), (_NOT_B, False), (_FIX, True)):
+        m = rx.match(t)
+        if m and _ok_name(m.group("n")) and ROLE_CANON.get(m.group("r").lower()):
+            return {"name": _title(m.group("n")), "role": ROLE_CANON[m.group("r").lower()], "fix": fix}
+    return None
+
+
+def correct(kb, text: str) -> Optional[Tuple[str, Any]]:
+    """Take a wrong relation out (or replace it) and say what changed: (the sentence, an undo), or None if this is not a correction."""
+    p = parse_correction(text)
+    if p is None or kb is None:
+        return None
+    from .forget import restorer, snapshot
+    name, role = p["name"], p["role"]
+    snap = snapshot(kb)
+    undo = restorer(kb, snap, getattr(kb, "entities", None))
+    if p["fix"]:
+        old = kb.relation_of(name)
+        if old == role:
+            return f"I already have {name} as your {role}.", None
+        if old:
+            kb.unrelate(name)
+        kb.store_relation(name, role=role)
+        return (f"Fixed -- {name} is your {role}, not your {old}." if old else f"Got it -- {name} is your {role}."), undo
+    had = kb.unrelate(name, role)
+    if had:
+        return f"Okay -- I've taken out {name} as your {role}.", undo
+    return f"I don't have {name} as your {role}, so there was nothing to take out.", None
+
+
 _WHO_IS = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:but|so|and|ok(?:ay)?)\s+)?(?:please\s+)?(?:do\s+you\s+(?:know|remember)\s+)?"
                      r"(?:who\s*(?:is|was|'s|’s)|what\s+do\s+you\s+(?:know|remember)\s+about|tell\s+me\s+(?:about|more\s+about)|"
                      r"(?:do\s+you\s+)?know\s+(?:about|who\s+is))\s+(?P<n>" + _NAME + r")(?:\s*,?\s*ash)?\s*[.!?]*\s*$", re.I)
