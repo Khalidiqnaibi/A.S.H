@@ -1941,7 +1941,7 @@ class AmbientRuntime:
         d = self.desktop
         if d is None or not self._user_source(ev):
             return False
-        waiting = getattr(d, "_pending", None) is not None or getattr(d, "_say_back", None) is not None
+        waiting = (getattr(d, "_pending", None) is not None or getattr(d, "_say_back", None) is not None or getattr(d, "_choose", None) is not None)
         if not self._meant_for_ash(ev) and not waiting:
             return False                  # overheard; but a bare "yes" to "Close Word?" answers it
         if waiting and not self._may_confirm(ev, now):

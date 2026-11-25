@@ -206,9 +206,13 @@ class Desktop:
 
     def _fuzzy_app(self, n: str) -> Optional[str]:
         """An app name as the microphone heard it: "Obra" for Opera, "chorme" for Chrome. One word, four letters or more, and ONE known app
-        that sounds the same (or is a single typo away) -- never a guess between two."""
+        that sounds the same (or is a single typo away) -- never a guess between two (those are asked about: _fuzzy_candidates)."""
+        found = self._fuzzy_candidates(n)
+        return found[0] if len(found) == 1 else None
+
+    def _fuzzy_candidates(self, n: str) -> List[str]:
         if " " in n or len(n) < 4:
-            return None
+            return []
         sk = self._skeleton(n)
         found = set()
         for key in self.apps:
@@ -218,7 +222,7 @@ class Desktop:
             one_typo = len(key) >= 5 and len(n) >= 5 and SequenceMatcher(None, n, key).ratio() >= 0.83
             if same_sound or one_typo:
                 found.add(key)
-        return next(iter(found)) if len(found) == 1 else None
+        return sorted(found)
 
     def _app(self, name: str) -> Optional[Tuple[str, str, str]]:
         n = _norm(name)
@@ -249,6 +253,24 @@ class Desktop:
         t = (text or "").strip()
         if not t or len(t) > 80:
             return None
+
+        # the answer to "Did you mean Chrome or Opera?"
+        ch = getattr(self, "_choose", None)
+        if ch is not None:
+            self._choose = None
+            if now - ch[2] <= self.cfg.confirm_window_s:
+                low = _norm(t)
+                names = ch[1]
+                pick = next((x for x in names if low == x or low == "the " + x or low.startswith(x + " ")), None)
+                if pick is None:
+                    ords = {"first": 0, "1st": 0, "one": 0, "second": 1, "2nd": 1, "two": 1, "third": 2, "last": len(names) - 1}
+                    w = low.replace("the ", "").replace(" one", "").strip()
+                    if w in ords and ords[w] < len(names):
+                        pick = names[ords[w]]
+                if pick is not None:
+                    return self.hear(f"{ch[0]} {pick}", now)
+                if re.match(r"^\s*(?:neither|none|no|nope|nah|never\s*mind|cancel)\b", t, re.I) or _yesno.is_no(t):
+                    return "Okay."
 
         # the answer to "Did you say 'open notepad'?"
         sb = getattr(self, "_say_back", None)
@@ -288,7 +310,7 @@ class Desktop:
         if m:
             app = self._app(m.group("t"))
             if app is None:
-                return None
+                return self._which(m.group("t"), "open", now)
             ok = self._open_one(m.group("t"))
             if ok:
                 proc = (app[2] or "").split("|")[0]
@@ -299,7 +321,7 @@ class Desktop:
         if m:
             app = self._app(m.group("t"))
             if app is None:
-                return None
+                return self._which(m.group("t"), "switch to", now)
             proc = self._running(app[2])
             if proc is None:
                 return f"{app[0]} isn't open. Want me to open it? Say \"open {app[0]}\"."
@@ -320,6 +342,15 @@ class Desktop:
                 return f"Close {app[0]}? Anything unsaved there may be lost. Say yes to close it."
             return self._do_close(app[0], proc)
         return None
+
+    def _which(self, spoken: str, verb: str, now: float) -> Optional[str]:
+        """Two or three apps sound like what was heard: asked which, once, rather than guessed at or sent to the model. None when it is not that."""
+        cands = self._fuzzy_candidates(_norm(spoken))
+        if not (2 <= len(cands) <= 3):
+            return None
+        self._choose = (verb, cands, now)
+        shown = [c.title() for c in cands]
+        return "Did you mean " + ", ".join(shown[:-1]) + " or " + shown[-1] + "?"
 
     def _running(self, procs: str) -> Optional[str]:
         """The one of an app's processes ("outlook.exe|olk.exe") that is running."""
