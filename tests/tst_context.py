@@ -145,6 +145,29 @@ def c5_again():
     check("stale after ten minutes", c.resolve("say that again") is None)
 
 
+def c5b_history():
+    print("\n=== C5b. What was said before ===")
+    c = ctx()
+    c.heard("what time is it")
+    c.said("It is ten past two.")
+    c.said("Let me see.")
+    c.heard("who is Linda")
+    c.said("Linda is your cousin.")
+    r = c.resolve("what did you say before that?")
+    check("before that: the answer before the last, not the filler", r == {"say": "Before that I said: It is ten past two."}, str(r))
+    check("'the one before it' is the same", c.resolve("the one before it") == r)
+    check("'what was your last answer'", c.resolve("what was your last answer") == {"say": "My last answer was: Linda is your cousin."})
+    r2 = c.resolve("what was your last answer")
+    c.said(r2["say"])
+    check("what was read back is not itself history", c.resolve("what was your last answer") == r2)
+    check("what did I ask before that", c.resolve("what did I ask before that?") == {"say": "Before that you said: what time is it"}, str(c.resolve("what did I ask before that?")))
+    check("what was my last question", c.resolve("what was my last question") == {"say": "You said: who is Linda"})
+    check("these lines are not themselves kept as things the user said", [x[1] for x in c.user] == ["what time is it", "who is Linda"])
+    e = ctx()
+    check("nothing before: said plainly", e.resolve("what did you say before that") == {"say": "I haven't said anything before that."})
+    check("an ordinary question is not a history question", c.resolve("what did you say to Omar") is None)
+
+
 def c6_not_ours():
     print("\n=== C6. Not ours ===")
     c = ctx(KB())
@@ -227,7 +250,7 @@ def c7_runtime():
 
 
 if __name__ == "__main__":
-    for fn in (c1_apps, c2_remind, c3_lookup, c4_people, c5_again, c6_not_ours, c7_runtime):
+    for fn in (c1_apps, c2_remind, c3_lookup, c4_people, c5_again, c5b_history, c6_not_ours, c7_runtime):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

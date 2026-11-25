@@ -1020,7 +1020,7 @@ class AmbientRuntime:
                     self.repeat.note(text)                  # a rule's line: said, but never trimmed
             except Exception:
                 logger.exception("Repeat guard failed")
-        if self.context is not None and text and self._capture is None:
+        if self.context is not None and text and self._capture is None and meta.get("outcome") != "thinking_cue":
             try:
                 self.context.said(text)
             except Exception:

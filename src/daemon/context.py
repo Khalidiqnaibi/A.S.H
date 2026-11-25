@@ -42,6 +42,19 @@ _AGAIN = re.compile(_LEAD + r"(?:say\s+(?:that|it)\s+again|repeat\s+(?:that|it|y
                     r"come\s+again|sorry\s*,?\s*what\s+was\s+that|pardon(?:\s+me)?|i\s+didn'?t\s+(?:catch|hear)\s+(?:that|you))"
                     + _END, re.I)
 
+# "What did you say before that?" / "the one before it" / "what was my last question" / "what did I ask before that": the turn history. 25 Nov these went
+# to the model, which answered something else ("why did you say the one before it" got a reply about the last line only).
+_BEFORE_ASH = re.compile(_LEAD + r"(?:what\s+(?:did\s+you|was\s+(?:it\s+)?(?:that\s+)?you)\s+(?:say|answer(?:ed)?|tell\s+me)\s+(?:just\s+)?(?:before\s+(?:that|it|this)|earlier|previously|the\s+time\s+before)|"
+                         r"what\s+(?:was|is)\s+(?:your|the)\s+(?:previous|earlier|one\s+before(?:\s+(?:that|it))?|answer\s+before(?:\s+(?:that|it))?)(?:\s+(?:answer|reply|line))?|"
+                         r"(?:say|repeat)\s+(?:the\s+one|what\s+you\s+said)\s+before(?:\s+(?:that|it))?|the\s+one\s+before\s+(?:that|it))" + _END, re.I)
+_LAST_ASH = re.compile(_LEAD + r"what\s+(?:was|is)\s+your\s+(?:last|latest)\s+(?:answer|reply|line|response)" + _END, re.I)
+_BEFORE_USER = re.compile(_LEAD + r"(?:what\s+did\s+i\s+(?:ask|say)\s+(?:you\s+)?(?:before\s+(?:that|it)|earlier|previously)|"
+                          r"what\s+was\s+(?:the|my)\s+(?:question|thing|line)\s+before(?:\s+(?:that|it))?|what\s+was\s+my\s+previous\s+(?:question|line))" + _END, re.I)
+_LAST_USER = re.compile(_LEAD + r"what\s+(?:was|is)\s+my\s+(?:last|latest)\s+(?:question|line|thing)|what\s+did\s+i\s+(?:just\s+)?(?:ask|say)(?:\s+you)?(?:\s+just\s+now)?" + _END, re.I)
+
+# Lines ASH says only to fill the wait: not an answer anyone would ask about afterwards.
+_FILLERS = frozenset(("let me see.", "give me a second.", "one moment.", "hmm.", "let me think.", "just a second.", "let me check.", "one sec."))
+
 # What someone says they need to do, as the thing to be reminded of.
 _TODO = re.compile(r"^\s*(?:i\s+(?:need|have|ought|want)\s+to|i\s+(?:should|must|gotta|got\s+to)|i'?m\s+supposed\s+to|"
                    r"(?:don'?t\s+)?(?:let\s+me\s+)?(?:forget|remember)\s+to|i\s+still\s+(?:need|have)\s+to|"
@@ -69,6 +82,8 @@ class Context:
         self.window_s = window_s
         self.user: Deque[Tuple[float, str]] = deque(maxlen=8)    # what the user said, newest last
         self.ash: Optional[Tuple[float, str]] = None             # ASH's last line
+        self._recital = ""                                       # the history read back: it is not itself part of the history
+        self.said_hist: Deque[Tuple[float, str]] = deque(maxlen=10)    # ASH's last answers (not the wait-fillers), newest last
         self.app: Optional[Tuple[float, str]] = None             # the app last opened, closed or in front
         self.people: Deque[Tuple[float, str]] = deque(maxlen=8)  # names, newest last
         self.stats = {"resolved": 0, "repeated": 0, "who": 0, "unresolved": 0}
@@ -87,6 +102,8 @@ class Context:
         now = self.clock() if now is None else now
         if text:
             self.ash = (now, text)
+            if text.strip().lower() not in _FILLERS and text != self._recital and not (self.said_hist and self.said_hist[-1][1] == text):
+                self.said_hist.append((now, text))
             self._names(text, now)
             m = re.match(r"^(?:Opening|Closing|Switching to)\s+(?P<app>[^.]{1,40})\.", text)
             if m:
@@ -125,7 +142,7 @@ class Context:
     @staticmethod
     def is_referring(text: str) -> bool:
         t = text or ""
-        return any(p.match(t) for p in (_APP, _REMIND, _LOOKUP, _WHO, _AGAIN))
+        return any(p.match(t) for p in (_APP, _REMIND, _LOOKUP, _WHO, _AGAIN, _BEFORE_ASH, _LAST_ASH, _BEFORE_USER, _LAST_USER))
 
     def _fresh(self, item: Optional[Tuple[float, str]], now: float) -> Optional[str]:
         return item[1] if item is not None and now - item[0] <= self.window_s else None
@@ -156,6 +173,23 @@ class Context:
         t = (text or "").strip()
         if not t or len(t) > 120:
             return None
+        m = _BEFORE_ASH.match(t) or _LAST_ASH.match(t)
+        if m:
+            back = 2 if _BEFORE_ASH.match(t) else 1
+            hist = [x for x in self.said_hist if now - x[0] <= 3600.0]
+            self.stats["history"] = self.stats.get("history", 0) + 1
+            if len(hist) < back:
+                return {"say": "I haven't said anything before that." if back == 2 else "I haven't said anything yet."}
+            self._recital = ("Before that I said: " if back == 2 else "My last answer was: ") + hist[-back][1].strip()
+            return {"say": self._recital}
+        m = _BEFORE_USER.match(t) or _LAST_USER.match(t)
+        if m:
+            back = 2 if _BEFORE_USER.match(t) else 1
+            hist = [x for x in self.user if now - x[0] <= 3600.0]
+            self.stats["history"] = self.stats.get("history", 0) + 1
+            if len(hist) < back:
+                return {"say": "You haven't said anything before that." if back == 2 else "You haven't asked me anything yet."}
+            return {"say": ("Before that you said: " if back == 2 else "You said: ") + hist[-back][1].strip()}
         m = _AGAIN.match(t)
         if m:
             last = self._fresh(self.ash, now)
