@@ -30,6 +30,8 @@ def main():
     check("the same cut-off line again goes through (it is what they mean)", used or not (said and said[-1].startswith("On what")), f"{used} {said}")
     used, said = rt.say("tell me about the")
     check("another one: a plain 'say the rest'", not used and said and said[-1] == "I only caught part of that -- say the rest?", f"{used} {said}")
+    used, said = rt.say("so what port am I on")
+    check("a whole question that ends on a preposition is not cut off", used or not (said and "lost the end" in said[-1]), f"{used} {said}")
     used, said = rt.say("what is the capital of France")
     check("a whole question is not touched", used or (said and "On what" not in said[-1]), f"{used} {said}")
     print("\n" + ("ALL PASS" if tw.OK else "FAILED"))

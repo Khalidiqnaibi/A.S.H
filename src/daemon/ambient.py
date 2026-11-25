@@ -2505,6 +2505,9 @@ class AmbientRuntime:
         words = text.split()
         if not (3 <= len(words) <= 10) or text.endswith(("?", "!")) or not self._DANGLING.match(text):
             return False
+        low = [re.sub(r"[^\w']+", "", w).lower() for w in words]
+        if low[-1] not in ("the", "a", "an", "and", "or", "but", "my", "of", "into", "onto") and (set(low) & {"i", "you", "we", "it", "they", "he", "she", "am", "are", "is", "was", "do", "does", "did"}):
+            return False                    # "what port am I on" / "who are you talking to": a whole question that happens to end on a preposition
         if getattr(self, "_told_dangling", None) == text.lower():
             return False                                    # said the same cut-off line again: let it through
         self._told_dangling = text.lower()
