@@ -254,7 +254,9 @@ _SUBJECT = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:so|and|but|ok(?:ay)?|
 _NOT_SUBJECT = frozenset(("this that it he she they there you your yours my mine our we us i here these those them him her who what which "
                           "someone somebody anyone anybody everyone nobody something anything "
                           # "Who is kind of?" (whisper, for "who is Khalid?") was looked up on Wikipedia as a name
-                          "kind sort type bit lot like just really very going gonna doing").split())
+                          "kind sort type bit lot like just really very going gonna doing "
+                          # 25 Nov: "tell me about yourself / about Ash" was looked up as a person or on Wikipedia; the identity and self-model rules answer it.
+                          "yourself myself himself herself themselves ash").split())
 
 
 def subject_of(text: str) -> Optional[str]:

@@ -102,7 +102,7 @@ def a3_subjects():
         check(f"{said!r} -> {want!r}", subject_of(said) == want, str(subject_of(said)))
     for said in ("who is this", "who was that?", "who is my friend", "what do you know about my dog", "who are you", "what is a transformer",
                  "who is 42", "who is", "do you know", "what time is it", "who is the one who called me yesterday at the office",
-                 "Who is kind of?", "who is like", "who is going"):
+                 "Who is kind of?", "who is like", "who is going", "tell me about yourself", "tell me about Ash", "what do you know about yourself", "who is Ash"):
         check(f"{said!r} is not for the arbiter", subject_of(said) is None, str(subject_of(said)))
 
 
