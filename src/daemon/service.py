@@ -411,6 +411,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # frame to photo_dir, on request only, never while paused).
     "media": {"enabled": True, "music": True, "sounds": True, "photos": True,
               "photo_dir": "~/Pictures/ASH", "camera_index": 0},
+    # The keyboard, the mouse and the screen by voice ("press space", "full screen", "scroll down", "click <what is written>", "copy", "new tab",
+    # "what's connected"). Never into a blocklisted window or while privacy is paused; Delete, Alt+F4 and long typing ask first; lock, Run and
+    # Ctrl+Alt+Delete are never pressed by voice.
+    "control": {"enabled": True, "max_per_minute": 40, "confirm_window_s": 60.0},
     # Voice match: nothing is compared until you say "learn my voice". After
     # that a clearly different voice is a guest: answered, but not allowed to
     # act for you or teach ASH about you. A rough match, not security.

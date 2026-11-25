@@ -77,6 +77,7 @@ from . import voiceid as voiceid_mod
 from .reminders import Reminders
 from .play import Bored, DailyTrivia, IdleRiddle, Play, Story
 from .media import Media, MediaConfig
+from .control import Control, ControlConfig
 from .remarks import RemarkLog
 from .speech import SpeechControl, wants_brief, wants_cancel, wants_short, wants_stop
 from .tasks import Tasks
@@ -370,6 +371,7 @@ class AmbientConfig:
     # (media.py). Off on a bare runtime.
     media: bool = False
     media_cfg: Optional[Dict[str, Any]] = None
+    control_cfg: Optional[Dict[str, Any]] = None
     # The remark log: everything said and how it landed, for `ashctl review`
     # (remarks.py). Off on a bare runtime; the daemon turns it on.
     remarks_dir: Optional[str] = None        # state/remarks/
@@ -655,6 +657,10 @@ class AmbientRuntime:
         if self.cfg.media:
             self.media = Media(MediaConfig.from_dict(self.cfg.media_cfg),
                                episodic=getattr(self.ash, "episodic_memory", None), clock=lambda: self.clock())
+        # The keyboard, the mouse and the screen by voice (control.py): on with the media keys unless daemon.json control.enabled is false.
+        self.control: Optional[Control] = None
+        if self.cfg.media and (self.cfg.media_cfg or {}).get("control", True):
+            self.control = Control(ControlConfig.from_dict(self.cfg.control_cfg), clock=lambda: self.clock())
         self.weather: Optional[Weather] = None
         if self.cfg.weather:
             self.weather = Weather(WeatherConfig.from_dict(self.cfg.weather_cfg), clock=lambda: self.clock())
@@ -2143,6 +2149,35 @@ class AmbientRuntime:
             ev.addressed = True
             return False
         self._wonder_say(ev, type("R", (), {"say": r["say"], "outcome": "play"})())
+        return True
+
+    def _control_request(self, ev, now: float) -> bool:
+        """"Press space", "full screen", "scroll down", "click subscribe", "copy", "new tab", "what's connected" (control.py): the keyboard and mouse
+        for whatever is in front. Only a line meant for ASH, never a guest's, never into a blocklisted window; the sharp ones ask first."""
+        c = getattr(self, "control", None)
+        if c is None or not self._user_source(ev) or self._is_guest(ev):
+            return False
+        if not self._meant_for_ash(ev) and not (c.waiting and self._may_confirm(ev, now)):
+            return False                         # overheard speech (a video saying "click here") never presses anything
+        title, blocked = "", False
+        try:
+            aw = getattr(self.periphery, "sensors", {}).get("active_window")
+            if aw is not None and hasattr(aw, "current"):
+                title = str(aw.current()[0] or "")
+                blocked = bool(aw.is_blocked(title))
+        except Exception:
+            logger.debug("no window title for control", exc_info=True)
+        try:
+            from src.senses.mic import MicrophoneSensor
+            text = MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or "")) or str(getattr(ev, "text", "") or "")
+            say = c.hear(text, now, title=title, blocked=blocked, privacy_paused=bool(self.privacy.paused))
+        except Exception:
+            logger.exception("Computer control failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "followup" if c.waiting else "desktop"})())
+        self._last_why = {"kind": "asked", "query": str(getattr(ev, "text", ""))[:80]}
         return True
 
     def _media_request(self, ev, now: float) -> bool:
@@ -4744,6 +4779,8 @@ class AmbientRuntime:
             return True
         if self._media_request(ev, now):
             return True
+        if self._control_request(ev, now):
+            return True
         if self._pcdoctor_request(ev, now):
             return True
         if self._hud_request(ev, now):
@@ -6138,6 +6175,7 @@ class AmbientRuntime:
             "arrivals": self.arrivals.status() if self.arrivals else None,
             "play": self.play.status() if self.play else None,
             "media": self.media.status() if self.media else None,
+            "control": self.control.status() if getattr(self, "control", None) else None,
             "remarks": {"logging": self.remarks is not None},
             "focus": self.focus.status() if self.focus else None,
             "weather": self.weather.status() if self.weather else None,

@@ -442,6 +442,7 @@ def main() -> int:
                 speech_path=os.path.join(os.getcwd(), "state", "speech.json"),
                 media=bool(cfg.get("media", {}).get("enabled", True)),
                 media_cfg=cfg.get("media", {}),
+                control_cfg=cfg.get("control", {}),
                 play=bool(cfg.get("play", {}).get("enabled", True)),
                 reminders=bool(cfg.get("reminders", {}).get("enabled", True)),
                 reminders_path=os.path.join(os.getcwd(), "state", "reminders.json"),
