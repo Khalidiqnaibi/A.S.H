@@ -893,6 +893,8 @@ class AmbientRuntime:
         self._why_hist: Deque[Tuple[str, Optional[Dict[str, Any]]]] = deque(maxlen=10)
         self._mood_seen: Any = None                          # the brain sentiment reading last folded in
         self.undo = UndoStack(clock=lambda: self.clock())   # "undo that": what was last learned or set up
+        if getattr(self, "desktop", None) is not None:      # ...and the last app opened or closed by voice
+            self.desktop.on_act = lambda label, fn: self.undo.push(label, fn)
         self.focus: Optional[Focus] = Focus(clock=lambda: self.clock(), path=self.cfg.focus_path) if self.cfg.focus else None
         self._focus_was = False
         self.speech: Optional[SpeechControl] = (SpeechControl(self.cfg.speech_path, clock=lambda: self.clock())

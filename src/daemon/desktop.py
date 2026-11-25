@@ -186,6 +186,7 @@ class Desktop:
         self.clock = clock
         self.fresh = Fresh()                      # the same acknowledgement twice in a row changes its opening word
         self._pending: Optional[Tuple[str, str, float]] = None   # (name, process, asked at)
+        self.on_act: Optional[Callable[[str, Callable[[], None]], None]] = None   # told of each open/close with the way back (the runtime's "undo that")
         self.stats = {"opened": 0, "closed": 0, "switched": 0, "routines": 0, "failed": 0}
         self.apps: Dict[str, Tuple[str, str]] = dict(APPS)
         for name, v in self.cfg.apps.items():
@@ -288,8 +289,12 @@ class Desktop:
             app = self._app(m.group("t"))
             if app is None:
                 return None
-            return (self.fresh.apply(f"Opening {app[0]}.", self.clock()) if self._open_one(m.group("t"))
-                    else f"I couldn't open {app[0]}.")
+            ok = self._open_one(m.group("t"))
+            if ok:
+                proc = (app[2] or "").split("|")[0]
+                if proc:                                        # the way back is a polite close, which asks to save if there is anything to save
+                    self._acted(f"opening {app[0]}", lambda p=proc: self.ex.close(p))
+            return (self.fresh.apply(f"Opening {app[0]}.", self.clock()) if ok else f"I couldn't open {app[0]}.")
         m = _SWITCH.match(t)
         if m:
             app = self._app(m.group("t"))
@@ -330,9 +335,20 @@ class Desktop:
         self.stats["opened" if ok else "failed"] += 1
         return ok
 
+    def _acted(self, label: str, back: Callable[[], Any]) -> None:
+        if self.on_act is not None:
+            try:
+                self.on_act(label, back)
+            except Exception:
+                pass
+
     def _do_close(self, name: str, process: str) -> str:
         ok = self.ex.close(process)
         self.stats["closed" if ok else "failed"] += 1
+        if ok:
+            target = next((a[0] for a in self.apps.values() if process in (a[1] or "").split("|")), "")
+            if target:
+                self._acted(f"closing {name}", lambda t=target: self.ex.open(t))
         return self.fresh.apply(f"Closing {name}.", self.clock()) if ok else f"I couldn't close {name}."
 
     def status(self) -> Dict[str, Any]:
