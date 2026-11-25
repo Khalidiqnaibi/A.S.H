@@ -18,8 +18,12 @@ from typing import Any, Dict, List, Optional, Tuple
 from .dwell import _span
 
 _LEAD = r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:so|and|ok(?:ay)?|um|hey)[,\s]+)?"
-_NOW = re.compile(_LEAD + r"(?:what(?:'s|s|\s+is)?\s+(?:am\s+i|i'?m)\s+(?:working\s+on|doing)(?:\s+(?:right\s+)?now)?|what\s+project\s+(?:am\s+i|i'?m)\s+(?:on|in)|"
-                  r"what\s+(?:am\s+i|i'?m)\s+(?:on|in)\s+(?:right\s+)?now|remind\s+me\s+what\s+i'?m\s+(?:working\s+on|doing))\s*[?.!]*\s*$", re.I)
+# ("what project am I ACTIVELY doing" went to the model for 54 s: the adverbs and "at the moment" are part of the question)
+_ADV = r"(?:(?:actively|actually|currently|presently|even|really|exactly|still|just)\s+)?"
+_NOWT = r"(?:\s+(?:(?:right\s+)?now|at\s+the\s+moment|at\s+present|these\s+days|currently|today))?"
+_NOW = re.compile(_LEAD + r"(?:what(?:'s|s|\s+is)?\s+(?:am\s+i|i'?m)\s+" + _ADV + r"(?:working\s+on|doing|busy\s+with|up\s+to)" + _NOWT + r"|"
+                  r"what\s+(?:project|thing|task|stuff)s?\s+(?:am\s+i|i'?m)\s+" + _ADV + r"(?:on|in|doing|working\s+on|busy\s+with)" + _NOWT + r"|"
+                  r"what\s+(?:am\s+i|i'?m)\s+(?:on|in)\s+(?:right\s+)?now|remind\s+me\s+what\s+i'?m\s+" + _ADV + r"(?:working\s+on|doing))\s*[?.!]*\s*$", re.I)
 _WAS = re.compile(_LEAD + r"(?:what\s+did\s+i\s+(?:just\s+)?work\s+on(?:\s+(?:earlier|today|lately|recently|this\s+(?:morning|afternoon|evening)|last\s+night))?|what\s+(?:was|were)\s+i\s+(?:just\s+)?(?:working\s+on|doing)(?:\s+(?:earlier|before|a\s+(?:bit|while)\s+ago|this\s+morning|last\s+night))?|"
                   r"what\s+(?:have\s+i\s+been|did\s+i\s+(?:just\s+)?(?:do|work\s+on))\s+(?:working\s+on|doing)?(?:\s+(?:today|lately|recently|so\s+far|this\s+(?:morning|afternoon|evening)))?|"
                   r"what\s+have\s+i\s+been\s+(?:working\s+on|up\s+to)(?:\s+(?:today|lately|recently|so\s+far|this\s+(?:morning|afternoon|evening)))?)\s*[?.!]*\s*$", re.I)

@@ -70,6 +70,15 @@ def w2_answers():
     check("no activity memory at all is the same", "a few minutes" in working.answer(NS(activity=None, dwell=None), "now", NOW))
 
 
+def w1b_adverbs():
+    print("\n=== W1b. The same question with its adverbs ===")
+    for t in ("What project am I actively doing?", "what am I currently working on", "what am I working on at the moment", "what projects am I really working on these days",
+              "what thing am I busy with right now", "what am I actually working on"):
+        check(f"{t!r} is a 'now' question", working.parse(t) == "now", str(working.parse(t)))
+    for t in ("what am I wearing", "what am I doing wrong", "what project is due", "what am I going to do tomorrow"):
+        check(f"{t!r} is not", working.parse(t) is None, str(working.parse(t)))
+
+
 def w2b_time_on():
     print("\n=== W2b. How much did I work on X ===")
     for t, want in [("how much did I work on A.S.H this week", ("A.S.H", 7, "this week")), ("how long was I on youtube today", ("youtube", 1, "today")),
@@ -112,6 +121,7 @@ def w3_runtime():
 
 if __name__ == "__main__":
     w1_parse()
+    w1b_adverbs()
     w2_answers()
     w2b_time_on()
     w3_runtime()
