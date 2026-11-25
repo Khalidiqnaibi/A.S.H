@@ -108,6 +108,10 @@ def w4_asking():
     w = wrig(city="Amman")
     check("today", w.hear("what's the weather like today?") == "Today: 18 to 26 degrees, clear.")
     check("tomorrow", w.hear("how's the weather tomorrow").startswith("Tomorrow: 12 to 19"))
+    check("the temperature is the weather's: today", w.hear("What's the temperature today?") == "Today: 18 to 26 degrees, clear.")
+    check("...outside, and how hot it is", w.hear("what's the temperature outside").startswith("Today:") and w.hear("how hot is it outside?").startswith("Today:"))
+    check("...but not the CPU's, the computer's or a place's", all(w.hear(q) is None for q in ("what's the cpu temperature", "what's the temperature of the gpu", "what is the temperature in Paris", "what's the temperature of the room in my notes")))
+
     check("will it rain tomorrow", w.hear("will it rain tomorrow").startswith("Tomorrow:"))
     check("plain 'what's the weather'", w.hear("what's the weather").startswith("Today:"))
     for text in ("what's the weather like in Tokyo", "what is the weather for London tomorrow", "nice weather huh",

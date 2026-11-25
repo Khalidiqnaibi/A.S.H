@@ -40,7 +40,11 @@ CODES = {0: "clear", 1: "mostly clear", 2: "partly cloudy", 3: "cloudy", 45: "fo
 
 _ASK = re.compile(r"\b(?:what'?s|what is|how'?s|how is)\s+the\s+weather(?:\s+like)?(?:\s+(?P<when>today|tomorrow))?\b"
                   r"|\b(?:will|is)\s+it\s+(?:going to\s+)?(?:rain|snow)\s*(?P<when2>today|tomorrow)?\b"
-                  r"|\bweather\s+(?:for\s+)?(?P<when3>today|tomorrow)\b", re.I)
+                  r"|\bweather\s+(?:for\s+)?(?P<when3>today|tomorrow)\b"
+                  # "What's the temperature today?" went to the system-stats tool ("CPU at 14%, memory at 71%"): the outside's, not the CPU's.
+                  r"|\b(?:what'?s|what is|how'?s|how is)\s+the\s+temperature(?:\s+(?:like\s+)?(?:outside|out\s+there|here|right\s+now|now))?(?:\s+(?P<when4>today|tomorrow))?\s*\??$"
+                  r"|\bhow\s+(?:hot|cold|warm)\s+is\s+it(?:\s+(?:outside|out\s+there|today|right\s+now|now))?\s*\??$"
+                  r"|\bis\s+it\s+(?:hot|cold|warm|chilly|freezing)\s+(?:outside|out\s+there|today)\s*\??$", re.I)
 
 
 def _get(url: str, timeout: float) -> Any:
@@ -183,7 +187,7 @@ class Weather:
         if not self.configured:
             return self.NOT_SET_UP       # said plainly, not handed to a model that would guess a forecast
         self.refresh(now)
-        when = (m.group("when") or m.group("when2") or m.group("when3") or "today").lower()
+        when = (m.group("when") or m.group("when2") or m.group("when3") or m.group("when4") or "today").lower()
         d = self.describe(1 if when == "tomorrow" else 0)
         if not d:
             return "I don't have a forecast right now -- I couldn't reach the weather service."

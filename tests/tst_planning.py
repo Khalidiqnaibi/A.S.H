@@ -951,7 +951,7 @@ def phase4():
           g.intent == "inform" and g.must_include == ["42"] and g.points[0].say == "Result: 42")
     check("a cool stance adds no follow-up", g.follow_up is None)
     g = G.build_gist(tool_ok=True, body="Result: 42", drives=warm)
-    check("a warm, unhurried stance offers a follow-up", g.follow_up is not None)
+    check("a warm stance does not tack on \"anything else you need on that?\" (the persona forbids trailing offers; it was on a CPU reading)", g.follow_up is None)
     g = G.build_gist(tool_ok=True, body="Result: 42", drives=brisk)
     check("a hurried stance does not, however warm", g.follow_up is None)
     g = G.build_gist(tool_ok=True, body="2026-08-24T10:00:00", drives=cool)
@@ -1049,7 +1049,10 @@ def phase4():
     check("plain inform renders as-is",
           G.render_gist(G.build_gist(tool_ok=True, body="Result: 42", drives=cool)) == "Result: 42")
     r = G.render_gist(G.build_gist(tool_ok=True, body="Result: 42", drives=warm))
-    check("a follow-up is appended when there is one", r.startswith("Result: 42") and "anything else" in r, r)
+    check("no follow-up is appended to a warm result", r == "Result: 42", r)
+    g2 = G.build_gist(tool_ok=True, body="Result: 42", drives=warm)
+    g2.follow_up = "anything else?"
+    check("render still appends a follow-up when a gist carries one", G.render_gist(g2).startswith("Result: 42") and "anything else" in G.render_gist(g2))
     check("a timestamp needs a model", G.render_gist(
         G.build_gist(tool_ok=True, body="2026-08-24T10:00:00", drives=cool)) is None)
     check("open conversation needs a model", G.render_gist(G.build_gist(drives=cool)) is None)

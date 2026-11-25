@@ -182,8 +182,8 @@ def build_gist(*, chosen=None, tool_out=None, tool_ok: Optional[bool] = None,
             intent="inform",
             points=[Point(f"report the result: {body.strip()[:300]}", "answer", say)],
             stance=stance, must_include=extract_facts(body), confidence=conf)
-        if stance.warmth > 0.65 and stance.brevity <= 0.65:
-            g.follow_up = "anything else you need on that?"
+        # (No trailing "anything else you need on that?": it was added whenever warmth was high -- on a CPU reading too -- and the persona forbids
+        # trailing offers. A warm stance is in the words, not in a question that asks for another turn.)
     elif ran:
         err = ""
         if isinstance(tool_out, dict):
