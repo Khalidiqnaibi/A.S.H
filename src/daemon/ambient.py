@@ -1481,6 +1481,16 @@ class AmbientRuntime:
             logger.warning("Model notice: %s", say)
             self._speech_say(say, "model_note")
 
+    _BACKCHANNEL = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:bru+h+|ugh+|argh+|ar+gh|hm+|mm+|mhm+|uh+|um+|er+m*|huh|ha+h?|tsk|pfft+|sigh|wow|damn|ffs)[\s.,!?]*$", re.I)
+
+    def _backchannel_request(self, ev, now: float) -> bool:
+        """"Bruh." / "Ugh." / "Hmm." -- a sound, not a request. 25 Nov 14:53: "Bruh." was answered by a 15 s model turn ("Let me see." ... "How can I
+        assist further?"). Repair mode has already counted it (_repair_hear); nothing more is said, and no model is asked."""
+        if not self._user_source(ev) or self._is_guest(ev) or not self._BACKCHANNEL.match(str(getattr(ev, "text", "") or "")):
+            return False
+        self.stats["backchannel"] = self.stats.get("backchannel", 0) + 1
+        return True
+
     def _repair_hear(self, ev, now: float):
         """Frustration in what the person says ("bruh", "never mind", "that's wrong", "you are really frustrating me") puts ASH in repair mode
         (repair.py): one apology, no thinking fillers, and the model told to be brief and not to guess."""
@@ -4558,6 +4568,8 @@ class AmbientRuntime:
             return True
 
         if self._ask_followthrough(ev, now):
+            return True
+        if not loose and self._backchannel_request(ev, now):
             return True
         if not loose and self._asks_request(ev, now):
             return True

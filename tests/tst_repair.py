@@ -86,6 +86,11 @@ def r4_runtime():
     sorry = [o for o in rt.out[n:] if o == repair.APOLOGY]
     check("one apology was said", len(sorry) == 1, str(rt.out[n:]))
     check("repair mode is on and the brain carries the note", rt.repair.active(rt.clock()) and "frustrated" in str(getattr(rt.brain, "repair_note", "")))
+    m0 = len(rt.ash.calls) if hasattr(rt, "ash") and hasattr(rt.ash, "calls") else 0
+    o0 = len(rt.out)
+    rt.say("Ugh.", source="console")
+    rt.say("hmm", source="console")
+    check("a backchannel sound gets no answer and no model turn", len(rt.out) == o0 and (not hasattr(rt, "ash") or not hasattr(rt.ash, "calls") or len(rt.ash.calls) == m0), str(rt.out[o0:]))
     check("no thinking filler while it is on", rt._thinking_cue(True) is None)
     rt.say("thanks", source="console")
     check("a thanks ends it and clears the note", not rt.repair.active(rt.clock()) and getattr(rt.brain, "repair_note", "x") == "")
