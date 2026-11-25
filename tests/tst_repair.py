@@ -100,6 +100,15 @@ def r4_runtime():
     rt.say("Ugh.", source="console")
     rt.say("hmm", source="console")
     check("a backchannel sound gets no answer and no model turn", len(rt.out) == o0 and (not hasattr(rt, "ash") or not hasattr(rt.ash, "calls") or len(rt.ash.calls) == m0), str(rt.out[o0:]))
+    seen = []
+    rt.face = NS(on_feeling=lambda a: seen.append(a))
+    rt._repair_shown = False
+    rt._repair_face(True)
+    rt._repair_face(True)
+    check("the face looks sorry while it is on, once", seen == ["sad"], str(seen))
+    rt._repair_face(False)
+    check("and goes back when it ends", seen == ["sad", ""], str(seen))
+    rt.face = None
     check("no thinking filler while it is on", rt._thinking_cue(True) is None)
     rt.say("thanks", source="console")
     check("a thanks ends it and clears the note", not rt.repair.active(rt.clock()) and getattr(rt.brain, "repair_note", "x") == "")

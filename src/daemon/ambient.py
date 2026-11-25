@@ -1531,11 +1531,26 @@ class AmbientRuntime:
         try:
             apology = r.hear(text, now)
             self.brain.repair_note = r.note(now)
+            self._repair_face(r.active(now))
             if apology:
                 logger.info("Repair mode on: %r", text[:80])
                 self._speech_say(apology, "repair")
         except Exception:
             logger.exception("Repair mode failed")
+
+    _repair_shown = False
+
+    def _repair_face(self, active: bool):
+        """The face follows the person: a sorry look while repair mode is on, back to the usual when it ends (the feelings step puts its own back)."""
+        if active == self._repair_shown:
+            return
+        self._repair_shown = active
+        face = getattr(self, "face", None)
+        if face is not None and hasattr(face, "on_feeling"):
+            try:
+                face.on_feeling("sad" if active else "")
+            except Exception:
+                logger.debug("face did not take the repair look", exc_info=True)
 
     def _refresh_about_you(self, now: float):
         """The model is told, in a few lines, what ASH really is and can do (selfmodel.block) -- refreshed once a minute."""
