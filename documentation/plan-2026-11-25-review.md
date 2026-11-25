@@ -1,5 +1,9 @@
 # Fix and feature plan for review -- from the 25 Nov 14:00-15:12 interaction
 
+**Status (after review): implemented, each with its own test and commit, except F8 (the repeat guard misfire was not reproducible in the log), F11 (the slow
+answers were the reasoning model and CPU load, already fixed; no hard cap added) and F12 (the name migration needs a decision on which name to keep).
+N1 was widened to the whole computer: keys, mouse, scroll, typing, click-on-text from the screen, connected devices.**
+
 Nothing here is implemented yet. Each item: what went wrong (seen in the journal / ashd.log), how to implement, the test, and size
 (S = under an hour, M = a few hours, L = a day). Every item would be its own commit with its own test, pushed alone.
 
