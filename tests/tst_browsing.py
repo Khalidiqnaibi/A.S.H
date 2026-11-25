@@ -171,7 +171,7 @@ def t4_runtime():
         touched = []
 
         def __getattr__(self, n):
-            if n == "pop_notice":
+            if n in ("pop_notice", "_ollama_model", "_light_model", "_mode", "_said_notices"):      # read by the model notice and the self-model, not asks
                 raise AttributeError(n)        # asked for with getattr(): not there, not 'touched'
             Boom.touched.append(n)
             raise AssertionError(f"the model was touched: {n}")
