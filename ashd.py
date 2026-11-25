@@ -382,6 +382,7 @@ def main() -> int:
                 feelings_path=os.path.join(os.getcwd(), "state", "feelings.json"),
                 repair=bool(cfg.get("repair", {}).get("enabled", True)),
                 repair_path=os.path.join(os.getcwd(), "state", "failures.jsonl"),
+                inventory_path=os.path.join(os.getcwd(), "state", "apps.json"),
                 fun=bool(cfg.get("fun", {}).get("enabled", True)),
                 fun_path=os.path.join(os.getcwd(), "state", "fun.json"),
                 jokes_path=os.path.join(os.getcwd(), "state", "jokes.json"),

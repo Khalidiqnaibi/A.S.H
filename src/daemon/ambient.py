@@ -64,7 +64,7 @@ from .lookup import Lookup, LookupConfig
 from .routines import Routines, RoutinesConfig
 from .briefing import BriefingConfig, Briefings, asked_for_briefing
 from .watch import WatchConfig, Watcher
-from .desktop import Desktop, DesktopConfig
+from .desktop import Desktop, DesktopConfig, _norm as _desktop_norm
 from .research import Research, ResearchActivity, ResearchConfig
 from .explain import asked_why, asks_source, explain, source_reply
 from . import remember as remembering
@@ -78,6 +78,7 @@ from .reminders import Reminders
 from .play import Bored, DailyTrivia, IdleRiddle, Play, Story
 from .media import Media, MediaConfig
 from .control import Control, ControlConfig
+from .inventory import Inventory
 from .remarks import RemarkLog
 from .speech import SpeechControl, wants_brief, wants_cancel, wants_short, wants_stop
 from .tasks import Tasks
@@ -313,6 +314,7 @@ class AmbientConfig:
     feelings: bool = False
     feelings_path: Optional[str] = None
     repair: bool = True                          # frustration changes the behaviour (repair.py)
+    inventory_path: Optional[str] = None         # state/apps.json: the installed apps and games, read once a day (inventory.py)
     repair_path: Optional[str] = None            # where the lines that led to it are kept (state/failures.jsonl)
     # BMO-style play: jokes, made-up songs, inside jokes remembered from what made you laugh (fun.py).
     fun: bool = False
@@ -657,6 +659,7 @@ class AmbientRuntime:
         if self.cfg.media:
             self.media = Media(MediaConfig.from_dict(self.cfg.media_cfg),
                                episodic=getattr(self.ash, "episodic_memory", None), clock=lambda: self.clock())
+        self.inventory: Optional[Inventory] = Inventory(path=self.cfg.inventory_path) if self.cfg.inventory_path else None
         # The keyboard, the mouse and the screen by voice (control.py): on with the media keys unless daemon.json control.enabled is false.
         self.control: Optional[Control] = None
         if self.cfg.media and (self.cfg.media_cfg or {}).get("control", True):
@@ -2149,6 +2152,27 @@ class AmbientRuntime:
             ev.addressed = True
             return False
         self._wonder_say(ev, type("R", (), {"say": r["say"], "outcome": "play"})())
+        return True
+
+    def _inventory_request(self, ev, now: float) -> bool:
+        """"What games do I have", "do I have Blender installed", "open Cyberpunk": from what is installed (inventory.py), not a model's guess. Opening is only
+        for a name the desktop rules don't know."""
+        inv = getattr(self, "inventory", None)
+        if inv is None or not self._user_source(ev) or self._is_guest(ev) or not self._meant_for_ash(ev):
+            return False
+        d = self.desktop
+        known = (lambda n: False) if d is None else (lambda n: _desktop_norm(n) in d.apps)
+        try:
+            from src.senses.mic import MicrophoneSensor
+            text = MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or "")) or str(getattr(ev, "text", "") or "")
+            say = inv.hear(text, known, now)
+        except Exception:
+            logger.exception("Installed-apps lookup failed")
+            return False
+        if not say:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "asked", "query": str(getattr(ev, "text", ""))[:80]}
         return True
 
     def _front_title(self) -> str:
@@ -4803,6 +4827,8 @@ class AmbientRuntime:
             return True
         if self._desktop_request(ev, now):
             return True
+        if self._inventory_request(ev, now):
+            return True
         if self._scene_request(ev, now):
             return True
         if self._persona_request(ev, now):
@@ -6197,6 +6223,7 @@ class AmbientRuntime:
             "play": self.play.status() if self.play else None,
             "media": self.media.status() if self.media else None,
             "control": self.control.status() if getattr(self, "control", None) else None,
+            "inventory": self.inventory.status() if getattr(self, "inventory", None) else None,
             "remarks": {"logging": self.remarks is not None},
             "focus": self.focus.status() if self.focus else None,
             "weather": self.weather.status() if self.weather else None,
