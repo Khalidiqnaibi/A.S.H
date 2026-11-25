@@ -33,6 +33,15 @@ def r1_signals():
     check("the same question twice is one", r.score("what is the weather like today", "what is the weather like today")[0] == 1.0)
 
 
+def r1b_shorten():
+    print("\n=== R1b. The reply is cut to one sentence ===")
+    check("feelings talk and the offer go, the answer stays",
+          repair.shorten("You seem frustrated, let's try a different approach. The model is qwen2.5:3b. How about we look up something fun together?") == "The model is qwen2.5:3b.")
+    check("an answer that is only a question back is 'I don't know'", repair.shorten("Could you tell me more? How can I help?") == repair.NOTHING)
+    check("only the first answer sentence is kept", repair.shorten("It is ten past two. It was ten past one an hour ago.") == "It is ten past two.")
+    check("empty is 'I don't know'", repair.shorten("") == repair.NOTHING)
+
+
 def r2_threshold():
     print("\n=== R2. Enough of them, in time ===")
     t = [0.0]
@@ -115,6 +124,7 @@ def r5_prompt():
 
 if __name__ == "__main__":
     r1_signals()
+    r1b_shorten()
     r2_threshold()
     r3_log()
     r4_runtime()

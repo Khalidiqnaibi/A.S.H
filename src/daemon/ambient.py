@@ -90,6 +90,7 @@ from . import browsing as browsing_mod
 from . import looking as looking_mod
 from . import uxreport
 from . import modelpick
+from . import repair as repair_mod
 from . import personas, rituals
 from .repeat import RepeatGuard
 from .context import Context
@@ -1000,6 +1001,15 @@ class AmbientRuntime:
             if clean != text:
                 logger.info("Took something out of a model answer: %r", text[:120])
             text = clean.strip() or "I'm not sure how to help with that."
+            try:
+                if self.repair is not None and meta.get("addressed") and self.repair.active(self.clock()):
+                    short = repair_mod.shorten(text)         # a small model ignores "answer in a sentence": the reply is cut to one (repair.py)
+                    if short != text:
+                        logger.info("Repair mode: cut a model answer %r -> %r", text[:100], short)
+                        self.repair.stats["nothing"] += short == repair_mod.NOTHING
+                    text = short
+            except Exception:
+                logger.exception("Repair shortening failed")
         if text and self._capture is None:
             try:
                 if (meta.get("addressed") and str(meta.get("pathway", "")).lower() == "slow"

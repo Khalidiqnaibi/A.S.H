@@ -129,6 +129,21 @@ class Repair:
         return {"active": self.active(), **self.stats}
 
 
+# What a small model says to a frustrated person despite being told not to (25 Nov 13:00-15:10): a comment on the feeling, a different approach,
+# a question back, an offer. Each sentence like that is cut; the first real sentence stays, and nothing else.
+_FLUFF = re.compile(r"(?:\byou\s+(?:seem|sound|appear|look)\s+(?:frustrated|upset|annoyed|angry)|\blet'?s\s+(?:try|take|look|see|do)\b|\bhow\s+about\b|"
+                    r"\bwould\s+you\s+like\b|\bhow\s+(?:can|may|might)\s+i\b|\bfeel\s+free\b|\bi'?m\s+(?:here|happy|glad)\s+to\s+help\b|"
+                    r"\bis\s+there\s+anything\b|\bdifferent\s+approach\b|\bi\s+understand\b|\bi\s+apologi[sz]e\b|\bsorry\s+for\b|\bmy\s+apologies\b|"
+                    r"\banything\s+else\b|\bwhat\s+(?:else|would)\b|\bdo\s+you\s+want\b)", re.I)
+
+
+def shorten(text: str) -> str:
+    """The reply while repair mode is on: the first sentence that is an answer -- no feelings talk, no offers, no question back. Nothing left: NOTHING."""
+    parts = [x.strip() for x in re.split(r"(?<=[.!?])\s+", (text or "").strip()) if x.strip()]
+    keep = [x for x in parts if not x.endswith("?") and not _FLUFF.search(x)]
+    return keep[0] if keep else NOTHING
+
+
 def _same(a: str, b: str) -> bool:
     from difflib import SequenceMatcher
     wa = re.findall(r"[a-z0-9']+", a.lower())
