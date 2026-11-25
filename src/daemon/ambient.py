@@ -1423,9 +1423,16 @@ class AmbientRuntime:
         if sensor is None:
             return None
         try:
-            return float(sensor.seconds_idle())
+            idle = float(sensor.seconds_idle())
         except Exception:
             return None
+        # 25 Nov: watching a video for twenty minutes (no key, no mouse) was "away" -- the welcome-back came, the time was not counted as theirs.
+        # Something playing on the computer is someone watching it.
+        if self._playing and idle > self.WATCHING_IDLE_S:
+            return self.WATCHING_IDLE_S
+        return idle
+
+    WATCHING_IDLE_S = 60.0
 
     def _known_others(self):
         """The first names of the people ASH was told about, so a line said to one of them is not taken as said to ASH."""
