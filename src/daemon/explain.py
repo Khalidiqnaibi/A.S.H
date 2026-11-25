@@ -34,6 +34,17 @@ _ASKED = re.compile(
     r"|^\s*what made you (?:say|ask|do) (?:that|this)\s*\??\s*$", re.I)
 
 
+# "Why did you say the one before it?" -- the answer before the last, not the last (25 Nov: it explained the last line only).
+_BEFORE = re.compile(
+    r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:but\s+|so\s+)?(?:why|how\s+come)\s+(?:(?:did|do|were|would)\s+)?you\s+(?:say|said|answer(?:ed)?|tell\s+me|told\s+me)\s+"
+    r"(?:the\s+one|what\s+you\s+said|that\s+answer|the\s+answer)\s+before(?:\s+(?:that|it|this))?\s*\??\s*$", re.I)
+
+
+def asks_before(text: str) -> bool:
+    t = (text or "").strip()
+    return bool(t) and bool(_BEFORE.match(t))
+
+
 _DID_IT = re.compile(
     r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:so|and|but|wait|ok(?:ay)?)[,\s]+)?(?:did\s+you\s+(?:actually\s+|really\s+|just\s+)?"
     r"(?:do|make|finish|manage|get)\s+(?:it|that|this)|did\s+(?:it|that|this)\s+(?:work|happen|go\s+through)|is\s+(?:it|that)\s+done|"

@@ -47,7 +47,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Any, Callable, Deque, Dict, List, Optional
+from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
 
 from src.senses import address
 from src.senses.base import Modality, SensorEvent, State
@@ -453,6 +453,9 @@ def _as_you(sentence: str) -> str:
     s = re.sub(r"\bthe user's\b", "your", s)
     s = re.sub(r"\bthe user\b", "you", s, flags=re.I)
     return re.sub(r"\byou (loves|likes|hates|dislikes)\b", lambda m: "you " + m.group(1)[:-1], s)
+
+
+_WAIT_FILLERS = frozenset(("let me see.", "give me a second.", "one moment.", "hmm.", "let me think.", "just a second.", "let me check.", "one sec."))
 
 
 class AmbientRuntime:
@@ -877,6 +880,7 @@ class AmbientRuntime:
         self.stats["corrections"] = 0
         self._last_turn: Optional[Dict[str, Any]] = None     # what ASH last answered, and as what
         self._last_why: Optional[Dict[str, Any]] = None      # why ASH said its last thing ("why?")
+        self._why_hist: Deque[Tuple[str, Optional[Dict[str, Any]]]] = deque(maxlen=10)
         self._mood_seen: Any = None                          # the brain sentiment reading last folded in
         self.undo = UndoStack(clock=lambda: self.clock())   # "undo that": what was last learned or set up
         self.focus: Optional[Focus] = Focus(clock=lambda: self.clock(), path=self.cfg.focus_path) if self.cfg.focus else None
@@ -1020,6 +1024,11 @@ class AmbientRuntime:
                     self.repeat.note(text)                  # a rule's line: said, but never trimmed
             except Exception:
                 logger.exception("Repeat guard failed")
+        if text and meta.get("pathway") != "explain" and meta.get("outcome") != "thinking_cue" and str(text).strip().lower() not in _WAIT_FILLERS:
+            try:
+                self._why_hist.append((text, dict(self._last_why) if self._last_why else None))      # why each thing was said: "why the one before it"
+            except Exception:
+                pass
         if self.context is not None and text and self._capture is None and meta.get("outcome") != "thinking_cue":
             try:
                 self.context.said(text)
@@ -5771,9 +5780,17 @@ class AmbientRuntime:
         text = str(getattr(ev, "text", "") or "")
         from . import explain as explain_mod
         did_it, slow = explain_mod.asks_did_it(text), explain_mod.asks_slow(text)
-        if not self._user_source(ev) or not (asked_why(text) or asks_source(text) or did_it or slow):
+        before = explain_mod.asks_before(text)
+        if not self._user_source(ev) or not (before or asked_why(text) or asks_source(text) or did_it or slow):
             return False
         try:
+            if before:
+                hist = list(getattr(self, "_why_hist", ()))
+                say = explain(hist[-2][1]) if len(hist) >= 2 else "I haven't said anything before that that I can explain."
+                self.response_sink(say, {"addressed": True, "source": "explain", "attention": None, "pathway": "explain"})
+                address.conversation.note_ash_spoke(self.clock(), asked=False)
+                self.gate.note_user_turn()
+                return True
             if did_it or slow:
                 mem = None
                 try:
