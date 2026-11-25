@@ -593,6 +593,9 @@ def main() -> int:
         # "Shut down" said to ASH: after the goodbye is spoken, the main loop
         # below ends and runs the same shutdown as Ctrl-C.
         runtime.request_shutdown = lambda: threading.Timer(3.0, quit_requested.set).start()
+        # "Restart yourself" said to ASH: the same shutdown, then the program is started again (below, after the lock is released).
+        restart_flag = threading.Event()
+        runtime.request_restart = lambda: (restart_flag.set(), threading.Timer(3.0, quit_requested.set).start())
 
         def _save_aliases(names):
             from src.daemon.service import CONFIG_FILE  # noqa: E402
@@ -655,6 +658,14 @@ def main() -> int:
         pass
     finally:
         shutdown()
+    if restart_flag.is_set():
+        try:
+            import subprocess
+            subprocess.Popen([sys.executable] + sys.argv, close_fds=True,
+                             creationflags=(getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)))
+            logger.info("Restarting: started a new ASH")
+        except Exception:
+            logger.exception("Could not start ASH again")
 
     return 0
 

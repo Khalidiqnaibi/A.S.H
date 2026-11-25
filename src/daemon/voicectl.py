@@ -59,6 +59,8 @@ _RULES = [
               r"be\s+quiet\s+for\s+a\s+(?:while|bit)|stop\s+talking\s+for\s+a\s+while"),
     ("wake", r"wake\s+up|you\s+can\s+talk\s+again|un-?mute(?:\s+yourself)?|end\s+quiet\s+mode"),
     ("shutdown", r"(?:turn|shut|power)\s+(?:yourself\s+)?(?:off|down)|shut\s*down|go\s+offline|switch\s+(?:yourself\s+)?off"),
+    # "restart yourself" / "restart ASH": the same ask-first as a shutdown, then the program starts again. (Not "restart the computer".)
+    ("restart", r"(?:restart|reboot|relaunch|reset)\s+(?:yourself|ash|the\s+(?:assistant|daemon))|start\s+yourself\s+(?:again|over)"),
     ("faces", r"(?:what|which)\s+(?:faces|expressions|animations|emotes?|emotions)\s+(?:do\s+you\s+have|can\s+you\s+(?:do|make|show))"
               r"|show\s+me\s+(?:your|the|all\s+(?:your|the))\s+(?:faces|expressions|animations|emotes?)"
               r"|(?:list|show)\s+(?:your\s+)?(?:faces|expressions|animations|emotes?)"),
@@ -158,7 +160,7 @@ class Command:
     @property
     def turns_on(self) -> bool:
         """Turning something on (or showing a face) needs a line meant for ASH."""
-        return self.name in ("privacy_off", "mic_on", "camera_on", "screen_on", "wake", "shutdown", "face", "faces",
+        return self.name in ("privacy_off", "mic_on", "camera_on", "screen_on", "wake", "shutdown", "restart", "face", "faces",
                              "status")
 
 

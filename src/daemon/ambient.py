@@ -5552,13 +5552,16 @@ class AmbientRuntime:
                 from . import yesno
                 cmd0 = voicectl.parse(text)
                 # any ordinary yes, or saying "shut down" again
-                confirmed = yesno.is_yes(text) or getattr(cmd0, "name", "") == "shutdown"
+                confirmed = yesno.is_yes(text) or getattr(cmd0, "name", "") in ("shutdown", "restart")
             if confirmed:
-                req = getattr(self, "request_shutdown", None)
+                restart = bool(getattr(self, "_restart_wanted", False))
+                req = getattr(self, "request_restart", None) if restart else getattr(self, "request_shutdown", None)
+                if restart and req is None:
+                    return self._control_say(ev, "I can't restart myself from here -- use the console's stop and start me again.")
                 if req is None:
                     return self._control_say(ev, "I can't switch myself off from here -- use the console's stop, or "
                                                  "Ctrl-C where I'm running.")
-                self._control_say(ev, "Shutting down. Bye.")
+                self._control_say(ev, "Restarting. Back in a minute." if restart else "Shutting down. Bye.")
                 with self._cancel_lock:                  # an answer still being worked out is not said after "Bye."
                     if self._thinking:
                         self._cancelled = True
@@ -5653,7 +5656,13 @@ class AmbientRuntime:
         elif name == "shutdown":
             self._shutdown_asked = now
             self._shutdown_nudged = False
+            self._restart_wanted = False
             say = "Shut ASH down completely? Say yes to confirm."
+        elif name == "restart":
+            self._shutdown_asked = now
+            self._shutdown_nudged = False
+            self._restart_wanted = True
+            say = "Restart ASH? It takes about a minute to come back. Say yes to confirm."
         elif name == "face":
             face = getattr(self, "face", None)
             player = getattr(face, "player", None)
