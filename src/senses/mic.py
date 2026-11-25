@@ -93,6 +93,11 @@ def is_loop(text: str) -> bool:
     I'm not sure if I'm going to work with Ash, ..."). A person does not say one phrase three times running as a request, and
     the lines were answered as if they were."""
     w = re.findall(r"[a-z0-9']+", (text or "").lower())
+    # 25 Nov 15:09: 'Iqnaibi, Iqnaibi, Iqnaibi, Iqnaibi, Iqnaibi,' -- one word on repeat (five words, under the old six-word floor) reached the rules.
+    if len(w) >= 5:
+        top = max(w.count(x) for x in set(w))
+        if top >= 5 and top >= 0.7 * len(w):
+            return True
     if len(w) < 6:
         return False
     for n in range(2, len(w) // 3 + 1):

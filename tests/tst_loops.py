@@ -27,6 +27,8 @@ def l1_mic():
     live = "I'm not sure if I'm going to work with Ash, I'm not sure if I'm going to work with Ash, I'm not sure if I'm going to work with Ash."
     check("the live loop is one", is_loop(live))
     check("two repeats are not (people do say things twice)", not is_loop("I'm not sure if I'm going to work with Ash, I'm not sure if I'm going to work with Ash."))
+    check("one word said five times is (25 Nov 15:09: 'Iqnaibi, Iqnaibi, Iqnaibi, Iqnaibi, Iqnaibi,')", is_loop("Iqnaibi, Iqnaibi, Iqnaibi, Iqnaibi, Iqnaibi,"))
+    check("...but not a word said in a real sentence", not is_loop("no no no no, remind me tomorrow"))
     check("a short repeat is not", not is_loop("no no no no"))
     check("ordinary speech is not", not is_loop("Can you check my calendar for tomorrow and then remind me about the dentist at ten?"))
     check("a request with a repeated word is not", not is_loop("please please please remind me to call mom at five o'clock today"))
