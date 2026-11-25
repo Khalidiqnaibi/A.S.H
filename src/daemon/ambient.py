@@ -79,6 +79,7 @@ from .play import Bored, DailyTrivia, IdleRiddle, Play, Story
 from .media import Media, MediaConfig
 from .control import Control, ControlConfig
 from .inventory import Inventory
+from . import digest as digest_mod
 from .remarks import RemarkLog
 from .speech import SpeechControl, wants_brief, wants_cancel, wants_short, wants_stop
 from .tasks import Tasks
@@ -2187,6 +2188,16 @@ class AmbientRuntime:
         if not say:
             return False
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "asked", "query": str(getattr(ev, "text", ""))[:80]}
+        return True
+
+    def _digest_request(self, ev, now: float) -> bool:
+        """"What went wrong today?": the failures and model-bound lines of the last day, counted from the files ASH keeps (digest.py)."""
+        if not self._user_source(ev) or self._is_guest(ev) or not self._meant_for_ash(ev):
+            return False
+        if not digest_mod.asks_digest(str(getattr(ev, "text", "") or "")):
+            return False
+        self._wonder_say(ev, type("R", (), {"say": digest_mod.say(self.cfg.repair_path, self.cfg.unrouted_path, time.time()), "outcome": "desktop"})())
         self._last_why = {"kind": "asked", "query": str(getattr(ev, "text", ""))[:80]}
         return True
 
@@ -4766,6 +4777,8 @@ class AmbientRuntime:
             return True
         if not loose and self._away_request(ev, now):
             return True
+        if not loose and self._digest_request(ev, now):
+            return True
         if not loose and self._read_aloud_request(ev, now):
             return True
         if not loose and self._working_request(ev, now):
@@ -6181,6 +6194,12 @@ class AmbientRuntime:
             report["unrouted_groups"] = self.unrouted.write_suggestions(getattr(self.cfg, "chooser_embed", None))
         except Exception:
             logger.exception("Writing the unrouted suggestions failed")
+        try:
+            if self.cfg.repair_path:                    # the day's failures and model-bound lines as a file (digest.py)
+                report["digest"] = digest_mod.write(os.path.join(os.path.dirname(os.path.abspath(self.cfg.repair_path)), "digest"),
+                                                    self.cfg.repair_path, self.cfg.unrouted_path)
+        except Exception:
+            logger.exception("Writing the digest failed")
         try:
             from ..senses.screen import SCREEN_DIR
             report["privacy_sweep"] = self.privacy.sweep(self.journal.dir, SCREEN_DIR)
