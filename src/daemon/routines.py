@@ -102,6 +102,8 @@ class Routines:
         self._seq: List[str] = []
         self._seq_start = 0.0
         self._seq_done = True
+        self.opened_with: Optional[str] = None        # the app a fresh sitting began with, until the runtime has looked at it (rest_for)
+        self._offered: Dict[str, str] = {}            # app -> the day the rest of its set was last offered
         self.stats = {"sittings": 0, "recorded": 0, "asked": 0}
         self._load()
 
@@ -168,6 +170,8 @@ class Routines:
             if fresh:
                 self._seq, self._seq_start, self._seq_done = [], now, False
                 self.stats["sittings"] += 1
+                if usable:
+                    self.opened_with = app
             self._last_event = now
             # (the tick above has already closed an opening whose window passed)
             if not app or stem in IGNORE or _norm(app) in IGNORE or self._seq_done:
@@ -227,6 +231,29 @@ class Routines:
                 del self.together[k]
         self._maybe_ask_together(end)
         self.save()
+
+    def rest_for(self, app: str, now: Optional[float] = None, running=None) -> Optional[Dict[str, Any]]:
+        """The apps that usually go with `app` and are not open: {"app": the one to offer, "with": app, "days": how many days it was seen, "others": the
+        rest}. From the sets used together on at least `min_days` days; the best-seen first. Once a day per app, and nothing when it is all open already."""
+        now = self.clock() if now is None else now
+        day = datetime.fromtimestamp(now).strftime("%Y-%m-%d")
+        with self._lock:
+            if not self.cfg.enabled or not app or self._offered.get(app) == day:
+                return None
+            score: Dict[str, int] = {}
+            for r in self.together.values():
+                if app not in r["apps"] or len(r["apps"]) < 2 or len(r["days"]) < self.cfg.min_days:
+                    continue
+                for other in r["apps"]:
+                    if other != app:
+                        score[other] = max(score.get(other, 0), len(r["days"]))
+            if running is not None:
+                score = {a: d for a, d in score.items() if not running(a)}
+            if not score:
+                return None
+            ranked = sorted(score, key=lambda a: -score[a])
+            self._offered[app] = day
+            return {"app": ranked[0], "with": app, "days": score[ranked[0]], "others": ranked[1:]}
 
     def candidate_together(self) -> Optional[Dict[str, Any]]:
         ok = [r for r in self.together.values() if len(r["days"]) >= self.cfg.min_days and not r.get("asked")]

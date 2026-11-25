@@ -4598,6 +4598,7 @@ class AmbientRuntime:
         if self.routines is not None:
             try:
                 self.routines.observe(ev, now)
+                self._habit_offer(now)
             except Exception:
                 logger.exception("Routines failed on an event")
         if (self.followups is not None and not guest and getattr(ev, "source", "") != "flow"
@@ -5586,6 +5587,26 @@ class AmbientRuntime:
             else:
                 ev._lane_skip = True              # not for us after all: the loop gets it, in order
                 self.submit(ev)
+
+    def _habit_offer(self, now: float) -> None:
+        """A sitting began with an app that usually has another one going with it (routines.py: sets seen together on several days): offered, once a day
+        per app -- "You usually have Spotify going with VS Code. Open it?" -- and done on a yes, through the desktop's own say-back. Not muted, paused, quiet."""
+        r, d = self.routines, self.desktop
+        app = getattr(r, "opened_with", None)
+        if r is None or not app:
+            return
+        r.opened_with = None
+        if (d is None or not getattr(d.cfg, "enabled", False) or self.gate.muted or self.privacy.paused or self.gate._in_quiet_hours(now)
+                or getattr(self, "_capture", None) is not None):
+            return
+        got = r.rest_for(app, now, running=lambda a: bool(d._app(a) and d._running(d._app(a)[2])))
+        if not got or d._app(got["app"]) is None or getattr(d, "_pending", None) is not None:
+            return
+        shown = d._app(got["app"])[0]
+        d._say_back = (f"open {shown}", now)
+        say = f"You usually have {got['app']} going with {got['with']}. Open it?"
+        self.response_sink(say, {"addressed": False, "source": "habit", "attention": None, "pathway": "wonder", "outcome": "habit"})
+        self._last_why = {"kind": "habit", "query": got["with"]}
 
     def _slow_note(self, cold: bool) -> str:
         """Why a model call may have been slow, in words, for the digest: the model had to be loaded, the machine was squeezed, memory or CPU were high."""

@@ -181,6 +181,31 @@ def asked(r, w):
     return q
 
 
+def r2c_rest():
+    print("\n=== R2c. Open one, be offered the one that goes with it ===")
+    r, w = rrig()
+    day = [("code.exe", 10), ("chrome.exe", 6), ("code.exe", 8)]
+    for d in range(3):
+        worked(r, MORNING + d * DAY, day)
+    r.observe(win("code.exe"), MORNING + 3 * DAY)               # the third sitting is closed; a fourth begins with code
+    check("a sitting that began with an app is noted for the runtime", r.opened_with is not None, str(r.opened_with))
+    now = MORNING + 3 * DAY
+    got = r.rest_for("VS Code", now) or r.rest_for(r.opened_with, now)
+    check("the usual companion is offered, with how many days", got is not None and got["with"] in ("VS Code", r.opened_with) and got["days"] >= 3, str(got))
+    check("and only once a day", r.rest_for(got["with"], now + 60) is None)
+    check("the next day it may be offered again", r.rest_for(got["with"], now + DAY + 60) is not None)
+    r2, w2 = rrig()
+    for d in range(3):
+        worked(r2, MORNING + d * DAY, day)
+    r2.observe(win("code.exe"), MORNING + 3 * DAY)
+    check("already open: nothing to offer", r2.rest_for(r2.opened_with, MORNING + 3 * DAY, running=lambda a: True) is None)
+    r3, w3 = rrig()
+    worked(r3, MORNING, day)
+    r3.observe(win("code.exe"), MORNING + DAY)
+    check("one day is not a habit: nothing offered", r3.rest_for(r3.opened_with, MORNING + DAY) is None)
+    check("an unknown app: nothing", r.rest_for("Paint", now) is None)
+
+
 def r3_answers():
     print("\n=== R3. Asking and answering ===")
     r, w = rrig()
@@ -291,7 +316,7 @@ def r5_runtime():
 
 
 if __name__ == "__main__":
-    for fn in (r1_watching, r2_noticing, r2b_together, r3_answers, r4_persist, r5_runtime):
+    for fn in (r1_watching, r2_noticing, r2b_together, r2c_rest, r3_answers, r4_persist, r5_runtime):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)
