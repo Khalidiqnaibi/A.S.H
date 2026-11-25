@@ -2492,6 +2492,27 @@ class AmbientRuntime:
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
         return True
 
+    # A line that stops on a word nothing can end on ("What's the latest update on", "tell me about the"): the recogniser cut the end off, or the person
+    # did. It went to the model, which answered a guess in 47 s. Asked what the rest was, once, by rule.
+    _DANGLING = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:.+\s)?(?:on|of|about|for|to|the|a|an|with|in|at|and|or|but|from|by|my|into|onto)\s*[.,\-\u2026]*\s*$", re.I)
+
+    def _dangling_request(self, ev, now: float) -> bool:
+        if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "").strip()
+        words = text.split()
+        if not (3 <= len(words) <= 10) or text.endswith(("?", "!")) or not self._DANGLING.match(text):
+            return False
+        if getattr(self, "_told_dangling", None) == text.lower():
+            return False                                    # said the same cut-off line again: let it through
+        self._told_dangling = text.lower()
+        last = re.sub(r"[^\w']+$", "", words[-1]).lower()
+        say = {"on": "On what? I lost the end of that.", "about": "About what? I lost the end of that.", "of": "Of what? I lost the end of that.",
+               "for": "For what? I lost the end of that."}.get(last, "I only caught part of that -- say the rest?")
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
+        self._last_why = {"kind": "asked", "query": text[:80]}
+        return True
+
     def _statement_request(self, ev, now: float) -> bool:
         """The user says what they are doing ("I'm just building my custom hardware chip"): acknowledged in a line, and kept as what they
         said -- by rule, with no model (statements.py). The last rule but one, so everything with a use for the line has had it first."""
@@ -4937,6 +4958,8 @@ class AmbientRuntime:
                 self._wonder_say(ev, type("R", (), {"say": said, "outcome": "moment"})())
                 return True
         if not loose and self._courtesy_request(ev, now):
+            return True
+        if not loose and self._dangling_request(ev, now):
             return True
         if not loose and self._statement_request(ev, now):
             return True
