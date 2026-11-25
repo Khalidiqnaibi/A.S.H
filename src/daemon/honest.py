@@ -218,7 +218,7 @@ SEEDS = {
 
 
 _SELF = re.compile(_A + r"(?:what(?:'s|\s+is)\s+your\s+name(?:\s+again)?|who\s+are\s+you(?:\s+(?:exactly|again))?|what\s+are\s+you(?:\s+called)?|"
-                   r"tell\s+me\s+(?:about\s+yourself|who\s+you\s+are)|introduce\s+yourself|what\s+should\s+i\s+call\s+you|"
+                   r"tell\s+me\s+(?:more\s+)?(?:about\s+(?:yourself|ash)|who\s+you\s+are)|who\s+is\s+ash|introduce\s+yourself|what\s+should\s+i\s+call\s+you|"
                    r"who\s+am\s+i\s+talking\s+to|do\s+you\s+have\s+a\s+name|describe\s+yourself)" + _Z, re.I)
 
 
