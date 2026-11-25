@@ -5005,9 +5005,12 @@ class AmbientRuntime:
                            "tool": getattr(response, "tool_used", None), "t": now}
         self._follow_mood(now)
         pw = getattr(response, "pathway", None)
+        nar = getattr(getattr(self.brain, "system2", None), "last_narration", None) or {}
         self._last_why = {"kind": "answer", "query": prompt[:80], "intent": intent,
                           "tool": getattr(response, "tool_used", None),
-                          "pathway": str(getattr(pw, "value", pw or ""))}
+                          "pathway": str(getattr(pw, "value", pw or "")),
+                          # whether a model call really wrote the words ("verbatim"/"rule": no; "llm": yes), from the narration itself
+                          "narration": str(nar.get("mode", "")), "model_calls": nar.get("calls")}
 
     def _follow_mood(self, now: float):
         """The brain ran its sentiment model on what the user just asked: fold

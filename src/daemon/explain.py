@@ -170,6 +170,8 @@ def source_reply(why: Optional[Dict[str, Any]]) -> str:
             return "That was a repeat of what I'd just said, not a new look-up."
         return ("That was my language model answering from what it was trained on -- I didn't look it up or take "
                 "it from your files or memory. It can be out of date or wrong, so check it if it matters.")
+    if kind == "self":
+        return "That came from my own live state -- the model I loaded, this machine, what I hold in memory -- not from the language model."
     if kind == "answered":
         return "That came from what you'd just told me, not from the language model."
     if kind in ("asked", "watch", "stopped", "correction"):
@@ -191,12 +193,20 @@ def explain(why: Optional[Dict[str, Any]]) -> str:
         intent = str(why.get("intent") or "")
         tool = str(why.get("tool") or "")
         how = _PATHWAY.get(str(why.get("pathway", "")), "")
+        mode, calls = str(why.get("narration", "")), why.get("model_calls")
+        no_model = mode in ("verbatim", "rule") or (calls == 0 and mode != "")
         if intent and intent != "conversation":
             s = f"You asked \"{q}\", and I read it as {intent.replace('_', ' ')}"
             s += f", so I used the {tool.replace('_', ' ')} tool." if tool else "."
         else:
             s = f"You said \"{q}\", and I took it as conversation, so I just replied."
+        if tool and no_model:
+            return s + " The words are the tool's own -- the language model wasn't used."          # (it said "thinking it through" on a tool-only turn)
+        if tool and mode == "llm":
+            return s + " The language model then put the tool's result into words."
         return s + (f" The reply came from {how}." if how else "")
+    if kind == "self":
+        return "You asked about me, so I answered from my own live state -- the model I loaded, this machine and what I hold in memory -- not from the language model."
     if kind == "wonder":
         w = why.get("wonder") or {}
         n = int(w.get("mentions", 1) or 1)

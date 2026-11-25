@@ -199,8 +199,26 @@ def e4_did_it_and_slow():
     check("in the runtime, from the record, no model", h.said() and "haven't done anything yet" in h.said()[-1] and not h.ash.calls, str(h.said()))
 
 
+def e5_no_model_said_right():
+    print("\n=== E5. A turn with no model call is not explained as one ===")
+    from src.daemon import explain
+    tool_only = {"kind": "answer", "query": "What's the temperature today?", "intent": "system_stats", "tool": "system_stats", "pathway": "slow",
+                 "narration": "verbatim", "model_calls": 0}
+    s = explain.explain(tool_only)
+    check("tool-only turn: 'the language model wasn't used'", "system stats tool" in s and "wasn't used" in s and "thinking it through" not in s, s)
+    zero = dict(tool_only, narration="llm", model_calls=0)
+    check("zero model calls, whatever the mode label", "wasn't used" in explain.explain(zero), explain.explain(zero))
+    worded = dict(tool_only, narration="llm", model_calls=1)
+    check("a tool whose result the model worded says so", "language model then put the tool's result into words" in explain.explain(worded), explain.explain(worded))
+    chat = {"kind": "answer", "query": "hello", "intent": None, "tool": None, "pathway": "slow", "narration": "llm", "model_calls": 1}
+    check("plain conversation is still the model's", "language model" in explain.explain(chat) and "conversation" in explain.explain(chat))
+    old = {"kind": "answer", "query": "x", "intent": "get_time", "tool": "get_time", "pathway": "slow"}
+    check("an old record without the fields is explained as before", "thinking it through" in explain.explain(old), explain.explain(old))
+    check("a self-model answer is explained as that", "live state" in explain.explain({"kind": "self"}) and "live state" in explain.source_reply({"kind": "self"}))
+
+
 if __name__ == "__main__":
-    for fn in (e1_reading, e2_wording, e3_runtime, e4_did_it_and_slow):
+    for fn in (e1_reading, e2_wording, e3_runtime, e4_did_it_and_slow, e5_no_model_said_right):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)
