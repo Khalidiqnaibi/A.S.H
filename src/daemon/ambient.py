@@ -974,9 +974,11 @@ class AmbientRuntime:
             text = honest.NOT_DONE
         elif (text and meta.get("addressed") and str(meta.get("pathway", "")).lower() == "slow"
                 and not getattr(self, "_last_tool_used", False)
-                and honest.false_report(text, can_face=getattr(self, "face", None) is not None, muted=bool(self.gate.muted))):
+                and honest.false_report(text, can_face=getattr(self, "face", None) is not None, muted=bool(self.gate.muted),
+                                        can_media=getattr(self, "media", None) is not None, can_remember=True)):
             # "I did title the note", "I checked the recent history", "the records show...", "I can't open apps": nothing behind it.
-            fixed = honest.false_report(text, can_face=getattr(self, "face", None) is not None, muted=bool(self.gate.muted))
+            fixed = honest.false_report(text, can_face=getattr(self, "face", None) is not None, muted=bool(self.gate.muted),
+                                        can_media=getattr(self, "media", None) is not None, can_remember=True)
             logger.info("Model reported something it did not do (or denied what it can) -- replaced: %r", text[:120])
             text = fixed
         elif (text and meta.get("addressed") and str(meta.get("pathway", "")).lower() == "slow"

@@ -498,7 +498,20 @@ _CLAIM_MUTE = re.compile(r"\b(?:let\s+me|i'?ll|i\s+will|i'?m\s+going\s+to|i'?ve|
 NOT_MUTED = ("I haven't muted anything. Say “mute for an hour” and I'll go quiet, then come back on my own.")
 
 
-def false_report(reply: str, can_open: bool = True, can_face: bool = True, muted: bool = False) -> Optional[str]:
+# "I don't have the capability to play videos or control your device's media without direct commands" (it has the media keys), and "I don't have
+# access to recent interactions or contacts" (it keeps both): the model denies what ASH does.
+_CANT_MEDIA = re.compile(r"\b(?:don'?t|do\s+not|can'?t|cannot|can\s+not|unable|not\s+able|no\s+(?:way|capability|ability))\b[^.?!,;]{0,50}\b(?:play|pause|resume|skip|control|stop|stream)\b"
+                         r"[^.?!,;]{0,50}\b(?:videos?|music|media|playback|songs?|tracks?|player|youtube|movies?|the\s+audio)\b", re.I)
+CAN_MEDIA = "I can play, pause and skip what's playing with the media keys -- say “pause”, “play” or “next”."
+_CANT_REMEMBER = re.compile(r"\b(?:don'?t|do\s+not|can'?t|cannot|can\s+not|unable|no)\b[^.?!,;]{0,40}\b(?:access|record|memory|information|history|way)\b[^.?!,;]{0,50}"
+                            r"\b(?:recent\s+(?:interactions|chats|conversations)|previous\s+(?:chats|conversations|interactions)|our\s+(?:past\s+)?(?:chats|conversations)|"
+                            r"past\s+(?:chats|conversations|interactions)|(?:his|her|their|your)\s+contacts|contacts|what\s+you\s+(?:told|said))", re.I)
+CAN_REMEMBER = ("I do keep what you tell me and what happens -- ask “what do you remember”, “what did I work on today” or "
+                "“what's new while I was away”.")
+
+
+def false_report(reply: str, can_open: bool = True, can_face: bool = True, muted: bool = False, can_media: bool = False,
+                 can_remember: bool = False) -> Optional[str]:
     """What to say instead when a model answer (no tool ran) reports doing or checking something it did not, or says ASH can't do a
     thing it can. None when there is nothing of the kind."""
     r = reply or ""
@@ -508,6 +521,10 @@ def false_report(reply: str, can_open: bool = True, can_face: bool = True, muted
         return CAN_OPEN
     if can_face and _CANT_FACE.search(r):
         return CAN_FACE
+    if can_media and _CANT_MEDIA.search(r):
+        return CAN_MEDIA
+    if can_remember and _CANT_REMEMBER.search(r):
+        return CAN_REMEMBER
     if _SAW.search(r):
         return NOT_SEEN
     if not muted and _CLAIM_MUTE.search(r) and not invented_reply(r):      # a pretend 'mode' has its own, better answer

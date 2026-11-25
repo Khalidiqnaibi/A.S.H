@@ -451,8 +451,23 @@ def h11_trailing_and_meaning():
     check("without an encoder the pattern alone decides: that wording goes to the model", len(bare.ash.calls) > n)
 
 
+def h_denials():
+    print("\n=== H. Denying what ASH does ===")
+    fr = honest.false_report
+    for t in ["You seem to be looking for something to play, but I don't have the capability to play videos or control your device's media without direct commands.",
+              "I can't play that video for you, sorry.", "I'm not able to pause the music."]:
+        check(f"media denied: {t[:50]!r}", fr(t, can_media=True) == honest.CAN_MEDIA)
+    check("...but not when there is no media control", fr("I can't play that video for you, sorry.", can_media=False) is None)
+    for t in ["I don't have direct access to recent interactions or contacts. I can't provide that detail.",
+              "I don't have a record of our past conversations."]:
+        check(f"memory denied: {t[:50]!r}", fr(t, can_remember=True) == honest.CAN_REMEMBER)
+    for t in ["I can play music for you. I don't have a record of your birthday.", "I don't have the ability to play the game, but the music is nice.",
+              "Sure, playing it now.", "I can't find that video."]:
+        check(f"not a denial of what it does: {t[:50]!r}", fr(t, can_media=True, can_remember=True) is None, str(fr(t, can_media=True, can_remember=True)))
+
+
 if __name__ == "__main__":
-    for fn in (h1_capabilities, h2_limits, h3_sanitize, h4_runtime, h5_small, h6_cache, h7_cleanup, h8_quiet_modes, h9_invented, h10_disputes, h11_trailing_and_meaning, h12_false_reports):
+    for fn in (h1_capabilities, h2_limits, h3_sanitize, h4_runtime, h5_small, h6_cache, h7_cleanup, h8_quiet_modes, h9_invented, h10_disputes, h11_trailing_and_meaning, h12_false_reports, h_denials):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)
