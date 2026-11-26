@@ -2856,6 +2856,40 @@ class AmbientRuntime:
             logger.debug("Could not read the memory context", exc_info=True)
         return "\n".join(parts)
 
+    _UNLOAD_MODEL = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:(?:can|could)\s+you\s+)?(?:unload|drop|let\s+go\s+of|close|free\s+up)\s+(?:the\s+|your\s+)?"
+                               r"(?:language\s+)?model(?:'s\s+memory)?(?:\s+(?:for\s+now|now|please))?\s*[.!?]*\s*$|"
+                               r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?free\s+up\s+(?:some\s+)?(?:memory|ram)(?:\s+(?:for\s+me|please|now))?\s*[.!?]*\s*$", re.I)
+
+    def _machine_request(self, ev, now: float) -> bool:
+        """"What's using my memory?" / "why is my computer slow?" / "what are my specs?" / "can my PC run GTA 6?" (machine.py) and "unload the model":
+        the machine itself, by rule. 26 Nov these went to the model, which cannot see the machine, at 92% memory (300 s, twice)."""
+        if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        if self._UNLOAD_MODEL.match(text):
+            if getattr(self, "_model_unloaded", False):
+                say = "The language model isn't loaded right now."
+            else:
+                self._model_unloaded = True
+                threading.Thread(target=self._safe_unload, daemon=True, name="ash-asked-unload").start()
+                say = "Unloading the language model -- it comes back on the next question that needs it."
+        else:
+            from . import machine
+            got = machine.parse(text)
+            if got is None:
+                return False
+            m = getattr(self, "_machine", None)
+            if m is None:
+                m = self._machine = machine.Machine()
+            try:
+                say = m.answer(*got)
+            except Exception:
+                logger.exception("Reading the machine failed")
+                say = "I couldn't read that from this computer just now."
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "asked", "query": text[:80]}
+        return True
+
     def _search_request(self, ev, now: float) -> bool:
         """"Look up cat pics", "search YouTube for lo-fi", "google segue": the default browser opened on the search page -- a URL and nothing else, nothing read or
         sent by ASH (websearch.py). Through the desktop executor that already opens apps; without it, not taken."""
@@ -5021,6 +5055,8 @@ class AmbientRuntime:
         if not loose and self._free_moment_request(ev, now):
             return True
         if not loose and self._filemake_request(ev, now):
+            return True
+        if not loose and self._machine_request(ev, now):
             return True
         if not loose and self._search_request(ev, now):
             return True
