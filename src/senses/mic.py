@@ -114,6 +114,16 @@ def is_loop(text: str) -> bool:
     return False
 
 
+# A sentence that stops on one of these is not over: "Switch to Gemini's..." (26 Nov) was cut in two at a breath, and neither half did anything.
+_DANGLES = re.compile(r"(?:\b(?:to|the|a|an|of|on|in|at|for|with|from|and|or|but|my|your|about|into|is|are|than|that)|'s)\s*[.,\u2026]*\s*$", re.I)
+HOLD_MS = 1200          # how much longer the silence must last before a sentence like that is taken as finished
+
+
+def dangles(text: Optional[str]) -> bool:
+    t = (text or "").strip()
+    return bool(t) and bool(_DANGLES.search(t))
+
+
 def trusted_text(segs) -> str:
     """The text of whisper's phrases, leaving out the ones it is unsure of."""
     keep = []
@@ -153,11 +163,18 @@ _MISHEARD_TAIL = re.compile(
 _MISHEARD_GREETED = re.compile(r"^(\s*(?:hey|hi|yo|ok|okay)[\s,]+)bash(?=[\s,]+\w)", re.I)
 
 
+# "Ash, Ken, my e-mail." (26 Nov): "check" heard as "Ken" / "Chuck" / "Jack" in front of something of the person's that is checked. Only right after
+# the name or at the start, and only before "my <email|mail|calendar|messages|...>".
+_CHECK_MISHEARD = re.compile(r"^(\W*(?:(?:hey\s+)?ash[,\s]+)?)(?:ken|kenn|chuck|chek|jack|chet|check|czech|tech)[,\s]+(?=(?:my|the)\s+(?:e-?\s?mails?|mail|inbox|"
+                             r"calendar|messages|notifications|schedule|reminders)\b)", re.I)
+
+
 def fix_name(text: str) -> str:
     """Whisper's usual mishearings of the name at the start of a sentence
     ("Ass system status") read as the name. Only at the start, and only
     with more words after it."""
     t = _MISHEARD.sub(lambda m: m.group(1) + "Ash", text or "", count=1)
+    t = _CHECK_MISHEARD.sub(lambda m: m.group(1) + "check ", t, count=1)
     # "Yo, what's up bash?" / "What's your status as?" -- the name at the END, heard as another word. Only after a
     # question that is plainly a question to a listener, so "as" and "bash" elsewhere are left alone. "bash" at the
     # start counts only after a greeting ("hey bash how are you"): on its own it is a shell.
@@ -420,6 +437,12 @@ class MicrophoneSensor(Sensor):
                     early = self._start_early(np.concatenate(buf))
 
                 too_long = len(buf) >= self.max_frames
+                if (silence >= self.silence_frames and not too_long and early is not None
+                        and silence < self.silence_frames + max(1, HOLD_MS // FRAME_MS)
+                        and not early[0].is_alive() and dangles(early[1].get("text"))):
+                    if silence == self.silence_frames:
+                        self.live_stats["held"] = self.live_stats.get("held", 0) + 1
+                    continue                  # the words so far stop on "to" / "the" / "'s": give the rest of the sentence a moment
                 if silence >= self.silence_frames or too_long:
                     speaking = False
                     if len(buf) >= self.min_speech_frames:

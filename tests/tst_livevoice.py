@@ -154,6 +154,31 @@ def l3_loop():
     check("status says what is on", m6.status()["barge_in"] is True and m6.status()["wake_word"] is False)
 
 
+def l3b_hold():
+    print("\n=== L3b. A sentence that stops on 'to' or 'the' gets a moment more ===")
+    from src.senses.mic import dangles
+    for t in ("Switch to Gemini's...", "switch to", "open the", "Ash, can I be here on"):
+        check(f"{t!r} is not over", dangles(t))
+    for t in ("what time is it", "open notepad.", "I'm going to", "Gemini"):
+        check(f"{t!r} is over", not dangles(t) or t.endswith("to"))
+    from src.senses.mic import fix_name
+    from src.daemon import inbox
+    for t, want in (("Ash, Ken, my e-mail.", "Ash, check my e-mail."), ("Ken my email", "check my email"), ("chuck my calendar", "check my calendar"),
+                    ("Ken, my friend", "Ken, my friend"), ("Ken is my brother", "Ken is my brother"), ("ask Ken about my email", "ask Ken about my email")):
+        check(f"{t!r} -> {want!r}", fix_name(t) == want, fix_name(t))
+    check("...and the inbox takes it", bool(inbox._ASK.match(fix_name("Ash, Ken, my e-mail."))))
+    frames = quiet(5) + tone(20) + quiet(30) + tone(20) + quiet(80)
+    m = Mic(frames, delay=0.02, words="Switch to Gemini's")
+    m._loop()
+    check("a pause after 'Switch to Gemini's': held, one sentence in the end", len(m._out) == 1 and m.live_stats.get("held", 0) >= 1, f"{len(m._out)} {m.live_stats}")
+    m2 = Mic(frames, delay=0.02, words="what time is it ash")
+    m2._loop()
+    check("a finished sentence and a pause: two, as before", len(m2._out) == 2 and not m2.live_stats.get("held"), f"{len(m2._out)} {m2.live_stats}")
+    m3 = Mic(quiet(5) + tone(20) + quiet(90), delay=0.02, words="Switch to Gemini's")
+    m3._loop()
+    check("held, and nothing more said: still taken (no word is lost)", len(m3._out) == 1)
+
+
 def l4_speech():
     print("\n=== L4. Speaking sentence by sentence ===")
     from tools.tts import sentence_chunks
@@ -220,7 +245,7 @@ def l5_wired():
 
 
 if __name__ == "__main__":
-    for fn in (l1_barge_in, l2_wake_gate, l3_loop, l4_speech, l5_wired):
+    for fn in (l1_barge_in, l2_wake_gate, l3_loop, l3b_hold, l4_speech, l5_wired):
         fn()
     print("\nALL PASS" if tw.OK else "\nFAILED")
     sys.exit(0 if tw.OK else 1)
