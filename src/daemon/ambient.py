@@ -5735,6 +5735,20 @@ class AmbientRuntime:
     def _llm_timeout_cap(self, on: bool) -> None:
         """While the machine is squeezed the model either answers within a minute and a half or not at all: two questions today waited the full 300 s for
         nothing (memory at 92%). Back to the normal limit when it relaxes."""
+        # The squeeze unloads the model, but the next question loaded it again for six hours (keep_alive) on a machine at 92%: while squeezed,
+        # each answer keeps it two minutes. ASH_OLLAMA_KEEP_ALIVE is read on every call; what it was is put back when the machine is calm.
+        if on:
+            if not getattr(self, "_keep_alive_set", False):
+                self._keep_alive_was = os.environ.get("ASH_OLLAMA_KEEP_ALIVE")
+                self._keep_alive_set = True
+                os.environ["ASH_OLLAMA_KEEP_ALIVE"] = "2m"
+        elif getattr(self, "_keep_alive_set", False):
+            self._keep_alive_set = False
+            was = getattr(self, "_keep_alive_was", None)
+            if was is None:
+                os.environ.pop("ASH_OLLAMA_KEEP_ALIVE", None)
+            else:
+                os.environ["ASH_OLLAMA_KEEP_ALIVE"] = was
         llm = getattr(getattr(self, "ash", None), "llm", None)
         if llm is None or not hasattr(llm, "_timeout"):
             return
