@@ -147,6 +147,26 @@ def clip_reply(text: str, limit: int) -> str:
 NO_MODEL_TEXT = "My brain's not answering right now. Give it a minute and ask me again."
 
 
+class _Cues:
+    """The thinking cue and the 'still working on it' after it: one cancel() stops both."""
+
+    def __init__(self):
+        self.cancelled = False
+        self._timers = []
+
+    def add(self, t):
+        if self.cancelled:
+            return
+        t.daemon = True
+        self._timers.append(t)
+        t.start()
+
+    def cancel(self):
+        self.cancelled = True
+        for t in self._timers:
+            t.cancel()
+
+
 @dataclass
 class AmbientConfig:
     tick_seconds: float = 1.0
@@ -1575,6 +1595,7 @@ class AmbientRuntime:
                 ch = self.governor.tick(now)
                 if ch in ("squeezed", "relaxed"):
                     self._llm_timeout_cap(ch == "squeezed")
+                self._memory_notice(now)
             except Exception:
                 logger.exception("Resource governor failed")
         self._unload_when_idle(now)
@@ -1940,6 +1961,64 @@ class AmbientRuntime:
     _TAB = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:(?:can|could)\s+you\s+)?(?:switch|go|change|jump|flip|take\s+me)\s+(?:back\s+)?(?:over\s+)?to\s+(?:the\s+|my\s+)?"
                       r"(?P<w>[\w .'-]{2,40}?)(?:'s)?\s+tab(?:\s+(?:please|now))?\s*[.!?]*\s*$|"
                       r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:open|show(?:\s+me)?|bring\s+up)\s+(?:the\s+|my\s+)?(?P<w2>[\w .'-]{2,40}?)(?:'s)?\s+tab(?:\s+(?:please|now))?\s*[.!?]*\s*$", re.I)
+
+    # "Ask Gemini about the NPU" / "ask Gemini whether my PC can run GTA 6": the person keeps a Gemini tab for the questions a 3B model on a squeezed
+    # machine answers badly. The tab is brought forward (or Gemini opened) and the question put on the clipboard, to paste -- nothing is sent by ASH.
+    _ASK_GEMINI = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:(?:can|could)\s+you\s+)?(?:ask|check\s+with|put\s+it\s+to)\s+gemini\s+"
+                             r"(?:(?:about|whether|if|for|on)\s+)?(?P<q>.{3,240}?)\s*[?.!]*\s*$", re.I)
+
+    def _ask_gemini_request(self, ev, now: float) -> bool:
+        if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        m = self._ASK_GEMINI.match(text)
+        if not m:
+            return False
+        q = m.group("q").strip()
+        if re.fullmatch(r"(?:that|it|this|the\s+same)", q, re.I):
+            ctx = getattr(self, "context", None)
+            subj = ctx._subject(now) if ctx is not None and hasattr(ctx, "_subject") else None
+            if not subj:
+                self._wonder_say(ev, type("R", (), {"say": "Ask Gemini what? I don't have a question to pass on.", "outcome": "desktop"})())
+                return True
+            q = subj
+        q = q[0].upper() + q[1:]
+        if not q.endswith("?"):
+            q += "?"
+        copied = False
+        clip = self.periphery.actuators.get("clipboard") if getattr(self, "periphery", None) is not None else None
+        try:
+            copied = bool(clip is not None and (clip.act(q) or {}).get("ok"))
+        except Exception:
+            logger.debug("could not copy the question", exc_info=True)
+        where = ""
+        bt = self.periphery.sensors.get("browser_tabs") if getattr(self, "periphery", None) is not None else None
+        tab = bt.find_tab("gemini") if bt is not None and hasattr(bt, "find_tab") else None
+        d = self.desktop
+        try:
+            if tab is not None:
+                bt.request_activate(tab["id"])
+                if d is not None:
+                    for proc in ("opera.exe", "chrome.exe", "msedge.exe", "brave.exe", "vivaldi.exe"):
+                        if d.ex.running(proc):
+                            d.ex.focus(proc)
+                            break
+                where = "your Gemini tab"
+            elif d is not None and d.ex.open("https://gemini.google.com/app"):
+                where = "Gemini"
+        except Exception:
+            logger.debug("could not bring Gemini up", exc_info=True)
+        if where and copied:
+            say = f"Opening {where} -- the question is on your clipboard, paste it in."
+        elif where:
+            say = f"Opening {where}. Ask it: {q}"
+        elif copied:
+            say = "I couldn't open Gemini, but the question is on your clipboard."
+        else:
+            say = "I couldn't open Gemini or copy the question."
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "asked", "query": text[:80]}
+        return True
 
     def _tab_request(self, ev, now: float) -> bool:
         if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
@@ -5016,6 +5095,8 @@ class AmbientRuntime:
             return True
         if self._tab_request(ev, now):
             return True
+        if self._ask_gemini_request(ev, now):
+            return True
         if self._desktop_request(ev, now):
             return True
         if self._inventory_request(ev, now):
@@ -5454,6 +5535,8 @@ class AmbientRuntime:
     _CUES = ("On it.", "Give me a second.", "Hmm, let me chew on that.", "Beep boop, thinking.", "One sec.",
              "Let me see.", "Ooh. Okay, hold on.", "Working on it.")
 
+    STILL_THINKING_S = 30.0
+
     def _thinking_cue(self, to_ash: bool):
         """A person asked something and the model is slow: say so after a few
         seconds instead of leaving a silent face. Returns the timer to cancel."""
@@ -5468,18 +5551,33 @@ class AmbientRuntime:
         self._cue_last = line
         self._cue_fired = False
 
+        cues = _Cues()
+
         def fire():
+            if cues.cancelled:
+                return
             self._cue_fired = True
             try:
                 self.response_sink(line, {"addressed": True, "source": "cue", "outcome": "thinking_cue",
                                           "pathway": "cue", "attention": {}})
             except Exception:
                 logger.debug("Thinking cue failed", exc_info=True)
+            later = AmbientRuntime.STILL_THINKING_S - wait
+            if later > 0:
+                cues.add(threading.Timer(later, still))
 
-        t = threading.Timer(wait, fire)
-        t.daemon = True
-        t.start()
-        return t
+        def still():
+            # 26 Nov: "Beep boop, thinking." and then five minutes of nothing. Once, at half a minute, it is said that it is still going, and why.
+            if cues.cancelled:
+                return
+            try:
+                self.response_sink("Still working on it." + self._why_no_model(), {"addressed": True, "source": "cue", "outcome": "thinking_cue",
+                                                                                   "pathway": "cue", "attention": {}})
+            except Exception:
+                logger.debug("Still-thinking cue failed", exc_info=True)
+
+        cues.add(threading.Timer(wait, fire))
+        return cues
 
     def _after_answer(self, prompt: str, response):
         """Remember what was just answered, and as what; finish a correction."""
@@ -5729,6 +5827,48 @@ class AmbientRuntime:
         say = f"You usually have {got['app']} going with {got['with']}. Open it?"
         self.response_sink(say, {"addressed": False, "source": "habit", "attention": None, "pathway": "wonder", "outcome": "habit"})
         self._last_why = {"kind": "habit", "query": got["with"]}
+
+    MEMORY_HIGH_PCT, MEMORY_HIGH_FOR_S, MEMORY_NOTICE_EVERY_S = 90.0, 1200.0, 3 * 3600.0
+
+    def _memory_notice(self, now: float) -> None:
+        """Memory above 90% for twenty minutes: said once (then not for three hours), with what holds the most -- 26 Nov it sat at 90-93% all day,
+        every answer was slow, and nothing said why until asked. Not while muted, paused, in quiet hours or a call."""
+        g = self.governor
+        mem = getattr(g, "mem", None) if g is not None else None
+        if mem is None or mem < AmbientRuntime.MEMORY_HIGH_PCT:
+            self._mem_high_since = None
+            return
+        since = getattr(self, "_mem_high_since", None)
+        if since is None:
+            self._mem_high_since = now
+            return
+        if now - since < AmbientRuntime.MEMORY_HIGH_FOR_S or now - getattr(self, "_mem_told_at", -1e18) < AmbientRuntime.MEMORY_NOTICE_EVERY_S:
+            return
+        if self.gate.muted or self.privacy.paused or self.gate._in_quiet_hours(now):
+            return
+        self._mem_told_at = now
+        top = ""
+        try:
+            from . import machine
+            m = getattr(self, "_machine", None) or machine.Machine()
+            self._machine = m
+            by = {}
+            for name, rss, pid in m.procs():
+                if pid != m.own_pid:
+                    n = machine._name(name)
+                    by[n] = by.get(n, 0) + rss
+            if by:
+                n, b = max(by.items(), key=lambda kv: kv[1])
+                top = f", mostly {n} ({machine._gb(b)})"
+        except Exception:
+            logger.debug("could not name what holds the memory", exc_info=True)
+        mins = int((now - since) // 60)
+        say = (f"Memory has been above {AmbientRuntime.MEMORY_HIGH_PCT:.0f}% for {mins} minutes{top} -- that's why I'm slow. "
+               "Say \u201cwhat's using my memory\u201d for the rest.")
+        try:
+            self.response_sink(say, {"addressed": False, "source": "machine", "attention": None, "pathway": "wonder", "outcome": "memory"})
+        except Exception:
+            logger.exception("Memory notice failed")
 
     SQUEEZED_LLM_TIMEOUT = 90.0
 
