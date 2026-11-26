@@ -2538,10 +2538,26 @@ class AmbientRuntime:
     # did. It went to the model, which answered a guess in 47 s. Asked what the rest was, once, by rule.
     _DANGLING = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:.+\s)?(?:on|of|about|for|to|the|a|an|with|in|at|and|or|but|from|by|my|into|onto)\s*[.,\-\u2026]*\s*$", re.I)
 
+    _BARE_VERB = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:please|ok(?:ay)?|now)[,\s]+)?(?P<v>switch|open|close|play|search|look\s+up|remind\s+me|turn\s+on|turn\s+off|"
+                            r"show\s+me|find|start)(?:\s+(?:to|it\s+to|for))?(?:[,\s]+(?:ash|please))?\s*[.!?\u2026]*\s*$", re.I)
+
     def _dangling_request(self, ev, now: float) -> bool:
         if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
             return False
         text = str(getattr(ev, "text", "") or "").strip()
+        bare = self._BARE_VERB.match(text)
+        if bare:
+            # "Ash, Switch." (26 Nov) -- a command with nothing after it: asked what for, once.
+            verb = bare.group("v").lower()
+            say = {"switch": "Switch to what?", "open": "Open what?", "close": "Close what?", "play": "Play what?", "search": "Search for what?",
+                   "look up": "Look up what?", "remind me": "Remind you about what?", "turn on": "Turn on what?", "turn off": "Turn off what?",
+                   "show me": "Show you what?", "find": "Find what?", "start": "Start what?"}.get(re.sub(r"\s+", " ", verb), "What should I do?")
+            if getattr(self, "_told_dangling", None) == text.lower():
+                return False
+            self._told_dangling = text.lower()
+            self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
+            self._last_why = {"kind": "asked", "query": text[:80]}
+            return True
         words = text.split()
         if not (3 <= len(words) <= 10) or text.endswith(("?", "!")) or not self._DANGLING.match(text):
             return False
@@ -2648,6 +2664,10 @@ class AmbientRuntime:
     _FREE_Q = re.compile(
         r"\b(?:free\s+(?:moment|time|minute)|spare\s+(?:moment|time|minute)|got\s+a\s+(?:minute|moment)|i'?m\s+free(?:\s+now)?|"
         r"i\s+am\s+free(?:\s+now)?|nothing\s+to\s+do)\b", re.I)
+    # "This is a free moment." said on its own (26 Nov: matched neither pattern and waited 50 s for the model): the invitation itself.
+    _FREE_BARE = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:ok(?:ay)?|so|well)[,\s]+)?(?:this\s+is|it'?s|it\s+is|i\s+have|i'?ve\s+got|i\s+got|we\s+have)?\s*"
+                            r"(?:a\s+)?(?:free\s+moment|free\s+minute|spare\s+moment|bit\s+of\s+free\s+time)(?:\s+(?:now|here|ash))?\s*[.!]*\s*$|"
+                            r"^\W*(?:(?:hey\s+)?ash[,\s]+)?i'?m\s+free(?:\s+(?:now|for\s+a\s+bit|for\s+a\s+while))?\s*[.!]*\s*$", re.I)
     _FREE_ASK = re.compile(
         r"\b(?:what|anything|something|any\s+questions?|got\s+any|do\s+you\s+have|have\s+you\s+got|in\s+store|for\s+me|ask\s+me|"
         r"tell\s+me|say)\b", re.I)
@@ -2717,7 +2737,7 @@ class AmbientRuntime:
         said_to_ash = self._meant_for_ash(ev) or bool(re.search(r"\bfree\s+moment\b", text, re.I))
         if not said_to_ash:
             return False
-        by_rule = bool(self._FREE_Q.search(text) and self._FREE_ASK.search(text)) and len(text.split()) <= 30
+        by_rule = (bool(self._FREE_Q.search(text) and self._FREE_ASK.search(text)) and len(text.split()) <= 30) or bool(self._FREE_BARE.match(text))
         from .freemoment import INVITE_SEEDS
         ch = self.chooser("invite", INVITE_SEEDS, accept=0.62, margin=0.1)
         if by_rule:

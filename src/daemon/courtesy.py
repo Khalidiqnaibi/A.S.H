@@ -32,6 +32,9 @@ _DECLINE = frozenset({"no thanks", "no thank you", "no thanks ash", "nope", "nah
                       "nvm", "im good", "i'm good", "i am good", "no need", "its fine", "it's fine", "thats fine", "that's fine", "forget it", "its okay", "it's okay",
                       "no its fine", "no it's fine", "no worries", "all good", "never mind that", "dont worry about it", "don't worry about it", "skip it", "leave it"})
 _BARE_YES = frozenset({"ok", "okay", "alright", "all right", "sure", "yeah", "yep", "yes", "fine", "right", "ok ok", "okay okay", "yup", "mhm", "uh huh"})
+# "That's funny." / "haha" / "lol that's hilarious" (26 Nov: 41 s to the model): a laugh back, by rule.
+_LAUGH = re.compile(r"^(?:ash\s+)?(?:(?:ha){2,}h?|he(?:he)+|lol+|lmao+|rofl|xd|(?:that'?s|thats|that\s+is|you'?re|ur|this\s+is)\s+(?:so\s+|really\s+|very\s+|pretty\s+|actually\s+)?"
+                    r"(?:funny|hilarious|hysterical|a\s+good\s+one)|good\s+one|nice\s+one|funny|hilarious)(?:\s+(?:(?:ha){1,}|lol|man|bro|ash|that'?s\s+(?:funny|hilarious)))*$")
 _BYE = re.compile(r"^(?:ok(?:ay)?\s+|alright\s+|well\s+|cool\s+|ash\s+)*(?:later|laters|see\s+(?:you|ya)(?:\s+(?:later|soon|tomorrow))?|"
                   r"cya|bye(?:\s+bye)?|goodbye|talk\s+(?:to\s+you\s+)?later|ttyl|gotta\s+go|i(?:'m|\s+am)\s+(?:off|out|heading\s+out|"
                   r"going)|heading\s+out|catch\s+you\s+later|peace|peace\s+out|take\s+care)(?:\s+(?:ash|man|bro|mate))*$")
@@ -59,6 +62,7 @@ _LINES: Dict[str, List[str]] = {
     "brb": ["I'll be here.", "Take your time.", "Sure."],
     "ack": ["Okay.", "Got it.", "Mm-hm."],
     "decline": ["Okay.", "No problem.", "Alright.", "Sure."],
+    "laugh": ["Ha.", "Heh -- glad that landed.", "Ha, right?", "I thought so too."],
 }
 
 
@@ -114,6 +118,8 @@ class Courtesy:
             return "complaint"
         if _NIGHT.match(t):
             return "night"
+        if _LAUGH.match(t):
+            return "laugh"
         if _BRB.match(t):
             return "brb"
         if _BYE.match(t):
