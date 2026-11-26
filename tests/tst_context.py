@@ -126,6 +126,20 @@ def c3b_lookup_26nov():
     check("a real look-up still is one", websearch.parse("look up the previous prime minister of Jordan") is not None)
 
 
+def c3c_meaning():
+    print("\n=== C3c. 'What does that mean?' ===")
+    c = ctx()
+    check("nothing said yet: left alone", c.resolve("What does that mean?") is None)
+    c.said("Biomarkers like ctDNA can show a tumour early.")
+    r = c.resolve("What does that mean?")
+    check("asked with ASH's last line quoted", r == {"text": "What does this mean -- what you just said: \u201cBiomarkers like ctDNA can show a tumour early.\u201d? Explain it simply."}, str(r))
+    for t in ("what do you mean by that", "explain that to me", "I don't get it", "what's that mean?"):
+        check(f"{t!r} too", (c.resolve(t) or {}).get("text", "").startswith("What does this mean"), str(c.resolve(t)))
+    check("'what does sourdough mean' is not about the last line", c.resolve("what does sourdough mean") is None)
+    c.t[0] += 3600
+    check("an hour later: left alone", c.resolve("What does that mean?") is None)
+
+
 class KB:
     def __init__(self):
         self.people = {"omar": {"name": "Omar", "relation": "colleague", "desc": ""},
@@ -274,7 +288,7 @@ def c7_runtime():
 
 
 if __name__ == "__main__":
-    for fn in (c1_apps, c2_remind, c3_lookup, c3b_lookup_26nov, c4_people, c5_again, c5b_history, c6_not_ours, c7_runtime):
+    for fn in (c1_apps, c2_remind, c3_lookup, c3b_lookup_26nov, c3c_meaning, c4_people, c5_again, c5b_history, c6_not_ours, c7_runtime):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

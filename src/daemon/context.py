@@ -51,6 +51,10 @@ _AGAIN = re.compile(_LEAD + r"(?:say\s+(?:that|it)\s+again|repeat\s+(?:that|it|y
 _BEFORE_ASH = re.compile(_LEAD + r"(?:what\s+(?:did\s+you|was\s+(?:it\s+)?(?:that\s+)?you)\s+(?:say|answer(?:ed)?|tell\s+me)\s+(?:just\s+)?(?:before\s+(?:that|it|this)|earlier|previously|the\s+time\s+before)|"
                          r"what\s+(?:was|is)\s+(?:your|the)\s+(?:previous|earlier|one\s+before(?:\s+(?:that|it))?|answer\s+before(?:\s+(?:that|it))?)(?:\s+(?:answer|reply|line))?|"
                          r"(?:say|repeat)\s+(?:the\s+one|what\s+you\s+said)\s+before(?:\s+(?:that|it))?|the\s+one\s+before\s+(?:that|it))" + _END, re.I)
+# "What does that mean?" / "what do you mean by that?" / "explain that": about ASH's last line. 26 Nov it went to the model bare (48 s) and the model
+# had to guess what "that" was; now it is asked with the line itself quoted.
+_MEAN = re.compile(_LEAD + r"(?:what\s+(?:does|did)\s+(?:that|this|it)\s+mean|what'?s\s+that\s+mean|what\s+do\s+you\s+mean(?:\s+by\s+(?:that|this|it))?|"
+                   r"explain\s+(?:that|this|it)(?:\s+(?:to\s+me|more|better))?|meaning\s*\?|what\s+is\s+that\s+supposed\s+to\s+mean|i\s+don'?t\s+(?:get|understand)\s+(?:that|it))" + _END, re.I)
 _LAST_ASH = re.compile(_LEAD + r"what\s+(?:was|is)\s+your\s+(?:last|latest)\s+(?:answer|reply|line|response)" + _END, re.I)
 _BEFORE_USER = re.compile(_LEAD + r"(?:what\s+did\s+i\s+(?:ask|say)\s+(?:you\s+)?(?:before\s+(?:that|it)|earlier|previously)|"
                           r"what\s+was\s+(?:the|my)\s+(?:question|thing|line)\s+before(?:\s+(?:that|it))?|what\s+was\s+my\s+previous\s+(?:question|line))" + _END, re.I)
@@ -146,7 +150,7 @@ class Context:
     @staticmethod
     def is_referring(text: str) -> bool:
         t = text or ""
-        return any(p.match(t) for p in (_APP, _REMIND, _LOOKUP, _WHO, _AGAIN, _BEFORE_ASH, _LAST_ASH, _BEFORE_USER, _LAST_USER))
+        return any(p.match(t) for p in (_APP, _REMIND, _LOOKUP, _WHO, _AGAIN, _BEFORE_ASH, _LAST_ASH, _BEFORE_USER, _LAST_USER, _MEAN))
 
     def _fresh(self, item: Optional[Tuple[float, str]], now: float) -> Optional[str]:
         return item[1] if item is not None and now - item[0] <= self.window_s else None
@@ -199,6 +203,17 @@ class Context:
             if len(hist) < back:
                 return {"say": "You haven't said anything before that." if back == 2 else "You haven't asked me anything yet."}
             return {"say": ("Before that you said: " if back == 2 else "You said: ") + hist[-back][1].strip()}
+        m = _MEAN.match(t)
+        if m:
+            last = self._fresh(self.ash, now)
+            if last is None or last.strip().lower() in _FILLERS:
+                self.stats["unresolved"] += 1
+                return None
+            quoted = last.strip()
+            if len(quoted) > 300:
+                quoted = quoted[:300].rsplit(" ", 1)[0] + "..."
+            self.stats["resolved"] += 1
+            return {"text": f"What does this mean -- what you just said: \u201c{quoted}\u201d? Explain it simply."}
         m = _AGAIN.match(t)
         if m:
             last = self._fresh(self.ash, now)
