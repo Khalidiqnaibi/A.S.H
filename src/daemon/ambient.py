@@ -1936,6 +1936,44 @@ class AmbientRuntime:
         never a guest's voice, never speech from a video or the room."""
         return (not self._is_guest(ev)) and (self._meant_for_ash(ev) or address.conversation.openness(now) > 0.2)
 
+    # "Switch to Gemini's tab" / "go to the YouTube tab" / "open my Gmail tab": a browser tab by what it is called (26 Nov: ignored).
+    _TAB = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:(?:can|could)\s+you\s+)?(?:switch|go|change|jump|flip|take\s+me)\s+(?:back\s+)?(?:over\s+)?to\s+(?:the\s+|my\s+)?"
+                      r"(?P<w>[\w .'-]{2,40}?)(?:'s)?\s+tab(?:\s+(?:please|now))?\s*[.!?]*\s*$|"
+                      r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:open|show(?:\s+me)?|bring\s+up)\s+(?:the\s+|my\s+)?(?P<w2>[\w .'-]{2,40}?)(?:'s)?\s+tab(?:\s+(?:please|now))?\s*[.!?]*\s*$", re.I)
+
+    def _tab_request(self, ev, now: float) -> bool:
+        if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        m = self._TAB.match(text)
+        if not m:
+            return False
+        words = (m.group("w") or m.group("w2") or "").strip()
+        if re.fullmatch(r"(?:a\s+)?(?:new|another|other|next|previous|last|private|incognito)", words, re.I):
+            return False                          # "open a new tab", "switch to the next tab": not a tab by name
+        bt = self.periphery.sensors.get("browser_tabs") if getattr(self, "periphery", None) is not None else None
+        if bt is None or not hasattr(bt, "find_tab"):
+            say = "I can't see your browser's tabs -- the ASH tabs extension isn't connected."
+        else:
+            tab = bt.find_tab(words)
+            if tab is None:
+                say = f"I don't see a {words} tab open."
+            else:
+                bt.request_activate(tab["id"])
+                d = self.desktop
+                try:                                  # the browser coming to the front makes the extension report, and pick up the switch
+                    if d is not None:
+                        for proc in ("opera.exe", "chrome.exe", "msedge.exe", "brave.exe", "vivaldi.exe"):
+                            if d.ex.running(proc):
+                                d.ex.focus(proc)
+                                break
+                except Exception:
+                    logger.debug("could not bring the browser forward", exc_info=True)
+                say = f"Switching to the {words} tab."
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "desktop"})())
+        self._last_why = {"kind": "asked", "query": text[:80]}
+        return True
+
     def _desktop_request(self, ev, now: float) -> bool:
         """"Open Outlook" / "close Word" / "run my morning check": done (or,
         for closing, asked about) without the model. Only on a line meant for
@@ -4921,6 +4959,8 @@ class AmbientRuntime:
         if self._phone_request(ev, now):
             return True
         if self._guard_request(ev, now):
+            return True
+        if self._tab_request(ev, now):
             return True
         if self._desktop_request(ev, now):
             return True

@@ -1,4 +1,4 @@
-// ASH tabs: report the open tabs to ASH on this computer. Nothing else.
+// ASH tabs: report the open tabs to ASH on this computer -- and, when you ask ASH to "switch to the X tab", bring that tab to the front. Nothing else.
 //
 // Sent: for each tab its id, url, title, whether it is the active tab of its window, whether it is playing
 // sound, and whether the window is private. ASH decides what to keep (hosts only; private, banking, mail,
@@ -42,11 +42,18 @@ async function report() {
     return;
   }
   try {
-    await fetch(`http://127.0.0.1:${c.port}/tabs`, {
+    const r = await fetch(`http://127.0.0.1:${c.port}/tabs`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-ASH-Token": c.token },
       body: JSON.stringify({ focused, tabs }),
     });
+    if (r.status === 200) {
+      const cmd = await r.json();
+      if (cmd && Number.isInteger(cmd.activate)) {      // the only command: show this tab
+        const t = await chrome.tabs.update(cmd.activate, { active: true });
+        if (t) await chrome.windows.update(t.windowId, { focused: true });
+      }
+    }
   } catch (e) {
     cfg = null;           // ASH not running, or restarted with a new config: look again next time
   }

@@ -163,6 +163,29 @@ class BrowserTabSensor(Sensor):
         return True
 
     # -- cleaning -------------------------------------------------------------------
+    # -- "switch to the Gemini tab" ----------------------------------------------------
+    def find_tab(self, words: str) -> Optional[Dict[str, Any]]:
+        """The open tab whose title or site holds all of `words` (private and sensitive tabs were never kept, so they are never found)."""
+        want = [w for w in re.findall(r"[a-z0-9]+", (words or "").lower()) if w not in ("the", "my", "a", "tab", "page", "s")]
+        if not want:
+            return None
+        for t in list(getattr(self, "open_tabs", []) or []):
+            hay = (str(t.get("title", "")) + " " + str(t.get("site", ""))).lower()
+            if all(w in hay for w in want):
+                return t
+        return None
+
+    def request_activate(self, tab_id: Any) -> None:
+        """Asked to bring a tab to the front: handed to the extension in the reply to its next report (it reports when the browser gets focus)."""
+        self._command = {"activate": tab_id, "at": self.clock()}
+
+    def take_command(self) -> Optional[Dict[str, Any]]:
+        c = getattr(self, "_command", None)
+        self._command = None
+        if c and self.clock() - c["at"] <= 30.0:
+            return {"activate": c["activate"]}
+        return None
+
     def sanitize(self, tab: Any) -> Optional[Dict[str, Any]]:
         from src.daemon.pagekind import host_of, is_sensitive, site_of
         if not isinstance(tab, dict):
@@ -218,6 +241,7 @@ class BrowserTabSensor(Sensor):
         self.tabs_n = len(raw)
         self._count_churn(now, raw)
         clean = [c for c in (self.sanitize(t) for t in raw) if c]
+        self.open_tabs = [{"id": c["id"], "title": c["title"], "site": c["site"]} for c in clean if c.get("id") is not None]   # for "switch to the X tab"
         active_raw = next((t for t in raw if t.get("active")), None)
         audible_front = bool(active_raw and active_raw.get("audible"))
         focused = bool(rep.get("focused", True)) and not self._idle(audible_front)
@@ -460,6 +484,16 @@ class BrowserTabSensor(Sensor):
                     if not body:
                         raise ValueError("size")
                     sensor.submit(json.loads(body.decode("utf-8")))
+                    cmd = sensor.take_command()
+                    if cmd:                               # the one thing the extension may be asked: bring a tab ASH was asked for to the front
+                        out = json.dumps(cmd).encode("utf-8")
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("Content-Length", str(len(out)))
+                        self._cors()
+                        self.end_headers()
+                        self.wfile.write(out)
+                        return
                     self.send_response(204)
                 except Exception:
                     sensor.stats["rejected"] += 1
