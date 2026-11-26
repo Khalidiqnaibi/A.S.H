@@ -36,6 +36,9 @@ except ImportError:
 
 logger = logging.getLogger("ash.tts")
 logger.setLevel(logging.INFO)
+# The phonemizer under Kokoro warns "words count mismatch" when its own line count and ours differ -- cosmetic (the audio is right), and it was
+# most of the log. Errors still show.
+logging.getLogger("phonemizer").setLevel(logging.ERROR)
 if not logger.handlers:
     import sys
     logger.addHandler(logging.StreamHandler(stream=sys.stderr))

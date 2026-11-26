@@ -168,6 +168,12 @@ def s6_speech():
     check("one line, no numbers or stars", "\n" not in s and "1." not in s and "**" not in s, s)
     check("still reads in order", s == "Here are a few things: Answering questions: I can help. System status. a bullet", s)
     check("a plain line is untouched", speakable("It's 5 pm.") == "It's 5 pm.")
+    for before, after in (("Okay -- dropped it.", "Okay, dropped it."), ("Got it \u2014 a set.", "Got it, a set."), ("Fair -- that took 41 s.", "Fair, that took 41 s."),
+                          ("No more --.", "No more."), ("pages 3 \u2013 5", "pages 3, 5"), ("well-known x-ray", "well-known x-ray")):
+        check(f"a dash is a pause: {before!r}", speakable(before) == after, speakable(before))
+    import logging as _lg
+    import tools.tts  # noqa: F401
+    check("the phonemizer's cosmetic warning is not logged", _lg.getLogger("phonemizer").level == _lg.ERROR)
     check("version numbers are not list markers", speakable("Use Python 3.11 here.") == "Use Python 3.11 here.")
     check("nothing in, nothing out", speakable("") == "" and speakable(None) == "")
     import time

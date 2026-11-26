@@ -249,6 +249,10 @@ def speakable(text: str) -> str:
     t = re.sub(r"\s+/\s+", ", ", t)                         # a song's lines, a screen's: "line one / line two"
     t = re.sub(r"\n\s*(?:\d{1,2}[.)]|[-*\u2022])\s+", ". ", "\n" + t).lstrip(". ")
     t = re.sub(r"\*\*|__|`", "", t)                       # markdown emphasis and code ticks
+    # "Okay -- dropped it.": a dash is a pause. The phonemizer split "--" into a word of its own and warned "words count mismatch" on nearly
+    # every line ASH said (227 times on 26 Nov); a comma is the same pause, spoken the same.
+    t = re.sub(r"\s*(?:--|\u2014|\s\u2013\s)\s*", ", ", t)
+    t = re.sub(r",\s*([,.!?])", r"\1", t)
     t = re.sub(r"\s*\n+\s*", " ", t)
     t = re.sub(r"([.!?:;])\s*\.\s", r"\1 ", t)               # "intro:. first" -> "intro: first"
     return re.sub(r"\s{2,}", " ", t).strip()
