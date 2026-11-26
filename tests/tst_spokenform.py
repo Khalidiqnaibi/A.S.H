@@ -32,7 +32,7 @@ def t1_settings_and_paths():
     check("...also the short form", speakable("Texting is switched off (phone.allow_sms).") == "Texting is switched off.")
     check("...and game_mode's", speakable("Game mode is off (game_mode.enabled in daemon.json).") == "Game mode is off.")
     got = speakable("Done -- 40 rows saved to C:\\Users\\pc\\Documents\\x\\browsing-2026.json. It's plain JSON.")
-    check("a Windows path is 'your files', and the sentence still ends", got == "Done -- 40 rows saved to your files. It's plain JSON.", got)
+    check("a Windows path is 'your files', and the sentence still ends", got == "Done, 40 rows saved to your files. It's plain JSON.", got)
     check("a unix path too", speakable("Saved to /home/omar/notes/a.txt.") == "Saved to your files.")
     got = speakable('Run "python ashctl.py vision install" first.')
     check("a command is 'the ... command'", got == 'Run "the vision install command" first.', got)
