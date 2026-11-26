@@ -36,7 +36,10 @@ _SEARCH = re.compile(_LEAD + r"(?:search\s+(?P<e2>youtube|google|wikipedia|maps|
 # What these are about is ASH's own stores or the machine, not the web: left to the rules that know them.
 _NOT_WEB = re.compile(r"^(?:(?:my|our|the)\s+)?(?:files?|documents?|folders?|notes?|memory|memories|computer|pc|laptop|disk|drive|downloads?|desktop|"
                       r"email|emails|calendar|reminders?|messages?|contacts?|history|screen|clipboard|logs?|camera|photos?\s+on\s+my)\b|^(?:it|this|that|them|him|her|something|anything|"
-                      r"everything|nothing)$|^(?:my|your)\b", re.I)
+                      r"everything|nothing)$|^(?:my|your)\b"
+                      # "look up the previous stuff" / "that stuff" / "what I just asked": a reference, for context.py to resolve -- 26 Nov it searched for "the previous stuff"
+                      r"|^(?:the\s+|that\s+)?(?:previous|last|earlier|same|other)\s+(?:stuff|thing|things|one|question|topic|bit)$|^(?:that|this|the)\s+(?:stuff|thing|question|topic)$"
+                      r"|^what\s+i\s+(?:just\s+)?(?:asked|said)(?:\s+(?:about|before|earlier))?$|^(?:it|that|this)\s+(?:for\s+me|again|please)$", re.I)
 
 
 _QLEAD = re.compile(r"^(?:(?P<eng>google\s+images|youtube|google|wikipedia|bing|duckduckgo)\s+(?:for|about|on)\s+|"

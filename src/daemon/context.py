@@ -34,8 +34,12 @@ _END = r"(?:[,\s]+(?:please|ash|again|now))*\s*[.!?]*\s*$"
 _APP = re.compile(_LEAD + r"(?P<verb>open|launch|start|close|quit|exit|switch\s+to|bring\s+up|go\s+to)\s+"
                   r"(?:it|that|this|that\s+app|the\s+same\s+(?:app|one))" + _END, re.I)
 _REMIND = re.compile(_LEAD + r"remind\s+me\s+(?:about|of)\s+(?:that|it|this)(?P<when>\s+.*?)?\s*[.!]?\s*$", re.I)
-_LOOKUP = re.compile(_LEAD + r"(?:look\s+(?:it|that|this)\s+up|look\s+up\s+(?:it|that|this)|research\s+(?:that|it|this)|"
-                     r"find\s+out\s+(?:more\s+)?about\s+(?:that|it|this))" + _END, re.I)
+_REF = r"(?:it|that|this|(?:the\s+|that\s+)?(?:previous|last|earlier|same)\s+(?:stuff|thing|things|one|question|topic|bit)|(?:that|this|the)\s+(?:stuff|thing|question|topic)|what\s+i\s+(?:just\s+)?(?:asked|said)(?:\s+(?:about|before|earlier))?)"
+_LOOKUP = re.compile(_LEAD + r"(?:(?:\w+[,\s]+)?look\s+" + _REF + r"\s+up|look\s+up\s+" + _REF + r"|research\s+" + _REF + r"|search\s+(?:for\s+)?" + _REF + r"|google\s+" + _REF + r"|"
+                     r"find\s+out\s+(?:more\s+)?about\s+" + _REF + r")(?:\s+for\s+me)?" + _END, re.I)
+# What is not a subject to look up: references and commands themselves ("Local, look that up."), reactions and fillers, a line cut off.
+_NOT_SUBJECT = re.compile(r"\b(?:look\s+(?:\w+\s+)?up|search|google|never\s*mind|nevermind)\b|^\W*(?:(?:ash[,\s]+)?(?:ok(?:ay)?|yes|yeah|no|nope|thanks?|that'?s\s+\w+|haha|lol|wow|cool|nice|hmm+)\b)|(?:\.\.\.|\u2026)\s*$", re.I)
+_QUESTION = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?P<q>(?:what|which|who|how|why|when|where)\b.{6,200}?)\s*\??|(?P<q2>(?:is|are|does|do|can|could|should)\b.{6,200}?)\s*\?)\s*$", re.I)
 _WHO = re.compile(_LEAD + r"(?:who(?:'s|\s+is|\s+was)\s+(?:that|he|she|they|this)|who\s+did\s+you\s+(?:mean|say))" + _END,
                   re.I)
 _AGAIN = re.compile(_LEAD + r"(?:say\s+(?:that|it)\s+again|repeat\s+(?:that|it|yourself)|what\s+did\s+you\s+(?:just\s+)?say|"
@@ -159,10 +163,15 @@ class Context:
         for t, text in reversed(self.user):
             if now - t > self.window_s:
                 break
+            if self.is_referring(text) or _NOT_SUBJECT.search(text or ""):
+                continue                              # "Local, look that up." is the request, not what it is about
             m = _ABOUT.match(text)
             if m:
                 return m.group("t").strip()
-            if len(text.split()) <= 4 and not re.match(r"^\s*(?:i|i'm|we|you|it|ok|okay|yes|no)\b", text, re.I):
+            q = _QUESTION.match(text)
+            if q and 3 <= len(text.split()) <= 30:
+                return (q.group("q") or q.group("q2")).strip().rstrip(" .!?")   # a whole question ("what bio markers in the blood...") is a fine search
+            if len(text.split()) <= 4 and not re.match(r"^\s*(?:i|i'm|we|you|it|ok|okay|yes|no)\b", text, re.I) and not re.search(r"\b(?:that|this|it)\b", text, re.I):
                 return text.rstrip(" .!?")
         return None
 

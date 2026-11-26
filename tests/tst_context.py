@@ -102,6 +102,30 @@ def c3_lookup():
           == {"text": "look up black holes"})
 
 
+def c3b_lookup_26nov():
+    print("\n=== C3b. 'Look that up' on 26 Nov ===")
+    c = ctx()
+    c.heard("What are the biomarkers that tend to...")
+    c.heard("Everyone has cancer in their blood.")
+    c.heard("what bio markers in the blood that are different with someone who has cancer that can help with early stage cancer detection")
+    c.heard("Local, look that up.")
+    r = c.resolve("Look that up.")
+    check("the question, not the misheard command before it", r == {"text": "look up what bio markers in the blood that are different with someone who has cancer "
+                                                                          "that can help with early stage cancer detection"}, str(r))
+    for t in ("Local, look that up.", "Look up the previous stuff.", "search for that", "google that for me", "look up what I just asked"):
+        check(f"{t!r} is a reference", Context.is_referring(t), t)
+    check("'the previous stuff' resolves the same way", (c.resolve("Look up the previous stuff.") or {}).get("text", "").startswith("look up what bio markers"))
+    c = ctx()
+    c.heard("Can fix that.")
+    c.heard("Nevermind.")
+    c.heard("That's funny.")
+    check("reactions and fillers are not subjects", c.resolve("look that up") is None, str(c.resolve("look that up")))
+    from src.daemon import websearch
+    for t in ("Look up the previous stuff.", "search for that stuff", "look up what I just asked"):
+        check(f"{t!r} is left to context, not searched literally", websearch.parse(t) is None, str(websearch.parse(t)))
+    check("a real look-up still is one", websearch.parse("look up the previous prime minister of Jordan") is not None)
+
+
 class KB:
     def __init__(self):
         self.people = {"omar": {"name": "Omar", "relation": "colleague", "desc": ""},
@@ -250,7 +274,7 @@ def c7_runtime():
 
 
 if __name__ == "__main__":
-    for fn in (c1_apps, c2_remind, c3_lookup, c4_people, c5_again, c5b_history, c6_not_ours, c7_runtime):
+    for fn in (c1_apps, c2_remind, c3_lookup, c3b_lookup_26nov, c4_people, c5_again, c5b_history, c6_not_ours, c7_runtime):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)
