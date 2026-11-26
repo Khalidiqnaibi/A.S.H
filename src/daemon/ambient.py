@@ -1572,7 +1572,9 @@ class AmbientRuntime:
         self._model_notice()
         if self.governor is not None:
             try:
-                self.governor.tick(now)
+                ch = self.governor.tick(now)
+                if ch in ("squeezed", "relaxed"):
+                    self._llm_timeout_cap(ch == "squeezed")
             except Exception:
                 logger.exception("Resource governor failed")
         self._unload_when_idle(now)
@@ -5613,6 +5615,34 @@ class AmbientRuntime:
         self.response_sink(say, {"addressed": False, "source": "habit", "attention": None, "pathway": "wonder", "outcome": "habit"})
         self._last_why = {"kind": "habit", "query": got["with"]}
 
+    SQUEEZED_LLM_TIMEOUT = 90.0
+
+    def _llm_timeout_cap(self, on: bool) -> None:
+        """While the machine is squeezed the model either answers within a minute and a half or not at all: two questions today waited the full 300 s for
+        nothing (memory at 92%). Back to the normal limit when it relaxes."""
+        llm = getattr(getattr(self, "ash", None), "llm", None)
+        if llm is None or not hasattr(llm, "_timeout"):
+            return
+        if on:
+            if getattr(self, "_llm_timeout_normal", None) is None:
+                self._llm_timeout_normal = llm._timeout
+            llm._timeout = min(float(llm._timeout), AmbientRuntime.SQUEEZED_LLM_TIMEOUT)
+        elif getattr(self, "_llm_timeout_normal", None) is not None:
+            llm._timeout = self._llm_timeout_normal
+            self._llm_timeout_normal = None
+
+    def _why_no_model(self) -> str:
+        """The reason the model did not answer, if the machine can say: ' Memory is at 92%, which is why it is slow.'"""
+        try:
+            g = self.governor.status() if self.governor is not None else None
+        except Exception:
+            g = None
+        if g and g.get("squeezed"):
+            return f" The machine is under load ({g.get('why') or 'memory'}), which is why it is slow."
+        if g and (g.get("memory") or 0) >= 85:
+            return f" Memory is at {g['memory']:.0f}%, which is why it is slow."
+        return ""
+
     def _slow_note(self, cold: bool) -> str:
         """Why a model call may have been slow, in words, for the digest: the model had to be loaded, the machine was squeezed, memory or CPU were high."""
         bits = []
@@ -6129,9 +6159,12 @@ class AmbientRuntime:
             if repairing:
                 from .repair import NOTHING
                 self.repair.stats["nothing"] += 1
-            self.response_sink((NOTHING + " Ask me “what can you do” for what I do well.") if repairing else NO_MODEL_TEXT, {
+            say = (NOTHING + " Ask me “what can you do” for what I do well.") if repairing else (
+                NO_MODEL_TEXT if not self._why_no_model() else "My brain's not answering right now." + self._why_no_model() + " Give it a minute and ask me again.")
+            self.response_sink(say, {
                 "addressed": True, "source": ev.source, "attention": decision.as_dict(),
-                "pathway": "degraded", "degraded": True,
+                # Asked, and silent for minutes: that is said aloud (the quiet channel is for an unprompted apology, never for an answer owed)
+                "pathway": "degraded", "degraded": True, "speak_degraded": bool(asked),
             })
         except Exception:
             logger.exception("Response sink failed")

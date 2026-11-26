@@ -164,7 +164,7 @@ def build_response_sink(periphery, prefer_speech: bool = True, window_open=None)
         # otherwise -- when ASH decided on its own that this was worth saying.
         # Never an apology for being broken.
         if (speak is not None and speak.state.value == "active"
-                and (addressed or prefer_speech) and not meta.get("degraded")):
+                and (addressed or prefer_speech) and (not meta.get("degraded") or (addressed and meta.get("speak_degraded")))):
             said = meta.get("spoken") or text              # in brief mode, long answers are spoken short
             r = speak({"text": said, "voice": meta["voice"]} if meta.get("voice") else said)
             if r.get("ok"):
