@@ -2520,12 +2520,24 @@ class AmbientRuntime:
         self._last_why = {"kind": "asked", "query": text[:80]}
         return True
 
+    # How unsure (average log-probability, 0 = certain) a heard line may be and still be kept as something the person told ASH.
+    UNSURE_LOGPROB = -0.6
+
+    def _heard_unsure(self, ev) -> bool:
+        conf = (getattr(ev, "meta", None) or {}).get("asr_conf")
+        try:
+            return conf is not None and float(conf) < AmbientRuntime.UNSURE_LOGPROB
+        except (TypeError, ValueError):
+            return False
+
     def _statement_request(self, ev, now: float) -> bool:
         """The user says what they are doing ("I'm just building my custom hardware chip"): acknowledged in a line, and kept as what they
         said -- by rule, with no model (statements.py). The last rule but one, so everything with a use for the line has had it first."""
         if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
             return False
         text = str(getattr(ev, "text", "") or "")
+        if self._heard_unsure(ev):
+            return False                          # not kept as what they said: the recogniser was not sure that is what they said
         st = getattr(self, "_statements", None)
         if st is None:
             from .statements import SEEDS, Statements
@@ -4406,6 +4418,13 @@ class AmbientRuntime:
             if getattr(ev, "source", "") == "flow" or not w.hears(getattr(ev, "source", "")):
                 return None
             text = getattr(ev, "text", "") or ""
+            if self._heard_unsure(ev):
+                # 26 Nov: "Gemini tab ... NPU" came out as "It's just my gym and I tab to ask about the MBU on your work", was taken as the answer to
+                # "what is Custom TPU Prototyping?" and said back as a fact. A line the recogniser was this unsure of teaches nothing: asked again.
+                if w.awaiting(now) is not None:
+                    from .wondering import Reply
+                    return Reply(consumed=True, say="I'm not sure I heard that right -- could you say it again?", outcome="unclear")
+                return None
             ents = getattr(self.ash, "entity_memory", None)
             snap, before = snapshot(w.kb), entity_ids(ents)
             rep = w.hear(text, now, addressed=bool(getattr(ev, "addressed", False)))
