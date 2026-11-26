@@ -390,7 +390,29 @@ def health(runtime) -> str:
             bits.append("microphone " + str(getattr(getattr(m, "state", None), "value", "") or "off"))
         except Exception:
             pass
+    slow = _slow_today(runtime)
+    if slow:
+        bits.append(slow)
     return ("Now: " + "; ".join(bits) + ".") if bits else ""
+
+
+def _slow_today(runtime) -> str:
+    """'3 slow answers today (2 while memory or CPU was high)': from the unrouted ledger, which notes why each slow one was slow."""
+    ur = getattr(runtime, "unrouted", None)
+    rows = list(getattr(ur, "rows", []) or [])
+    if not rows:
+        return ""
+    try:
+        now = float(runtime.clock())
+    except Exception:
+        now = time.time()
+    day = time.localtime(now)[:3]
+    slow = [r for r in rows if float(r.get("took_s") or 0) >= 15.0 and time.localtime(float(r.get("t") or 0))[:3] == day]
+    if not slow:
+        return ""
+    loaded = sum(1 for r in slow if re.search(r"squeezed|memory|CPU", str(r.get("note") or "")))
+    return (f"{len(slow)} slow answer{'s' if len(slow) != 1 else ''} today"
+            + (f" ({loaded} while the machine was under load)" if loaded else ""))
 
 
 def change(runtime, path: Optional[str], key: str, raw: Any) -> Dict[str, Any]:

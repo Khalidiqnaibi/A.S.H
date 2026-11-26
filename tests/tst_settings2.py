@@ -84,6 +84,15 @@ def main():
     check("and when it is keeping out of the way, why", "keeping out of the way: memory is at 91%" in st.health(rt), st.health(rt))
     check("a runtime with nothing to report: an empty line, no crash", st.health(types.SimpleNamespace()) == "")
     rt = rig()
+    import time as _t
+    now = _t.time()
+    rt.clock = lambda: now
+    rt.unrouted = types.SimpleNamespace(rows=[{"t": now - 60, "took_s": 83.0, "note": "the machine was squeezed (memory at 92%)"},
+                                              {"t": now - 120, "took_s": 48.0, "note": ""}, {"t": now - 180, "took_s": 3.0},
+                                              {"t": now - 3 * 86400, "took_s": 300.0, "note": "memory was at 93%"}])
+    h = st.health(rt)
+    check("the slow answers today, and how many under load (not other days, not quick ones)", h.endswith("; 2 slow answers today (1 while the machine was under load)."), h)
+    rt = rig()
     st.apply_saved(rt, {"llm": {"model": "phi3:mini", "threads": 2}, "mic": {"second_pass": False}})
     check("saved values are applied when the daemon starts", rt.ash.llm._ollama_model == "phi3:mini" and os.environ.get("ASH_OLLAMA_NUM_THREAD") == "2"
           and rt.periphery.sensors["microphone"].second_pass_model == "", os.environ.get("ASH_OLLAMA_NUM_THREAD", ""))
