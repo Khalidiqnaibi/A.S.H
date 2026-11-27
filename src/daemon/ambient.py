@@ -3287,6 +3287,108 @@ class AmbientRuntime:
         more = f" ({len(rows) - 1} more this week)" if len(rows) > 1 else ""
         return f"{what} is {when}{more}."
 
+    def _pipeline_ctx(self):
+        """What a pipe's stages reach for real (tests replace this with a fake): the file index, the desktop opener, the notes, the clipboard."""
+        from . import pipeline
+        me = self
+
+        class Real(pipeline.Ctx):
+            def find_files(self, q):
+                fs = me.filesearch
+                return [h.entry.path for h in fs.search(q, me.clock())] if fs is not None else []
+
+            def read_file(self, path):
+                from .filesearch import _read_text
+                return _read_text(path, 20000)
+
+            def search_open(self, q):
+                from urllib.parse import quote_plus
+                ex = getattr(me.desktop, "ex", None) if me.desktop is not None else None
+                return bool(ex is not None and ex.open("https://www.google.com/search?q=" + quote_plus(q)))
+
+            def read_page(self):
+                return ""                                  # no page reader on this machine: the stage says so, by name
+
+            def memory(self, q):
+                nt = me.notes
+                return " ".join(n.said for n in (getattr(nt, "items", None) or []) if q.lower() in n.said.lower()) if nt is not None else ""
+
+            def note(self, text):
+                if me.notes is None:
+                    return False
+                me.notes.keep_note(text[:600])
+                return True
+
+            def remember(self, name, text):
+                return self.note(f"{name}: {text}")
+
+            def copy(self, text):
+                cb = me.clipboard
+                return bool(cb is not None and cb.copy(text))
+        return Real()
+
+    def _pipeline_request(self, ev, now: float) -> bool:
+        """Things ASH can do, chained like a Unix pipe (pipeline.py): "find the lease, summarize it, and tell me what it says about pets"; "...in the background"; "what are you doing?"; "stop that".
+        The plan is read back once, before the first stage that changes something; read-only pipes just run."""
+        if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        from . import pipeline, yesno
+        text = str(getattr(ev, "text", "") or "").strip()
+        runs = getattr(self, "_pipes", None)
+        if runs is None:
+            runs = self._pipes = pipeline.Runs()
+
+        def say(line: str) -> bool:
+            self._wonder_say(ev, type("R", (), {"say": line, "outcome": "desktop"})())
+            return True
+        pend = getattr(self, "_pipe_pending", None)
+        if pend is not None and (yesno.is_yes(text) or yesno.is_no(text)):
+            self._pipe_pending = None
+            if now - pend[2] > 120.0 or yesno.is_no(text):
+                return say("Okay, not doing that.")
+            return self._pipeline_go(ev, pend[0], pend[1], pend[3], say)
+        if not self._meant_for_ash(ev):
+            return False
+        if pipeline.asks_status(text) and runs.active():
+            return say(runs.status())
+        if pipeline.asks_stop(text) and runs.active():
+            return say(runs.stop())
+        p = pipeline.parse(text)
+        if p is None:
+            return False
+        for g in p["parallel"]:
+            bad = pipeline.check_types(g)
+            if bad:
+                return say("That doesn't join up: " + bad)
+        if pipeline.needs_yes(p["parallel"]):
+            self._pipe_pending = (text, p["parallel"], now, p["background"])
+            return say("So: " + pipeline.plan_line(p["parallel"], p["background"]) + ". Go ahead?")
+        return self._pipeline_go(ev, text, p["parallel"], p["background"], say)
+
+    def _pipeline_go(self, ev, text, par, background, say) -> bool:
+        from . import pipeline
+        ctx = self._pipeline_ctx()
+        runs = self._pipes
+        made = [runs.new(text, g) for g in par]
+        self.stats["pipelines"] = self.stats.get("pipelines", 0) + len(made)
+
+        def work(r):
+            return pipeline.run_stages(ctx, r)
+        if background:
+            import threading as _th
+
+            def bg():
+                outs = [work(r) for r in made]
+                self._wonder_say(ev, type("R", (), {"say": " ".join(outs), "outcome": "desktop"})())
+            _th.Thread(target=bg, daemon=True).start()
+            return say("On it -- I'll tell you when it's done.")
+        if len(made) == 1:
+            return say(work(made[0]))
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=min(5, len(made))) as pool:
+            outs = list(pool.map(work, made))
+        return say(" ".join(outs))
+
     def _dial_request(self, ev, now: float) -> bool:
         """'Be less chatty' / 'fewer jokes' (dial.py) -- how often ASH volunteers, kept across restarts; and 'I have a headache' / 'my eyes
         hurt' -- the time at the screen, a break, and quiet on a yes."""
@@ -6627,6 +6729,8 @@ class AmbientRuntime:
         if self._pocket_request(ev, now):
             return True
         if self._dial_request(ev, now):
+            return True
+        if self._pipeline_request(ev, now):
             return True
         if self._teach_request(ev, now):
             return True
