@@ -1657,6 +1657,7 @@ class AmbientRuntime:
             self._restart_checked = True
             self._back_from_restart()
             self._apply_dial()
+            self._apply_voice()
         self._timed_restore(now)
         self._refresh_about_you(now)
         self._model_notice()
@@ -2463,7 +2464,81 @@ class AmbientRuntime:
         except Exception:
             logger.debug("update line failed", exc_info=True)
 
+    # ---- the voice: softly at night, a chosen voice -----------------------------------------------------------------------------------------------
+    _SOFT = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:(?:speak|talk)\s+(?:softly|quietly|more\s+quietly|low)|whisper(?:\s+mode)?|use\s+(?:a\s+)?(?:soft|quiet)\s+voice|"
+                       r"(?:night|quiet)\s+voice)\W*$", re.I)
+    _LOUD = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:(?:speak|talk)\s+(?:up|louder|normally|at\s+normal\s+volume)|normal\s+voice|stop\s+whispering|use\s+your\s+normal\s+voice)\W*$", re.I)
+    _VOICES = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:what|which)\s+voices\s+(?:do\s+you\s+have|can\s+you\s+(?:use|do)|are\s+there)\W*$", re.I)
+    _USE_VOICE = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:use|switch\s+to|change\s+(?:your\s+)?voice\s+to)\s+(?:the\s+)?(?:voice\s+)?(?P<v>[a-z]{2}_[a-z]+)\W*$", re.I)
+
+    def _speaker(self):
+        return (self.periphery.actuators.get("speak") if getattr(self, "periphery", None) is not None else None)
+
+    def _set_gain(self, g: float) -> None:
+        try:
+            import tools.tts as _tts
+            _tts.GAIN = float(g)
+        except Exception:
+            logger.debug("no gain", exc_info=True)
+
+    def _apply_voice(self) -> None:
+        d = self._notices()
+        if d.get("voice_gain") is not None:
+            self._set_gain(float(d["voice_gain"]))
+        sp = self._speaker()
+        if sp is not None and d.get("voice_name"):
+            sp.default_voice = str(d["voice_name"])
+
+    def _voice_request(self, ev, now: float) -> bool:
+        if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")) or not self._meant_for_ash(ev):
+            return False
+        text = str(getattr(ev, "text", "") or "").strip()
+        if not text or len(text) > 80:
+            return False
+
+        def say(line: str) -> bool:
+            self._wonder_say(ev, type("R", (), {"say": line, "outcome": "desktop"})())
+            return True
+        sp = self._speaker()
+        if self._SOFT.match(text):
+            self._set_gain(0.35)
+            self._notices(voice_gain=0.35)
+            self.undo.push("speaking softly", lambda: (self._set_gain(1.0), self._notices(voice_gain=1.0)), now)
+            return say("Okay -- speaking softly. Everything I say is also on the screen. Say “speak normally” to bring it back.")
+        if self._LOUD.match(text):
+            self._set_gain(1.0)
+            self._notices(voice_gain=1.0)
+            return say("Okay -- my normal voice.")
+        if self._VOICES.match(text):
+            names = []
+            try:
+                names = list(sp.tts.voices()) if sp is not None and getattr(sp, "tts", None) is not None else []
+            except Exception:
+                names = []
+            cur = getattr(sp, "default_voice", None) if sp is not None else None
+            if not names:
+                return say("I can't list voices from here -- the speech engine isn't loaded.")
+            return say(f"{len(names)} voices: " + ", ".join(names[:12]) + (" and more" if len(names) > 12 else "") + ". Say “use the voice bm_george”."
+                       + (f" I'm using {cur}." if cur else ""))
+        m = self._USE_VOICE.match(text)
+        if m and sp is not None:
+            v = m.group("v").lower()
+            try:
+                names = list(sp.tts.voices())
+            except Exception:
+                names = []
+            if names and v not in names:
+                return say(f"I don't have a voice called {v}.")
+            prev = sp.default_voice
+            sp.default_voice = v
+            self._notices(voice_name=v)
+            self.undo.push("my voice", lambda: (setattr(sp, "default_voice", prev), self._notices(voice_name=prev or "")), now)
+            return say(f"Okay -- this is {v}.")
+        return False
+
     def _presence_request(self, ev, now: float) -> bool:
+        if self._voice_request(ev, now):
+            return True
         if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
             return False
         text = str(getattr(ev, "text", "") or "").strip()

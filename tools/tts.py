@@ -35,6 +35,8 @@ except ImportError:
     KOKORO_AVAILABLE = False
 
 logger = logging.getLogger("ash.tts")
+# Loudness of ASH's voice: 1.0 normally, lower for "speak softly" (a late night, a sleeping house). Applied to the samples, so it needs no mixer.
+GAIN = 1.0
 logger.setLevel(logging.INFO)
 # The phonemizer under Kokoro warns "words count mismatch" when its own line count and ours differ -- cosmetic (the audio is right), and it was
 # most of the log. Errors still show.
@@ -147,6 +149,13 @@ class TTSEngine:
         except Exception as e:
             logger.error(f"Failed to load Kokoro: {e}")
 
+    def voices(self):
+        """The voice names the engine has, or []."""
+        try:
+            return sorted(self.engine.get_voices()) if self.engine else []
+        except Exception:
+            return []
+
     def synthesize(self, text: str, voice: str = "af_heart", speed: float = 1.0):
         """The whole reply as one WAV, or None if there is nothing to say.
 
@@ -179,6 +188,8 @@ class TTSEngine:
             return None
 
         audio = chunks[0] if len(chunks) == 1 else np.concatenate(chunks)
+        if abs(GAIN - 1.0) > 0.01:
+            audio = np.clip(audio * GAIN, -1.0, 1.0)
         wav_io = io.BytesIO()
         sf.write(wav_io, audio, rate, format="WAV", subtype="PCM_16")
         logger.debug("Spoke %d chars as %d span(s), %.1fs of audio",

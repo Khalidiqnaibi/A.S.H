@@ -96,6 +96,7 @@ class SpeakActuator(Actuator):
         self._lock = threading.Lock()
         self.speaking = False
         self.ended_at = 0.0                # when ASH last went quiet (wall clock)
+        self.default_voice = None          # a voice the person chose ("use the voice bm_george"); a line with its own voice still wins
         self.speed = 1.0                   # how fast it talks; the daemon follows the emotion state with it (slower when low, brisker when keen)
         super().__init__(**kw)
 
@@ -122,6 +123,7 @@ class SpeakActuator(Actuator):
             text, voice = str(args.get("text", "")), (args.get("voice") or None)
         else:
             text = args if isinstance(args, str) else str(args)
+        voice = voice or self.default_voice
         if self.tts is None or getattr(self.tts, "engine", True) is None:
             return {"ok": False, "error": "no TTS engine attached"}
         text = speakable(text)
