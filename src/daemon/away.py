@@ -62,6 +62,15 @@ def items(rt: Any, since: float, now: float) -> List[str]:
                 out.append(f"the computer shut down unexpectedly at {_hm(crashed[0]['t'])}")
         except Exception:
             pass
+    t = getattr(rt, "toasts", None)
+    if t is not None and getattr(t, "enabled", False):
+        try:
+            got = t.since_(since)
+            if got:
+                line = t.line(got).rstrip(".")
+                out.append(line[0].lower() + line[1:])
+        except Exception:
+            pass
     w = getattr(rt, "wonder", None)
     if w is not None:
         try:

@@ -31,7 +31,7 @@ def main():
         rt, said = rig()
         cue = rt._thinking_cue(True)
         time.sleep(0.5)
-        check("the cue, then 'still working on it' with why", len(said) == 2 and said[1] == "Still working on it. Memory is at 92%, which is why it is slow.", str(said))
+        check("the cue, then 'still working on it' with why", len(said) == 2 and said[1] == "Still working on it. Memory is at 92%, which is why it is slow. Say “ask Gemini” and I'll hand it over.", str(said))
         cue.cancel()
         rt, said = rig()
         cue = rt._thinking_cue(True)

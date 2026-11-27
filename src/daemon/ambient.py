@@ -343,6 +343,7 @@ class AmbientConfig:
     jokes_path: Optional[str] = None      # which jokes were told (jokebook.py)
     moments_path: Optional[str] = None    # when each free-moment activity last ran (the mood check: once a day, across restarts)
     notices_path: Optional[str] = None    # runtime notices kept across restarts: when memory was last said, a restart that was asked for
+    notifications: bool = False           # read Windows notifications (the app and who from, never the message): off unless switched on
     # Kids mode: grown-up things refused, the model told it's a child, a word filter, a time limit (kids.py).
     kids: bool = False
     kids_cfg: Optional[Dict[str, Any]] = None
@@ -758,6 +759,10 @@ class AmbientRuntime:
             if self.research is not None:
                 self.briefings.add_provider(self.research.briefing_part)
         # Watches the user asked for; what they find is said even unasked.
+        from .toasts import Toasts
+        from .recall import Limits
+        self.toasts = Toasts(enabled=bool(getattr(self.cfg, "notifications", False)), clock=time.time, who=self._relation_of)
+        self.limits = Limits()
         self.watcher: Optional[Watcher] = None
         self._watch_pending: List[str] = []
         if self.cfg.watch:
@@ -1703,6 +1708,9 @@ class AmbientRuntime:
                 except Exception:
                     logger.exception("Camera-change watching failed on a tick")
             self._step("situation", self._situation_step, now, idle_s)
+            self._step("toasts", self._toast_step, now)
+            self._step("limits", self._limit_step, now)
+            self._step("download offer", self._download_offer_step, now)
             self._step("guard", self._guard_step, now)
             self._step("feelings", self._feelings_step, now)
             if self.kids is not None and self.kids.time_up(now):
@@ -2121,14 +2129,164 @@ class AmbientRuntime:
     _ASK_GEMINI = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:(?:can|could)\s+you\s+)?(?:ask|check\s+with|put\s+it\s+to)\s+gemini\s+"
                              r"(?:(?:about|whether|if|for|on)\s+)?(?P<q>.{3,240}?)\s*[?.!]*\s*$", re.I)
 
+    _GEMINI_BARE = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:ok(?:ay)?|yes|yeah|fine)[,\s]+)?(?:ask\s+gemini|(?:send|give|hand|pass|put)\s+(?:it|that|this)"
+                              r"(?:\s+over)?\s+to\s+gemini|let\s+gemini\s+(?:answer|do|take)\s+(?:it|that|this)|use\s+gemini)(?:\s+instead)?(?:\s+please)?\W*$", re.I)
+
+    def _relation_of(self, name: str) -> str:
+        """'your cousin' for a name ASH knows, '' otherwise (said with a notification's sender)."""
+        try:
+            w = self.wonder
+            if w is None or not name:
+                return ""
+            from .activity import norm
+            p = w.kb.people.get(norm(name)) or w.kb.people.get(norm(name.split()[0]))
+            rel = (p or {}).get("relation")
+            return f"your {rel}" if rel else ""
+        except Exception:
+            return ""
+
+    def _toast_step(self, now: float) -> None:
+        """New Windows notifications (only when switched on): offered as a remark, so focus, games, calls, quiet hours and a mute hold them."""
+        t = self.toasts
+        if t is None or not t.enabled or now - getattr(self, "_toasts_at", 0.0) < 30.0 or self.privacy.paused:
+            return
+        self._toasts_at = now
+        new = t.poll()
+        if not new:
+            return
+        say = t.line(new)
+        self.submit(SensorEvent(source="flow", modality=Modality.TEXT, text=say, salience=0.6, urgency=0.4, ts=now, persistable=False,
+                                meta={"offer": "situation", "offer_strength": 0.8, "say": say, "topic": "notification", "situation": "notification"}))
+
+    def _limit_step(self, now: float) -> None:
+        """A limit the person set ("tell me after 30 minutes of YouTube"), checked once a minute and said once -- they asked for it."""
+        if not self.limits.items or now - getattr(self, "_limits_at", 0.0) < 60.0 or self.gate.muted or self.privacy.paused:
+            return
+        self._limits_at = now
+        for line in self.limits.due(self, time.time()):
+            try:
+                self.response_sink(line, {"addressed": False, "source": "limit", "attention": None, "pathway": "wonder", "outcome": "limit"})
+            except Exception:
+                logger.exception("Limit line failed")
+
+    def _download_offer_step(self, now: float) -> None:
+        """A download that has been going two minutes, with no watch on it: offered once -- "want me to tell you when it's done?"."""
+        w = self.watcher
+        if w is None or now - getattr(self, "_dl_at", 0.0) < 60.0:
+            return
+        self._dl_at = now
+        try:
+            if any(x.kind == "download" for x in w.active()):
+                return
+            listing = w.probe.listdir(w.cfg.downloads_dir) or {}
+        except Exception:
+            return
+        from .watch import PARTIAL
+        parts = sorted(n for n in listing if n.lower().endswith(PARTIAL))
+        seen = getattr(self, "_dl_seen", {})
+        self._dl_seen = {n: seen.get(n, now) for n in parts}
+        offered = getattr(self, "_dl_offered", set())
+        ripe = [n for n in parts if now - self._dl_seen[n] >= 120.0 and n not in offered]
+        if not ripe:
+            return
+        self._dl_offered = offered | set(parts)
+        self._dl_pending = now
+        say = "That download's still going -- want me to tell you when it's done?"
+        self.submit(SensorEvent(source="flow", modality=Modality.TEXT, text=say, salience=0.6, urgency=0.3, ts=now, persistable=False,
+                                meta={"offer": "situation", "offer_strength": 0.8, "say": say, "topic": "download", "situation": "download"}))
+
+    def _recall_request(self, ev, now: float) -> bool:
+        """Notifications asked about, "pull up everything on X", "find that page about X from yesterday", limits -- and the yes to a download
+        offer or to bringing a page back (recall.py, toasts.py)."""
+        if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        from . import recall, yesno
+        text = str(getattr(ev, "text", "") or "").strip()
+        acts = self._meant_for_ash(ev)
+
+        def say(line: str, outcome: str = "desktop") -> bool:
+            self._wonder_say(ev, type("R", (), {"say": line, "outcome": outcome})())
+            return True
+
+        pend = getattr(self, "_dl_pending", None)
+        if pend is not None and acts and now - pend <= 120.0 and (yesno.is_yes(text) or yesno.is_no(text)):
+            self._dl_pending = None
+            if yesno.is_no(text) or self.watcher is None:
+                return say("Okay.", "moment")
+            return say(self.watcher.add({"kind": "download", "what": "the download", "dir": self.watcher.cfg.downloads_dir}, now), "watch")
+        page = getattr(self, "_page_pending", None)
+        if page is not None and acts and now - page[2] <= 120.0 and (yesno.is_yes(text) or yesno.is_no(text)
+                                                                   or re.match(r"^\W*(?:open|bring)\s+it(?:\s+(?:back|up|forward))?\W*$", text, re.I)):
+            self._page_pending = None
+            if yesno.is_no(text):
+                return say("Okay.", "moment")
+            kind, data = page[0], page[1]
+            if kind == "tab":
+                bt = self.periphery.sensors.get("browser_tabs")
+                bt.request_activate(data["id"])
+                d = self.desktop
+                if d is not None:
+                    for proc in ("opera.exe", "chrome.exe", "msedge.exe", "brave.exe", "vivaldi.exe", "firefox.exe"):
+                        if d.ex.running(proc):
+                            d.ex.focus(proc)
+                            break
+                return say("Bringing it forward.")
+            from urllib.parse import quote_plus
+            ok = self.desktop is not None and self.desktop.ex.open("https://www.google.com/search?q=" + quote_plus(data["title"]))
+            return say(f"Searching for \u201c{data['title']}\u201d." if ok else "I couldn't open the search.")
+        got = self.toasts.hear(text, time.time()) if self.toasts is not None else None
+        if got:
+            return say(got, "answer")
+        subject = recall.dossier_subject(text)
+        if subject:
+            return say(recall.dossier(self, subject, time.time()), "answer")
+        pq = recall.page_query(text)
+        if pq is not None:
+            try:
+                self.journal.flush()
+            except Exception:
+                pass
+            hit = recall.find_page(self.journal, pq[0], pq[1], time.time())
+            if hit is None:
+                return say(f"I don't see a page about {pq[0]} in what was open this week.", "answer")
+            where = f" in {hit['site']}" if hit["site"] else ""
+            line = f"\u201c{hit['title']}\u201d{where}, {recall._when(hit['t'], time.time())}."
+            bt = self.periphery.sensors.get("browser_tabs") if getattr(self, "periphery", None) is not None else None
+            tab = bt.find_tab(hit["title"]) if bt is not None and hasattr(bt, "find_tab") else None
+            if tab is not None:
+                self._page_pending = ("tab", tab, now)
+                return say(line + " It's still open -- want me to bring it forward?", "answer")
+            self._page_pending = ("search", hit, now)
+            return say(line + " It isn't open now -- want me to search for it?", "answer")
+        if acts:
+            lim = recall.parse_limit(text)
+            if lim is not None:
+                return say(self.limits.add(self, lim[0], lim[1], time.time()), "watch")
+            off = recall.parse_limit_off(text)
+            if off is not None:
+                return say(self.limits.clear(off), "watch")
+        return False
+
     def _ask_gemini_request(self, ev, now: float) -> bool:
         if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
             return False
         text = str(getattr(ev, "text", "") or "")
-        m = self._ASK_GEMINI.match(text)
-        if not m:
-            return False
-        q = m.group("q").strip()
+        if self._GEMINI_BARE.match(text):
+            q = str(getattr(self, "_think_query", "") or "") if self._thinking else ""
+            if self._thinking:
+                self.cancel_thinking(speak=False)              # handed over: the slow answer is not said on top of it
+            if not q:
+                ctx = getattr(self, "context", None)
+                q = (ctx._subject(now) if ctx is not None and hasattr(ctx, "_subject") else None) or ""
+            if not q:
+                self._wonder_say(ev, type("R", (), {"say": "Ask Gemini what? I don't have a question to pass on.", "outcome": "desktop"})())
+                return True
+            m = None
+        else:
+            m = self._ASK_GEMINI.match(text)
+            if not m:
+                return False
+            q = m.group("q").strip()
         if re.fullmatch(r"(?:that|it|this|the\s+same)", q, re.I):
             ctx = getattr(self, "context", None)
             subj = ctx._subject(now) if ctx is not None and hasattr(ctx, "_subject") else None
@@ -5152,6 +5310,8 @@ class AmbientRuntime:
             return True
         if self._devicehelp_request(ev, now):
             return True
+        if self._recall_request(ev, now):
+            return True
 
         # "Find the contract I was editing last week" (and its "open it?"): before "open it" is read as the last thing named.
         if self._samsung_request(ev, now):          # before the file search: 'search for projects in Samsung Notes' is not a file search
@@ -5765,8 +5925,10 @@ class AmbientRuntime:
             if cues.cancelled:
                 return
             try:
-                self.response_sink("Still working on it." + self._why_no_model(), {"addressed": True, "source": "cue", "outcome": "thinking_cue",
-                                                                                   "pathway": "cue", "attention": {}})
+                why = self._why_no_model()
+                # When the machine is why it is slow, say what else there is: 26 Nov "can my pc run gta 6" waited 300 s twice, then went to Gemini.
+                self.response_sink("Still working on it." + why + (" Say \u201cask Gemini\u201d and I'll hand it over." if why else ""),
+                                   {"addressed": True, "source": "cue", "outcome": "thinking_cue", "pathway": "cue", "attention": {}})
             except Exception:
                 logger.debug("Still-thinking cue failed", exc_info=True)
 
