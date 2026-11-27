@@ -1731,7 +1731,8 @@ class AmbientRuntime:
             self._step("toasts", self._toast_step, now)
             self._step("life", self._life_steps, now)
             self._step("skill triggers", self._skill_trigger_step, now)
-            self._step("presence", self._presence_step, now)
+            self._step("life presence", self._life_presence_step, now)
+            self._step("learning", self._learn_step, now)
             self._step("limits", self._limit_step, now)
             self._step("download offer", self._download_offer_step, now)
             self._step("guard", self._guard_step, now)
@@ -2438,7 +2439,7 @@ class AmbientRuntime:
                                                              banter=pr.Banter(clock=time.time), started=False, pending=None)
         return P
 
-    def _presence_step(self, now: float) -> None:
+    def _life_presence_step(self, now: float) -> None:
         """Once, 90 s after a start: what was open before a shutdown that wasn't clean, and what changed in ASH itself since it last ran."""
         P = self._presence()
         P.apps.save(now)
@@ -3322,6 +3323,101 @@ class AmbientRuntime:
             return False
         self._wonder_say(ev, type("R", (), {"say": selfknow.answer(topic, selfknow.facts(self)), "outcome": "desktop"})())
         return True
+
+    def _learn_store(self):
+        st = getattr(self, "_learnweb", None)
+        if st is None:
+            from . import learnweb
+            base = getattr(self.cfg, "life_dir", None)
+            st = self._learnweb = learnweb.Store(os.path.join(base, "learned.json") if base else None, clock=lambda: self.clock())
+        return st
+
+    def _learn_history(self, concept: str):
+        """What the user's own record says about a concept: their notes and episodes that mention every word of it."""
+        words = [w for w in re.findall(r"[a-z0-9+#]{3,}", concept.lower()) if w not in ("how", "the", "and", "make", "use")] or re.findall(r"[a-z0-9+#]+", concept.lower())
+        if not words:
+            return []
+        out = []
+        for n in (getattr(self.notes, "items", None) or []) if self.notes is not None else []:
+            said = str(getattr(n, "said", ""))
+            if all(w in said.lower() for w in words):
+                out.append(said)
+        store = getattr(getattr(self.ash, "episodic_memory", None), "store", None)
+        try:
+            for ep in (store.all() if store is not None else []):
+                sm = str(getattr(ep, "summary", ""))
+                if sm.startswith(("Immortal:", "User:", "Khalid:")) or "spent" in sm:
+                    if all(w in sm.lower() for w in words):
+                        out.append(sm)
+        except Exception:
+            pass
+        return out[:3]
+
+    def _learn_fetch(self):
+        """The real search; tests replace this. None when the network is not wanted (privacy on)."""
+        from . import learnweb
+        return None if self.privacy.paused else learnweb.web_fetch
+
+    def _learn_step(self, now: float) -> None:
+        """Every few minutes, when there is something queued: try it again (one background thread; no connection simply leaves it queued)."""
+        st = self._learn_store()
+        if not st.queue or now - getattr(self, "_learn_at", 0.0) < 300.0 or self.privacy.paused:
+            return
+        self._learn_at = now
+        fetch = self._learn_fetch()
+        if fetch is None:
+            return
+        import threading as _th
+
+        def bg():
+            from . import learnweb
+            try:
+                done = learnweb.drain(st, fetch, teach=lambda l: self._skills_obj().teach(l, source="learned"))
+                if done:
+                    self.stats["learned_queued"] = self.stats.get("learned_queued", 0) + len(done)
+            except Exception:
+                logger.debug("learn drain failed", exc_info=True)
+        _th.Thread(target=bg, daemon=True).start()
+
+    def _learn_request(self, ev, now: float) -> bool:
+        """'Learn how to make a thumbnail in Photoshop' (learnweb.py): the problem broken into concepts; each checked against what the user has done, else googled (or queued with no
+        connection); each saved, with a skill; then 'is that right?' -- a no forgets what was just saved. 'What are you learning', 'how do you learn from google'."""
+        if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        from . import learnweb, yesno
+        text = str(getattr(ev, "text", "") or "").strip()
+
+        def say(line: str) -> bool:
+            self._wonder_say(ev, type("R", (), {"say": line, "outcome": "desktop"})())
+            return True
+        st = self._learn_store()
+        pend = getattr(self, "_learn_pending", None)
+        if pend is not None and (yesno.is_yes(text) or yesno.is_no(text)):
+            self._learn_pending = None
+            if now - pend[1] <= 180.0:
+                if yesno.is_no(text):
+                    n = learnweb.forget(st, pend[0])
+                    for c in pend[0]:
+                        try:
+                            self._skills_obj().forget(c)
+                        except Exception:
+                            pass
+                    return say(f"Okay -- forgot {n} of them. Tell me what's wrong and I'll try again.")
+                return say("Good, I'll keep them.")
+        if not self._meant_for_ash(ev):
+            return False
+        if learnweb.asks_method(text):
+            return say("Here's how I learn something new: " + "; ".join(f"{i}) {s}" for i, s in enumerate(learnweb.METHOD, 1)) + ".")
+        if learnweb.asks_status(text):
+            return say(st.status())
+        problem = learnweb.parse(text)
+        if problem is None:
+            return False
+        out = learnweb.learn(problem, st, self._learn_fetch(), self._learn_history, teach=lambda l: self._skills_obj().teach(l, source="learned"))
+        if out["saved"]:
+            self._learn_pending = (list(out["saved"]), now)
+        self.stats["learned_from_web"] = self.stats.get("learned_from_web", 0) + len(out["from_web"])
+        return say(learnweb.say(out))
 
     def _hygiene_request(self, ev, now: float) -> bool:
         """'Check my memory' -- a read-only report of what is wrong in it; 'clean up my memory' -- says what it will do, and on a yes backs both files up and does it (hygiene.py)."""
@@ -6804,6 +6900,8 @@ class AmbientRuntime:
         if self._pipeline_request(ev, now):
             return True
         if self._hygiene_request(ev, now):
+            return True
+        if self._learn_request(ev, now):
             return True
         if self._selfknow_request(ev, now):
             return True
