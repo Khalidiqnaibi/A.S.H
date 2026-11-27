@@ -157,7 +157,38 @@ def _names(names: List[str]) -> str:
     return seen[0] if len(seen) == 1 else ", ".join(seen[:-1]) + " and " + seen[-1]
 
 
+def _imap_body(cfg: InboxConfig, message_id: str) -> str:
+    """The plain text of one message, by its Message-ID, fetched with BODY.PEEK so nothing is marked read. Read-only."""
+    m = imaplib.IMAP4_SSL(cfg.host, cfg.port, timeout=cfg.timeout_s)
+    try:
+        m.login(cfg.user, cfg.password)
+        typ, _ = m.select(cfg.folder, readonly=True)
+        if typ != "OK":
+            return ""
+        typ, data = m.search(None, "HEADER", "Message-ID", message_id)
+        ids = (data[0] or b"").split() if typ == "OK" and data else []
+        if not ids:
+            return ""
+        typ, msg = m.fetch(ids[-1], "(BODY.PEEK[])")
+        if typ != "OK" or not msg or not isinstance(msg[0], tuple):
+            return ""
+        em = email.message_from_bytes(msg[0][1])
+        text = ""
+        for part in (em.walk() if em.is_multipart() else [em]):
+            if part.get_content_type() == "text/plain":
+                text = part.get_payload(decode=True).decode(part.get_content_charset() or "utf-8", "replace")
+                break
+        return re.sub(r"\s+", " ", text).strip()[:3000]
+    finally:
+        try:
+            m.logout()
+        except Exception:
+            pass
+
+
 class Inbox:
+    body_fetch: Callable[[InboxConfig, str], str] = staticmethod(_imap_body)
+
     def __init__(self, cfg: Optional[InboxConfig] = None,
                  fetch: Callable[[InboxConfig], Tuple[int, List[Tuple[str, str]]]] = _imap_fetch,
                  clock: Callable[[], float] = time.time, background: bool = True):
@@ -217,6 +248,29 @@ class Inbox:
         self.last_error = ""
 
     # -- saying it ---------------------------------------------------------
+    _READ = re.compile(_LEAD + r"(?:what\s+does\s+(?P<w1>[\w .'-]{2,30}?)(?:'s)?\s+(?:e-?mail|mail|message)\s+say|read\s+(?:me\s+)?(?P<w2>[\w .'-]{2,30}?)(?:'s)\s+(?:e-?mail|mail|message)|"
+                       r"read\s+(?:me\s+)?(?:the\s+)?(?P<w3>last|latest|newest)\s+(?:e-?mail|mail|message))\s*[?.!]*\s*$", re.I)
+
+    def read_body(self, text: str) -> Optional[str]:
+        """"What does Omar's email say?" / "read me the latest email": the first part of its text, read-only (BODY.PEEK). Needs the mail server -- on its own
+        it says so; with no connection the headers are still there."""
+        m = self._READ.match((text or "").strip())
+        if not m or not self.cfg.enabled:
+            return None
+        if not self.configured:
+            return "I'm not connected to your email -- add the account in the settings."
+        who = (m.group("w1") or m.group("w2") or m.group("w3") or "").strip()
+        row = self.last_from(who)
+        if row is None:
+            return f"I don't see an unread email from {who}."
+        try:
+            body = self.body_fetch(self.cfg, row[3])
+        except Exception as e:
+            return f"I couldn't open that one ({why_it_failed(e)}) -- the subject is “{row[1] or 'none'}”."
+        if not body:
+            return f"I couldn't read the text of that one -- the subject is “{row[1] or 'none'}”."
+        return f"{row[0]} wrote, “{row[1] or 'no subject'}”: {body[:400]}" + ("…" if len(body) > 400 else "")
+
     def last_from(self, who: str) -> Optional[Tuple[str, str, str, str]]:
         """The newest message whose sender matches `who` ("Omar", "omar@x.com", "the last one"), or None."""
         w = (who or "").strip().lower()
@@ -284,6 +338,9 @@ class Inbox:
         t = (text or "").strip()
         if not t or len(t) > 80:
             return None
+        rb = self.read_body(t)
+        if rb is not None:
+            return rb
         if _IMPORTANT.match(t):
             if not self.cfg.enabled:
                 return None

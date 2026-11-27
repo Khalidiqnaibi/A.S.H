@@ -279,7 +279,7 @@ class Desktop:
             if now - sb[1] <= self.cfg.confirm_window_s:
                 if _YES.match(t) or _yesno.is_yes(t):
                     return self.hear(sb[0], now)
-                if re.match(r"^\s*(?:no|nope|nah|don'?t|cancel|never\s*mind)", t, re.I) or _yesno.is_no(t):
+                if re.match(r"^\s*(?:no|nope|nah|don'?t|cancel|never\s*mind)\b", t, re.I) or _yesno.is_no(t):
                     return "Okay, never mind."
 
         # the answer to "Close Word?"

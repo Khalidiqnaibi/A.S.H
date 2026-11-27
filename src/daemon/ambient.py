@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import logging
 import os
+import tempfile
 import re
 import queue
 import sys
@@ -2418,6 +2419,159 @@ class AmbientRuntime:
                 sk.pending = {"kind": "confirm", "name": name, "args": args, "at": now}
                 return say(sk.plan_line(name, args))
         return False
+
+    # ---- doing.py: a calendar to write to, tidy downloads, scripts, research write-ups ---------------------------------------------------------------
+    def _doing_request(self, ev, now: float) -> bool:
+        if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "").strip()
+        if not text or len(text) > 160 or not self._meant_for_ash(ev):
+            return False
+        from . import doing, yesno
+
+        def say(line: str, outcome: str = "desktop") -> bool:
+            self._wonder_say(ev, type("R", (), {"say": line, "outcome": outcome})())
+            return True
+        folder = getattr(self, "_downloads_dir", None) or os.path.join(os.path.expanduser("~"), "Downloads")
+        pend = getattr(self, "_doing_pending", None)
+        if pend is not None and now - pend["at"] > 120.0:
+            pend = self._doing_pending = None
+        if pend is not None and (yesno.is_yes(text) or yesno.is_no(text)):
+            self._doing_pending = None
+            if yesno.is_no(text):
+                return say("Okay, I'll leave it.")
+            k = pend["kind"]
+            if k == "tidy":
+                n, undo = doing.tidy_do(pend["plan"])
+                self.undo.push("tidying downloads", undo, now)
+                return say(f"Done -- moved {n} file{'s' if n != 1 else ''}. Say “undo that” to put them back.")
+            if k == "dupes":
+                n, undo = doing.move_dupes_aside(pend["groups"], folder)
+                self.undo.push("moving duplicates aside", undo, now)
+                return say(f"Moved {n} extra cop{'y' if n == 1 else 'ies'} into _duplicates.")
+            if k == "cal":
+                e = pend["event"]
+                path = self._ics_path()
+                undo = doing.append_event(path, e["title"], e["start"], e["end"])
+                self.undo.push("a calendar event", undo, now)
+                self._calendar_reload(path)
+                return say(f"Added {e['title']} on {e['start'].strftime('%A at %H:%M')}.")
+            if k == "script":
+                return say(self._scripts().run(pend["name"]))
+        e = doing.parse_event(text, time.time())
+        if e is not None:
+            clash = []
+            try:
+                clash = doing.conflicts(self.calendar.events_on(e["start"].date()) if self.calendar is not None else [], e["start"], e["end"])
+            except Exception:
+                pass
+            self._doing_pending = {"kind": "cal", "event": e, "at": now}
+            return say(f"{e['title']} on {e['start'].strftime('%A at %H:%M')}" + (f" -- but you have {clash[0].summary} at {clash[0].start.strftime('%H:%M')}" if clash else "")
+                       + ". Add it?")
+        if doing.asks_tidy(text):
+            plan = doing.tidy_plan(folder, time.time())
+            if plan:
+                self._doing_pending = {"kind": "tidy", "plan": plan, "at": now}
+            return say(doing.tidy_say(plan))
+        if doing.asks_dupes(text):
+            groups = doing.find_dupes(folder)
+            if groups:
+                self._doing_pending = {"kind": "dupes", "groups": groups, "at": now}
+            return say(doing.dupes_say(groups))
+        if re.match(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?move\s+the\s+duplicates\s+aside\W*$", text, re.I):
+            groups = doing.find_dupes(folder)
+            if not groups:
+                return say("No duplicates in your Downloads.")
+            self._doing_pending = {"kind": "dupes", "groups": groups, "at": now}
+            return say(f"Move the extra copies from {len(groups)} set{'s' if len(groups) != 1 else ''} into a _duplicates folder?")
+        S = self._scripts()
+        reg = S.register(text)
+        if reg is not None:
+            self.undo.push("a script", reg[1], now)
+            return say(reg[0])
+        ls = S.last_say(text)
+        if ls:
+            return say(ls, "answer")
+        name = S.which(text)
+        if name:
+            self._doing_pending = {"kind": "script", "name": name, "at": now}
+            return say(f"Run {os.path.basename(S.items[name])}? Say yes and I'll start it.")
+        q = doing.parse_writeup(text)
+        if q:
+            return say(self._write_research(q, now))
+        return False
+
+    def _scripts(self):
+        S = getattr(self, "_script_book", None)
+        if S is None:
+            from .doing import Scripts
+            base = getattr(self.cfg, "life_dir", None)
+            S = self._script_book = Scripts(os.path.join(base, "scripts.json") if base else None, clock=lambda: self.clock())
+        return S
+
+    def _ics_path(self) -> str:
+        base = getattr(self.cfg, "life_dir", None) or tempfile.gettempdir()
+        return os.path.join(base, "ash-calendar.ics")
+
+    def _calendar_reload(self, path: str) -> None:
+        cal = self.calendar
+        if cal is None:
+            return
+        if path not in cal.cfg.files:
+            cal.cfg.files = tuple(cal.cfg.files) + (path,)
+        cal._mtimes.pop(os.path.expanduser(path), None)
+        cal.refresh()
+
+    def _write_research(self, topic: str, now: float) -> str:
+        from . import doing
+        from .activity import norm
+        qn = norm(topic)
+        secs: Dict[str, list] = {"What I have": [], "From your notes": [], "Seen on screen": [], "Your files": [], "Samsung Notes": [], "Wikipedia": []}
+        kb = getattr(getattr(self, "wonder", None), "kb", None)
+        try:
+            for t in (kb.terms or {}).values():
+                if qn in norm(str(t.get("term")) + " " + str(t.get("definition"))):
+                    secs["What I have"].append(f"{t.get('term')}: {t.get('definition')}")
+            for p in (kb.people or {}).values():
+                if qn in norm(p.get("name")):
+                    secs["What I have"].append(f"{p.get('name')} is your {p.get('relation')}")
+        except Exception:
+            pass
+        try:
+            secs["From your notes"] = [n.back for n in (getattr(self.notes, "items", None) or []) if qn in norm(n.said)]
+        except Exception:
+            pass
+        try:
+            for it in reversed(self._life().screen.items):
+                if qn in norm(it["text"]):
+                    i = norm(it["text"]).find(qn)
+                    secs["Seen on screen"].append(f"{time.strftime('%d %b %H:%M', time.localtime(it['t']))} in {it.get('app') or 'the screen'}: …{it['text'][max(0, i - 40): i + 140]}…")
+                if len(secs["Seen on screen"]) >= 5:
+                    break
+        except Exception:
+            pass
+        try:
+            if self.filesearch is not None:
+                secs["Your files"] = [h.entry.path for h in self.filesearch.search(topic, now, n=5)]
+        except Exception:
+            pass
+        try:
+            if self.samsung is not None and self.samsung.db.available:
+                for n in self.samsung.db.search(topic, 4):
+                    secs["Samsung Notes"].append(f"{n.get('title') or 'untitled'}: {self.samsung.db.text_of(n['uuid'])[:160]}")
+        except Exception:
+            pass
+        try:
+            if getattr(self, "facts", None) is not None and self.facts.enabled:
+                w = self.facts.hear(f"what is {topic}")          # only when online; an offline machine just leaves this section out
+                if w and "(Wikipedia)" in w:
+                    secs["Wikipedia"] = [w]
+        except Exception:
+            pass
+        body = doing.compile_research(topic, secs, time.time())
+        path = doing.write_doc(os.path.join(os.path.expanduser("~"), "Documents", "ASH"), topic, body)
+        found = sum(len(v) for v in secs.values())
+        return f"Wrote {os.path.basename(path)} in Documents/ASH -- {found} item{'s' if found != 1 else ''} from {sum(1 for v in secs.values() if v)} place{'s' if sum(1 for v in secs.values() if v) != 1 else ''}."
 
     # ---- selfcare.py: names, memory search, the plan, reflection, coaching -----------------------------------------------------------------------------
     def _journal_days(self, n: int):
@@ -6306,6 +6460,8 @@ class AmbientRuntime:
         if self._life_request(ev, now):
             return True
         if self._selfcare_request(ev, now):
+            return True
+        if self._doing_request(ev, now):
             return True
         if self._recall_request(ev, now):
             return True
