@@ -2349,6 +2349,24 @@ class AmbientRuntime:
                 return say(sk.plan_line(name, args))
         return False
 
+    def _taught_digest(self) -> list:
+        """What was taught and how it went today, for the nightly digest: "2 taught skill runs, 1 stopped (most often X, step 3)"."""
+        sk = getattr(self, "skills", None)
+        if sk is None or not sk.skills:
+            return []
+        out = []
+        line = sk.digest_line(self.clock() - 86400.0)
+        if line:
+            out.append(line)
+        new = [k for k, v in sk.skills.items() if self.clock() - float(v.get("created", 0)) < 86400.0]
+        if new:
+            out.append("learned today: " + ", ".join(new[:5]))
+        for k, v in sk.skills.items():
+            if v.get("fails", 0) >= 2 and v.get("fails", 0) > v.get("good", 0):
+                lf = v.get("last_fail") or {}
+                out.append(f"{k} keeps failing at step {lf.get('step', '?')}: {lf.get('why', '')}")
+        return out
+
     def _open_tab_urls(self) -> list:
         try:
             bt = self.periphery.sensors.get("browser_tabs")
@@ -7531,7 +7549,7 @@ class AmbientRuntime:
         try:
             if self.cfg.repair_path:                    # the day's failures and model-bound lines as a file (digest.py)
                 report["digest"] = digest_mod.write(os.path.join(os.path.dirname(os.path.abspath(self.cfg.repair_path)), "digest"),
-                                                    self.cfg.repair_path, self.cfg.unrouted_path)
+                                                    self.cfg.repair_path, self.cfg.unrouted_path, extra=self._taught_digest())
         except Exception:
             logger.exception("Writing the digest failed")
         try:
@@ -7613,6 +7631,7 @@ class AmbientRuntime:
             "play": self.play.status() if self.play else None,
             "media": self.media.status() if self.media else None,
             "control": self.control.status() if getattr(self, "control", None) else None,
+            "skills": self.skills.status() if getattr(self, "skills", None) else None,
             "inventory": self.inventory.status() if getattr(self, "inventory", None) else None,
             "remarks": {"logging": self.remarks is not None},
             "focus": self.focus.status() if self.focus else None,

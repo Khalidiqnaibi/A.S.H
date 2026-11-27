@@ -95,7 +95,7 @@ def render(s: Dict[str, Any], day: str) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def write(out_dir: str, failures_path: Optional[str], unrouted_path: Optional[str], now: Optional[float] = None) -> Optional[str]:
+def write(out_dir: str, failures_path: Optional[str], unrouted_path: Optional[str], now: Optional[float] = None, extra: Optional[List[str]] = None) -> Optional[str]:
     """state/digest/digest-YYYY-MM-DD.md for the last 24 hours; the path, or None if it could not be written."""
     now = time.time() if now is None else now
     day = time.strftime("%Y-%m-%d", time.localtime(now))
@@ -103,7 +103,10 @@ def write(out_dir: str, failures_path: Optional[str], unrouted_path: Optional[st
         os.makedirs(out_dir, exist_ok=True)
         path = os.path.join(out_dir, f"digest-{day}.md")
         with open(path, "w", encoding="utf-8") as fh:
-            fh.write(render(summary(failures_path, unrouted_path, now), day))
+            text = render(summary(failures_path, unrouted_path, now), day)
+            if extra:
+                text = text.replace("Nothing went wrong that was kept.\n", "").rstrip() + "\n\n## What you taught me\n\n" + "\n".join(f"- {x}" for x in extra) + "\n"
+            fh.write(text)
         return path
     except OSError:
         return None

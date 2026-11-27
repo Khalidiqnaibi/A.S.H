@@ -196,6 +196,25 @@ def main():
     rt._skills_obj().pending["show"].observe("notepad.exe")
     used, said = rt.say("that's how you start my coding")
     check("named, read back, undoable", said[-1] == "Got it -- start my coding: 1) open notepad, 2) go to github.com. I'll walk through it the first couple of times and ask before I start. Tell me if a step is wrong.", str(said))
+    print("\n=== S6. The page and the digest ===")
+    rt = tm.rig()
+    rt.cfg.skills_path = os.path.join(tempfile.mkdtemp(), "skills.json")
+    s6 = rt._skills_obj()
+    s6.pause = lambda s: None
+    s6.teach(les)
+    h = Fake()
+    h.stuck = True
+    for _ in range(2):
+        s6.run(h, "search google for x", {"X": "cats"}, lambda t: None)
+    lines = rt._taught_digest()
+    check("the digest says what was learned, how many stopped, and what keeps failing",
+          "learned today: search google for x" in lines and any("2 taught skill runs, 2 stopped (most often search google for x, step 1)" in x for x in lines)
+          and any(x.startswith("search google for x keeps failing at step 1") for x in lines), str(lines))
+    check("the status carries it (console and ashctl)", rt.status()["skills"]["skills"] == 1 and rt.status()["skills"]["failing"] == ["search google for x"],
+          str(rt.status().get("skills")))
+    from src.daemon import digest as dg
+    path = dg.write(tempfile.mkdtemp(), None, None, extra=lines)
+    check("written under 'What you taught me'", "## What you taught me" in open(path, encoding="utf-8").read())
     print("\n" + ("ALL PASS" if tw.OK else "FAILED"))
     sys.exit(0 if tw.OK else 1)
 
