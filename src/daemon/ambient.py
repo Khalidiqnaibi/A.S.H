@@ -938,6 +938,7 @@ class AmbientRuntime:
         # runs the commands that must not wait -- "privacy mode", "turn off the
         # mic", "stop" -- instead of leaving them queued behind the answer.
         self._recent_user: Deque[str] = deque(maxlen=8)    # what the user said lately
+        self._told: Deque[Tuple[float, str]] = deque(maxlen=60)    # what they TOLD ASH this session (statements, not questions): "what did I tell you today?"
         self._observed_at: Dict[str, float] = {}           # observation text -> when last processed
         self._thinking = 0
         self._think_started = 0.0               # when the answer in progress began
@@ -2224,6 +2225,18 @@ class AmbientRuntime:
             return say(got)
         if self._COMMITS.match(text):
             return say(self._git_log_line())
+        sw = self._model_switch_request(ev, now, text)
+        if sw:
+            return say(sw)
+        if self._CODE_ME.match(text) and len(text.split()) <= 25:
+            self._pending_gemini = (text, now)
+            return say("I don't write programs and run them -- that's the one thing I leave to a bigger model. I can make an empty game.py on your Desktop "
+                       "(say \u201ccreate a python file called game\u201d), or say \u201cask Gemini\u201d and I'll put the request on your clipboard and open it.")
+        if re.match(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?what\s+(?:did|have)\s+i\s+(?:tell|told|said|say|mention(?:ed)?)\s+(?:you|to\s+you)(?:\s+(?:today|so\s+far|earlier|in\s+this\s+session|this\s+session|just\s+now))?\W*$", text, re.I):
+            told = [t for _at, t in list(self._told)[-4:]]
+            if not told:
+                return say("You haven't told me anything this session -- only asked.")
+            return say("This session you told me: " + "; ".join(f"\u201c{t[:80]}\u201d" for t in told) + ".")
         from . import relations
         rel = relations.parse(text)
         if rel is not None and self.wonder is not None:
@@ -2307,6 +2320,71 @@ class AmbientRuntime:
             head = re.split(r"[:;]|\s--\s", sub, maxsplit=1)[0].strip()
             out.append((head if 12 <= len(head) <= 90 else sub[:90]).rstrip(".,"))
         return "The latest commits: " + "; ".join(out) + "."
+
+    # 22: a big model on a squeezed machine -- say so, once a day, with the way out; "use the small model" / "switch to qwen2.5:3b" does it.
+    _USE_SMALL = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:use|switch\s+to|go\s+(?:back\s+)?to|change\s+to)\s+(?:the\s+)?(?:small(?:er)?|light|fast(?:er)?|little)\s+model\W*$", re.I)
+    _USE_MODEL = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:use|switch\s+to|change\s+(?:the\s+)?model\s+to|go\s+(?:back\s+)?to)\s+(?:the\s+model\s+)?"
+                            r"(?P<m>[A-Za-z][A-Za-z0-9._/-]*(?::[A-Za-z0-9._-]+)?)\W*$", re.I)
+
+    @staticmethod
+    def _model_params_b(name: str) -> float:
+        m = re.search(r"(?<![0-9.])(\d+(?:\.\d+)?)\s*b\b", (name or "").lower())
+        if m:
+            return float(m.group(1))
+        base = (name or "").lower().split(":")[0]
+        return 7.0 if base in ("mistral", "llama2", "llama3", "mixtral", "deepseek-r1", "gemma2", "qwen3", "phi4") else 3.0
+
+    def _small_model(self) -> str:
+        try:
+            from src.ui import settings as st
+            names = [n for n in st.choices(self, "llm.model") if "embed" not in n.lower()]
+        except Exception:
+            names = []
+        small = sorted((self._model_params_b(n), n) for n in names if self._model_params_b(n) <= 4.5)
+        return small[-1][1] if small else ""
+
+    def _big_model_hint(self) -> str:
+        """' mistral:latest is a big model for this machine -- say "use the small model" to switch to qwen2.5:3b.' -- once a day, only when slow because of load."""
+        llm = getattr(getattr(self, "ash", None), "llm", None)
+        cur = str(getattr(llm, "_ollama_model", "") or "")
+        if not cur or self._model_params_b(cur) < 6.0:
+            return ""
+        today = time.strftime("%Y-%m-%d")
+        if self._notices().get("big_model_told") == today:
+            return ""
+        small = self._small_model()
+        if not small or small == cur:
+            return ""
+        self._notices(big_model_told=today)
+        return f" {cur} is a big model for this machine -- say \u201cuse the small model\u201d to switch to {small}."
+
+    def _model_switch_request(self, ev, now: float, text: str):
+        small = bool(self._USE_SMALL.match(text))
+        m = None if small else self._USE_MODEL.match(text)
+        if not small and not m:
+            return None
+        from src.ui import settings as st
+        try:
+            have = st.choices(self, "llm.model")
+        except Exception:
+            have = []
+        if small:
+            name = self._small_model()
+            if not name:
+                return "I don't see a smaller model installed -- pull one with Ollama first."
+        else:
+            name = next((n for n in have if n.lower() == m.group("m").lower() or n.lower().split(":")[0] == m.group("m").lower()), "")
+            if not name:
+                return None                       # not a model ASH has: "use google" is for the other rules
+        r = st.change(self, getattr(self, "config_path", None), "llm.model", name)
+        if not r.get("ok"):
+            return "I couldn't switch the model from here."
+        self._model_unloaded = True
+        return f"Switched to {name}. It loads on the next question that needs it."
+
+    # 24: "code me a small python game and run it" -- ASH does not write programs and run them; said plainly, with what it can do.
+    _CODE_ME = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?(?:code|write|build|program|make|create)\s+(?:me\s+)?(?:a\s+|an\s+|some\s+)?"
+                          r"(?:small\s+|simple\s+|quick\s+|little\s+|basic\s+)*(?:python\s+|javascript\s+|html\s+)?(?:game|program|script|app|bot|website|tool)(?:\s+(?:and|then)\s+run\s+it)?.*$", re.I)
 
     def _why_feeling(self) -> str:
         """"Why is that?" after the emotional telemetry: from the engine's own reasons for its last update -- not the model's story about it."""
@@ -2600,6 +2678,10 @@ class AmbientRuntime:
             q = str(getattr(self, "_think_query", "") or "") if self._thinking else ""
             if self._thinking:
                 self.cancel_thinking(speak=False)              # handed over: the slow answer is not said on top of it
+            if not q:
+                pg = getattr(self, "_pending_gemini", None)
+                if pg is not None and now - pg[1] <= 300.0:
+                    q = pg[0]
             if not q:
                 ctx = getattr(self, "context", None)
                 q = (ctx._subject(now) if ctx is not None and hasattr(ctx, "_subject") else None) or ""
@@ -5440,6 +5522,13 @@ class AmbientRuntime:
         self._repair_hear(ev, now)
         if self._user_source(ev) and getattr(ev, "text", ""):
             self._recent_user.append(str(ev.text))
+            try:
+                tt = str(ev.text).strip()
+                if (self._user_source(ev) and len(tt.split()) >= 5 and not tt.endswith("?")
+                        and not re.match(r"^(?:what|who|why|how|when|where|which|can|could|do|does|did|is|are|tell|show|open|look|search|play)\b", tt, re.I)):
+                    self._told.append((time.time(), tt[:140]))
+            except Exception:
+                pass
             if self.feelings is not None and self._meant_for_ash(ev) and not (getattr(ev, "meta", None) or {}).get("guest"):
                 try:
                     self.feelings.hear(str(ev.text), now)
@@ -6272,7 +6361,7 @@ class AmbientRuntime:
             try:
                 why = self._why_no_model()
                 # When the machine is why it is slow, say what else there is: 26 Nov "can my pc run gta 6" waited 300 s twice, then went to Gemini.
-                self.response_sink("Still working on it." + why + (" Say \u201cask Gemini\u201d and I'll hand it over." if why else ""),
+                self.response_sink("Still working on it." + why + (" Say \u201cask Gemini\u201d and I'll hand it over." if why else "") + (self._big_model_hint() if why else ""),
                                    {"addressed": True, "source": "cue", "outcome": "thinking_cue", "pathway": "cue", "attention": {}})
             except Exception:
                 logger.debug("Still-thinking cue failed", exc_info=True)
