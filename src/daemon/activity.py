@@ -609,6 +609,9 @@ class ActivityMemory:
         app = friendly_app(st.process)
         text = (f"{who} spent {minutes} {'minute' if minutes == 1 else 'minutes'}{where}"
                 + (f" ({app})" if app else ""))
+        from . import hygiene
+        if not hygiene.keep_episode(text) or "applicationframehost" in str(st.process or "").lower():
+            return                                              # a window host or a system line is not something the user did
         ids = [t.entity_id for t in topics if t.entity_id]
         for t in topics:
             ids += [l["id"] for l in t.links if l.get("id")]

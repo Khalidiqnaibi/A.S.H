@@ -3287,6 +3287,41 @@ class AmbientRuntime:
         more = f" ({len(rows) - 1} more this week)" if len(rows) > 1 else ""
         return f"{what} is {when}{more}."
 
+    def _hygiene_request(self, ev, now: float) -> bool:
+        """'Check my memory' -- a read-only report of what is wrong in it; 'clean up my memory' -- says what it will do, and on a yes backs both files up and does it (hygiene.py)."""
+        if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        from . import hygiene, yesno
+        text = str(getattr(ev, "text", "") or "").strip()
+
+        def say(line: str) -> bool:
+            self._wonder_say(ev, type("R", (), {"say": line, "outcome": "desktop"})())
+            return True
+        epi = getattr(self.ash, "episodic_memory", None)
+        ent = getattr(self.ash, "entity_memory", None)
+        pend = getattr(self, "_hygiene_pending", None)
+        if pend is not None and (yesno.is_yes(text) or yesno.is_no(text)):
+            self._hygiene_pending = None
+            if now - pend > 120.0 or yesno.is_no(text):
+                return say("Okay, leaving my memory as it is.")
+            try:
+                return say(hygiene.say_cleaned(hygiene.clean_live(epi, ent)))
+            except Exception:
+                logger.exception("memory clean failed")
+                return say("I couldn't clean it -- the backup is next to the files.")
+        k = hygiene.asks(text) if self._meant_for_ash(ev) else None
+        if k is None:
+            return False
+        if epi is None or ent is None:
+            return say("I can't reach my memory from here.")
+        a = hygiene.audit_live(epi, ent)
+        if k == "check":
+            return say(hygiene.describe(a))
+        if not (a["junk_episodes"] or a["junk_entities"] or a["tools_typed_as_things"] or a["misheard"]):
+            return say("My memory looks clean -- nothing to remove.")
+        self._hygiene_pending = now
+        return say(hygiene.describe(a) + " I'll back both files up, drop the junk and fix the types. Go ahead?")
+
     def _pipeline_ctx(self):
         """What a pipe's stages reach for real (tests replace this with a fake): the file index, the desktop opener, the notes, the clipboard."""
         from . import pipeline
@@ -6731,6 +6766,8 @@ class AmbientRuntime:
         if self._dial_request(ev, now):
             return True
         if self._pipeline_request(ev, now):
+            return True
+        if self._hygiene_request(ev, now):
             return True
         if self._teach_request(ev, now):
             return True

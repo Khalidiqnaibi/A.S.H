@@ -230,6 +230,11 @@ class MemoryRouter:
             mention = str(ent["text"]).strip(" ,.;:!?'\"()[]")      # "frameworks," and "frameworks" were two entities
             if not mention or re.sub(r"[^a-z0-9]", "", mention.lower()) == "ash":
                 continue                                          # ASH's own name ("Ash", "A.S.H") is not something it learns about
+            from src.daemon import hygiene                         # labels, folders and garbled names are not entities; software is a tool, never a person; a misheard name is mended
+            if not hygiene.keep_entity(mention, ent.get("label", "")):
+                continue
+            mention = hygiene.fix_name(mention)
+            ent = dict(ent, label=hygiene.retype(mention, ent.get("label", "")))
             # Map labels generically (spaCy PERSON -> person, ORG -> organization, GPE -> location, etc.)
             raw_label = ent.get("label", "unknown").lower()
 
@@ -276,6 +281,11 @@ class MemoryRouter:
         # Always store an episodic record for the event
         try:
             summary = self._summarize_for_episode(text, ents, actor)
+            from src.daemon import hygiene
+            if not hygiene.keep_episode(summary):
+                result["routed_as"] = "skipped"
+                result["time"] = time.time() - start
+                return result
             active = list(getattr(self, "active_concepts", None) or [])   # set by the brain after it perceives the input
             ep = self.episodic.add_episode(
                 summary=summary,
