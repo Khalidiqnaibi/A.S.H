@@ -3577,6 +3577,14 @@ class AmbientRuntime:
             m = getattr(self, "_machine", None)
             if m is None:
                 m = self._machine = machine.Machine()
+            if got[0] == "run":
+                # 27 Nov: "can my PC run it" -> "look up it system requirements": "it" is the game just asked about.
+                if re.fullmatch(r"(?:it|that|this|the\s+game|that\s+game)", got[1], re.I):
+                    prev = getattr(self, "_last_run_what", "")
+                    if not prev:
+                        return self._wonder_say(ev, type("R", (), {"say": "Run what? Tell me the game or program.", "outcome": "desktop"})()) or True
+                    got = ("run", prev)
+                self._last_run_what = got[1]
             try:
                 say = m.answer(*got)
             except Exception:

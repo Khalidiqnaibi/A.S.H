@@ -56,6 +56,7 @@ _ASK_LEAD = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:so|and|ok(?:ay)?|um|
                        r"(?:can|could)\s+you\s+(?:tell|remind)\s+me\s+|remind\s+me\s+|tell\s+me\s+)?", re.I)
 _RECALL = re.compile(r"^(?:where|when|what|which|who|how|is|are|am|was|were|did|do|does|have|has|can|could|should|will)\b",
                      re.I)
+_ABOUT_ASH = re.compile(r"(?:your|yourself|ash|a\.s\.h)(?![a-z])", re.I)
 _TOLD = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:what\s+(?:did|have)\s+i\s+(?:tell|told)\s+you|"
                    r"what\s+do\s+you\s+(?:remember|know)|what\s+have\s+you\s+(?:got|noted))\s+(?:about\s+|on\s+)(?P<s>.+?)\s*\??\s*$",
                    re.I)
@@ -315,6 +316,8 @@ class Notes:
         told = _TOLD.match(t)
         if told:
             subject = told.group("s")
+            if _ABOUT_ASH.match(subject.strip()):
+                return None                  # 27 Nov: "what do you know about your code" is about ASH, not a note -- left to the self-knowledge rules
             found = self.find(subject)
             if not found:
                 self.stats["not_found"] += 1

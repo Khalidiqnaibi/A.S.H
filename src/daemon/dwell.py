@@ -244,10 +244,11 @@ class Dwell:
             app = friendly_app(self.process)
             site = "" if (self.private or not self.subject) else chat_site(getattr(self, "project", "") or "")
             if site:                                   # 26 Nov: "About 3 minutes on Custom TPU Prototyping (Opera)" -- a Gemini chat
-                return f"About {_span(now - self.since)} {chat_phrase(site, self.subject)}" + (
+                return (f"{_span(now - self.since)[0].upper()}{_span(now - self.since)[1:]} {chat_phrase(site, self.subject)}" if now - self.since < 60
+                        else f"About {_span(now - self.since)} {chat_phrase(site, self.subject)}") + (
                     ", and you haven't touched the keyboard for a while." if self.mode(now) == "reading" else ".")
             on = app if (self.private or not self.subject) else f"{self.subject} ({app})"
-            return f"About {_span(now - self.since)} on {on}" + (", and you haven't touched the keyboard for a while." if self.mode(now) == "reading" else ".")
+            return (f"{_span(now - self.since)[0].upper()}{_span(now - self.since)[1:]} on {on}" if now - self.since < 60 else f"About {_span(now - self.since)} on {on}") + (", and you haven't touched the keyboard for a while." if self.mode(now) == "reading" else ".")
         if kind == "away":
             if self.away_from is not None:
                 return f"You've been away about {_span(now - self.away_from)} -- or just reading; I can't tell which."
@@ -321,6 +322,9 @@ class ReadingNote(Activity):
         mins = d.minutes_here(now)
         if mins < 8:
             return None
+        from .activity import chat_site, is_ash_itself
+        if is_ash_itself(d.subject or "") or is_ash_itself(getattr(d, "project", "") or "") or chat_site(getattr(d, "project", "") or ""):
+            return None                  # 27 Nov, twice: "You've been on A.S.H for 30 minutes... anything to keep a note of?" -- ASH itself, or a Gemini chat
         what = f"\"{d.subject}\"" if d.subject else friendly_app(d.process)
         return Candidate(self.name, f"You've been on {what} for {_span(now - d.since)} without typing. Anything from it you want me to keep a note of?",
                          value=min(0.6, 0.3 + mins / 120.0))

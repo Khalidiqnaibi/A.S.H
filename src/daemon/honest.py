@@ -403,6 +403,14 @@ _GREETING_LEAD = re.compile(r"^\s*(?:(?:hey|hi|hello|greetings|howdy)(?:\s+there
 _GREETED = re.compile(r"^\W*(?:(?:hey|hi|hello|yo|howdy|greetings|good\s+(?:morning|afternoon|evening))\b|(?:hey\s+)?ash\W*$)", re.I)
 
 
+_SPEAKER_TAG = re.compile(r"^\s*(?:A\.?S\.?H|Ash|Assistant)\s*:\s*", re.I)
+
+
+def strip_speaker(text: str) -> str:
+    """'ASH: Hmm, looks like...' -> 'Hmm, looks like...' (27 Nov, a camera remark was spoken with its own speaker label)."""
+    return _SPEAKER_TAG.sub("", text or "", count=1) or text
+
+
 def strip_greeting(text: str, user_text: str = "") -> str:
     """`text` without a greeting at its start, unless the person greeted first (never when that would leave nothing)."""
     t = text or ""
@@ -473,7 +481,7 @@ def sanitize(reply: str, known: Any = "") -> str:
                 keep.append(sent)
         if keep:
             out.append(" ".join(keep))
-    text = strip_offers("\n".join(out).strip())
+    text = strip_offers(strip_speaker("\n".join(out).strip()))
     if dropped and not text:
         return "I don't have that detail."
     if leaked and not text:

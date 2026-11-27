@@ -310,6 +310,7 @@ class EmotionEngine:
             self.success_streak = 0
             self.fail_streak += 1
             bump = min(1 + 0.5 * (self.fail_streak - 1), 4)
+            bump *= max(0.0, 1.0 - self.emotion.get("frustration", 0.0) / 10.0)      # the nearer the top, the less each failure adds
             deltas["frustration"] = deltas.get("frustration", 0) + bump
             deltas["confidence"] = deltas.get("confidence", 0) - min(0.5 * self.fail_streak, 3)
             if self.fail_streak >= 3:
@@ -352,7 +353,8 @@ class EmotionEngine:
             self.session_start = now  # gap long enough to call it a new session
 
         session_duration = now - self.session_start
-        if session_duration > 45 * 60:
+        # Only while there is headroom: 27 Nov boredom and frustration both read 10.0 at once (every turn of a long day added to them).
+        if session_duration > 45 * 60 and self.emotion.get("boredom", 0.0) < 5.0:
             deltas["boredom"] = deltas.get("boredom", 0) + 0.3
             self._last_reasons.append("long uninterrupted session (mild fatigue drift)")
 
