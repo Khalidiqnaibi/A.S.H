@@ -6878,6 +6878,21 @@ class AmbientRuntime:
                 if self._rules(self._as_said(ev, alt, how), now):
                     self.stats["loose_" + how] = self.stats.get("loose_" + how, 0) + 1
                     return True
+            # What was MEANT (meaning.py): the sentence encoder picks the feature, a builder fills its slots, and the feature's own rule runs on the canonical phrase.
+            # Before the nearest-command stage, which only counts shared words.
+            route = self._meaning_route(text)
+            if route is not None:
+                if route.sure:
+                    if self._rules(self._as_said(ev, route.phrase, "meaning"), now):
+                        self.stats["loose_meaning"] = self.stats.get("loose_meaning", 0) + 1
+                        self.stats["meaning_" + route.label] = self.stats.get("meaning_" + route.label, 0) + 1
+                        return True
+                else:
+                    self._dym = (route.phrase, now)
+                    self.stats["loose_asked"] = self.stats.get("loose_asked", 0) + 1
+                    q = f"Did you mean “{route.phrase}”" + (f" or “{route.runner_phrase}”?" if route.runner_phrase and route.runner_up else "?")
+                    self._wonder_say(ev, type("R", (), {"say": q, "outcome": "desktop"})())
+                    return True
             near = cm.nearest(text)
         except Exception:
             logger.exception("Loose command matching failed")
@@ -6905,6 +6920,16 @@ class AmbientRuntime:
             ev.text = fixed
             self.stats["loose_spelled"] = self.stats.get("loose_spelled", 0) + 1
         return False
+
+    def _meaning_route(self, text: str):
+        """The feature `text` means, by the sentence encoder (meaning.py); None with no encoder, or when it is not clear."""
+        try:
+            from . import meaning
+            ch = self.chooser("meaning", meaning.make_seeds(), accept=0.5, margin=0.04)
+            return meaning.classify(ch, text) if ch is not None else None
+        except Exception:
+            logger.debug("meaning route failed", exc_info=True)
+            return None
 
     def _unclaimed_instruction(self, ev):
         """An instruction said without ASH's name ("turn left at the next light", "play that again") is only "probably"
