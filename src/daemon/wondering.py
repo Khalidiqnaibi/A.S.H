@@ -303,7 +303,16 @@ def _clean(s: str, n: int = 60) -> str:
 # changes; what is kept is the person's own words.
 _SWAP = {"i": "you", "i'm": "you're", "im": "you're", "i am": "you are", "my": "your", "mine": "yours", "me": "you", "myself": "yourself",
          "i've": "you've", "ive": "you've", "i'll": "you'll", "i'd": "you'd", "your": "my", "yours": "mine", "yourself": "myself"}
-_SWAP_RX = re.compile(r"\b(?:i\s+am|i'm|i’m|im|i've|ive|i'll|i'd|myself|mine|my|me|i|yourself|yours|your)\b", re.I)
+# "you" is ASH; after a preposition or a verb it is "me" ("the NPU for you" -> "for me"), elsewhere it is left as said.
+_PRE = r"(?:for|to|with|about|at|on|from|by|of|help|helps|tell|ask|show|give|call|use|using|make|making|build|building|built|see|let|thank)"
+_SWAP_RX = re.compile(r"\b(?:(?P<pre>" + _PRE + r")\s+)?(?P<w>i\s+am|i'm|i’m|im|i've|ive|i'll|i'd|myself|mine|my|me|i|yourself|yours|your|you)\b", re.I)
+
+
+def _swap(m) -> str:
+    pre, w = m.group("pre"), m.group("w")
+    key = re.sub(r"\s+", " ", w.lower().replace("’", "'"))
+    out = ("me" if pre else w) if key == "you" else _SWAP.get(key, w)
+    return f"{pre} {out}" if pre else out
 _DOING = re.compile(r"^(?:i'?m|i’m|im|i\s+am)\s+(?:just\s+)?(?:working\s+on|writing|making|building|doing|designing|planning)\s+", re.I)
 _USE_IT = re.compile(r"^(?:i\s+use\s+(?:it|this|that)|it'?s\s+(?:what|where)\s+i\s+(?:go|use))\s+(?P<rest>(?:for|to)\s+.+)$", re.I)
 
@@ -313,7 +322,7 @@ def _yours(s: str) -> str:
     t = re.split(r"\s*(?:\.\.+|…)\s*", (s or "").strip(), maxsplit=1)[0]        # what came before a trailing-off pause
     t = re.sub(r"^(?:just|basically|really|simply|like)\s+", "", t.strip(), flags=re.I)
     t = _DOING.sub("", t)
-    t = _SWAP_RX.sub(lambda m: _SWAP.get(re.sub(r"\s+", " ", m.group(0).lower().replace("’", "'")), m.group(0)), t)
+    t = _SWAP_RX.sub(_swap, t)
     return t.strip(" ,.")
 
 

@@ -2706,6 +2706,10 @@ class AmbientRuntime:
 
     # A line that stops on a word nothing can end on ("What's the latest update on", "tell me about the"): the recogniser cut the end off, or the person
     # did. It went to the model, which answered a guess in 47 s. Asked what the rest was, once, by rule.
+    # One-word lines that mean something on their own (a game, the music, a timer, the model may want them): never met with "Sorry?".
+    _ONE_WORD_OK = frozenset("stop enough pause play next previous skip cancel continue resume again more help louder quieter mute unmute back "
+                             "done wait hold quiet silence sorry huh pardon higher lower hint repeat start finish exit quit".split())
+
     _DANGLING = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:.+\s)?(?:on|of|about|for|to|the|a|an|with|in|at|and|or|but|from|by|my|into|onto)\s*[.,\-\u2026]*\s*$", re.I)
 
     _BARE_VERB = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:please|ok(?:ay)?|now)[,\s]+)?(?P<v>switch|open|close|play|search|look\s+up|remind\s+me|turn\s+on|turn\s+off|"
@@ -2729,17 +2733,31 @@ class AmbientRuntime:
             self._last_why = {"kind": "asked", "query": text[:80]}
             return True
         words = text.split()
-        if not (3 <= len(words) <= 10) or text.endswith(("?", "!")) or not self._DANGLING.match(text):
+        mic = str(getattr(ev, "source", "") or "").lower() == "microphone"
+        if (mic and len(words) == 1 and re.fullmatch(r"[A-Za-z][A-Za-z'\-]{2,}[.!]?", text)
+                and re.sub(r"[.!]+$", "", text).lower() not in AmbientRuntime._ONE_WORD_OK):
+            # One word heard and taken by nothing ("Luxibrize." went to the model, 26 Nov): asked again once; said again, it goes on.
+            if getattr(self, "_told_dangling", None) == text.lower():
+                return False
+            self._told_dangling = text.lower()
+            self._wonder_say(ev, type("R", (), {"say": "Sorry?", "outcome": "moment"})())
+            self._last_why = {"kind": "asked", "query": text[:80]}
+            return True
+        # Whisper's own "..." at the end: it stopped mid-sentence ("What are the biomarkers that tend to...", "can I be here on..." -- both went to the
+        # model). That is a cut whatever the words before it.
+        cut = mic and text.endswith(("...", "\u2026")) and len(words) <= 14
+        if not (3 <= len(words) <= (14 if cut else 10)) or text.endswith(("?", "!")) or not (cut or self._DANGLING.match(text)):
             return False
         low = [re.sub(r"[^\w']+", "", w).lower() for w in words]
-        if low[-1] not in ("the", "a", "an", "and", "or", "but", "my", "of", "into", "onto") and (set(low) & {"i", "you", "we", "it", "they", "he", "she", "am", "are", "is", "was", "do", "does", "did"}):
+        if not cut and low[-1] not in ("the", "a", "an", "and", "or", "but", "my", "of", "into", "onto") and (set(low) & {"i", "you", "we", "it", "they", "he", "she", "am", "are", "is", "was", "do", "does", "did"}):
             return False                    # "what port am I on" / "who are you talking to": a whole question that happens to end on a preposition
         if getattr(self, "_told_dangling", None) == text.lower():
             return False                                    # said the same cut-off line again: let it through
         self._told_dangling = text.lower()
         last = re.sub(r"[^\w']+$", "", words[-1]).lower()
         say = {"on": "On what? I lost the end of that.", "about": "About what? I lost the end of that.", "of": "Of what? I lost the end of that.",
-               "for": "For what? I lost the end of that."}.get(last, "I only caught part of that -- say the rest?")
+               "for": "For what? I lost the end of that.", "to": "To what? I lost the end of that.", "with": "With what? I lost the end of that.",
+               "from": "From what? I lost the end of that."}.get(last, "I only caught part of that -- say the rest?")
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
         self._last_why = {"kind": "asked", "query": text[:80]}
         return True
@@ -4693,8 +4711,14 @@ class AmbientRuntime:
                 return None
             ents = getattr(self.ash, "entity_memory", None)
             snap, before = snapshot(w.kb), entity_ids(ents)
+            conf = meta.get("asr_conf")
+            try:
+                sure = conf is not None and float(conf) >= -0.3
+            except (TypeError, ValueError):
+                sure = False
+            # A long spoken answer is read back first unless the recogniser was sure of it (and a typed one never is).
             rep = w.hear(text, now, addressed=bool(getattr(ev, "addressed", False)),
-                         spoken=str(getattr(ev, "source", "") or "").lower().removeprefix("sim:") in ("microphone", "mic", "voice"))
+                         spoken=(str(getattr(ev, "source", "") or "").lower().removeprefix("sim:") in ("microphone", "mic", "voice") and not sure))
             if not rep.consumed:
                 # Not an answer: learn what it states, note what it leaves open.
                 rep.learned = w.observe(text, ev.source, now).learned

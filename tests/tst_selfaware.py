@@ -34,7 +34,9 @@ def main():
     print("\n=== S1. Said back to the person who said it ===")
     for said, back in (("im working on my first novel", "your first novel"), ("my personal weather app", "your personal weather app"),
                        ("just my notes for the MBU on your work", "your notes for the MBU on my work"),
-                       ("the place I keep my drafts .. and other stuff", "the place you keep your drafts")):
+                       ("the place I keep my drafts .. and other stuff", "the place you keep your drafts"),
+                       ("my Gemini tab where I ask about the NPU for you", "your Gemini tab where you ask about the NPU for me"),
+                       ("to me it is a diary", "to you it is a diary")):
         check(f"{said!r} -> {back!r}", _yours(said) == back, _yours(said))
 
     print("\n=== S2. Answers to 'what is it?' ===")

@@ -102,7 +102,15 @@ def topic_of(text: str) -> Optional[str]:
         return None                                  # a question about a quantity, not a topic
     if not topic or low in _NOT_TOPICS or ("the " + low) in _NOT_TOPICS or len(topic) > 48 or len(topic.split()) > 5:
         return None
-    if re.search(r"\d", topic) or _PERSONAL.search(topic):
+    if re.search(r"\d", topic):
+        # "GTA 6", "Windows 11", "PS5", "COVID-19", "Python 3.12": a name with a number in it -- 26 Nov "what is gta 6" went to the model (33 s),
+        # which said it was not out yet. Not a sum, not a quantity, not a bare number.
+        if (not re.match(r"[A-Za-z]", topic) or re.search(r"\d\s*(?:[-+*/x\u00d7^%=]|plus|minus|times|divided|over)\s*\d", topic, re.I)
+                or re.search(r"\b\d+(?:\.\d+)?\s*(?:km|kg|mph|miles?|meters?|metres?|feet|foot|inch(?:es)?|pounds?|lbs?|grams?|ounces?|liters?|"
+                             r"litres?|degrees?|celsius|fahrenheit|percent|dollars?|euros?|hours?|minutes?|seconds?|days?|weeks?|months?|years?)\b",
+                             topic, re.I)):
+            return None
+    if _PERSONAL.search(topic):
         return None
     if _ARITHMETIC.search(topic) or _STYLE.search(topic):
         return None                                  # "what is two plus two" is a sum; "tell me about X in two sentences" is for the model
@@ -141,6 +149,19 @@ class Facts:
                + urllib.parse.quote(title.replace(" ", "_"), safe=""))
         return self.fetch(url, self.cfg.timeout_s)
 
+    def _search(self, topic: str) -> str:
+        """Wikipedia's own search, for a topic with no page under the words said ("gta 6" -> "Grand Theft Auto VI"). Only the topic is sent,
+        as for a page. '' when it finds nothing or cannot be reached."""
+        url = ("https://en.wikipedia.org/w/api.php?action=opensearch&limit=1&namespace=0&format=json&search="
+               + urllib.parse.quote(topic, safe=""))
+        try:
+            r = self.fetch(url, self.cfg.timeout_s)
+        except Exception:
+            return ""
+        if isinstance(r, list) and len(r) >= 2 and isinstance(r[1], list) and r[1]:
+            return str(r[1][0])
+        return ""
+
     def hear(self, text: str) -> Optional[str]:
         """The answer, or None to let ASH answer as it always did."""
         if not self.enabled:
@@ -153,6 +174,11 @@ class Facts:
         cap = " ".join(w[:1].upper() + w[1:] for w in topic.split())
         if cap not in tries:
             tries.append(cap)
+        small = {"of", "the", "and", "in", "on", "for", "a", "an", "to", "at", "by", "de", "is"}
+        acr = " ".join(w.upper() if (len(w) <= 4 and w.lower() not in small and re.fullmatch(r"[a-z]+\d*|[a-z]+\d+[a-z]*", w)) else w[:1].upper() + w[1:]
+                       for w in topic.split())                   # "gta 6" -> "GTA 6", "ps5" -> "PS5", "nasa" -> "NASA"
+        if acr not in tries:
+            tries.append(acr)
         data: Optional[Dict[str, Any]] = None
         not_found = False
         for title in tries:
@@ -172,6 +198,19 @@ class Facts:
                 return None
             if isinstance(data, dict):
                 break
+        if not isinstance(data, dict) and not_found:
+            found = self._search(topic)
+            if found and found not in tries:
+                try:
+                    data = self._get(found)
+                    not_found = not isinstance(data, dict)
+                except urllib.error.HTTPError as e:
+                    if e.code != 404:
+                        self.stats["offline"] += 1
+                        return None
+                except Exception:
+                    self.stats["offline"] += 1
+                    return None
         if not isinstance(data, dict):
             if not_found:
                 self.stats["missing"] += 1
