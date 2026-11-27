@@ -44,6 +44,7 @@ import re
 import queue
 import sys
 import threading
+import types
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -344,6 +345,7 @@ class AmbientConfig:
     moments_path: Optional[str] = None    # when each free-moment activity last ran (the mood check: once a day, across restarts)
     notices_path: Optional[str] = None    # runtime notices kept across restarts: when memory was last said, a restart that was asked for
     skills_path: Optional[str] = None     # the concepts taught by voice (skills.py)
+    cache_path: Optional[str] = None      # remembered answers to factual questions (speedups.py)
     notifications: bool = False           # read Windows notifications (the app and who from, never the message): off unless switched on
     # Kids mode: grown-up things refused, the model told it's a child, a word filter, a time limit (kids.py).
     kids: bool = False
@@ -2347,6 +2349,87 @@ class AmbientRuntime:
                     return say("Doing " + name + (" for " + ", ".join(args.values()) if args else "") + ".")
                 sk.pending = {"kind": "confirm", "name": name, "args": args, "at": now}
                 return say(sk.plan_line(name, args))
+        return False
+
+    # ---- speedups.py: the answer cache, "more", the best model for this machine, "why was that slow" ---------------------------------------------
+    def _answers(self):
+        c = getattr(self, "answer_cache", None)
+        if c is None:
+            from .speedups import AnswerCache
+            c = self.answer_cache = AnswerCache(getattr(self.cfg, "cache_path", None), clock=lambda: self.clock())
+        return c
+
+    def _prewarm_model(self) -> None:
+        """They are back at the machine and the model was let go: load it now, in the background, so the first question is not the one that waits."""
+        if not getattr(self, "_model_unloaded", False) or getattr(self, "_prewarming", False):
+            return
+        llm = getattr(getattr(self, "ash", None), "llm", None)
+        if llm is None or not hasattr(llm, "warm"):
+            return
+        self._prewarming = True
+
+        def go():
+            try:
+                if llm.warm():
+                    self._model_unloaded = False
+            except Exception:
+                logger.debug("prewarm failed", exc_info=True)
+            finally:
+                self._prewarming = False
+        threading.Thread(target=go, name="ash-prewarm", daemon=True).start()
+
+    _BEST_MODEL = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:which|what)\s+(?:language\s+)?model\s+(?:should\s+(?:i|you)\s+use|is\s+best(?:\s+for\s+(?:this|my)\s+(?:pc|computer|machine|laptop))?)|"
+                             r"(?:pick|choose|use|switch\s+to)\s+the\s+best\s+model(?:\s+for\s+(?:this|my)\s+(?:pc|computer|machine|laptop))?)\W*$", re.I)
+    _CLEAR_CACHE = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:clear|forget|empty|reset)\s+(?:your\s+|the\s+)?(?:answer\s+)?cache\W*$", re.I)
+
+    def _speed_request(self, ev, now: float) -> bool:
+        if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "").strip()
+        if not text or len(text) > 120:
+            return False
+        from . import speedups
+
+        def say(line: str) -> bool:
+            self._wonder_say(ev, type("R", (), {"say": line, "outcome": "desktop"})())
+            return True
+        # "more" right after an answer: the model is asked to expand THAT answer (the line is handed on, rewritten)
+        lp = getattr(self, "_last_model_prompt", None)
+        if lp is not None:
+            rewritten = speedups.more(text, lp[0], lp[1], self.clock())
+            if rewritten is not None:
+                ev.text = rewritten
+                return False
+        if not self._meant_for_ash(ev):
+            return False
+        if speedups.asks_why_slow(text):
+            lt = getattr(self, "_last_turn", None) or {}
+            g = self.governor
+            note = ""
+            try:
+                rows = list(getattr(self.unrouted, "rows", []) or [])
+                note = str(rows[-1].get("note") or "") if rows else ""
+            except Exception:
+                note = ""
+            llm = getattr(getattr(self, "ash", None), "llm", None)
+            return say(speedups.why_slow(float(lt.get("took_s") or 0), note, str(getattr(llm, "_ollama_model", "") or ""),
+                                         getattr(g, "mem", None), getattr(g, "cpu", None), str(lt.get("pathway") or "")))
+        if self._CLEAR_CACHE.match(text):
+            return say(f"Cleared {self._answers().forget()} remembered answers.")
+        if self._BEST_MODEL.match(text):
+            try:
+                from src.ui import settings as st
+                import psutil
+                have = st.choices(self, "llm.model")
+                pick, why = speedups.best_model(have, psutil.virtual_memory().total / 1024 ** 3)
+            except Exception:
+                pick, why = "", "I can't read the installed models"
+            if not pick:
+                return say(f"I can't pick one: {why}.")
+            cur = str(getattr(getattr(getattr(self, "ash", None), "llm", None), "_ollama_model", "") or "")
+            if pick == cur:
+                return say(f"{cur} is already the best fit here: {why}.")
+            return say(f"For this computer I'd use {pick} ({why}); you're on {cur}. Say “use {pick}” to switch.")
         return False
 
     def _taught_digest(self) -> list:
@@ -4408,6 +4491,7 @@ class AmbientRuntime:
             back = d.tick(now, idle_s)
             if back is not None and back.away_s >= self.cfg.dwell_welcome_min_s:
                 self._welcome_due = back                    # said at their first pause: never over typing
+                self._prewarm_model()                       # they are back: the first question should not pay for loading the model
             wb = self._welcome_due
             if wb is not None and now - wb.at > 600.0:
                 self._welcome_due = None
@@ -5903,6 +5987,8 @@ class AmbientRuntime:
             return True
         if self._skill_request(ev, now):
             return True
+        if self._speed_request(ev, now):
+            return True
         if self._recall_request(ev, now):
             return True
         if self._pocket_request(ev, now):
@@ -6384,19 +6470,33 @@ class AmbientRuntime:
                         tc = self.taste.context(prompt, self.clock(), self._recent_people(self.clock()))
                         if tc:
                             context = (context + "\n" + tc).strip()
-                    cue = self._thinking_cue(to_ash)
+                    cached = None
+                    if to_ash and self._user_source(ev) and not meta.get("guest") and image is None and not context.strip():
+                        cached = self._answers().get(prompt)
+                    if cached is not None:
+                        # The same factual question within a day: the same answer, at once (speedups.py).
+                        response = types.SimpleNamespace(text=cached, pathway=types.SimpleNamespace(value="cache"), tool_used=None, intent=None, trace=None)
+                        self._last_model_prompt = (prompt, self.clock())
+                        text = cached
+                        self._finish_cached = True
+                    cue = None if cached is not None else self._thinking_cue(to_ash)
                     t_model = time.time()
                     cold = bool(getattr(self, "_model_unloaded", False))                     # was the model out of memory when this question came? (a load is most of a minute)
                     self._last_model_at, self._model_unloaded = self.clock(), False
                     try:
-                        with self._model_route(prompt, image is not None, bool(context.strip())):
-                            response = self.ash.think(prompt, image=image, context=context)
+                        if cached is None:
+                            with self._model_route(prompt, image is not None, bool(context.strip())):
+                                response = self.ash.think(prompt, image=image, context=context)
                     finally:
                         if cue is not None:
                             cue.cancel()
                 self._last_tool_used = str(getattr(response, "tool_used", None) or "")
                 text = clip_reply(response.text, self.cfg.max_response_chars)
                 pathway = response.pathway.value
+                if to_ash and self._user_source(ev) and pathway in ("slow", "escalated") and not self._last_tool_used and not meta.get("guest"):
+                    self._last_model_prompt = (prompt, self.clock())
+                    if image is None and not context.strip() and not is_failure_text(text):
+                        self._answers().put(prompt, text)
                 if to_ash and self._user_source(ev):
                     self._last_turn = {"took_s": time.time() - t_model, "pathway": pathway, "tool": self._last_tool_used,
                                        "timings": dict(getattr(getattr(response, "trace", None), "timings_ms", None) or {})}
@@ -6824,6 +6924,16 @@ class AmbientRuntime:
         mins = int((now - since) // 60)
         say = (f"Memory has been above {AmbientRuntime.MEMORY_HIGH_PCT:.0f}% for {mins} minutes{top} -- that's why I'm slow. "
                "Say \u201cwhat's using my memory\u201d for the rest.")
+        try:
+            # The planner: what to close, offered on a yes (pcdoctor holds the offer and does it only when told to).
+            d = getattr(self, "pcdoctor", None)
+            if d is not None:
+                full = d.answer("slow", now)
+                i = full.find(" Want me to close")
+                if i >= 0:
+                    say += full[i:]
+        except Exception:
+            logger.debug("no close offer", exc_info=True)
         # Calm first: a card under the face and a glance, then the line offered like any remark -- said at a free moment, held in focus, a
         # game or a call (it used to be spoken straight away, whatever the person was doing).
         self._quiet_cards = [c for c in getattr(self, "_quiet_cards", []) if c.get("key") != "memory"] + [

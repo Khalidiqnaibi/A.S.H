@@ -410,6 +410,23 @@ _GREETING_LEAD = re.compile(r"^\s*(?:(?:hey|hi|hello|greetings|howdy)(?:\s+there
 _GREETED = re.compile(r"^\W*(?:(?:hey|hi|hello|yo|howdy|greetings|good\s+(?:morning|afternoon|evening))\b|(?:hey\s+)?ash\W*$)", re.I)
 
 
+# The first sentence of a small model's answer is often a restatement ("I understand you're asking about...", "Certainly!", "Great question."). Cut when what is
+# left is still an answer (27 Nov: nearly every model answer opened this way, and each one was spoken).
+_OPENER = re.compile(r"^\s*(?:(?:certainly|of\s+course|absolutely|great\s+question|good\s+question)[!,.]+\s+|"
+                     r"i\s+understand\s+(?:that\s+)?you(?:'re|\s+are)\s+(?:asking|wondering|looking|curious|interested|trying)[^.!?]{0,140}[.!?]\s+)", re.I)
+
+
+def strip_openers(text: str) -> str:
+    t = text or ""
+    for _ in range(2):
+        m = _OPENER.match(t)
+        if not m or len(t[m.end():].split()) < 6:
+            break
+        t = t[m.end():]
+        t = t[:1].upper() + t[1:]
+    return t
+
+
 _SPEAKER_TAG = re.compile(r"^\s*(?:A\.?S\.?H|Ash|Assistant)\s*:\s*", re.I)
 
 
@@ -488,7 +505,7 @@ def sanitize(reply: str, known: Any = "") -> str:
                 keep.append(sent)
         if keep:
             out.append(" ".join(keep))
-    text = strip_offers(strip_speaker("\n".join(out).strip()))
+    text = strip_offers(strip_openers(strip_speaker("\n".join(out).strip())))
     if dropped and not text:
         return "I don't have that detail."
     if leaked and not text:
