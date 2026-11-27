@@ -47,6 +47,11 @@ _ASK = re.compile(_LEAD + r"(?:(?:do\s+i\s+have|have\s+i\s+got|did\s+i\s+get|is\
 _WHO = re.compile(_LEAD + r"(?:who\s+(?:has\s+)?(?:e-?mailed|emailed|mailed|wrote\s+to|written\s+to)\s+me|"
                   r"who\s+are\s+(?:they|the\s+e-?mails)\s+from|who'?s\s+(?:it|that|the\s+e-?mail)\s+from)"
                   r"(?:\s+(?:today|lately|recently))?\s*[?.!]*\s*$", re.I)
+_IMPORTANT = re.compile(_LEAD + r"(?:(?:is\s+there\s+)?anything\s+(?:important|urgent)\s+(?:in\s+my\s+(?:e-?mail|inbox|mail)|in\s+(?:the|my)\s+e-?mails?)|"
+                        r"any\s+(?:important|urgent)\s+e-?mails?|what(?:'s|\s+is)\s+(?:important|urgent)\s+in\s+my\s+(?:e-?mail|inbox|mail))\s*[?.!]*\s*$", re.I)
+# What makes an email worth a mention: someone ASH knows, or a subject that asks for something soon.
+_URGENT = re.compile(r"\b(?:urgent|asap|deadline|due\s+(?:today|tomorrow)|action\s+required|reply\s+(?:needed|required)|interview|exam|grade|invoice|"
+                     r"payment\s+(?:due|failed)|overdue|final\s+notice|security\s+alert|password\s+reset|verify|offer|appointment|cancel(?:led|ed)?)\b", re.I)
 _ABOUT = re.compile(_LEAD + r"(?:what\s+are\s+(?:they|the\s+e-?mails)\s+about|(?:read\s+me\s+)?the\s+subjects?"
                     r"|what\s+(?:are\s+)?the\s+subjects?)\s*[?.!]*\s*$", re.I)
 
@@ -254,10 +259,42 @@ class Inbox:
             out += ", from " + _names([s for s, _ in rows])
         return out + "."
 
+    who: Optional[Callable[[str], str]] = None          # "your cousin" for a sender ASH knows (set by the runtime)
+
+    def important(self) -> Optional[str]:
+        """The unread that matter: from someone ASH knows, or a subject that asks for something soon. Headers only, as always."""
+        with self._lock:
+            n, rows = self.unread, list(self.recent)
+        if n is None:
+            return None
+        if not rows:
+            return "Nothing unread."
+        hits = []
+        for sender, subj in rows:
+            rel = self.who(sender) if self.who else ""
+            if rel:
+                hits.append(f"{sender}, {rel} -- {subj or '(no subject)'}")
+            elif _URGENT.search(subj or ""):
+                hits.append(f"{sender} -- {subj}")
+        if not hits:
+            return f"Nothing that stands out in the {n} unread -- no one I know, nothing marked urgent."
+        return ("Worth a look: " + "; ".join(hits[:3]) + "." + (f" ({len(hits) - 3} more.)" if len(hits) > 3 else ""))
+
     def hear(self, text: str) -> Optional[str]:
         t = (text or "").strip()
         if not t or len(t) > 80:
             return None
+        if _IMPORTANT.match(t):
+            if not self.cfg.enabled:
+                return None
+            if not self.configured:
+                return ("I'm not connected to your email. Add the account in the console's settings "
+                        "(an app password works best) -- I'll only ever read who sent what.")
+            s = self.important()
+            if s is None:
+                self.refresh(force=True)
+                return "I haven't checked your email yet -- give me a moment and ask again."
+            return s
         about = bool(_ABOUT.match(t))
         if about and self.unread is None and not self.configured:
             return None                       # "what are they about" is not ours unless email is set

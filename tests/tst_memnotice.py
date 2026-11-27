@@ -1,4 +1,5 @@
-"""tst_memnotice.py -- memory above 90% for twenty minutes is said once, with what holds the most; not again for three hours.
+"""tst_memnotice.py -- memory above 90% for twenty minutes is offered once (said when the moment allows), with what holds the most; not again for
+three hours.
 Run:  PYTHONIOENCODING=utf-8 python tests/tst_memnotice.py"""
 import os
 import sys
@@ -18,7 +19,7 @@ GB = 1024 ** 3
 def main():
     rt = tm.rig()
     said = []
-    rt.response_sink = lambda t, m: said.append(t)
+    rt.submit = lambda ev: said.append(ev.text) if (getattr(ev, "meta", None) or {}).get("topic") == "memory" else None
     rt.governor = types.SimpleNamespace(mem=92.0)
     rt._machine = machine.Machine(procs=lambda: [("opera.exe", 3 * GB, 1), ("opera.exe", int(2.1 * GB), 2), ("Code.exe", GB, 3), ("python.exe", 4 * GB, 9)],
                                   mem=lambda: (92.0, 0, 0), spec=lambda: {}, own_pid=9)
@@ -41,7 +42,7 @@ def main():
     check("after three hours, said again", len(said) == 2, str(said))
     rt2 = tm.rig()
     said2 = []
-    rt2.response_sink = lambda t, m: said2.append(t)
+    rt2.submit = lambda ev: said2.append(ev.text) if (getattr(ev, "meta", None) or {}).get("topic") == "memory" else None
     rt2.governor = types.SimpleNamespace(mem=95.0)
     rt2._machine = rt._machine
     rt2.gate.muted = True

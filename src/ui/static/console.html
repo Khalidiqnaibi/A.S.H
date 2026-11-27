@@ -784,6 +784,7 @@ function heard() {
 // ---- cues ------------------------------------------------------------
 function onCue(m, live) {
   if (!live) return;      // replayed history: hello already said what is on now
+  if (m.on && m.cue === "thinking") m.started = (cues.thinking && cues.thinking.started) || Date.now();
   if (m.on) cues[m.cue] = m; else delete cues[m.cue];
   if (m.on && live && m.cue === "speaking") cues.speaking.until = Date.now() + (m.seconds || 2) * 1000;
   renderThinking(); updateStatePill();
@@ -799,9 +800,13 @@ function renderThinking() {
       const stick = nearBottom(); $("empty")?.remove(); logEl.appendChild(row);
       if (stick) scroller.scrollTop = scroller.scrollHeight;
     }
-    row.querySelector(".bubble span:last-child").textContent = "thinking · " + (cues.thinking.label || "");
+    // How long it has taken, once it is more than a moment: the wait is visible without ASH saying more (26 Nov: five silent minutes).
+    const secs = Math.floor((Date.now() - (cues.thinking.started || Date.now())) / 1000);
+    const took = secs >= 5 ? " · " + Math.floor(secs / 60) + ":" + String(secs % 60).padStart(2, "0") : "";
+    row.querySelector(".bubble span:last-child").textContent = "thinking · " + (cues.thinking.label || "") + took;
   } else if (row) row.remove();
 }
+setInterval(() => { if (cues.thinking) renderThinking(); }, 1000);
 function updateStatePill() {
   const s = cues.speaking ? "speaking" : cues.thinking ? "thinking" : status && status.paused ? "paused"
           : anim() === "sleeping" ? "asleep" : status && status.muted ? "quiet (muted)" : "idle";

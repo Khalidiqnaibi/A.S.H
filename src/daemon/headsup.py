@@ -71,6 +71,13 @@ def cards(runtime, now: float, reminder_window_s: float = 1800.0, event_window_s
                             "sub": f"+{len(p) - 1} more" if len(p) > 1 else "Waiting for you"})
         except Exception:
             pass
+    try:
+        import time as _time
+        for c in list(getattr(runtime, "_quiet_cards", None) or []):
+            if float(c.get("until") or 0) > _time.time():
+                out.append({k: v for k, v in c.items() if k not in ("key", "until")})
+    except Exception:
+        pass
     out += _browsing_cards(runtime, now)
     out += _vision_cards(runtime, now)
     out.sort(key=lambda c: (c["at"] == 0, c["at"]))

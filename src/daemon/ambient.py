@@ -695,6 +695,7 @@ class AmbientRuntime:
         self.drafts = None
         if self.cfg.email:
             self.inbox = Inbox(InboxConfig.from_dict(self.cfg.email_cfg), clock=lambda: self.clock())
+            self.inbox.who = lambda name: self._relation_of(name)
             from .drafts import Drafts
             ecfg = dict(self.cfg.email_cfg or {})
             self.drafts = Drafts(self.inbox, account=lambda: {**dict(self.cfg.email_cfg or {}),
@@ -1644,6 +1645,7 @@ class AmbientRuntime:
         if not getattr(self, "_restart_checked", False):
             self._restart_checked = True
             self._back_from_restart()
+            self._apply_dial()
         self._timed_restore(now)
         self._refresh_about_you(now)
         self._model_notice()
@@ -2194,6 +2196,56 @@ class AmbientRuntime:
         say = "That download's still going -- want me to tell you when it's done?"
         self.submit(SensorEvent(source="flow", modality=Modality.TEXT, text=say, salience=0.6, urgency=0.3, ts=now, persistable=False,
                                 meta={"offer": "situation", "offer_strength": 0.8, "say": say, "topic": "download", "situation": "download"}))
+
+    def _dial_request(self, ev, now: float) -> bool:
+        """'Be less chatty' / 'fewer jokes' (dial.py) -- how often ASH volunteers, kept across restarts; and 'I have a headache' / 'my eyes
+        hurt' -- the time at the screen, a break, and quiet on a yes."""
+        if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        from . import dial, yesno
+        text = str(getattr(ev, "text", "") or "").strip()
+
+        def say(line: str, outcome: str = "moment") -> bool:
+            self._wonder_say(ev, type("R", (), {"say": line, "outcome": outcome})())
+            return True
+        pend = getattr(self, "_care_quiet", None)
+        if pend is not None and now - pend[1] <= 120.0 and (yesno.is_yes(text) or yesno.is_no(text)):
+            self._care_quiet = None
+            if yesno.is_no(text):
+                return say("Okay.")
+            mins = pend[0]
+            self.gate.mute(True)
+            self._quiet_until = now + mins * 60.0
+            self._quiet_epoch = self.gate.mute_epoch
+            return say(f"Okay -- quiet for {mins} minutes. I'll still answer if you ask.")
+        if not self._meant_for_ash(ev):
+            return False
+        p = dial.parse(text)
+        if p is not None:
+            kind, level = p
+            dial.apply(self, kind, level)
+            self._notices(**{("chattiness" if kind == "chat" else "jokes"): level})
+            return say(dial.SAY_CHAT[level] if kind == "chat" else dial.SAY_JOKE[level])
+        at_it = self.care.at_it(now) if self.care is not None else 0.0
+        c = dial.care(text, at_it, time.localtime(time.time()).tm_hour)
+        if c is not None:
+            line, mins = c
+            if mins:
+                self._care_quiet = (mins, now)
+            return say(line)
+        return False
+
+    def _apply_dial(self) -> None:
+        """At start: the chattiness and jokes the person set, from state/notices.json."""
+        from . import dial
+        d = self._notices()
+        for kind, key in (("chat", "chattiness"), ("jokes", "jokes")):
+            level = d.get(key)
+            if level in (dial.LEVELS if kind == "chat" else dial.JOKES):
+                try:
+                    dial.apply(self, kind, level)
+                except Exception:
+                    logger.debug("could not apply the saved %s", key, exc_info=True)
 
     def _pocket_request(self, ev, now: float) -> bool:
         """BMO's side (pocket.py): coin, dice, a number, rock-paper-scissors, the 8 ball; what to play; ASH's own day; a hype that is only facts;
@@ -5440,6 +5492,8 @@ class AmbientRuntime:
             return True
         if self._pocket_request(ev, now):
             return True
+        if self._dial_request(ev, now):
+            return True
 
         # "Find the contract I was editing last week" (and its "open it?"): before "open it" is read as the last thing named.
         if self._samsung_request(ev, now):          # before the file search: 'search for projects in Samsung Notes' is not a file search
@@ -6353,10 +6407,18 @@ class AmbientRuntime:
         mins = int((now - since) // 60)
         say = (f"Memory has been above {AmbientRuntime.MEMORY_HIGH_PCT:.0f}% for {mins} minutes{top} -- that's why I'm slow. "
                "Say \u201cwhat's using my memory\u201d for the rest.")
+        # Calm first: a card under the face and a glance, then the line offered like any remark -- said at a free moment, held in focus, a
+        # game or a call (it used to be spoken straight away, whatever the person was doing).
+        self._quiet_cards = [c for c in getattr(self, "_quiet_cards", []) if c.get("key") != "memory"] + [
+            {"key": "memory", "kind": "notice", "title": f"Memory at {mem:.0f}%", "at": 0, "in": "now", "sub": top.lstrip(", ") or "slow answers",
+             "until": time.time() + 1800.0}]
         try:
-            self.response_sink(say, {"addressed": False, "source": "machine", "attention": None, "pathway": "wonder", "outcome": "memory"})
+            if getattr(self, "face", None) is not None and hasattr(self.face, "on_alert"):
+                self.face.on_alert(0.3)
         except Exception:
-            logger.exception("Memory notice failed")
+            logger.debug("no glance", exc_info=True)
+        self.submit(SensorEvent(source="flow", modality=Modality.TEXT, text=say, salience=0.6, urgency=0.35, ts=now, persistable=False,
+                                meta={"offer": "situation", "offer_strength": 0.8, "say": say, "topic": "memory", "situation": "memory"}))
 
     SQUEEZED_LLM_TIMEOUT = 90.0
 

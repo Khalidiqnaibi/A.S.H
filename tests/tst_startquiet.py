@@ -87,6 +87,7 @@ def main():
     rt._mem_high_since = now - 1300
     n = len(rt._out)
     rt._memory_notice(now)
+    rt._tick()                                    # offered through the gate: said on the next pass
     check("four hours on: said once", len(rt._out[n:]) == 1 and rt._out[n].startswith("Memory has been above 90%"), str(rt._out[n:]))
     check("...and when is kept", abs(float(rt._notices().get("memory_told_at")) - now) < 1)
 
