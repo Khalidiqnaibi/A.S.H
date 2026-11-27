@@ -1040,6 +1040,12 @@ class AmbientRuntime:
             logger.info("Model reported something it did not do (or denied what it can) -- replaced: %r", text[:120])
             text = fixed
         elif (text and meta.get("addressed") and str(meta.get("pathway", "")).lower() == "slow"
+                and not getattr(self, "_last_tool_used", False) and self._ungrounded_self_claim(text)):
+            # "I can see you're tired" with the camera off, "I heard you" with the microphone muted: said about itself, and not so.
+            fixed = self._ungrounded_self_claim(text)
+            logger.info("Model claimed a sense ASH does not have right now -- replaced: %r", text[:120])
+            text = fixed
+        elif (text and meta.get("addressed") and str(meta.get("pathway", "")).lower() == "slow"
                 and not getattr(self, "_last_tool_used", False) and honest.invented_reply(text)):
             # "Minimum interventions mode activated", "here are some cat pictures", "(pause)": made up.
             logger.info("Model invented an action or a result -- replaced: %r", text[:120])
@@ -2453,6 +2459,18 @@ class AmbientRuntime:
         except Exception:
             logger.debug("recovery offer failed", exc_info=True)
         try:
+            from . import selfknow
+            cur = str(getattr(getattr(getattr(self, "ash", None), "llm", None), "_ollama_model", "") or "")
+            old_m = str(self._notices().get("last_model") or "")
+            if cur:
+                self._notices(last_model=cur)
+                line = selfknow.model_change(old_m, cur)
+                if line:
+                    self.submit(SensorEvent(source="flow", modality=Modality.TEXT, text=line, salience=0.5, urgency=0.2, ts=now, persistable=False,
+                                            meta={"offer": "situation", "offer_strength": 0.6, "say": line, "topic": "model", "situation": "model"}))
+        except Exception:
+            logger.debug("model notice failed", exc_info=True)
+        try:
             head = pr.git_head(os.getcwd())
             old = str(self._notices().get("last_head") or "")
             if head:
@@ -3286,6 +3304,24 @@ class AmbientRuntime:
         what = f.what[0].upper() + f.what[1:]
         more = f" ({len(rows) - 1} more this week)" if len(rows) > 1 else ""
         return f"{what} is {when}{more}."
+
+    def _ungrounded_self_claim(self, text: str):
+        from . import selfknow
+        try:
+            return selfknow.ungrounded(text, selfknow.facts(self))
+        except Exception:
+            return None
+
+    def _selfknow_request(self, ev, now: float) -> bool:
+        """'What model are you running?', 'what can you see right now?', 'can you hear me?' -- from the live state (selfknow.py), never the model's guess."""
+        if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")) or not self._meant_for_ash(ev):
+            return False
+        from . import selfknow
+        topic = selfknow.asks(str(getattr(ev, "text", "") or ""))
+        if topic is None:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": selfknow.answer(topic, selfknow.facts(self)), "outcome": "desktop"})())
+        return True
 
     def _hygiene_request(self, ev, now: float) -> bool:
         """'Check my memory' -- a read-only report of what is wrong in it; 'clean up my memory' -- says what it will do, and on a yes backs both files up and does it (hygiene.py)."""
@@ -6768,6 +6804,8 @@ class AmbientRuntime:
         if self._pipeline_request(ev, now):
             return True
         if self._hygiene_request(ev, now):
+            return True
+        if self._selfknow_request(ev, now):
             return True
         if self._teach_request(ev, now):
             return True
