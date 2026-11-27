@@ -399,7 +399,7 @@ def main() -> int:
                 jokes_path=os.path.join(os.getcwd(), "state", "jokes.json"),
                 moments_path=os.path.join(os.getcwd(), "state", "moments.json"),
                 notices_path=os.path.join(os.getcwd(), "state", "notices.json"),
-                skills_path=os.path.join(os.getcwd(), "state", "skills.json"),
+                skills_path=os.path.join(os.getcwd(), "skills.json"),                 # next to entities.json: merged between PCs by the memory merge driver
                 cache_path=os.path.join(os.getcwd(), "state", "answercache.json"),
                 life_dir=os.path.join(os.getcwd(), "state", "life"),
                 notifications=bool(((cfg.get("notifications") or {}) if isinstance(cfg, dict) else {}).get("enabled", False)),

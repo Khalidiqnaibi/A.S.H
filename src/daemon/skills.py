@@ -139,6 +139,9 @@ def parse_step(clause: str, slots: List[str]) -> Optional[Dict[str, Any]]:
     m = re.fullmatch(r"(?:if|when)\s+(?:the\s+)?(?:page|screen)?\s*(?:shows?|says?|has)\s+(?P<t>.+?)(?:\s*,\s*|\s+)(?:then\s+)?(?:stop|tell\s+me)", low)
     if m:
         return {"do": "stop_if_text", "text": m.group("t").strip(" \"'")}
+    m = re.fullmatch(r"(?:if|when)\s+(?:the\s+)?(?:page|screen)\s*(?:shows?|says?|has)\s+(?P<t>.+?)\s*,\s*(?:then\s+)?(?:do|run)\s+(?P<n>[a-z][a-z0-9 ]{2,60})", low)
+    if m:
+        return {"do": "branch", "text": m.group("t").strip(" \"'"), "then": m.group("n").strip()}
     if re.fullmatch(r"(?:save|put|write|keep)\s+(?:it|that|the\s+(?:title|result|answer))\s+(?:in|as|into)\s+(?:a\s+|my\s+)?note", low):
         return {"do": "note"}
     if re.fullmatch(r"(?:tell\s+me(?:\s+(?:it|that|the\s+(?:title|result|answer)))?|say\s+(?:it|that|the\s+(?:title|result|answer))|read\s+(?:it|that)\s+(?:out|to\s+me))", low):
@@ -156,8 +159,9 @@ def parse_step(clause: str, slots: List[str]) -> Optional[Dict[str, Any]]:
 
 def split_clauses(body: str) -> List[str]:
     t = re.sub(r"\s+dot\s+", ".", body or "", flags=re.I)
+    t = re.sub(r"((?:if|when)\s+the\s+(?:page|screen)\s+(?:shows?|says?|has)\s+[^,;]+?),\s*(?:then\s+)?(do|run)\s", lambda m: m.group(1) + "§ " + m.group(2) + " ", t, flags=re.I)
     parts = re.split(r"\s*(?:,\s*(?:and\s+)?(?:then\s+)?|;\s*|\.\s+(?=[A-Z])|\s+and\s+then\s+|\s+then\s+)", t)
-    return [p.strip(" .,;") for p in parts if p and p.strip(" .,;")]
+    return [p.strip(" .,;").replace("§", ",") for p in parts if p and p.strip(" .,;")]
 
 
 def check_allowed(steps: List[Dict[str, Any]]) -> None:
@@ -224,6 +228,7 @@ def say_step(st: Dict[str, Any], slots: Optional[List[str]] = None) -> str:
             "open_app": lambda: f"open {st.get('app')}", "search": lambda: f"search {st.get('engine', 'google')} for {v(st.get('q'))}",
             "type": lambda: f"type {v(st.get('text'))}", "press": lambda: "press " + " + ".join(st.get("keys", [])),
             "click_first_result": lambda: "click the first result", "click_text": lambda: f"click {v(st.get('text'))}",
+            "click_at": lambda: f"click at {st.get('x')},{st.get('y')}", "branch": lambda: f"if the page shows “{st.get('text')}”, do {st.get('then')}",
             "wait": lambda: f"wait {st.get('s', 3):g} seconds", "read_title": lambda: "read the title", "read_screen": lambda: "read the screen",
             "stop_if_text": lambda: f"stop if the page shows “{st.get('text')}”", "note": lambda: "keep it as a note", "say": lambda: "tell you it",
             "copy": lambda: "copy it", "remember": lambda: f"remember it as {v(st.get('name'))}",
@@ -240,6 +245,7 @@ class Hands:
     def type_text(self, text: str) -> bool: ...
     def click_text(self, text: str) -> bool: ...
     def click_first_result(self) -> bool: ...
+    def click_at(self, x: int, y: int) -> bool: ...
     def title(self) -> str: ...
     def read_screen(self) -> str: ...
     def copy(self, text: str) -> bool: ...
@@ -282,6 +288,10 @@ class RealHands(Hands):
             return False
         at = ex.find_text(text)
         return bool(at is not None and ex.click("click", at))
+
+    def click_at(self, x, y):
+        ex = self._ex()
+        return bool(ex is not None and ex.click("click", (int(x), int(y))))
 
     def click_first_result(self):
         ex = self._ex()
@@ -337,6 +347,7 @@ class Skills:
         self.skills: Dict[str, Dict[str, Any]] = {}
         self.pending: Optional[Dict[str, Any]] = None        # {"kind": "confirm"|"watch"|"name", ...}
         self.log: List[Dict[str, Any]] = []                  # {"t", "skill", "ok", "step", "why"} for the digest
+        self.triggers: List[Dict[str, Any]] = []             # "when I open Word, do X" / "every day at 9, do Y"
         self._lock = threading.RLock()
         self._load()
 
@@ -349,6 +360,7 @@ class Skills:
             d = load_json(self.path, {}) or {}
             self.skills = dict(d.get("skills") or {})
             self.log = list(d.get("log") or [])[-200:]
+            self.triggers = list(d.get("triggers") or [])
         except Exception:
             logger.debug("could not read %s", self.path, exc_info=True)
 
@@ -357,7 +369,7 @@ class Skills:
             return
         try:
             from src.memory.atomic import write_json
-            write_json(self.path, {"skills": self.skills, "log": self.log[-200:]})
+            write_json(self.path, {"skills": self.skills, "log": self.log[-200:], "triggers": self.triggers})
         except Exception:
             logger.debug("could not write %s", self.path, exc_info=True)
 
@@ -551,10 +563,38 @@ class Skills:
                 if _FORBIDDEN_TARGET.search(t):
                     ok, why = False, f"“{t}” is something I never click by myself"
                 else:
-                    ok = hands.click_text(t)
-                    why = "" if ok else f"I can't see “{t}” on the screen"
+                    ok = False
+                    tried = ([st["alt"]] if st.get("alt") else []) + [t]
+                    for cand in tried:
+                        ok = hands.click_text(cand)
+                        if ok:
+                            break
+                    if not ok:
+                        # Self-repair: other wordings of the same text, then one page down and again -- and what worked is kept for next time.
+                        for cand in text_variants(t):
+                            if hands.click_text(cand):
+                                ok = True
+                                raw["alt"] = cand
+                                break
+                        if not ok and hands.keys(("pagedown",)):
+                            self.pause(0.8)
+                            ok = hands.click_text(t)
+                    why = "" if ok else f"I can't see “{t}” on the screen -- tell me another name for it, or say the step again"
                     if ok:
                         self.pause(1.0)
+            elif d == "click_at":
+                ok = hands.click_at(int(st.get("x", 0)), int(st.get("y", 0)))
+                why = "" if ok else "the click didn't land"
+                if ok:
+                    self.pause(1.0)
+            elif d == "branch":
+                if str(st.get("text", "")).lower() in hands.read_screen().lower():
+                    found = self.trigger(str(st.get("then") or "")) or ((self.match_name(str(st.get("then") or "")), {}) if self.match_name(str(st.get("then") or "")) else None)
+                    if found is None:
+                        ok, why = False, f"I don't know how to {st.get('then')}"
+                    else:
+                        r = self.run(hands, found[0], found[1], say, depth + 1, vars_)
+                        ok, why = r["ok"], r.get("why", "")
             elif d == "wait":
                 self.pause(float(st.get("s", 3)))
             elif d == "read_title":
@@ -680,3 +720,181 @@ class Showing:
                 out.append({"do": "open_url", "url": "https://" + dom})
         apps = [{"do": "open_app", "app": p} for p in self.procs if p not in browsers]
         return (apps + out)[:MAX_STEPS]
+
+
+# ------------------------------------------------------------------------------------------------------------------------------ repair
+def text_variants(t: str) -> List[str]:
+    """Other ways the same screen text may be written: without a trailing 's' or punctuation, without its first or last word, lower case."""
+    base = re.sub(r"[^\w ]+", "", t).strip()
+    out: List[str] = []
+    words = base.split()
+    for v in (base, base.rstrip("s") if len(base) > 4 else "", " ".join(words[1:]) if len(words) > 2 else "", " ".join(words[:-1]) if len(words) > 2 else "",
+              base.lower(), base.title()):
+        if v and v != t and v not in out:
+            out.append(v)
+    return out[:5]
+
+
+# ------------------------------------------------------------------------------------------------------------------------------ showing, with keys
+_CHARS = {0x20: " ", 0xBA: ";", 0xBB: "=", 0xBC: ",", 0xBD: "-", 0xBE: ".", 0xBF: "/", 0xDB: "[", 0xDD: "]", 0xDE: "'"}
+_SHIFT_DIGITS = {"1": "!", "2": "@", "3": "#", "4": "$", "5": "%", "6": "^", "7": "&", "8": "*", "9": "(", "0": ")"}
+_SHIFT_SYM = {";": ":", "=": "+", ",": "<", "-": "_", ".": ">", "/": "?", "'": '"'}
+
+
+class KeyRecorder:
+    """What was typed and pressed while 'watch me' was on. `poll()` returns (set of virtual-key codes held now, (left button down, x, y)); real on Windows
+    (GetAsyncKeyState, nothing installed), a fake in tests. A new press is an edge: a held key is not repeated."""
+
+    def __init__(self, poll: Optional[Callable[[], Tuple[set, Tuple[bool, int, int]]]] = None):
+        self.poll = poll or _win_poll
+        self.events: List[Tuple[str, Any]] = []
+        self._down: set = set()
+        self._mouse = False
+
+    def tick(self) -> None:
+        try:
+            keys, (lb, x, y) = self.poll()
+        except Exception:
+            return
+        shift, ctrl = 0x10 in keys, 0x11 in keys
+        for vk in sorted(keys - self._down):
+            if vk in (0x10, 0x11, 0x12, 0x5B) or 0xA0 <= vk <= 0xA5 or vk in (1, 2):
+                continue
+            if ctrl:
+                if 0x41 <= vk <= 0x5A:
+                    self.events.append(("combo", ("ctrl", chr(vk).lower())))
+                continue
+            if vk == 0x0D:
+                self.events.append(("key", "enter"))
+            elif vk == 0x08:
+                self.events.append(("key", "backspace"))
+            elif vk == 0x09:
+                self.events.append(("key", "tab"))
+            elif vk == 0x1B:
+                self.events.append(("key", "esc"))
+            elif 0x41 <= vk <= 0x5A:
+                c = chr(vk).lower()
+                self.events.append(("char", c.upper() if shift else c))
+            elif 0x30 <= vk <= 0x39:
+                c = chr(vk)
+                self.events.append(("char", _SHIFT_DIGITS[c] if shift else c))
+            elif vk in _CHARS:
+                c = _CHARS[vk]
+                self.events.append(("char", _SHIFT_SYM.get(c, c) if shift else c))
+        self._down = set(keys)
+        if lb and not self._mouse:
+            self.events.append(("click", (x, y)))
+        self._mouse = lb
+
+    def steps(self) -> List[Dict[str, Any]]:
+        out: List[Dict[str, Any]] = []
+        buf: List[str] = []
+
+        def flush():
+            if buf:
+                out.append({"do": "type", "text": "".join(buf)})
+                buf.clear()
+        for kind, val in self.events:
+            if kind == "char":
+                buf.append(val)
+            elif kind == "key" and val == "backspace":
+                if buf:
+                    buf.pop()
+            elif kind == "key":
+                flush()
+                out.append({"do": "press", "keys": [val]})
+            elif kind == "combo":
+                flush()
+                out.append({"do": "press", "keys": list(val)})
+            elif kind == "click":
+                flush()
+                out.append({"do": "click_at", "x": int(val[0]), "y": int(val[1])})
+        flush()
+        return [s for s in out if not (s["do"] == "type" and not s["text"].strip())][:MAX_STEPS]
+
+
+def _win_poll() -> Tuple[set, Tuple[bool, int, int]]:
+    import ctypes
+    from ctypes import wintypes
+    u = ctypes.windll.user32
+    held = {vk for vk in range(8, 256) if u.GetAsyncKeyState(vk) & 0x8000}
+    pt = wintypes.POINT()
+    u.GetCursorPos(ctypes.byref(pt))
+    return held, (bool(u.GetAsyncKeyState(1) & 0x8000), int(pt.x), int(pt.y))
+
+
+def merge_demos(a: List[Dict[str, Any]], b: List[Dict[str, Any]]) -> Optional[Tuple[List[Dict[str, Any]], List[str]]]:
+    """Two demonstrations of the same thing: when they match step for step and only typed text (or a searched phrase) differs, that text is a slot. -> (steps, slots)."""
+    if len(a) != len(b) or any(x["do"] != y["do"] for x, y in zip(a, b)):
+        return None
+    out, slots = [], []
+    for x, y in zip(a, b):
+        s = dict(x)
+        for key in ("text", "q"):
+            if x["do"] in ("type", "search") and x.get(key) != y.get(key):
+                if "X" not in slots:
+                    slots.append("X")
+                s[key] = "$X"
+        out.append(s)
+    return (out, slots) if slots else None
+
+
+# ------------------------------------------------------------------------------------------------------------------------------ triggers
+_WHEN_OPEN = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?when\s+i\s+(?:open|start|launch)\s+(?P<app>[\w .+-]{2,25}?)\s*,?\s*(?:then\s+)?(?:do|run)\s+(?P<n>[a-z][a-z0-9 ]{2,60}?)\W*$", re.I)
+_EVERY_DAY = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:every\s+(?:day|morning|weekday)|each\s+morning)\s+at\s+(?P<h>\d{1,2})(?::(?P<m>\d{2}))?\s*(?P<ap>a\.?m\.?|p\.?m\.?)?\s*,?\s*(?:then\s+)?(?:do|run)\s+(?P<n>[a-z][a-z0-9 ]{2,60}?)\W*$", re.I)
+
+
+def parse_trigger(text: str) -> Optional[Dict[str, Any]]:
+    m = _WHEN_OPEN.match((text or "").strip())
+    if m:
+        return {"kind": "open", "app": m.group("app").strip().lower().removesuffix(".exe"), "name": m.group("n").strip().lower()}
+    m = _EVERY_DAY.match((text or "").strip())
+    if m:
+        h, mi = int(m.group("h")), int(m.group("m") or 0)
+        ap = (m.group("ap") or "").lower().replace(".", "")
+        if ap == "pm" and h < 12:
+            h += 12
+        elif ap == "am" and h == 12:
+            h = 0
+        if h > 23 or mi > 59:
+            return None
+        return {"kind": "daily", "at": f"{h:02d}:{mi:02d}", "name": m.group("n").strip().lower()}
+    return None
+
+
+def due_triggers(triggers: List[Dict[str, Any]], proc: str, prev_proc: str, now: float) -> List[Dict[str, Any]]:
+    """The triggers that fire now: an app that just came to the front, or a daily time that has passed today and not yet been run."""
+    out = []
+    p = (proc or "").lower().removesuffix(".exe")
+    today = time.strftime("%Y-%m-%d", time.localtime(now))
+    hm = time.strftime("%H:%M", time.localtime(now))
+    for t in triggers:
+        if t["kind"] == "open" and p and p != (prev_proc or "").lower().removesuffix(".exe") and (t["app"] in p or p in t["app"]):
+            if t.get("last_at", 0) < now - 600:
+                out.append(t)
+        elif t["kind"] == "daily" and hm >= t["at"] and t.get("last") != today:
+            out.append(t)
+    return out
+
+
+# ------------------------------------------------------------------------------------------------------------------------------ packs
+def export_pack(skills: Dict[str, Dict[str, Any]], names: Optional[List[str]] = None) -> Dict[str, Any]:
+    keep = {k: {kk: vv for kk, vv in v.items() if kk in ("name", "slots", "steps", "aliases")} for k, v in skills.items() if not names or k in names}
+    return {"ash_skill_pack": 1, "skills": keep}
+
+
+def import_pack(skills: Dict[str, Dict[str, Any]], data: Dict[str, Any], now: float) -> Tuple[List[str], List[str]]:
+    """(added, refused). Every step is checked again, as if it were being taught now: a pack cannot smuggle in what a lesson may not contain."""
+    added, refused = [], []
+    for name, sk in (data.get("skills") or {}).items():
+        try:
+            steps = list(sk.get("steps") or [])
+            if not steps or len(steps) > MAX_STEPS or any("do" not in s for s in steps):
+                raise LessonError("bad steps")
+            check_allowed(steps)
+            skills[name] = {"name": name, "slots": list(sk.get("slots") or []), "steps": steps, "runs": 0, "fails": 0, "good": 0, "created": now,
+                            "source": "imported", "aliases": list(sk.get("aliases") or [])}
+            added.append(name)
+        except Exception:
+            refused.append(name)
+    return added, refused

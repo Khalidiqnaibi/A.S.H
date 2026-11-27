@@ -1722,6 +1722,7 @@ class AmbientRuntime:
             self._step("situation", self._situation_step, now, idle_s)
             self._step("toasts", self._toast_step, now)
             self._step("life", self._life_steps, now)
+            self._step("skill triggers", self._skill_trigger_step, now)
             self._step("limits", self._limit_step, now)
             self._step("download offer", self._download_offer_step, now)
             self._step("guard", self._guard_step, now)
@@ -2294,22 +2295,86 @@ class AmbientRuntime:
                 m = self._SK_THATS.match(text)
                 if m:
                     tabs = self._open_tab_urls()
-                    steps = pend["show"].steps(tabs)
+                    show = pend["show"]
+                    rec = getattr(show, "rec", None)
+                    if rec is not None:
+                        rec.stop = True
+                    steps = show.steps(tabs) + (rec.steps() if rec is not None else [])
+                    steps = steps[:sk_mod.MAX_STEPS]
                     sk.pending = None
                     if not steps:
-                        return say("I didn't see anything open while I watched -- a program or a page. Try again and open something.")
+                        return say("I didn't see anything while I watched -- no program, page, keys or clicks. Try again and do it once.")
                     name = m.group("n").strip().lower()
+                    again = pend.get("again")
+                    if again and again in sk.skills:
+                        merged = sk_mod.merge_demos(sk.skills[again]["steps"], steps)
+                        if merged is None:
+                            return say(f"That second time wasn't the same steps as the first, so I can't tell what changes. {again} stays as it was.")
+                        sk.skills[again]["steps"], sk.skills[again]["slots"] = merged[0], merged[1]
+                        sk.skills[again]["good"] = 0
+                        sk.save()
+                        return say(f"Got it -- {again} now takes {' and '.join(merged[1])}: " + sk.read_back(again).split(': ', 1)[1])
+                    try:
+                        sk_mod.check_allowed(steps)
+                    except sk_mod.LessonError as e:
+                        return say(str(e))
                     msg, undo = sk.teach({"phrase": name, "slots": [], "steps": steps}, source="shown", now=now)
                     self.undo.push(f"how to {name}", undo, now)
-                    return say(msg)
+                    self._last_shown = name
+                    return say(msg + " Say “let me show you again” with something different and I'll work out what changes.")
                 if self._SK_STOP.match(text):
                     sk.pending = None
+                    r0 = getattr(pend["show"], "rec", None)
+                    if r0 is not None:
+                        r0.stop = True
                     return say("Okay, I've stopped watching.")
-        if self._SK_WATCH.match(text):
+        again = bool(re.match(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:let\s+me\s+show\s+you\s+again|watch\s+me\s+again|one\s+more\s+time,?\s+watch\s+me)\W*$", text, re.I))
+        if self._SK_WATCH.match(text) or again:
             show = sk_mod.Showing(self._open_tab_urls())
-            sk.pending = {"kind": "watch", "show": show, "at": now}
+            rec = show.rec = sk_mod.KeyRecorder(getattr(self, "_key_poll", None))
+            rec.stop = False
+            if not getattr(self, "_skills_sync", False):
+                def pump(r=rec):
+                    while not r.stop:
+                        r.tick()
+                        time.sleep(0.03)
+                threading.Thread(target=pump, name="ash-keys", daemon=True).start()
+            sk.pending = {"kind": "watch", "show": show, "at": now, "again": (getattr(self, "_last_shown", None) if again else None)}
             self._watching = show
-            return say("Okay, I'm watching -- I'll note the programs and pages that open, not your keys or window titles. Say \u201cthat's how you ...\u201d and what to call it when you're done.")
+            return say("Okay, I'm watching -- the programs and pages that open, what you type and press, and where you click. Say \u201cthat's how you ...\u201d "
+                       "and what to call it when you're done." + (" Do it with something different this time." if again else ""))
+        trig = sk_mod.parse_trigger(text)
+        if trig is not None:
+            key = sk.match_name(trig["name"])
+            if key is None:
+                return say(f"I don't know how to {trig['name']} yet -- teach me that first.")
+            trig["name"] = key
+            sk.triggers.append(trig)
+            sk.save()
+            self.undo.push("a trigger", lambda t=trig: (sk.triggers.remove(t) if t in sk.triggers else None, sk.save()), now)
+            return say((f"Okay -- when you open {trig['app']}, I'll do {key}." if trig["kind"] == "open" else f"Okay -- every day from {trig['at']}, I'll do {key}.")
+                       + ("" if sk.trusted(key) else " I'll ask first until it has worked twice."))
+        m = re.match(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:export|save)\s+(?:all\s+)?(?:my\s+)?(?:the\s+)?(?:skills|lessons|things\s+i\s+taught\s+you)\W*$", text, re.I)
+        if m and sk.skills:
+            import json as _json
+            folder = os.path.join(os.path.expanduser("~"), "Documents", "ASH")
+            os.makedirs(folder, exist_ok=True)
+            path = os.path.join(folder, "ash-skills.json")
+            with open(path, "w", encoding="utf-8") as fh:
+                _json.dump(sk_mod.export_pack(sk.skills), fh, indent=2)
+            return say(f"Saved {len(sk.skills)} skills to {path}. Copy it to another computer and say \u201cimport my skills\u201d there.")
+        if re.match(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?import\s+(?:my\s+|the\s+)?(?:skills|lessons)(?:\s+file)?\W*$", text, re.I):
+            import json as _json
+            cands = [os.path.join(os.path.expanduser("~"), d, n) for d in ("Documents/ASH", "Downloads", "Desktop") for n in ("ash-skills.json",)]
+            path = next((c for c in cands if os.path.exists(c)), "")
+            if not path:
+                return say("I don't see an ash-skills.json in Documents/ASH, Downloads or the Desktop.")
+            try:
+                added, refused = sk_mod.import_pack(sk.skills, _json.load(open(path, encoding="utf-8")), now)
+            except Exception:
+                return say("I couldn't read that file.")
+            sk.save()
+            return say(f"Imported {len(added)} skill{'s' if len(added) != 1 else ''}" + (f"; refused {len(refused)} that had steps I never take" if refused else "") + ". They'll ask first.")
         try:
             lesson = sk_mod.parse_lesson(text)
         except sk_mod.LessonError as e:
@@ -2663,6 +2728,34 @@ class AmbientRuntime:
                 lf = v.get("last_fail") or {}
                 out.append(f"{k} keeps failing at step {lf.get('step', '?')}: {lf.get('why', '')}")
         return out
+
+    def _skill_trigger_step(self, now: float) -> None:
+        """'When I open Word, do my setup' / 'every day at 9, do research': a trusted skill is run; one that has not yet worked twice is offered (a yes runs it)."""
+        sk = getattr(self, "skills", None)
+        if sk is None or not sk.triggers or self.privacy.paused or self.gate.muted:
+            return
+        from . import skills as sk_mod
+        proc = str(getattr(getattr(self, "dwell", None), "process", "") or "")
+        prev = getattr(self, "_trig_prev", "")
+        self._trig_prev = proc
+        if self._just_started():
+            return
+        wall = time.time()
+        idle = getattr(self, "_idle_now", None)
+        for t in sk_mod.due_triggers(sk.triggers, proc, prev, wall):
+            if t["kind"] == "daily" and idle is not None and idle > 300.0:
+                continue                                   # not while they are away: it waits for them
+            if t["name"] not in sk.skills:
+                continue
+            t["last_at"], t["last"] = wall, time.strftime("%Y-%m-%d", time.localtime(wall))
+            sk.save()
+            args: dict = {}
+            if sk.trusted(t["name"]):
+                self._skill_say_later(f"Doing {t['name']}.")
+                self._run_skill(t["name"], args)
+            else:
+                sk.pending = {"kind": "confirm", "name": t["name"], "args": args, "at": now}
+                self._skill_say_later(sk.plan_line(t["name"], args))
 
     def _open_tab_urls(self) -> list:
         try:

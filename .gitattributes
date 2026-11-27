@@ -1,2 +1,3 @@
 entities.json merge=ashmem
 episodic_memory.jsonl merge=ashmem
+skills.json merge=ashmem
