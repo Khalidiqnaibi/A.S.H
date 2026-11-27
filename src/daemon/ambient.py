@@ -2888,7 +2888,9 @@ class AmbientRuntime:
             try:
                 self.journal.flush()
                 from .social import friendly_app
-                return say(ll.timeline(self.journal.read_day(day), day, friendly_app), "answer")
+                rows_day = self.journal.read_day(day)
+                if rows_day:                           # nothing journaled for that day: the per-day work record (working.py) answers instead
+                    return say(ll.timeline(rows_day, day, friendly_app), "answer")
             except Exception:
                 logger.exception("Timeline failed")
         g = L.goals.hear(text, self._time_on_text)

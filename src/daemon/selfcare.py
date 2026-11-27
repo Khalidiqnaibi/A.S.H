@@ -189,7 +189,7 @@ def reflect(worked: List[Tuple[str, float]], good: List[str], streak: Optional[T
 
 
 # ----------------------------------------------------------------------------------------------------------------------------- coaching
-_COACH = re.compile(_A + r"(?:any\s+(?:tips|advice|suggestions)|coach\s+me|how\s+can\s+i\s+(?:be\s+more\s+productive|focus\s+better|use\s+my\s+time\s+better)|when\s+do\s+i\s+work\s+best)" + _Z, re.I)
+_COACH = re.compile(_A + r"(?:any\s+(?:tips|advice|suggestions)|coach\s+me|when\s+do\s+i\s+work\s+best)" + _Z, re.I)
 
 
 def asks_coach(text: str) -> bool:
