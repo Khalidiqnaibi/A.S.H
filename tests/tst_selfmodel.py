@@ -25,6 +25,8 @@ check = tw.check
 def s1_parse():
     print("\n=== S1. What is asked ===")
     want = {"What model are you using, Ash?": "model", "which model are you running": "model", "what's your model": "model",
+            "What model are you?": "model", "which model is this": "model", "what model are you now": "model", "what model runs you": "model",
+            "what model are you building": None,
             "What hardware are you using, Ash?": "hardware", "What can you tell me about this machine, Ash?": "hardware",
             "what are your specs": "hardware", "what gpu do you have": None, "what's your hardware": "hardware",
             "What's new with you in the new update?": "whatsnew", "what's new": "whatsnew", "what changed in the update": "whatsnew",

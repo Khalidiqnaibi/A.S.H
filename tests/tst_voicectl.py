@@ -280,6 +280,12 @@ def v4_shutdown():
     rt.t[0] += 17
     rt.say("ye'")
     check("a 'ye' 42 seconds later (with a stray apostrophe) still confirms: the window is 90 s", asked == [1, 1], str(asked))
+    rt.say("restart yourself")
+    rt.t[0] += 25
+    n_out = len(rt.out)
+    rt._tick()
+    check("a restart's reminder says restart, not shut down (26 Nov)", any("Still want me to restart" in o for o in rt.out[n_out:])
+          and not any("shut down" in o for o in rt.out[n_out:]), str(rt.out[n_out:]))
     asked.clear()
     asked.append(1)
     rt.say("shut down")

@@ -125,6 +125,16 @@ def _is_self(subject: str) -> bool:
     return low == "a.s.h" or "ashd.py" in low or "python ashd" in low
 
 
+# ASH's own project, under any name it shows up as in a title: the repo ("A.S.H"), a worktree of it ("ash-cognitive-architecture-8250dd"), its
+# daemon. Time on it still counts -- that is the user's work -- but it is never asked about: 26 Nov it asked "I keep seeing you in A.S.H, and I
+# only know the name. What is it?" at 14:48 and again at 20:48 (the editor's title gave the project, which _is_self never looked at).
+_SELF_PROJECT = re.compile(r"^\W*(?:a\.?\s?s\.?\s?h\.?|ash)\W*$|\bashd\b|\bash[-_]cognitive|claude[\\/]worktrees", re.I)
+
+
+def is_ash_itself(name: str) -> bool:
+    return _is_self(name) or bool(_SELF_PROJECT.search(name or ""))
+
+
 # ----------------------------------------------------------------------------
 @dataclass
 class ActivityConfig:
@@ -594,6 +604,9 @@ class ActivityMemory:
                 or ("recurs" in kinds and t.kind == "project")):
             return
         if t.stretches < self.cfg.ask_after_stretches:
+            return
+        if is_ash_itself(t.name):
+            t.asked = True                # its own project: never "what is it?"
             return
         if self.kb is not None and self.kb.term_known(t.name):
             t.asked = True                # already told: nothing to wonder

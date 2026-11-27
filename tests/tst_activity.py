@@ -349,34 +349,43 @@ check("something that keeps coming back over days recurs", any(l["type"] == "rec
 
 # ============================================================================
 print("\n=== A4. Asking ===")
-a = rig(known=[("A.S.H", "SPEAKER_SELF")])
-a.spend("brain.py", 6, "A.S.H")
+a = rig(known=[("Nimbus", "SPEAKER_SELF")])
+a.spend("brain.py", 6, "Nimbus")
 a.observe(win("x.py"), a.t[0])
 check("seen once, it is not asked about yet", not pending(a), str(pending(a)))
-a.spend("system2.py", 6, "A.S.H")
+a.spend("system2.py", 6, "Nimbus")
 a.observe(win("x.py"), a.t[0])
 ws = pending(a)
 check("seen again and connected: one question is raised",
       len(ws) == 1 and ws[0]["kind"] == "activity", str(ws))
 check("...that says why it is asking: it knows the name and nothing else",
-      "A.S.H" in ws[0]["question"] and "only know the name" in ws[0]["question"], ws[0]["question"])
-a.spend("planner.py", 6, "A.S.H")
+      "Nimbus" in ws[0]["question"] and "only know the name" in ws[0]["question"], ws[0]["question"])
+a.spend("planner.py", 6, "Nimbus")
 a.observe(win("x.py"), a.t[0])
 check("...and not again for the same thing", len(pending(a)) == 1)
 
-a = rig(known=[("A.S.H", "SPEAKER_SELF")])
-a.kb.store_term("A.S.H", "my assistant project")
+a = rig(known=[("Nimbus", "SPEAKER_SELF")])
+a.kb.store_term("Nimbus", "my weather app")
 for _ in range(3):
-    a.spend("brain.py", 6, "A.S.H")
+    a.spend("brain.py", 6, "Nimbus")
 a.observe(win("x.py"), a.t[0])
 check("something the user has already explained is never asked about", not pending(a))
 
-a = rig(known=[("A.S.H", "SPEAKER_SELF")], ask=False)
+a = rig(known=[("Nimbus", "SPEAKER_SELF")], ask=False)
 for _ in range(3):
-    a.spend("brain.py", 6, "A.S.H")
+    a.spend("brain.py", 6, "Nimbus")
 a.observe(win("x.py"), a.t[0])
 check("ask=false: connected topics are saved but nothing is asked",
-      not pending(a) and a.topics["project:a s h"].remembered)
+      not pending(a) and a.topics["project:nimbus"].remembered)
+
+# 26 Nov: "I keep seeing you in A.S.H, and I only know the name. What is it?" -- asked at 14:48 and again at 20:48. A.S.H is ASH itself.
+for proj in ("A.S.H", "ash-cognitive-architecture-8250dd"):
+    a = rig(known=[(proj, "SPEAKER_SELF")])
+    for _ in range(3):
+        a.spend("ambient.py", 6, proj)
+    a.observe(win("x.py"), a.t[0])
+    check(f"ASH's own project ({proj}) is never asked about, but its time still counts",
+          not pending(a) and any(t.seconds >= 1000 for t in a.topics.values()), str(pending(a)))
 
 a = rig()
 for _ in range(4):
@@ -406,54 +415,54 @@ a.observe(win("x.py"), a.t[0])
 check("topics seen together are asked about as a pair",
       any("switching between" in w["question"] for w in pending(a)), str([w["question"] for w in pending(a)]))
 
-a = rig(known=[("A.S.H", "SPEAKER_SELF")], wonder=False)
+a = rig(known=[("Nimbus", "SPEAKER_SELF")], wonder=False)
 for _ in range(3):
-    a.spend("brain.py", 6, "A.S.H")
+    a.spend("brain.py", 6, "Nimbus")
 a.observe(win("x.py"), a.t[0])
 check("with no wonderer it still remembers and connects, it just cannot ask",
-      a.topics["project:a s h"].remembered)
+      a.topics["project:nimbus"].remembered)
 
 # ============================================================================
 print("\n=== A5. Answers ===")
-a = rig(known=[("A.S.H", "SPEAKER_SELF")])
+a = rig(known=[("Nimbus", "SPEAKER_SELF")])
 for _ in range(2):
-    a.spend("brain.py", 6, "A.S.H")
+    a.spend("brain.py", 6, "Nimbus")
 a.observe(win("x.py"), a.t[0])
 w = a.w.next_question(Environment(idle_s=60.0, free_moment=True), a.t[0])
 check("at a free moment the question is the next thing asked", w is not None and w.kind == "activity")
 a.w.mark_asked(w.id, a.t[0])
 check("the question reads as ASH noticing, not as quoting the user",
       "Earlier you said" not in a.w.render(w, a.t[0] + 3600), a.w.render(w, a.t[0] + 3600))
-rep = a.w.hear("it's my personal assistant project", a.t[0] + 5, addressed=True)
+rep = a.w.hear("it's my personal weather app project", a.t[0] + 5, addressed=True)
 check("the user's reply is stored like any other answer",
-      a.kb.term_known("A.S.H") and "assistant" in a.kb.terms["a s h"]["definition"],
+      a.kb.term_known("Nimbus") and "weather" in a.kb.terms["nimbus"]["definition"],
       str(a.kb.terms))
 check("...and the wonder is closed for good", not pending(a))
 for _ in range(2):
-    a.spend("planner.py", 6, "A.S.H")
+    a.spend("planner.py", 6, "Nimbus")
 a.observe(win("x.py"), a.t[0])
 check("...so it is never asked again", not pending(a))
 
-a = rig(known=[("A.S.H", "SPEAKER_SELF")])
+a = rig(known=[("Nimbus", "SPEAKER_SELF")])
 for _ in range(2):
-    a.spend("brain.py", 6, "A.S.H")
+    a.spend("brain.py", 6, "Nimbus")
 a.observe(win("x.py"), a.t[0])
 w = a.w.next_question(Environment(idle_s=60.0, free_moment=True), a.t[0])
 a.w.mark_asked(w.id, a.t[0])
 a.w.hear("let me think", a.t[0] + 2, addressed=True)
 rep = a.w.hear("open brain.py please", a.t[0] + 4 * HOUR, addressed=True)
 check("a later sentence that merely names it is not taken for the answer",
-      not a.kb.term_known("A.S.H"), str(a.kb.terms))
+      not a.kb.term_known("Nimbus"), str(a.kb.terms))
 
-a = rig(known=[("A.S.H", "SPEAKER_SELF")])
+a = rig(known=[("Nimbus", "SPEAKER_SELF")])
 for _ in range(2):
-    a.spend("brain.py", 6, "A.S.H")
+    a.spend("brain.py", 6, "Nimbus")
 a.observe(win("x.py"), a.t[0])
 w = a.w.next_question(Environment(idle_s=60.0, free_moment=True), a.t[0])
 a.w.mark_asked(w.id, a.t[0])
 rep = a.w.hear("hm", a.t[0] + 5, addressed=True)
 check("an unclear reply earns a follow-up in the right words",
-      rep.say and "what is A.S.H" in rep.say, str(rep.say))
+      rep.say and "what is Nimbus" in rep.say, str(rep.say))
 
 # ============================================================================
 print("\n=== A6. Privacy ===")
@@ -578,7 +587,7 @@ class FakeIdle:
 
 d = tempfile.mkdtemp()
 clock = [T0]
-ent, epi = FakeEntities([("A.S.H", "SPEAKER_SELF")]), FakeEpisodic()
+ent, epi = FakeEntities([("Nimbus", "SPEAKER_SELF")]), FakeEpisodic()
 per = PeripheryRegistry()
 idle = FakeIdle()
 per.sensors["idle"] = idle
@@ -598,7 +607,7 @@ check("...and shares the wonderer's knowledge, so what was told is not asked",
       rt.activity.kb is rt.wonder.kb)
 
 for _ in range(2):
-    rt.submit(win("brain.py", "A.S.H"))
+    rt.submit(win("brain.py", "Nimbus"))
     rt._tick()
     clock[0] += 6 * MIN
     idle.value = 0.0

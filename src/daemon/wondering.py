@@ -298,6 +298,33 @@ def _clean(s: str, n: int = 60) -> str:
     return s[:n].strip()
 
 
+# 26 Nov: "Got it -- Branch is im working on my first novel." -- the answer said back exactly as it was said. Said back to the person, I/my are
+# you/your (and "your" -- ASH's -- is "my"), and "I'm working on my first novel" is what Branch IS: "your first novel". Only the line spoken back
+# changes; what is kept is the person's own words.
+_SWAP = {"i": "you", "i'm": "you're", "im": "you're", "i am": "you are", "my": "your", "mine": "yours", "me": "you", "myself": "yourself",
+         "i've": "you've", "ive": "you've", "i'll": "you'll", "i'd": "you'd", "your": "my", "yours": "mine", "yourself": "myself"}
+_SWAP_RX = re.compile(r"\b(?:i\s+am|i'm|i’m|im|i've|ive|i'll|i'd|myself|mine|my|me|i|yourself|yours|your)\b", re.I)
+_DOING = re.compile(r"^(?:i'?m|i’m|im|i\s+am)\s+(?:just\s+)?(?:working\s+on|writing|making|building|doing|designing|planning)\s+", re.I)
+_USE_IT = re.compile(r"^(?:i\s+use\s+(?:it|this|that)|it'?s\s+(?:what|where)\s+i\s+(?:go|use))\s+(?P<rest>(?:for|to)\s+.+)$", re.I)
+
+
+def _yours(s: str) -> str:
+    """`s` as said back to the person who said it."""
+    t = re.split(r"\s*(?:\.\.+|…)\s*", (s or "").strip(), maxsplit=1)[0]        # what came before a trailing-off pause
+    t = re.sub(r"^(?:just|basically|really|simply|like)\s+", "", t.strip(), flags=re.I)
+    t = _DOING.sub("", t)
+    t = _SWAP_RX.sub(lambda m: _SWAP.get(re.sub(r"\s+", " ", m.group(0).lower().replace("’", "'")), m.group(0)), t)
+    return t.strip(" ,.")
+
+
+# "It's you" / "that's you silly" / "I'm building you": what was asked about is ASH itself -- 26 Nov "A.S.H is you silly .. im just building you
+# as i go and fix what i see" was kept as a definition and said back word for word.
+_ITS_YOU = re.compile(r"^\W*(?:(?:it'?s|its|it\s+is|that'?s|thats|that\s+is|this\s+is)\s+(?:just\s+|literally\s+|actually\s+)?you\b(?!\s*(?:'re|are|r)\b)"
+                      r"|you\s+silly\b|(?:you|yourself)\W*$)"
+                      r"|\b(?:i'?m|im|i\s+am)\s+(?:just\s+)?(?:building|making|coding|programming|developing|improving|working\s+on|fixing)\s+you\b"
+                      r"|\bi\s+(?:built|made|created|wrote|coded|programmed)\s+you\b", re.I)
+
+
 def _title(name: str) -> str:
     return " ".join(w[:1].upper() + w[1:] for w in name.split())
 
@@ -1409,12 +1436,14 @@ class Wonderer:
         return None
 
     def hear(self, text: str, now: Optional[float] = None, addressed: bool = False,
-             dismissed: bool = False) -> Reply:
+             dismissed: bool = False, spoken: bool = False) -> Reply:
         """Read a user utterance as an answer to a question, or as a request
-        about the questions themselves. Safe to call with anything."""
+        about the questions themselves. Safe to call with anything. `spoken`: it came from the microphone (a long spoken answer to
+        "what is it?" is said back as a question before it is kept)."""
         now = self.clock() if now is None else now
         text = _as_text(text).strip()
         with self._lock:
+            self._spoken = bool(spoken)
             try:
                 return self._hear(text, now, addressed, dismissed)
             except Exception:
@@ -1544,6 +1573,14 @@ class Wonderer:
 
         value = self._parse_answer(w, text)
         if value is not None:
+            # 26 Nov: "It's just my gym and I tab to ask about the MBU on your work" was kept as what Custom TPU Prototyping is. A long SPOKEN answer to
+            # "what is it?" is said back as a question first: yes keeps it, "no, it's ..." keeps the correction (the guess path in _parse_answer).
+            if (getattr(self, "_spoken", False) and w.kind in ("term", "activity") and not late and not w.data.get("guess")
+                    and value.get("definition") and not str(value["definition"]).startswith("ASH itself") and len(text.split()) > 8):
+                w.data["guess"] = value["definition"]
+                w.asked_at = now
+                self._touch()
+                return Reply(True, f"So {w.subject} is {_clean(_yours(value['definition']), 80)} -- right?", "followup", w.id)
             return self._answered(w, value, now)
 
         # unclear: one follow-up, only for something short that looks like an attempt
@@ -1693,16 +1730,19 @@ class Wonderer:
                 return {"label": label, "ack": f"Got it -- {w.data['a']} and {w.data['b']} are {label}."}
             return None
         if k in ("term", "activity"):
+            if _ITS_YOU.search(text):
+                return {"definition": "ASH itself -- the assistant you are building",
+                        "ack": "Oh -- that's me. Noted, and I won't ask about it again."}
             g = d.get("guess")
             if g:
                 if _YES.match(text):
-                    return {"definition": g, "ack": f"Great, noted: {w.subject} is {_clean(g, 60)}."}
+                    return {"definition": g, "ack": f"Great, noted: {w.subject} is {_clean(_yours(g), 60)}."}
                 m = _NO.match(text)
                 if m:
                     rest = self._strip_lead(m.group("rest") or "")
                     rest = re.sub(r"^(?:stands for|means|mean|is short for|refers to|is)\s+", "", rest, flags=re.I)
                     if len(rest) >= 2 and not _DONT_KNOW.search(rest) and rest.lower().strip(" .!") not in _FILLER:
-                        return {"definition": _clean(rest, 200), "ack": f"Got it -- {w.subject} is {_clean(rest, 60)}."}
+                        return {"definition": _clean(rest, 200), "ack": f"Got it -- {w.subject} is {_clean(_yours(rest), 60)}."}
                     return None
             t = self._strip_lead(text)
             t = re.sub(r"^(?:stands for|means|mean|is short for|refers to|is an? acronym for|is)\s+", "", t, flags=re.I)
@@ -1710,7 +1750,10 @@ class Wonderer:
             if k == "activity" and (len(t) < 3 or t.lower().strip(" .!?") in _FILLER):
                 return None              # "hm", "ok", a bare "yes": not a definition
             if 1 <= n <= 30 and len(t) >= 2 and not _DONT_KNOW.search(t):
-                return {"definition": _clean(t, 200), "ack": f"Got it -- {w.subject} is {_clean(t, 60)}."}
+                u = _USE_IT.match(t)
+                said = (f"Got it -- you use {w.subject} {_clean(_yours(u.group('rest')), 60)}." if u
+                        else f"Got it -- {w.subject} is {_clean(_yours(t), 60)}.")
+                return {"definition": _clean(t, 200), "ack": said}
             return None
         if k == "fact":
             if len(text.split()) <= 10 and _DATEISH.search(text):

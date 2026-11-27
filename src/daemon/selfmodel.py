@@ -25,7 +25,10 @@ _Z = r"(?:[,\s]+(?:ash|please|now|right\s+now))*\s*[?.!]*\s*$"
 _RULES = [
     ("model", r"(?:what|which)\s+(?:(?:language\s+)?model|llm|brain|ai)\s+(?:are\s+you|do\s+you)\s+(?:using|running|use|on|have)"
               r"|what\s+(?:are\s+you|is\s+your)\s+(?:running\s+on|powered\s+by|built\s+on)(?:\s+model)?"
-              r"|what(?:'s|\s+is)\s+(?:your|the)\s+(?:language\s+)?model|which\s+model\s+(?:is\s+this|answers)"),
+              r"|what(?:'s|\s+is)\s+(?:your|the)\s+(?:language\s+)?model|which\s+model\s+(?:is\s+this|answers)"
+              # 26 Nov 20:44: "What model are you?" went to the model (6 s); the next line, "...using?", was answered by rule.
+              r"|(?:what|which)\s+(?:(?:language\s+)?model|llm)\s+(?:are\s+you|is\s+(?:this|that|it))(?:\s+(?:now|today|currently))?"
+              r"|what\s+(?:model|llm)\s+(?:do\s+you\s+run|runs\s+you|are\s+you\s+on)"),
     ("hardware", r"what\s+(?:hardware|specs?|machine|computer|pc|laptop|processor|cpu|gpu|graphics\s+card|ram|memory)\s+(?:are\s+you|do\s+you|is\s+(?:this|it))"
                  r"\s*(?:using|running|on|have|got)?(?:\s+on)?"
                  r"|what\s+can\s+you\s+tell\s+me\s+about\s+(?:this|the|your)\s+(?:machine|computer|pc|laptop|hardware|system)"

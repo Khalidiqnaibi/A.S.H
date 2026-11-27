@@ -1603,7 +1603,9 @@ class AmbientRuntime:
         if asked is not None and not getattr(self, "_shutdown_nudged", False) and 20.0 <= now - asked <= 90.0:
             # "Shut ASH down completely? Say yes" went unanswered for 42 s and then 'ye' went to the model: one reminder at 20 s.
             self._shutdown_nudged = True
-            self._speech_say("Still want me to shut down? Say yes, or ignore me and I'll stay.", "control")
+            # 26 Nov: "Restart yourself" -> "Restart ASH?" -> 20 s later "Still want me to shut down?": the nudge names what was asked.
+            self._speech_say("Still want me to restart? Say yes, or ignore me and I'll stay." if getattr(self, "_restart_wanted", False)
+                             else "Still want me to shut down? Say yes, or ignore me and I'll stay.", "control")
             address.conversation.note_ash_spoke(self.clock(), asked=True)       # a spoken "yes" answers it
         if now - getattr(self, "_others_at", 0.0) >= 60.0:
             self._others_at = now
@@ -1961,6 +1963,52 @@ class AmbientRuntime:
     _TAB = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:(?:can|could)\s+you\s+)?(?:switch|go|change|jump|flip|take\s+me)\s+(?:back\s+)?(?:over\s+)?to\s+(?:the\s+|my\s+)?"
                       r"(?P<w>[\w .'-]{2,40}?)(?:'s)?\s+tab(?:\s+(?:please|now))?\s*[.!?]*\s*$|"
                       r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:open|show(?:\s+me)?|bring\s+up)\s+(?:the\s+|my\s+)?(?P<w2>[\w .'-]{2,40}?)(?:'s)?\s+tab(?:\s+(?:please|now))?\s*[.!?]*\s*$", re.I)
+
+    # "Ash." / "A.S.H." / "hey Ash" on its own -- 26 Nov 20:52 it went to the folder tool ("That doesn't look like an existing folder..") -- and
+    # "Ash, are you there?" / "you up?" / "can you hear me?": answered at once, and the next line is taken as said to ASH (its "?" holds the floor).
+    _NAME = r"(?:ash|ashe|a\.?\s?s\.?\s?h\.?)"
+    _SUMMON = re.compile(r"^\W*(?:(?:hey|yo|hi|ok(?:ay)?|oi)[,\s]+)?" + _NAME + r"\W*$", re.I)
+    _THERE = re.compile(r"^\W*(?:(?:hey|yo|hi|ok(?:ay)?)[,\s]+)?(?:" + _NAME + r"[,\s]+)?(?:are\s+you\s+(?:there|here|awake|up|listening|with\s+me|still\s+(?:there|on|up))|"
+                        r"you\s+(?:there|up|awake|listening|with\s+me|still\s+there)|can\s+you\s+hear\s+me|do\s+you\s+hear\s+me)(?:[,\s]+" + _NAME + r")?\W*$", re.I)
+
+    # "Its you .. i'm building you as i go and use you to see what i need to improve" (26 Nov, 66 s on the model, which answered "I see you're
+    # building me, that's fascinating! ... Now, how can I assist you today?"): the person telling ASH that it is the project. Said back plainly,
+    # and A.S.H is kept as ASH itself so it is never asked about.
+    _BUILDING = re.compile(r"\b(?:i'?m|im|i\s+am)\s+(?:just\s+)?(?:building|making|coding|programming|developing|improving|fixing|working\s+on|"
+                           r"updating|testing)\s+you\b|\bi\s+(?:built|made|created|wrote|coded|programmed)\s+you\b|"
+                           r"^\W*(?:a\.?\s?s\.?\s?h\.?|ash)\s+is\s+(?:just\s+)?you\b", re.I)
+
+    def _builder_request(self, ev, now: float) -> bool:
+        if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        if len(text) > 200 or not self._BUILDING.search(text):
+            return False
+        kb = getattr(getattr(self, "wonder", None), "kb", None)
+        try:
+            if kb is not None and not kb.term_known("A.S.H"):
+                kb.store_term("A.S.H", "ASH itself -- the assistant you are building")
+        except Exception:
+            logger.debug("could not keep A.S.H as myself", exc_info=True)
+        say = ("I know -- I'm the code in A.S.H. When I get something wrong, say so; “what went wrong today” reads back what I "
+               "tripped on.")
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "statement"})())
+        return True
+
+    def _summons_request(self, ev, now: float) -> bool:
+        if not self._user_source(ev):
+            return False
+        text = str(getattr(ev, "text", "") or "")
+        if self._SUMMON.match(text):
+            say = "Yes?"
+        elif self._THERE.match(text) and self._meant_for_ash(ev):
+            say = "I'm here."
+        else:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": say, "outcome": "summons"})())
+        if say == "I'm here.":
+            address.conversation.note_ash_spoke(self.clock(), asked=True)    # "I'm here." has no "?", and the next line is still for ASH
+        return True
 
     # "Ask Gemini about the NPU" / "ask Gemini whether my PC can run GTA 6": the person keeps a Gemini tab for the questions a 3B model on a squeezed
     # machine answers badly. The tab is brought forward (or Gemini opened) and the question put on the clipboard, to paste -- nothing is sent by ASH.
@@ -4598,7 +4646,8 @@ class AmbientRuntime:
                 return None
             ents = getattr(self.ash, "entity_memory", None)
             snap, before = snapshot(w.kb), entity_ids(ents)
-            rep = w.hear(text, now, addressed=bool(getattr(ev, "addressed", False)))
+            rep = w.hear(text, now, addressed=bool(getattr(ev, "addressed", False)),
+                         spoken=str(getattr(ev, "source", "") or "").lower().removeprefix("sim:") in ("microphone", "mic", "voice"))
             if not rep.consumed:
                 # Not an answer: learn what it states, note what it leaves open.
                 rep.learned = w.observe(text, ev.source, now).learned
@@ -4960,6 +5009,8 @@ class AmbientRuntime:
         # done by rule, and said as done -- never handed to the model.
         if self._voice_command(ev, now):
             return True
+        if not loose and self._summons_request(ev, now):
+            return True
 
         # "Find the contract I was editing last week" (and its "open it?"): before "open it" is read as the last thing named.
         if self._samsung_request(ev, now):          # before the file search: 'search for projects in Samsung Notes' is not a file search
@@ -5161,6 +5212,8 @@ class AmbientRuntime:
             if said:
                 self._wonder_say(ev, type("R", (), {"say": said, "outcome": "moment"})())
                 return True
+        if not loose and self._builder_request(ev, now):
+            return True
         if not loose and self._courtesy_request(ev, now):
             return True
         if not loose and self._dangling_request(ev, now):
