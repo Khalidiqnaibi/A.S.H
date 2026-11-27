@@ -414,6 +414,16 @@ def score(text: str, now: Optional[float] = None,
             conf += 0.35 * open_now
             reasons.append("mid-conversation")
 
+    # A short line in an exchange that is still warm is the next part of it ("No, not like this.", "Try multiple of them.", "Click image.", "And that was
+    # wrong." -- 28 Nov, twelve of these scored 0.07-0.28 and were never answered, the worst thing an assistant can do). It is only a floor at "probably":
+    # nothing is stretched into a command, the loose-matching rules still decide, and the evidence against (someone else, first person only) is applied below.
+    continuing = (not answering and open_now >= 0.2 and len(raw.split()) <= 9 and not vocative
+                  and not _OTHER_PEOPLE.search(raw) and not _OTHER_ADDRESSEE.search(raw)
+                  and not (_FIRST_PERSON_ONLY.match(raw) and not (second or question or command)))
+    if continuing and conf < LIKELY_AT + 0.02:
+        conf = LIKELY_AT + 0.02
+        reasons.append("continuing the exchange")
+
     # ---- evidence against ------------------------------------------------
     other = _OTHER_ADDRESSEE.search(raw)
     if other and not vocative:
