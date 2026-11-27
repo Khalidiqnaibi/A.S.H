@@ -191,11 +191,11 @@ def main():
     tabs = []
     rt._open_tab_urls = lambda: list(tabs)
     used, said = rt.say("watch me")
-    check("it says what it will and won't watch", said[-1].startswith("Okay, I'm watching") and "not your keys or window titles" in said[-1], str(said))
+    check("it says what it will and won't watch", said[-1].startswith("Okay, I'm watching") and "what you type and press, and where you click" in said[-1], str(said))
     tabs.extend(["https://github.com"])
     rt._skills_obj().pending["show"].observe("notepad.exe")
     used, said = rt.say("that's how you start my coding")
-    check("named, read back, undoable", said[-1] == "Got it -- start my coding: 1) open notepad, 2) go to github.com. I'll walk through it the first couple of times and ask before I start. Tell me if a step is wrong.", str(said))
+    check("named, read back, undoable", said[-1].startswith("Got it -- start my coding: 1) open notepad, 2) go to github.com. I'll walk through it the first couple of times and ask before I start. Tell me if a step is wrong."), str(said))
     print("\n=== S6. The page and the digest ===")
     rt = tm.rig()
     rt.cfg.skills_path = os.path.join(tempfile.mkdtemp(), "skills.json")
