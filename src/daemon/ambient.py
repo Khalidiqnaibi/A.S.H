@@ -753,6 +753,8 @@ class AmbientRuntime:
                 self.briefings.add_provider(self.crashwatch.briefing_part)
             if self.cheer is not None:
                 self.briefings.add_provider(self.cheer.briefing_part)
+            if self.followups is not None:
+                self.briefings.add_provider(self._exam_briefing)
             if self.calendar is not None:
                 self.briefings.add_provider(self.calendar.briefing_part)
             if self.reminders is not None:
@@ -1042,10 +1044,12 @@ class AmbientRuntime:
             except Exception:
                 logger.exception("Sanitising a reply failed")
                 clean = text
-            try:
-                clean = honest.strip_greeting(clean, self._recent_user[-1] if self._recent_user else "")
-            except Exception:
-                logger.debug("greeting strip failed", exc_info=True)
+            if meta.get("addressed") and str(meta.get("pathway", "")).lower() == "slow":
+                # Only the model's answer to a question -- a briefing's own "Good morning." is ASH's, not the model's filler.
+                try:
+                    clean = honest.strip_greeting(clean, self._recent_user[-1] if self._recent_user else "")
+                except Exception:
+                    logger.debug("greeting strip failed", exc_info=True)
             if clean != text:
                 logger.info("Took something out of a model answer: %r", text[:120])
             text = clean.strip() or "I'm not sure how to help with that."
@@ -2196,6 +2200,111 @@ class AmbientRuntime:
         say = "That download's still going -- want me to tell you when it's done?"
         self.submit(SensorEvent(source="flow", modality=Modality.TEXT, text=say, salience=0.6, urgency=0.3, ts=now, persistable=False,
                                 meta={"offer": "situation", "offer_strength": 0.8, "say": say, "topic": "download", "situation": "download"}))
+
+    # "Call me Khalid" / "my name is Khalid": the name ASH uses, set by voice (it was only in the console's settings) -- saved where the settings
+    # panel saves it, the old one kept as an alias, and undoable. Not "call me back / later / when ..." (those are reminders).
+    _CALL_ME = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:from\s+now\s+on|please)[,\s]+)?(?:call\s+me|my\s+name\s+is|you\s+can\s+call\s+me)\s+"
+                          r"(?!(?:back|later|when|tomorrow|in|at|if|after|before|on|tonight|soon|again|a|an|the|now)\b)"
+                          r"(?P<n>[A-Za-z][A-Za-z'-]{1,20}(?:\s+[A-Za-z][A-Za-z'-]{1,20})?)(?:[,\s]+(?:please|from\s+now\s+on|instead))*\W*$", re.I)
+    # "Lieth is pronounced leeth" / "say Lieth like leeth" / "pronounce Iqnaibi as ick-nay-bee": how ASH says a word (hearing it is misheard.py's).
+    _PRONOUNCE = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:(?P<w1>[A-Za-z][\w'-]{1,24})\s+is\s+pronounced\s+(?:like\s+|as\s+)?|"
+                            r"(?:say|pronounce)\s+(?P<w2>[A-Za-z][\w'-]{1,24})\s+(?:like|as)\s+)[\u201c\"']?(?P<p>[A-Za-z][\w' -]{1,30}?)[\u201d\"']?\W*$", re.I)
+
+    def _teach_request(self, ev, now: float) -> bool:
+        if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "").strip()
+
+        def say(line: str) -> bool:
+            self._wonder_say(ev, type("R", (), {"say": line, "outcome": "followup"})())
+            return True
+        from . import working
+        got = working.going(self, text, time.time())
+        if got:
+            return say(got)
+        m = self._CALL_ME.match(text)
+        if m:
+            name = " ".join(w[:1].upper() + w[1:] for w in m.group("n").split())
+            a = self.ash
+            old = str(getattr(a, "user", "") or "")
+            if old and old.lower() == name.lower():
+                return say(f"I already call you {name}.")
+            if old and hasattr(a, "user_aliases"):
+                try:
+                    a.user_aliases.add(old)               # before saving, so the old name is kept as one used before
+                except Exception:
+                    pass
+            live = saved = False
+            try:
+                from src.ui import settings as st
+                r = st.change(self, getattr(self, "config_path", None), "identity.user_name", name)
+                live, saved = bool(r.get("ok") and r.get("live")), bool(r.get("ok") and r.get("saved"))
+            except Exception:
+                logger.debug("could not save the name", exc_info=True)
+            if not live and not saved:
+                return say("I couldn't change the name from here -- it's in the console's settings.")
+
+            def back(old=old):
+                try:
+                    from src.ui import settings as st
+                    st.change(self, getattr(self, "config_path", None), "identity.user_name", old)
+                except Exception:
+                    if hasattr(self.ash, "set_user_name"):
+                        self.ash.set_user_name(old)
+            if old:
+                self.undo.push(f"your name ({name} back to {old})", back, now)
+            return say(f"Okay -- I'll call you {name}." if live else f"Saved -- I'll call you {name} after a restart.")
+        m = self._PRONOUNCE.match(text)
+        if m:
+            word, spoken = (m.group("w1") or m.group("w2")), m.group("p").strip()
+            if word.lower() in ("it", "that", "this"):
+                return False
+            from src.senses import actuators as act
+            prev = act.LEXICON.get(word.lower())
+            act.LEXICON[word.lower()] = spoken
+            self._save_lexicon()
+
+            def back(w=word.lower(), prev=prev):
+                if prev is None:
+                    act.LEXICON.pop(w, None)
+                else:
+                    act.LEXICON[w] = prev
+                self._save_lexicon()
+            self.undo.push(f"how I say {word}", back, now)
+            return say(f"Got it -- I'll say {word} like \u201c{spoken}\u201d.")
+        return False
+
+    def _save_lexicon(self) -> None:
+        p = getattr(self, "pronounce_path", None)
+        if not p:
+            return
+        try:
+            from src.memory.atomic import write_json
+            from src.senses import actuators as act
+            write_json(p, dict(act.LEXICON))
+        except Exception:
+            logger.debug("could not save the pronunciations", exc_info=True)
+
+    def _exam_briefing(self, kind: str, now: float) -> Optional[str]:
+        """'Your NoSQL exam is in 3 days.' -- in the morning briefing, from the exams the person mentioned (follow-ups), the next seven days."""
+        if kind != "morning" or self.followups is None:
+            return None
+        try:
+            with self.followups._lock:
+                rows = [f for f in self.followups.items.values() if f.status == "pending" and re.search(r"\b(?:exam|exams|final|finals|midterm|test|quiz)\b",
+                                                                                                      f.noun + " " + f.what, re.I)
+                        and 0 < f.start - now <= 7 * 86400]
+        except Exception:
+            return None
+        if not rows:
+            return None
+        from datetime import date
+        f = min(rows, key=lambda f: f.start)
+        days = (date.fromtimestamp(f.start) - date.fromtimestamp(now)).days
+        when = "today" if days <= 0 else "tomorrow" if days == 1 else f"in {days} days"
+        what = f.what[0].upper() + f.what[1:]
+        more = f" ({len(rows) - 1} more this week)" if len(rows) > 1 else ""
+        return f"{what} is {when}{more}."
 
     def _dial_request(self, ev, now: float) -> bool:
         """'Be less chatty' / 'fewer jokes' (dial.py) -- how often ASH volunteers, kept across restarts; and 'I have a headache' / 'my eyes
@@ -5493,6 +5602,8 @@ class AmbientRuntime:
         if self._pocket_request(ev, now):
             return True
         if self._dial_request(ev, now):
+            return True
+        if self._teach_request(ev, now):
             return True
 
         # "Find the contract I was editing last week" (and its "open it?"): before "open it" is read as the last thing named.

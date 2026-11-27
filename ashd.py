@@ -642,6 +642,13 @@ def main() -> int:
         shutdown = Stopper(_shutdown)
         install_signal_handlers(shutdown, on_console_close=lambda: shutdown(quick=True))
 
+        runtime.config_path = args.config or CONFIG_FILE         # "call me Khalid" saves the name where the settings panel does
+        try:
+            from src.senses.actuators import load_lexicon
+            load_lexicon(os.path.join(os.getcwd(), "state", "pronounce.json"))   # words taught to be said differently
+            runtime.pronounce_path = os.path.join(os.getcwd(), "state", "pronounce.json")
+        except Exception:
+            logger.debug("no pronunciation list", exc_info=True)
         try:
             from src.ui import settings as _ui_settings
             _ui_settings.apply_saved(runtime, cfg)             # the saved model, its threads, the second speech pass

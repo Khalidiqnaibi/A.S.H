@@ -232,6 +232,28 @@ _CONFIG_ROOTS = ("sensors|actuators|privacy|game_mode|taste|vision|phone|email|p
 _CONFIG_PAREN = re.compile(r"\s*\([^()]*(?:daemon\.json|\b(?:" + _CONFIG_ROOTS + r")\.[a-z_]+)[^()]*\)", re.I)
 _CONFIG_KEY = re.compile(r"\b(?:" + _CONFIG_ROOTS + r")\.([a-z]+(?:_[a-z]+)*)\b")
 _PATH = re.compile(r"(?:[A-Za-z]:\\|~[/\\]|/(?:home|Users|var|tmp|etc)/)[^\s\"'<>|]*[^\s\"'<>|.,;:!?]")
+# Words ASH says wrong, taught aloud ("Lieth is pronounced leeth"): replaced, as whole words, just before speaking. Kept in state/pronounce.json.
+LEXICON: Dict[str, str] = {}
+
+
+def load_lexicon(path: str) -> None:
+    try:
+        import json
+        with open(path, "r", encoding="utf-8") as f:
+            d = json.load(f) or {}
+        LEXICON.clear()
+        LEXICON.update({str(k).lower(): str(v) for k, v in d.items() if k and v})
+    except Exception:
+        pass
+
+
+def _say_as(text: str) -> str:
+    if not LEXICON:
+        return text
+    rx = re.compile(r"\b(" + "|".join(re.escape(k) for k in sorted(LEXICON, key=len, reverse=True)) + r")\b", re.I)
+    return rx.sub(lambda m: LEXICON.get(m.group(1).lower(), m.group(1)), text)
+
+
 _PICTOGRAPH = re.compile("[\U0001F000-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\uFE0F\u200D\u266A\u266B]")
 
 
@@ -255,7 +277,7 @@ def speakable(text: str) -> str:
     t = re.sub(r",\s*([,.!?])", r"\1", t)
     t = re.sub(r"\s*\n+\s*", " ", t)
     t = re.sub(r"([.!?:;])\s*\.\s", r"\1 ", t)               # "intro:. first" -> "intro: first"
-    return re.sub(r"\s{2,}", " ", t).strip()
+    return _say_as(re.sub(r"\s{2,}", " ", t).strip())
 
 
 def _echo_said(text: str):

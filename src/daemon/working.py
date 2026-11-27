@@ -110,8 +110,26 @@ def _days(now: float, n: int) -> List[str]:
     return [time.strftime("%Y-%m-%d", time.localtime(now - i * 86400)) for i in range(n)]
 
 
-def top(activity: Any, now: float, days: int, limit: int = 3, min_s: float = 300.0) -> List[Tuple[str, float]]:
-    """[(name, seconds)] over the last `days` days: projects if any were seen, else files/pages."""
+def taught(kb: Any, name: str) -> str:
+    """'your first novel' for a name the person explained ("Branch is im working on my first novel"), short enough to say beside it; else ''."""
+    if kb is None or not name:
+        return ""
+    try:
+        from .activity import norm
+        from .wondering import _yours
+        t = (kb.terms or {}).get(norm(name)) or {}
+        d = str(t.get("definition") or "")
+        if not d or d.startswith("ASH itself"):
+            return ""
+        s = _yours(d)
+        return s if 1 <= len(s.split()) <= 6 else ""
+    except Exception:
+        return ""
+
+
+def top(activity: Any, now: float, days: int, limit: int = 3, min_s: float = 300.0, kb: Any = None) -> List[Tuple[str, float]]:
+    """[(name, seconds)] over the last `days` days: projects if any were seen, else files/pages. With `kb`, a name the person explained is said
+    with what it is ("Branch, your first novel")."""
     if activity is None:
         return []
     want = set(_days(now, days))
@@ -129,7 +147,57 @@ def top(activity: Any, now: float, days: int, limit: int = 3, min_s: float = 300
     have_projects = any(k == "project" for k, _ in tot)
     rows = [(chat_phrase(chats[n], n) if n in chats else n, s) for (k, n), s in tot.items() if (k == "project" or not have_projects)]
     rows.sort(key=lambda r: -r[1])
-    return rows[:limit]
+    out = []
+    for n, s in rows[:limit]:
+        what = taught(kb, n)
+        out.append((f"{n}, {what}" if what else n, s))
+    return out
+
+
+# "How's the novel going?" / "how is my thesis going": the thing the person explained ("Branch is my first novel"), found by what it is, and the
+# time on it this week with the days in a row.
+_GOING = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:so[,\s]+)?how(?:'s|\s+is)\s+(?:my|the)\s+(?P<x>[a-z][\w' -]{2,30}?)\s+(?:going|coming\s+along|doing)\s*[?.!]*\s*$",
+                    re.I)
+
+
+def going(rt: Any, text: str, now: Optional[float] = None) -> Optional[str]:
+    m = _GOING.match((text or "").strip())
+    if not m:
+        return None
+    now = time.time() if now is None else now
+    x = m.group("x").lower()
+    kb = getattr(getattr(rt, "wonder", None), "kb", None)
+    a = getattr(rt, "activity", None)
+    name = ""
+    try:
+        for t in (kb.terms or {}).values() if kb is not None else []:
+            d, n = str(t.get("definition") or "").lower(), str(t.get("term") or "")
+            if re.search(r"\b" + re.escape(x) + r"\b", d) or n.lower() == x:
+                name = n
+                break
+    except Exception:
+        name = ""
+    if not name:
+        return None
+    week, hit = time_on(a, name, 7, now)
+    if week < 60:
+        return f"I haven't seen you on {name} this week."
+    days = 0
+    try:
+        from datetime import date, timedelta
+        from .activity import norm
+        with a._lock:
+            by: Dict[str, float] = {}
+            for t in a.topics.values():
+                if norm(t.name) == norm(name) or t.name in hit:
+                    for d, v in (t.by_day or {}).items():
+                        by[d] = by.get(d, 0.0) + v
+        d = date.fromtimestamp(now)
+        while by.get(d.isoformat(), 0.0) >= 600:
+            days, d = days + 1, d - timedelta(days=1)
+    except Exception:
+        pass
+    return (f"{_span(week)} on {name} this week" + (f", {days} days in a row" if days >= 2 else "") + ".")
 
 
 def _list(rows: List[Tuple[str, float]]) -> str:
@@ -153,15 +221,15 @@ def answer(rt: Any, kind: str, now: Optional[float] = None, fallback: bool = Tru
                 parts.append(d.answer("here", now))
             except Exception:
                 pass
-        tdy = top(a, now, 1)
+        tdy = top(a, now, 1, kb=getattr(getattr(rt, "wonder", None), "kb", None))
         if tdy:
             parts.append(f"Today so far: {_list(tdy)}.")
     elif kind == "week":
-        wk = top(a, now, 7, 4)
+        wk = top(a, now, 7, 4, kb=getattr(getattr(rt, "wonder", None), "kb", None))
         if wk:
             parts.append(f"This week: {_list(wk)}.")
     else:                                              # "what have I been working on" / "what was I doing"
-        tdy = top(a, now, 1, 4)
+        tdy = top(a, now, 1, 4, kb=getattr(getattr(rt, "wonder", None), "kb", None))
         if tdy:
             parts.append(f"Today: {_list(tdy)}.")
         if cur is not None and getattr(cur, "subject", ""):
