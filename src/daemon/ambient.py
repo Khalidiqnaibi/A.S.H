@@ -2224,6 +2224,17 @@ class AmbientRuntime:
             return say(got)
         if self._COMMITS.match(text):
             return say(self._git_log_line())
+        from . import relations
+        rel = relations.parse(text)
+        if rel is not None and self.wonder is not None:
+            return say(relations.answer(self.wonder.kb, str(getattr(self.ash, "user", "") or ""), rel[0], rel[1]))
+        last = str(getattr(self, "_last_out", "") or "")
+        recent = self._last_out_at is not None and now - self._last_out_at <= 120.0
+        if recent and re.match(r"^(?:About|Under a minute|Right now|Today so far|Today:)", last) and working._WHICH_PROJ.match(text):
+            return say(working.which_project(self, time.time()))
+        if recent and ("Emotions (out of" in last or re.match(r"^(?:A little|Mostly|Feeling|I'm feeling|I feel)", last)) and re.match(
+                r"^\W*(?:why(?:'s|\s+is)?(?:\s+that|\s+is\s+that|\s+so)?|how\s+come|why\s+is\s+that)\s*[?.!]*$", text, re.I):
+            return say(self._why_feeling())
         m = self._CALL_ME.match(text)
         if m:
             name = " ".join(w[:1].upper() + w[1:] for w in m.group("n").split())
@@ -2296,6 +2307,16 @@ class AmbientRuntime:
             head = re.split(r"[:;]|\s--\s", sub, maxsplit=1)[0].strip()
             out.append((head if 12 <= len(head) <= 90 else sub[:90]).rstrip(".,"))
         return "The latest commits: " + "; ".join(out) + "."
+
+    def _why_feeling(self) -> str:
+        """"Why is that?" after the emotional telemetry: from the engine's own reasons for its last update -- not the model's story about it."""
+        res = getattr(getattr(self.brain, "homeostasis", None), "last_emotion_result", None)
+        why = [str(r) for r in (getattr(res, "reasons", None) or [])][:3]
+        base = ("Slow or failed answers, being told off and a long unbroken session push frustration and boredom up; thanks and things going right push "
+                "happiness and trust up; they all fade back over about ten minutes.")
+        if why:
+            return "Last update: " + "; ".join(why) + ". " + base
+        return base
 
     def _save_lexicon(self) -> None:
         p = getattr(self, "pronounce_path", None)

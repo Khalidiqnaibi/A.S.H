@@ -75,7 +75,26 @@ _HOW = {
     "privacy": (r"(?:privacy|private|data|information)", "Hearing, memory and the language model all run on this computer. The only things that leave it are what you "
                 "ask for: a web search opens in your own browser, and the weather sends your town to the forecast service. Say \"go private\" and I stop "
                 "listening and looking."),
+    # 27 Nov: "what architecture are you using", "what's your brain structure like", "what's System 1" -- 42-64 s on the model, which answered "I don't have a
+    # specific architecture". What the README says, short.
+    "architecture": (r"(?!x)x", "Two speeds. Clear requests -- the time, a sum, a timer, opening an app -- go down a fast path made of rules and a small reflex "
+                     "policy, with no language model at all. Anything new or contested goes down a slow path: I weigh candidate answers, and the language "
+                     "model only puts the result into words. Around that: a web of linked concepts, a memory of moments, a small predictive model that tells me "
+                     "when something surprises me, and drives -- like curiosity and caution -- that set how long I think. No single part decides alone."),
+    "system1": (r"(?!x)x", "System 1 is my fast path: rules and a small learned reflex policy that handle clear requests in about a millisecond -- the time, "
+                "maths, timers, opening apps, switching tabs -- without the language model. The only thing that learns there is when it is safe to skip "
+                "thinking; it never learns what to say."),
+    "system2": (r"(?!x)x", "System 2 is my slow path, for things that are new or unclear: it proposes candidate answers, imagines how each would go, and "
+                "only then does the language model put the chosen one into words. It costs seconds, so I only use it when the fast path can't answer."),
 }
+_ARCH = re.compile(_A + r"(?:(?:what|which)\s+(?:architecture|structure|design)\s+(?:are\s+you|do\s+you\s+(?:use|have|run)|is\s+your\s+(?:brain|system))"
+                   r"(?:\s+(?:using|built\s+(?:on|with)|like))?|what(?:'s|\s+is)\s+your\s+(?:brain\s+)?(?:structure|architecture|design)(?:\s+like)?|"
+                   r"what\s+(?:is\s+)?(?:your\s+)?brain\s+(?:structure|architecture)(?:\s+(?:is\s+)?like)?|how\s+(?:are|were)\s+you\s+(?:built|made|designed|structured)|"
+                   r"how\s+is\s+your\s+brain\s+(?:built|structured|organi[sz]ed)|what(?:'s|\s+is)\s+your\s+brain\s+like)" + _Z, re.I)
+_SYS = re.compile(_A + r"(?:what(?:'s|\s+is)\s+)?system\s+(?P<n>1|one|2|two)(?:\s+(?:are\s+you\s+using|that\s+you\s+(?:use|have)|you\s+(?:use|have)))?"
+                  r"(?:\s+(?:and\s+)?how\s+does\s+it\s+work)?" + _Z, re.I)
+
+
 _HOWQ = re.compile(_A + r"(?:how\s+(?:do|does|can)\s+(?:you|ash|your)\s+(?:use|work\s+with|handle|have|make\s+use\s+of)?\s*(?:your\s+|the\s+|my\s+)?(?P<a>[a-z ]{3,30}?)(?:\s+work)?"
                    r"|why\s+do\s+you\s+(?:use|have|need)\s+(?:your\s+)?(?P<b>[a-z ]{3,30}?)"
                    r"|what\s+(?:happens|do\s+you\s+do)\s+when\s+you\s+(?P<c>sleep|nap|dream)"
@@ -84,6 +103,11 @@ _HOWQ = re.compile(_A + r"(?:how\s+(?:do|does|can)\s+(?:you|ash|your)\s+(?:use|w
 
 
 def _how_topic(t: str) -> Optional[str]:
+    if _ARCH.match(t):
+        return "how:architecture"
+    s = _SYS.match(t)
+    if s:
+        return "how:system1" if s.group("n").lower() in ("1", "one") else "how:system2"
     m = _HOWQ.match(t)
     if not m:
         return None

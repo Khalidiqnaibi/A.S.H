@@ -152,6 +152,25 @@ def answer_day(rt: Any, text: str, now: Optional[float] = None) -> Optional[str]
     return "I didn't track anything long enough yesterday to say." if w == "yesterday" else "I don't have an earlier day with enough in it."
 
 
+_WHICH_PROJ = re.compile(r"^\W*(?:and\s+)?(?:(?:what|which)\s+(?:project|one|thing)(?:\s+is\s+(?:that|it))?|what\s+(?:project|thing)\s+(?:am\s+i|are\s+we)\s+(?:on|in)|you\s+know)\s*[?.!]*$", re.I)
+
+
+def which_project(rt: Any, now: Optional[float] = None) -> str:
+    """'What project?' right after 'what am I working on': the project of the window in front, else the biggest today."""
+    now = time.time() if now is None else now
+    a = getattr(rt, "activity", None)
+    kb = getattr(getattr(rt, "wonder", None), "kb", None)
+    cur = getattr(a, "_cur", None) if a is not None else None
+    proj = str(getattr(cur, "project", "") or "")
+    if proj and not chat_site(proj):
+        what = taught(kb, proj)
+        return f"{proj}" + (f" -- {what}" if what else "") + "."
+    rows = top(a, now, 1, 1, kb=kb)
+    if rows:
+        return f"Mostly {rows[0][0]} today."
+    return "I can't tell the project from the window -- say “this is my ...” and I'll keep it."
+
+
 def taught(kb: Any, name: str) -> str:
     """'your first novel' for a name the person explained ("Branch is im working on my first novel"), short enough to say beside it; else ''."""
     if kb is None or not name:
