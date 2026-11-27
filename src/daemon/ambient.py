@@ -346,6 +346,7 @@ class AmbientConfig:
     notices_path: Optional[str] = None    # runtime notices kept across restarts: when memory was last said, a restart that was asked for
     skills_path: Optional[str] = None     # the concepts taught by voice (skills.py)
     cache_path: Optional[str] = None      # remembered answers to factual questions (speedups.py)
+    life_dir: Optional[str] = None        # screen memory, targets, repeating reminders (lifelog.py)
     notifications: bool = False           # read Windows notifications (the app and who from, never the message): off unless switched on
     # Kids mode: grown-up things refused, the model told it's a child, a word filter, a time limit (kids.py).
     kids: bool = False
@@ -758,6 +759,7 @@ class AmbientRuntime:
                 self.briefings.add_provider(self.cheer.briefing_part)
             if self.followups is not None:
                 self.briefings.add_provider(self._exam_briefing)
+            self.briefings.add_provider(lambda kind, now: self._life().goals.briefing_part(kind, now, self._time_on_text))
             if self.calendar is not None:
                 self.briefings.add_provider(self.calendar.briefing_part)
             if self.reminders is not None:
@@ -1719,6 +1721,7 @@ class AmbientRuntime:
                     logger.exception("Camera-change watching failed on a tick")
             self._step("situation", self._situation_step, now, idle_s)
             self._step("toasts", self._toast_step, now)
+            self._step("life", self._life_steps, now)
             self._step("limits", self._limit_step, now)
             self._step("download offer", self._download_offer_step, now)
             self._step("guard", self._guard_step, now)
@@ -2350,6 +2353,121 @@ class AmbientRuntime:
                 sk.pending = {"kind": "confirm", "name": name, "args": args, "at": now}
                 return say(sk.plan_line(name, args))
         return False
+
+    # ---- lifelog.py: what you saw, copied, planned and did ----------------------------------------------------------------------------------------
+    def _life(self):
+        L = getattr(self, "_lifelog", None)
+        if L is None:
+            from . import lifelog as ll
+            base = getattr(self.cfg, "life_dir", None)
+            j = (lambda n: os.path.join(base, n)) if base else (lambda n: None)
+            from . import clipboard as _cb
+            L = self._lifelog = types.SimpleNamespace(
+                screen=ll.ScreenMemory(j("screen.jsonl"), clock=lambda: self.clock()),
+                clip=ll.ClipHistory(_cb.system_read, _cb.system_write, clock=lambda: self.clock()),
+                goals=ll.Goals(j("goals.json"), clock=lambda: self.clock()),
+                recurring=ll.Recurring(j("recurring.json"), clock=lambda: self.clock()),
+                windows=ll.Windows(), shots=os.path.join(os.path.expanduser("~"), "Pictures", "ASH", "screens"), grab=None)
+        return L
+
+    def _time_on_text(self, text: str, since: float) -> float:
+        """Seconds spent, since `since`, on anything named like the words of `text` (a target's own words)."""
+        a = getattr(self, "activity", None)
+        if a is None:
+            return 0.0
+        from .activity import norm
+        words = [w for w in norm(text).split() if len(w) >= 4]
+        if not words:
+            return 0.0
+        day0 = time.strftime("%Y-%m-%d", time.localtime(since))
+        tot = 0.0
+        try:
+            with a._lock:
+                topics = list(a.topics.values())
+        except Exception:
+            return 0.0
+        for t in topics:
+            n = norm(t.name)
+            if any(w in n for w in words):
+                tot += sum(v for d, v in (t.by_day or {}).items() if d >= day0)
+        return tot
+
+    _SUMMARIZE = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:can|could)\s+you\s+)?(?:please\s+)?(?:summari[sz]e|sum\s+up|give\s+me\s+the\s+gist\s+of)\s+(?:this|the|that)\s+(?:page|screen|article|window|text)\W*$", re.I)
+
+    def _life_request(self, ev, now: float) -> bool:
+        if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "").strip()
+        if not text or len(text) > 140 or not self._meant_for_ash(ev):
+            return False
+        from . import lifelog as ll
+        L = self._life()
+
+        def say(line: str, outcome: str = "desktop") -> bool:
+            self._wonder_say(ev, type("R", (), {"say": line, "outcome": outcome})())
+            return True
+        if self._SUMMARIZE.match(text):
+            seen = L.screen.recent_text(240.0, now)
+            if not seen:
+                return say("I haven't read the screen in the last few minutes -- turn screen reading on and ask again.")
+            ev.text = "Summarize this in three short sentences: " + seen[:2500]
+            return False
+        got = L.screen.ask(text, now)
+        if got:
+            return say(got, "answer")
+        got = L.clip.hear(text)
+        if got:
+            return say(got)
+        day = ll.timeline_day(text, time.time())
+        if day:
+            try:
+                self.journal.flush()
+                from .social import friendly_app
+                return say(ll.timeline(self.journal.read_day(day), day, friendly_app), "answer")
+            except Exception:
+                logger.exception("Timeline failed")
+        g = L.goals.hear(text, self._time_on_text)
+        if g is not None:
+            if g[1] is not None:
+                self.undo.push("a target", g[1], now)
+            return say(g[0])
+        r = L.recurring.hear(text)
+        if r is not None:
+            self.undo.push("a repeating reminder", r[1], now)
+            return say(r[0])
+        plan = ll.parse_layout(text)
+        if plan:
+            from .social import friendly_app
+            aliases = {"chrome": "chrome", "word": "winword", "excel": "excel", "outlook": "outlook", "edge": "msedge", "vs code": "code", "code": "code",
+                       "notepad": "notepad", "spotify": "spotify", "opera": "opera", "firefox": "firefox", "terminal": "windowsterminal", "explorer": "explorer"}
+            if self.desktop is not None:
+                try:
+                    aliases.update({k: str(v).lower().replace(".exe", "") for k, v in getattr(self.desktop, "apps", {}).items() if isinstance(v, str)})
+                except Exception:
+                    pass
+            return say(ll.do_layout(L.windows, plan, aliases))
+        shot = ll.parse_shot(text)
+        if shot is not None:
+            msg, path = ll.take_shot(shot, L.shots, L.grab, time.time())
+            if path and shot:
+                try:
+                    self.notes.keep_note(f"{shot} is the screenshot at {path}")
+                except Exception:
+                    pass
+            return say(msg)
+        return False
+
+    def _life_steps(self, now: float) -> None:
+        """Every few seconds: the clipboard (when asked to be kept) and the repeating reminders that are due."""
+        L = self._life()
+        if L.clip.on and now - getattr(self, "_clip_at", 0.0) >= 3.0:
+            self._clip_at = now
+            L.clip.poll()
+        if now - getattr(self, "_rec_at", 0.0) >= 60.0:
+            self._rec_at = now
+            for line in L.recurring.due():
+                self.submit(SensorEvent(source="flow", modality=Modality.TEXT, text=line, salience=0.7, urgency=0.5, ts=now, persistable=False,
+                                        meta={"offer": "situation", "offer_strength": 0.9, "say": line, "topic": "recurring", "situation": "recurring"}))
 
     # ---- speedups.py: the answer cache, "more", the best model for this machine, "why was that slow" ---------------------------------------------
     def _answers(self):
@@ -5803,6 +5921,13 @@ class AmbientRuntime:
             if self.dwell is not None:
                 self.dwell.window(str(m.get("process") or ""), str(m.get("subject") or ""), str(m.get("project") or ""), now,
                                   private=bool(m.get("private")), blocked=bool(m.get("blocked")))
+        if getattr(ev, "source", "") == "screenshot":
+            try:
+                m = getattr(ev, "meta", None) or {}
+                if m.get("on_screen") and not m.get("blocked") and not m.get("private"):
+                    self._life().screen.add(str(m.get("on_screen")), str(m.get("process") or ""), str(m.get("subject") or m.get("title") or ""), now)
+            except Exception:
+                logger.debug("screen memory failed", exc_info=True)
         if self.activity is not None:
             try:
                 self.activity.observe(ev, now)
@@ -5988,6 +6113,8 @@ class AmbientRuntime:
         if self._skill_request(ev, now):
             return True
         if self._speed_request(ev, now):
+            return True
+        if self._life_request(ev, now):
             return True
         if self._recall_request(ev, now):
             return True
