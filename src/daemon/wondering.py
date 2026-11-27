@@ -265,7 +265,8 @@ _ASK_ME = re.compile(
     r"\b(?:what (?:are|were) you (?:wondering|curious) about|what (?:questions?|things?) (?:do you have|did you have|have you got)|"
     r"(?:do you have|got|have you got) "
     r"(?:any )?questions(?: for me)?|any questions(?: for me)?|ask (?:me )?(?:your|the|those|any|some) questions|"
-    r"what do you want to (?:know|ask)|what are you wondering)\b", re.I)
+    r"what do you want to (?:know|ask)|what are you wondering|what (?:questions?|things?) (?:are )?you(?: are|'re)? (?:wondering|curious)|"
+    r"(?:any )?unresolved (?:questions?|things?)(?: on your end)?)\b", re.I)
 _BATCH_END = re.compile(r"^\s*(?:that'?s (?:all|enough|it)|enough(?: for now)?|done|stop|let'?s stop|"
                         r"no more|later)\b", re.I)
 _THAT = re.compile(r"\b(?:that|this|it|him|her|them|those|these|about (?:that|this|it))\b", re.I)

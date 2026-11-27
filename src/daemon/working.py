@@ -110,6 +110,48 @@ def _days(now: float, n: int) -> List[str]:
     return [time.strftime("%Y-%m-%d", time.localtime(now - i * 86400)) for i in range(n)]
 
 
+# "What did I do yesterday?" / "last session" / "last night": 27 Nov these went to the model (43-50 s), which invented "understanding a complex task".
+# From the same per-day record: the one thing or few things that day, or the latest earlier day with anything.
+_YEST = re.compile(_LEAD + r"what\s+(?:did|have)\s+i\s+(?:do|work\s+on|been\s+(?:doing|working\s+on)|get\s+up\s+to)\s+(?P<w>yesterday|last\s+(?:session|time|night)|the\s+other\s+day|"
+                   r"(?:in|during)\s+(?:my\s+)?last\s+session)\s*[?.!]*\s*$", re.I)
+
+
+def answer_day(rt: Any, text: str, now: Optional[float] = None) -> Optional[str]:
+    m = _YEST.match((text or "").strip())
+    if not m:
+        return None
+    now = time.time() if now is None else now
+    a = getattr(rt, "activity", None)
+    kb = getattr(getattr(rt, "wonder", None), "kb", None)
+    if a is None:
+        return None
+    w = m.group("w").lower()
+    days = [time.strftime("%Y-%m-%d", time.localtime(now - i * 86400)) for i in range(1, 15)]
+    try:
+        with a._lock:
+            topics = list(a.topics.values())
+    except Exception:
+        return None
+    for i, day in enumerate(days):
+        if w == "yesterday" and i > 0:
+            break
+        tot: Dict[Tuple[str, str], float] = {}
+        for t in topics:
+            s = (t.by_day or {}).get(day, 0.0)
+            if s >= 300.0:
+                tot[(t.kind, t.name)] = s
+        have_projects = any(k == "project" for k, _ in tot)
+        rows = sorted(((n, s) for (k, n), s in tot.items() if k == "project" or not have_projects), key=lambda r: -r[1])[:3]
+        if rows:
+            names = []
+            for n, s in rows:
+                what = taught(kb, n)
+                names.append(f"{n}{', ' + what if what else ''} ({_span(s)})")
+            when = "Yesterday" if i == 0 else time.strftime("%A", time.localtime(now - (i + 1) * 86400))
+            return f"{when}: " + ", ".join(names) + "."
+    return "I didn't track anything long enough yesterday to say." if w == "yesterday" else "I don't have an earlier day with enough in it."
+
+
 def taught(kb: Any, name: str) -> str:
     """'your first novel' for a name the person explained ("Branch is im working on my first novel"), short enough to say beside it; else ''."""
     if kb is None or not name:

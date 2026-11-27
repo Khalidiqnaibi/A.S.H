@@ -34,7 +34,7 @@ _DECLINE = frozenset({"no thanks", "no thank you", "no thanks ash", "nope", "nah
 _BARE_YES = frozenset({"ok", "okay", "alright", "all right", "sure", "yeah", "yep", "yes", "fine", "right", "ok ok", "okay okay", "yup", "mhm", "uh huh"})
 # "That's funny." / "haha" / "lol that's hilarious" (26 Nov: 41 s to the model): a laugh back, by rule.
 _LAUGH = re.compile(r"^(?:ash\s+)?(?:(?:ha){2,}h?|he(?:he)+|lol+|lmao+|rofl|xd|(?:that'?s|thats|that\s+is|you'?re|ur|this\s+is)\s+(?:so\s+|really\s+|very\s+|pretty\s+|actually\s+)?"
-                    r"(?:funny|hilarious|hysterical|a\s+good\s+one)|good\s+one|nice\s+one|funny|hilarious)(?:\s+(?:(?:ha){1,}|lol|man|bro|ash|that'?s\s+(?:funny|hilarious)))*$")
+                    r"(?:funny|hilarious|hysterical|a\s+good\s+one)|good\s+one|nice\s+one|funny|hilarious|(?:no[,\s]+)?(?:that\s+was|that'?s|thats)\s+(?:actually\s+|pretty\s+|really\s+)?(?:good|great|nice|fine|perfect))(?:\s+(?:(?:ha){1,}|lol|man|bro|ash|that'?s\s+(?:funny|hilarious)))*$")
 _BYE = re.compile(r"^(?:ok(?:ay)?\s+|alright\s+|well\s+|cool\s+|ash\s+)*(?:later|laters|see\s+(?:you|ya)(?:\s+(?:later|soon|tomorrow))?|"
                   r"cya|bye(?:\s+bye)?|goodbye|talk\s+(?:to\s+you\s+)?later|ttyl|gotta\s+go|i(?:'m|\s+am)\s+(?:off|out|heading\s+out|"
                   r"going)|heading\s+out|catch\s+you\s+later|peace|peace\s+out|take\s+care)(?:\s+(?:ash|man|bro|mate))*$")
@@ -49,7 +49,7 @@ _COMPLAINT = re.compile(
     r"(?:dumb|stupid|useless|hallucinating|lying|terrible|awful|slow|bad|annoying|broken|garbage|trash|incompetent|worthless|"
     r"an\s+idiot|dumber|useless\s+today|not\s+(?:working|helping|listening|making\s+sense)|making\s+(?:things|stuff)\s+up|"
     r"making\s+no\s+sense|so\s+wrong|wrong\s+again)(?:\s+(?:today|again|now|right\s+now|lately|ash|boy|man|bro|mate|dude))*$"
-    r"|^(?:you\s+suck|stop\s+(?:lying|hallucinating|making\s+(?:things|stuff)\s+up|being\s+(?:dumb|stupid))|you\s+keep\s+(?:lying|"
+    r"|^(?:you\s+did\s+(?:nothing|nothing\s+at\s+all|nothing\s+all\s+the\s+time)|you\s+do\s+nothing|you\s+never\s+do\s+anything|you\s+suck|stop\s+(?:lying|hallucinating|making\s+(?:things|stuff)\s+up|being\s+(?:dumb|stupid))|you\s+keep\s+(?:lying|"
     r"hallucinating|making\s+(?:things|stuff)\s+up|getting\s+it\s+wrong)|you\s+never\s+(?:listen|get\s+it\s+right)|"
     r"what\s+is\s+wrong\s+with\s+you|you\s+make\s+no\s+sense)(?:\s+(?:today|again|now|ash|boy|man|bro|mate|dude))*$")
 

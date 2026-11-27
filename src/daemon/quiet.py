@@ -24,7 +24,7 @@ from .numwords import digits
 
 _LEAD = (r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?(?:(?:be|go|stay)\s+quiet|quiet(?:\s+mode)?|"
          r"do\s+not\s+disturb|don'?t\s+disturb\s+me|silence|mute(?:\s+(?:yourself|ash))?(?=\s+(?:for|till|until|til|to)\b)|no\s+interruptions|"
-         r"leave\s+me\s+alone|stop\s+talking)\s*")
+         r"leave\s+me\s+alone|stop\s+talking|(?:go\s+to\s+)?sleep(?=\s+(?:for|till|until|til)\b))\s*")
 # "mute for 1 hour i have a meeting": the reason after the length is not part of the request
 _WHY = r"(?:\s*[,.;]?\s*(?:i|i'm|i\s+am|i\s+have|i've|we|we're|we\s+have|because|cause|as|since|so|im)\b[^.!?]{0,60})?\s*[.!]*\s*$"
 _FOR = re.compile(_LEAD + r"for\s+(?:(?:an?|one)\s+(?P<unit1>hour|minute|min)|(?P<n>\d+(?:\.\d+)?)\s*"

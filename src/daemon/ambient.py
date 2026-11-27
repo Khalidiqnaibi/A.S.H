@@ -2219,9 +2219,11 @@ class AmbientRuntime:
             self._wonder_say(ev, type("R", (), {"say": line, "outcome": "followup"})())
             return True
         from . import working
-        got = working.going(self, text, time.time())
+        got = working.going(self, text, time.time()) or working.answer_day(self, text, time.time())
         if got:
             return say(got)
+        if self._COMMITS.match(text):
+            return say(self._git_log_line())
         m = self._CALL_ME.match(text)
         if m:
             name = " ".join(w[:1].upper() + w[1:] for w in m.group("n").split())
@@ -2273,6 +2275,27 @@ class AmbientRuntime:
             self.undo.push(f"how I say {word}", back, now)
             return say(f"Got it -- I'll say {word} like \u201c{spoken}\u201d.")
         return False
+
+    # "Latest commits in your repo" (27 Nov, 76 s: "I don't have a local repository on your machine"): the real list, read-only, from the folder ASH runs in.
+    _COMMITS = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:what(?:'s|\s+are|\s+is)\s+|show\s+me\s+|tell\s+me\s+|read\s+me\s+)?(?:the\s+)?(?:latest|last|recent|newest)\s+"
+                          r"(?:git\s+)?commits?(?:\s+(?:in|on|of|to)\s+(?:your|the|ash'?s|a\.s\.h'?s?)\s+(?:repo|repository|code|project|git))?\W*$|"
+                          r"^\W*(?:what(?:'s|\s+is)\s+in\s+)?(?:your|the)\s+git\s+(?:log|history)\W*$", re.I)
+
+    def _git_log_line(self) -> str:
+        import subprocess
+        try:
+            r = subprocess.run(["git", "log", "-4", "--no-merges", "--format=%s"], cwd=os.getcwd(), capture_output=True, text=True, timeout=6,
+                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            subjects = [x.strip() for x in (r.stdout or "").splitlines() if x.strip()]
+        except Exception:
+            subjects = []
+        if not subjects:
+            return "I can't read the git history from where I'm running."
+        out = []
+        for sub in subjects[:3]:
+            head = re.split(r"[:;]|\s--\s", sub, maxsplit=1)[0].strip()
+            out.append((head if 12 <= len(head) <= 90 else sub[:90]).rstrip(".,"))
+        return "The latest commits: " + "; ".join(out) + "."
 
     def _save_lexicon(self) -> None:
         p = getattr(self, "pronounce_path", None)

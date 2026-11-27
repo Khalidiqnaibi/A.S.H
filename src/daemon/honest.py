@@ -134,6 +134,13 @@ NOT_STORED = ("I haven't stored that -- I only keep what you tell me as \"rememb
 
 # What to say to "that's wrong", "you're making stuff up": the model, asked to explain itself, invented a "version 10.1.2" and a
 # "software 8.7.8" to defend an answer it had made up.
+# 27 Nov, each 70-80 s on the model, which answered "I understand you're frustrated, I don't make things up": "all of what you said was made up",
+# "that is not true at all", "but it was wrong".
+_DISPUTE_MORE = re.compile(_A + r"(?:(?:no|nope|but|well|wait|actually|bro)[,\s]+)*(?:all\s+of\s+(?:what|that)\s+you\s+(?:just\s+)?said\s+(?:was|is)\s+(?:all\s+)?"
+                           r"(?:made\s+up|wrong|false|a\s+lie|invented|fake|nonsense)|(?:that|it|this)(?:'?s|\s+is|\s+was)\s+(?:not\s+true(?:\s+at\s+all)?|"
+                           r"(?:so\s+|totally\s+|completely\s+)?(?:wrong|false|untrue|a\s+lie))(?:\s+at\s+all)?|(?:it|that)\s+was\s+(?:so\s+)?wrong|"
+                           r"you\s+(?:were|are)\s+(?:so\s+)?wrong\s+(?:about\s+(?:that|it|all\s+of\s+it)|there)|you\s+lied)(?:\s+(?:bro|man|dude|ash))?" + _Z, re.I)
+
 _DISPUTE = re.compile(
     _A + r"(?:(?:no|nope|but|well|wait|hold on|actually|bro)[,\s]+)*(?:"
     r"(?:that'?s|that\s+is|that\s+was|this\s+is|it'?s|what\s+you\s+(?:just\s+)?said\s+(?:is|was)|all\s+of\s+(?:this|that|it)\s+(?:is|was)|"
@@ -157,7 +164,7 @@ def disputes_last_answer(text: str) -> bool:
     if not t or len(t) > 160:
         return False
     parts = [x.strip() for x in re.split(r"(?<=[.!?])\s+", t) if x.strip()]
-    return bool(parts) and all(_DISPUTE.match(x) for x in parts)       # "All of this is wrong. You are making stuff up."
+    return bool(parts) and all(_DISPUTE.match(x) or _DISPUTE_MORE.match(x) for x in parts)       # "All of this is wrong. You are making stuff up."
 
 
 def invented_reply(reply: str) -> Optional[str]:

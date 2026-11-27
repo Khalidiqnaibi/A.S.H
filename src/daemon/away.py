@@ -23,7 +23,7 @@ _ASK = re.compile(
     r"what\s+did\s+i\s+miss(?:\s+while\s+i\s+was\s+(?:away|gone|out))?|"
     r"(?:anything|something)\s+(?:happen|come\s+up|new)\s+(?:while\s+i\s+was\s+(?:away|gone|out)|since\s+i\s+left)|"
     r"catch\s+me\s+up|(?:give\s+me\s+)?(?:a\s+)?(?:quick\s+)?(?:catch[\s-]?up|update|rundown|summary)(?:\s+(?:please|on\s+what\s+i\s+missed))?|"
-    r"what\s+happened\s+while\s+i\s+was\s+(?:away|gone|out|off))\s*[?.!]*\s*$", re.I)
+    r"what\s+happened(?:,?\s+what)?\s+(?:while|when)\s+i\s+(?:was|were)\s+(?:away|gone|out|off))\s*[?.!]*\s*$", re.I)
 
 
 def asks_digest(text: str) -> bool:
