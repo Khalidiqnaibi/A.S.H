@@ -387,6 +387,34 @@ for proj in ("A.S.H", "ash-cognitive-architecture-8250dd"):
     check(f"ASH's own project ({proj}) is never asked about, but its time still counts",
           not pending(a) and any(t.seconds >= 1000 for t in a.topics.values()), str(pending(a)))
 
+# 26 Nov: "You keep going back to Custom TPU Prototyping, and you've talked about custom. ... What is it?" -- a Gemini chat's title, and "custom"
+# an everyday word. And "what am I working on" listed "Liquid Biopsy Basics" (another Gemini chat) as work.
+a = rig(said=["Sam: I want a custom chip for the model"])
+for _ in range(3):
+    a.spend("Custom TPU Prototyping", 6, "Google Gemini", process="opera.exe")
+    a.spend("main.py", 6, "Orbit")
+a.observe(win("x.py"), a.t[0])
+gem = a.topics.get("subject:custom tpu prototyping")
+check("a Gemini chat's title is kept as a chat with Gemini, and never asked about",
+      gem is not None and gem.chat == "Gemini" and not any("Custom TPU" in w["subject"] or "Custom TPU" in w["question"] for w in pending(a)),
+      str(pending(a)))
+from src.daemon import working as _working  # noqa: E402
+rows = [n for n, _s in _working.top(a, a.t[0], 1, 5, min_s=60.0)]
+check("...and said as one in the day's summary", "asking Gemini about Custom TPU Prototyping" in rows or "Orbit" in rows, str(rows))
+a2 = rig(said=["Sam: I want a custom chip for the model"])
+for _ in range(3):
+    a2.spend("Custom Fonts Gallery", 6)
+a2.observe(win("x.py"), a2.t[0])
+check("an everyday word shared with what was said is not a connection ('you've talked about custom')",
+      not any("talked about" in w["question"] for w in pending(a2)), str([w["question"] for w in pending(a2)]))
+from src.daemon.dwell import Dwell  # noqa: E402
+_t = [T0]
+dw = Dwell(clock=lambda: _t[0])
+dw.window("opera.exe", "Custom TPU Prototyping", "Google Gemini", now=_t[0])
+_t[0] += 180
+check("'what am I on' says it is a chat with Gemini", dw.answer("here", _t[0]).startswith("About 3 minutes asking Gemini about Custom TPU Prototyping"),
+      dw.answer("here", _t[0]))
+
 a = rig()
 for _ in range(4):
     a.spend("Some Page", 6, then=0)

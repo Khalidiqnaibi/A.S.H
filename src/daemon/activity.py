@@ -82,6 +82,29 @@ new tab home page settings preferences loading welcome start menu desktop folder
 editor visual studio code notepad explorer terminal command prompt python console
 """.split())
 
+# Everyday words that are in titles and in talk alike, so sharing one says nothing: 26 Nov "You keep going back to Custom TPU Prototyping, and
+# you've talked about custom." Only the link to conversation uses this; a topic's own name is untouched.
+_COMMON = frozenset("""
+custom basic basics simple simply quick quickly great small large little thing things stuff people world today tonight start started
+change changes check checks light power video videos music games image images photo photos house money phone water learn learning guide
+guides using based better build building built think thinking going maybe story stories place point points model models works working
+work help helps helping latest update updates version review reviews list lists best worst good bad nice cool fine easy hard real really
+times today's daily weekly early later night morning evening hours minutes second seconds months years under above level levels
+order final first third fourth part parts piece pieces whole short long high highest lower upper front back inside outside
+total system systems project projects design designs create created making made something anything everything nothing someone everyone
+question questions answer answers problem problems issue issues error errors thanks thank sorry please hello again other another
+around because before after always never maybe without within while where which there their these those would could should might
+about again against group groups class classes course courses lesson lessons notes write writing words world's watch watching
+listen listening reading read plays playing player players movie movies series season episode episodes channel channels
+online offline local global general special personal private public official original custom-made favorite favourite
+family friend friends school college office meeting meetings email emails message messages chat chats tutorial tutorials
+explained explain explaining overview introduction intro summary details detail information facts example examples
+test tests testing setup settings install installing download downloads free price prices sales store stores market
+plan plans planning ideas idea style styles color colors colour colours black white green yellow brown orange purple
+summer winter spring autumn outfit outfits apron cute pretty beautiful funny happy crazy weird strange
+hardware software computer computers laptop laptops device devices screen screens prototype prototyping basics
+""".split())
+
 # A window whose title is nothing but this is not a thing someone is doing.
 _GENERIC_SUBJECTS = frozenset("""
 new tab|untitled|home|loading|settings|welcome|start|menu|desktop|downloads|documents|inbox|
@@ -99,6 +122,23 @@ _SKIP_ENTITY_TYPES = frozenset({"date", "time", "cardinal", "ordinal", "money", 
 # absurd. The page title is still a topic; the site is not.
 _BROWSERS = frozenset({"opera", "chrome", "msedge", "edge", "firefox", "brave", "vivaldi",
                        "safari", "arc", "chromium", "iexplore", "waterfox", "tor"})
+
+# Gemini, ChatGPT, Claude...: the page title is the name of a CHAT ("Custom TPU Prototyping - Google Gemini"), not a project. 26 Nov ASH asked
+# "You keep going back to Custom TPU Prototyping ... What is it?" and listed "Liquid Biopsy Basics" as work. Such a title is kept as what was
+# asked about -- "asking Gemini about Custom TPU Prototyping" -- and never asked about.
+_AI_CHAT = {"google gemini": "Gemini", "gemini": "Gemini", "chatgpt": "ChatGPT", "openai chatgpt": "ChatGPT", "claude": "Claude",
+            "perplexity": "Perplexity", "copilot": "Copilot", "microsoft copilot": "Copilot", "deepseek": "DeepSeek", "poe": "Poe",
+            "grok": "Grok", "le chat": "Le Chat", "le chat mistral": "Le Chat", "meta ai": "Meta AI"}
+
+
+def chat_site(name: str) -> str:
+    """'Gemini' for the site field of an AI chat's window title ('Google Gemini'), else ''."""
+    return _AI_CHAT.get(norm(name), "")
+
+
+def chat_phrase(site: str, title: str) -> str:
+    return f"asking {site} about {title}"
+
 
 _WORD = re.compile(r"[A-Za-z][A-Za-z'\-]{4,}")
 _WS = re.compile(r"\s+")
@@ -190,6 +230,7 @@ class Topic:
     remembered: bool = False           # made an entity: it is connected to something
     entity_id: str = ""
     asked: bool = False
+    chat: str = ""                     # "Gemini": the title of a chat with an AI site, not something worked on
 
 
 @dataclass
@@ -370,9 +411,13 @@ class ActivityMemory:
         touched: List[Topic] = []
         stem = re.sub(r"\.(?:exe|app|bin)$", "", (st.process or "").strip().lower())
         project = "" if stem in _BROWSERS else st.project
+        chat = chat_site(st.project) if stem in _BROWSERS else ""
         for kind, name in (("project", project), ("subject", st.subject)):
             if name and norm(name) not in _GENERIC_SUBJECTS and len(norm(name)) >= 3:
-                touched.append(self._touch(kind, name, st, dur, day, end, app))
+                t = self._touch(kind, name, st, dur, day, end, app)
+                if chat and kind == "subject":
+                    t.chat = chat
+                touched.append(t)
 
         # topics from the same sitting are connected to each other
         # ...but not a project to its own files, nor two files of one project:
@@ -523,12 +568,12 @@ class ActivityMemory:
                     break
 
         mine = {w.lower().strip("'-") for w in _WORD.findall(t.name)} | set(t.terms)
-        shared = sorted(w for w in mine if w in self._conversation_words() and w not in _STOP)
+        shared = sorted(w for w in mine if w in self._conversation_words() and w not in _STOP and w not in _COMMON)
         if shared:
             links.append({"type": "conversation", "to": ", ".join(shared[:2])})
 
         for k, n in sorted(t.together.items(), key=lambda kv: -kv[1])[:2]:
-            if n >= 2 and k in self.topics:
+            if n >= 2 and k in self.topics and not self.topics[k].chat and not t.chat:     # a Gemini chat is not half of a piece of work
                 links.append({"type": "with", "to": self.topics[k].name})
 
         if t.stretches >= self.cfg.min_recurrence or (t.stretches >= 2 and len(t.days) >= 2):
@@ -605,8 +650,8 @@ class ActivityMemory:
             return
         if t.stretches < self.cfg.ask_after_stretches:
             return
-        if is_ash_itself(t.name):
-            t.asked = True                # its own project: never "what is it?"
+        if is_ash_itself(t.name) or t.chat:
+            t.asked = True                # its own project, or a chat with Gemini: never "what is it?"
             return
         if self.kb is not None and self.kb.term_known(t.name):
             t.asked = True                # already told: nothing to wonder

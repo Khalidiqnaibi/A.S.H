@@ -41,6 +41,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from src.memory.atomic import load_json, log_io_failure, write_json
 
 from .social import friendly_app
+from .activity import chat_phrase, chat_site
 
 logger = logging.getLogger("ash.daemon.dwell")
 
@@ -241,6 +242,10 @@ class Dwell:
             if not self.process or not self.since:
                 return "I haven't seen you switch windows yet."
             app = friendly_app(self.process)
+            site = "" if (self.private or not self.subject) else chat_site(getattr(self, "project", "") or "")
+            if site:                                   # 26 Nov: "About 3 minutes on Custom TPU Prototyping (Opera)" -- a Gemini chat
+                return f"About {_span(now - self.since)} {chat_phrase(site, self.subject)}" + (
+                    ", and you haven't touched the keyboard for a while." if self.mode(now) == "reading" else ".")
             on = app if (self.private or not self.subject) else f"{self.subject} ({app})"
             return f"About {_span(now - self.since)} on {on}" + (", and you haven't touched the keyboard for a while." if self.mode(now) == "reading" else ".")
         if kind == "away":

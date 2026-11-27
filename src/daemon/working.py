@@ -16,6 +16,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from .dwell import _span
+from .activity import chat_phrase, chat_site
 
 _LEAD = r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:so|and|ok(?:ay)?|um|hey)[,\s]+)?"
 # ("what project am I ACTIVELY doing" went to the model for 54 s: the adverbs and "at the moment" are part of the question)
@@ -124,8 +125,9 @@ def top(activity: Any, now: float, days: int, limit: int = 3, min_s: float = 300
         s = sum(v for d, v in (t.by_day or {}).items() if d in want)
         if s >= min_s:
             tot[(t.kind, t.name)] = s
+    chats = {t.name: t.chat for t in topics if getattr(t, "chat", "")}
     have_projects = any(k == "project" for k, _ in tot)
-    rows = [(n, s) for (k, n), s in tot.items() if (k == "project" or not have_projects)]
+    rows = [(chat_phrase(chats[n], n) if n in chats else n, s) for (k, n), s in tot.items() if (k == "project" or not have_projects)]
     rows.sort(key=lambda r: -r[1])
     return rows[:limit]
 
@@ -142,7 +144,8 @@ def answer(rt: Any, kind: str, now: Optional[float] = None, fallback: bool = Tru
     cur = getattr(a, "_cur", None) if a is not None else None
     if kind == "now":
         if cur is not None and getattr(cur, "subject", ""):
-            what = cur.subject + (f" in {cur.project}" if getattr(cur, "project", "") else "")
+            site = chat_site(getattr(cur, "project", "") or "")
+            what = chat_phrase(site, cur.subject) if site else cur.subject + (f" in {cur.project}" if getattr(cur, "project", "") else "")
             mins = max(0.0, now - cur.start)
             parts.append(f"Right now: {what}" + (f", for {_span(mins)}" if mins >= 60 else "") + ".")
         elif d is not None and getattr(d, "process", "") and not getattr(d, "private", False):
