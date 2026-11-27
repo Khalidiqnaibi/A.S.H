@@ -343,6 +343,7 @@ class AmbientConfig:
     jokes_path: Optional[str] = None      # which jokes were told (jokebook.py)
     moments_path: Optional[str] = None    # when each free-moment activity last ran (the mood check: once a day, across restarts)
     notices_path: Optional[str] = None    # runtime notices kept across restarts: when memory was last said, a restart that was asked for
+    skills_path: Optional[str] = None     # the concepts taught by voice (skills.py)
     notifications: bool = False           # read Windows notifications (the app and who from, never the message): off unless switched on
     # Kids mode: grown-up things refused, the model told it's a child, a word filter, a time limit (kids.py).
     kids: bool = False
@@ -2210,6 +2211,150 @@ class AmbientRuntime:
     # "Lieth is pronounced leeth" / "say Lieth like leeth" / "pronounce Iqnaibi as ick-nay-bee": how ASH says a word (hearing it is misheard.py's).
     _PRONOUNCE = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:(?P<w1>[A-Za-z][\w'-]{1,24})\s+is\s+pronounced\s+(?:like\s+|as\s+)?|"
                             r"(?:say|pronounce)\s+(?P<w2>[A-Za-z][\w'-]{1,24})\s+(?:like|as)\s+)[\u201c\"']?(?P<p>[A-Za-z][\w' -]{1,30}?)[\u201d\"']?\W*$", re.I)
+
+    # ---- taught skills (skills.py): concepts out of tools ASH already has -------------------------------------------------------------------
+    _SK_LIST = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:what(?:'s|\s+have|\s+did)\s+(?:i\s+)?(?:taught|teach)(?:\s+you)?|what\s+(?:things\s+|skills\s+)?(?:do\s+you\s+know\s+how\s+to\s+do|can\s+you\s+do\s+that\s+i\s+(?:taught|showed)\s+you)|"
+                          r"(?:list|show)\s+(?:me\s+)?(?:the\s+)?(?:things\s+)?(?:i'?ve\s+|i\s+)?(?:taught\s+you|lessons|skills))\W*$", re.I)
+    _SK_HOW = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:how\s+do\s+you|walk\s+me\s+through|show\s+me\s+how\s+you|explain\s+how\s+you)\s+(?P<n>.{3,60}?)\W*$", re.I)
+    _SK_FORGET = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:forget|unlearn)\s+(?:how\s+to\s+)?(?P<n>.{3,60}?)\W*$", re.I)
+    _SK_AMEND = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:in|for)\s+(?P<n>.{3,50}?),?\s+(?:change\s+)?step\s+(?P<i>\d|one|two|three|four|five|six)\s+(?:should\s+be|to|is)\s+(?P<c>.{3,80}?)\W*$", re.I)
+    _SK_ALIAS = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:you\s+can\s+(?:also\s+)?say|also\s+(?:say|call\s+it)|it'?s\s+also\s+(?:called|said))\s+(?P<p>.{4,70}?)\W*$", re.I)
+    _SK_WATCH = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:watch\s+me|let\s+me\s+show\s+you(?:\s+something)?|i'?ll\s+show\s+you(?:\s+how)?)\W*$", re.I)
+    _SK_THATS = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:that'?s|this\s+is|that\s+was)\s+how\s+(?:you|to)\s+(?P<n>.{3,60}?)\W*$", re.I)
+    _SK_STOP = re.compile(r"^\W*(?:stop|cancel|abort|never\s*mind|hold\s+on)\W*$", re.I)
+
+    def _skills_obj(self):
+        sk = getattr(self, "skills", None)
+        if sk is None:
+            from . import skills as _sk
+            p = getattr(self.cfg, "skills_path", None)
+            sk = self.skills = _sk.Skills(p, clock=lambda: self.clock())
+        return sk
+
+    def _skill_hands(self):
+        h = getattr(self, "_hands", None)
+        return h if h is not None else __import__("src.daemon.skills", fromlist=["RealHands"]).RealHands(self)
+
+    def _skill_say_later(self, line: str) -> None:
+        try:
+            self.response_sink(line, {"addressed": True, "source": "skill", "attention": None, "pathway": "wonder", "outcome": "desktop"})
+        except Exception:
+            logger.exception("Skill line failed")
+
+    def _run_skill(self, name: str, args: dict) -> None:
+        """Runs on its own thread (a step can wait for a page), and says how it went."""
+        sk = self._skills_obj()
+        say = self._skill_say_later
+
+        def go():
+            try:
+                res = sk.run(self._skill_hands(), name, args, say)
+                say(sk.outcome_line(name, res, args))
+            except Exception:
+                logger.exception("A taught skill failed")
+                say("Something went wrong running that.")
+        if getattr(self, "_skills_sync", False):
+            go()
+        else:
+            threading.Thread(target=go, name="ash-skill", daemon=True).start()
+
+    def _skill_request(self, ev, now: float) -> bool:
+        if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "").strip()
+        if not text or len(text) > 700:
+            return False
+        from . import skills as sk_mod, yesno
+        sk = self._skills_obj()
+        acts = self._meant_for_ash(ev)
+        if not acts:
+            return False
+
+        def say(line: str) -> bool:
+            self._wonder_say(ev, type("R", (), {"say": line, "outcome": "desktop"})())
+            return True
+        pend = sk.pending
+        if pend is not None and now - pend.get("at", 0) > 180.0:
+            pend = sk.pending = None
+        if pend is not None:
+            if pend["kind"] == "confirm":
+                if yesno.is_yes(text):
+                    sk.pending = None
+                    self._run_skill(pend["name"], pend["args"])
+                    return say("Okay -- doing it.")
+                if yesno.is_no(text) or self._SK_STOP.match(text):
+                    sk.pending = None
+                    return say("Okay, not doing it.")
+            elif pend["kind"] == "watch":
+                m = self._SK_THATS.match(text)
+                if m:
+                    tabs = self._open_tab_urls()
+                    steps = pend["show"].steps(tabs)
+                    sk.pending = None
+                    if not steps:
+                        return say("I didn't see anything open while I watched -- a program or a page. Try again and open something.")
+                    name = m.group("n").strip().lower()
+                    msg, undo = sk.teach({"phrase": name, "slots": [], "steps": steps}, source="shown", now=now)
+                    self.undo.push(f"how to {name}", undo, now)
+                    return say(msg)
+                if self._SK_STOP.match(text):
+                    sk.pending = None
+                    return say("Okay, I've stopped watching.")
+        if self._SK_WATCH.match(text):
+            show = sk_mod.Showing(self._open_tab_urls())
+            sk.pending = {"kind": "watch", "show": show, "at": now}
+            self._watching = show
+            return say("Okay, I'm watching -- I'll note the programs and pages that open, not your keys or window titles. Say \u201cthat's how you ...\u201d and what to call it when you're done.")
+        try:
+            lesson = sk_mod.parse_lesson(text)
+        except sk_mod.LessonError as e:
+            return say(str(e))
+        if lesson is not None:
+            msg, undo = sk.teach(lesson, now=now)
+            self.undo.push(f"how to {lesson['phrase']}", undo, now)
+            return say(msg)
+        if sk.skills:
+            if self._SK_LIST.match(text):
+                return say(sk.listing())
+            m = self._SK_AMEND.match(text)
+            if m and sk.match_name(m.group("n")):
+                i = m.group("i").lower()
+                n = int(i) if i.isdigit() else {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6}[i]
+                return say(sk.amend(m.group("n"), n, m.group("c")))
+            m = self._SK_ALIAS.match(text)
+            last = getattr(self, "_last_skill", None)
+            if m and last in sk.skills and now - getattr(self, "_last_skill_at", 0) < 600:
+                sk.skills[last].setdefault("aliases", []).append(m.group("p").strip().lower())
+                sk.save()
+                return say(f"Okay -- \u201c{m.group('p').strip()}\u201d does the same as {last}.")
+            m = self._SK_FORGET.match(text)
+            if m and sk.match_name(m.group("n")):
+                got = sk.forget(m.group("n"))
+                if got:
+                    self.undo.push("forgetting a skill", got[1], now)
+                    return say(got[0])
+            m = self._SK_HOW.match(text)
+            if m and sk.match_name(m.group("n")):
+                key = sk.match_name(m.group("n"))
+                walk = bool(re.match(r"^\W*(?:walk|show|explain)", text, re.I))
+                return say(sk.read_back(key) if not walk else sk.read_back(key) + (" Say it for real and I'll do it." if sk.skills[key]["slots"] else ""))
+            trig = sk.trigger(text)
+            if trig is not None:
+                name, args = trig
+                self._last_skill, self._last_skill_at = name, now
+                if sk.trusted(name):
+                    self._run_skill(name, args)
+                    return say("Doing " + name + (" for " + ", ".join(args.values()) if args else "") + ".")
+                sk.pending = {"kind": "confirm", "name": name, "args": args, "at": now}
+                return say(sk.plan_line(name, args))
+        return False
+
+    def _open_tab_urls(self) -> list:
+        try:
+            bt = self.periphery.sensors.get("browser_tabs")
+            return [("https://" + str(t.get("site"))) for t in (list(getattr(bt, "open_tabs", []) or []) if bt is not None else []) if t.get("site")]
+        except Exception:
+            return []
 
     def _teach_request(self, ev, now: float) -> bool:
         if not self._user_source(ev) or not self._meant_for_ash(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
@@ -5737,6 +5882,8 @@ class AmbientRuntime:
         if not loose and self._summons_request(ev, now):
             return True
         if self._devicehelp_request(ev, now):
+            return True
+        if self._skill_request(ev, now):
             return True
         if self._recall_request(ev, now):
             return True

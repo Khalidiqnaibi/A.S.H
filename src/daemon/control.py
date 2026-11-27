@@ -323,6 +323,34 @@ class ControlExecutor:
             logger.exception("Scroll failed")
             return False
 
+    def lines(self) -> List[Tuple[str, Tuple[int, int], int]]:
+        """(text, centre, height in pixels) of each line of text on the screen, by the screen reader's OCR; [] when it can't be read."""
+        try:
+            import numpy as np
+            from PIL import ImageGrab
+            from src.senses.screenread import ScreenReader
+            rd = getattr(self, "_reader", None)
+            if rd is None:
+                rd = self._reader = ScreenReader()
+            if rd.backend != "rapidocr":
+                return []
+            if rd._engine is None:
+                rd._engine = rd._build_rapidocr()
+            result, _ = rd._engine(np.asarray(ImageGrab.grab()))
+        except Exception:
+            logger.exception("Reading the screen failed")
+            return []
+        out = []
+        for r in (result or []):
+            try:
+                box, text = r[0], str(r[1]).strip()
+                xs, ys = [p[0] for p in box], [p[1] for p in box]
+                if text:
+                    out.append((text, (int(sum(xs) / len(xs)), int(sum(ys) / len(ys))), int(max(ys) - min(ys))))
+            except Exception:
+                continue
+        return out
+
     def find_text(self, phrase: str) -> Optional[Tuple[int, int]]:
         """Where `phrase` is written on the screen (the centre of the best matching line), by the screen reader's OCR; None if it can't be found."""
         try:

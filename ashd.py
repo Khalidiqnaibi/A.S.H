@@ -399,6 +399,7 @@ def main() -> int:
                 jokes_path=os.path.join(os.getcwd(), "state", "jokes.json"),
                 moments_path=os.path.join(os.getcwd(), "state", "moments.json"),
                 notices_path=os.path.join(os.getcwd(), "state", "notices.json"),
+                skills_path=os.path.join(os.getcwd(), "state", "skills.json"),
                 notifications=bool(((cfg.get("notifications") or {}) if isinstance(cfg, dict) else {}).get("enabled", False)),
                 kids=bool(cfg.get("kids", {}).get("enabled", False)),
                 kids_cfg=cfg.get("kids", {}),
