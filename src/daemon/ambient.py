@@ -1724,6 +1724,7 @@ class AmbientRuntime:
             self._step("toasts", self._toast_step, now)
             self._step("life", self._life_steps, now)
             self._step("skill triggers", self._skill_trigger_step, now)
+            self._step("presence", self._presence_step, now)
             self._step("limits", self._limit_step, now)
             self._step("download offer", self._download_offer_step, now)
             self._step("guard", self._guard_step, now)
@@ -2418,6 +2419,80 @@ class AmbientRuntime:
                     return say("Doing " + name + (" for " + ", ".join(args.values()) if args else "") + ".")
                 sk.pending = {"kind": "confirm", "name": name, "args": args, "at": now}
                 return say(sk.plan_line(name, args))
+        return False
+
+    # ---- presence.py: reopen after a crash, "I was updated", a self test, banter -----------------------------------------------------------------------
+    def _presence(self):
+        P = getattr(self, "_presence_state", None)
+        if P is None:
+            from . import presence as pr
+            base = getattr(self.cfg, "life_dir", None)
+            P = self._presence_state = types.SimpleNamespace(apps=pr.OpenApps(os.path.join(base, "openapps.json") if base else None, clock=lambda: self.clock()),
+                                                             banter=pr.Banter(clock=time.time), started=False, pending=None)
+        return P
+
+    def _presence_step(self, now: float) -> None:
+        """Once, 90 s after a start: what was open before a shutdown that wasn't clean, and what changed in ASH itself since it last ran."""
+        P = self._presence()
+        P.apps.save(now)
+        if P.started or not self.started_at or time.time() - self.started_at < 90.0 or self.gate.muted or self.privacy.paused:
+            return
+        P.started = True
+        from . import presence as pr
+        try:
+            cw = getattr(self, "crashwatch", None)
+            if cw is not None and getattr(cw, "unclean_before", False):
+                apps = P.apps.before_crash(now=self.clock())
+                from .social import friendly_app
+                line = pr.recovery_line(apps, lambda a: friendly_app(a + ".exe"))
+                if line:
+                    P.pending = {"apps": apps, "at": now}
+                    self.submit(SensorEvent(source="flow", modality=Modality.TEXT, text=line, salience=0.7, urgency=0.5, ts=now, persistable=False,
+                                            meta={"offer": "situation", "offer_strength": 0.9, "say": line, "topic": "recovery", "situation": "recovery"}))
+        except Exception:
+            logger.debug("recovery offer failed", exc_info=True)
+        try:
+            head = pr.git_head(os.getcwd())
+            old = str(self._notices().get("last_head") or "")
+            if head:
+                self._notices(last_head=head)
+                line = pr.updated_line(old, head, cwd=os.getcwd()) if old else ""
+                if line:
+                    self.submit(SensorEvent(source="flow", modality=Modality.TEXT, text=line, salience=0.5, urgency=0.2, ts=now, persistable=False,
+                                            meta={"offer": "situation", "offer_strength": 0.6, "say": line, "topic": "updated", "situation": "updated"}))
+        except Exception:
+            logger.debug("update line failed", exc_info=True)
+
+    def _presence_request(self, ev, now: float) -> bool:
+        if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "").strip()
+        if not text or len(text) > 100 or not self._meant_for_ash(ev):
+            return False
+        from . import presence as pr, yesno
+        P = self._presence()
+
+        def say(line: str, outcome: str = "desktop") -> bool:
+            self._wonder_say(ev, type("R", (), {"say": line, "outcome": outcome})())
+            return True
+        if P.pending is not None and now - P.pending["at"] <= 300.0 and (yesno.is_yes(text) or yesno.is_no(text)):
+            pend, P.pending = P.pending, None
+            if yesno.is_no(text):
+                return say("Okay, I'll leave them.")
+            opened = []
+            for a in pend["apps"][-5:]:
+                try:
+                    if self.desktop is not None and self.desktop.ex.open(a):
+                        opened.append(a)
+                except Exception:
+                    pass
+            return say(("Reopening " + ", ".join(opened) + ".") if opened else "I couldn't reopen them from here.")
+        if pr.asks_smoke(text):
+            rows = pr.smoke(getattr(self, "_smoke_checks", None) or pr.default_checks(self))
+            return say(pr.smoke_say(rows), "answer")
+        got = P.banter.hear(text)
+        if got:
+            return say(got, "moment")
         return False
 
     # ---- doing.py: a calendar to write to, tidy downloads, scripts, research write-ups ---------------------------------------------------------------
@@ -4045,7 +4120,7 @@ class AmbientRuntime:
     _ONE_WORD_OK = frozenset("stop enough pause play next previous skip cancel continue resume again more help louder quieter mute unmute back "
                              "done wait hold quiet silence sorry huh pardon higher lower hint repeat start finish exit quit".split())
 
-    _DANGLING = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:.+\s)?(?:on|of|about|for|to|the|a|an|with|in|at|and|or|but|from|by|my|into|onto)\s*[.,\-\u2026]*\s*$", re.I)
+    _DANGLING = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:.+\s)?(?:on|of|about|for|to|the|a|an|with|in|at|and|or|but|from|by|my|into|onto|which|who|whom|whose|if|because|since|while|than|what|how|when|where|why|our|their)\s*[.,\-\u2026]*\s*$", re.I)
 
     _BARE_VERB = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:please|ok(?:ay)?|now)[,\s]+)?(?P<v>switch|open|close|play|search|look\s+up|remind\s+me|turn\s+on|turn\s+off|"
                             r"show\s+me|find|start)(?:\s+(?:to|it\s+to|for))?(?:[,\s]+(?:ash|please))?\s*[.!?\u2026]*\s*$", re.I)
@@ -4090,7 +4165,7 @@ class AmbientRuntime:
         if not (3 <= len(words) <= (14 if cut else 10)) or text.endswith(("?", "!")) or not (cut or self._DANGLING.match(text)):
             return False
         low = [re.sub(r"[^\w']+", "", w).lower() for w in words]
-        if not cut and low[-1] not in ("the", "a", "an", "and", "or", "but", "my", "of", "into", "onto") and (set(low) & {"i", "you", "we", "it", "they", "he", "she", "am", "are", "is", "was", "do", "does", "did"}):
+        if not cut and low[-1] not in ("the", "a", "an", "and", "or", "but", "my", "of", "into", "onto", "if", "what", "how", "when", "where", "why", "which", "who", "because", "since", "while", "than", "our", "their") and (set(low) & {"i", "you", "we", "it", "they", "he", "she", "am", "are", "is", "was", "do", "does", "did"}):
             return False                    # "what port am I on" / "who are you talking to": a whole question that happens to end on a preposition
         if getattr(self, "_told_dangling", None) == text.lower():
             return False                                    # said the same cut-off line again: let it through
@@ -6261,6 +6336,11 @@ class AmbientRuntime:
         elif getattr(ev, "source", "") == "active_window":
             m = getattr(ev, "meta", None) or {}
             self.occasion.window(str(m.get("process") or ""), now, blocked=bool(m.get("blocked")))
+            if not m.get("blocked") and not m.get("private"):
+                try:
+                    self._presence().apps.see(str(m.get("process") or ""))
+                except Exception:
+                    pass
             if self.dwell is not None:
                 self.dwell.window(str(m.get("process") or ""), str(m.get("subject") or ""), str(m.get("project") or ""), now,
                                   private=bool(m.get("private")), blocked=bool(m.get("blocked")))
@@ -6462,6 +6542,8 @@ class AmbientRuntime:
         if self._selfcare_request(ev, now):
             return True
         if self._doing_request(ev, now):
+            return True
+        if self._presence_request(ev, now):
             return True
         if self._recall_request(ev, now):
             return True

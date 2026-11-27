@@ -185,6 +185,7 @@ class CrashWatch:
         # "history", and writing it early would turn old crashes into news.
         self.runs_path = (path + ".runs") if path else None
         self.runs: List[Dict[str, float]] = []
+        self.unclean_before = False
         self._beat_saved = 0.0
         self._load_runs()
 
@@ -220,6 +221,8 @@ class CrashWatch:
                              and now - float(r.get("beat", r["start"])) <= 90 * DAY][-200:]
             except Exception:
                 logger.warning("Could not read %s", self.runs_path, exc_info=True)
+        # The run before this one never said goodbye: the machine (or ASH) went down without a clean stop -- "you had Opera and Word open".
+        self.unclean_before = bool(self.enabled and self.runs and "end" not in self.runs[-1])
         if self.enabled and self.runs_path:
             self.runs.append({"start": now, "beat": now})
             self._save_runs(now)
