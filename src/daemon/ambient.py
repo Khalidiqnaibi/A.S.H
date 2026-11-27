@@ -1036,6 +1036,10 @@ class AmbientRuntime:
             except Exception:
                 logger.exception("Sanitising a reply failed")
                 clean = text
+            try:
+                clean = honest.strip_greeting(clean, self._recent_user[-1] if self._recent_user else "")
+            except Exception:
+                logger.debug("greeting strip failed", exc_info=True)
             if clean != text:
                 logger.info("Took something out of a model answer: %r", text[:120])
             text = clean.strip() or "I'm not sure how to help with that."
@@ -6329,7 +6333,16 @@ class AmbientRuntime:
             except Exception:
                 logger.debug("stopping speech failed", exc_info=True)
         if speak:                                         # the console's button is its own answer: nothing said aloud (a lecture)
-            self._speech_say("Okay -- dropped it.", "cancel")
+            # 26 Nov "Okay -- dropped it." seven times, each a second or two after the question: a quick one gets a nod and "Okay.".
+            started = float(getattr(self, "_think_started", 0.0) or 0.0)
+            quick = started > 0.0 and 0.0 <= time.time() - started <= 8.0
+            if quick:
+                try:
+                    if getattr(self, "face", None) is not None and hasattr(self.face, "_play"):
+                        self.face._play("nod", force=True)
+                except Exception:
+                    logger.debug("no nod", exc_info=True)
+            self._speech_say("Okay." if quick else "Okay -- dropped it.", "cancel")
         return True
 
     def _unwrite_turn(self, since: float, text: str):

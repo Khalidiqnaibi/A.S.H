@@ -384,11 +384,35 @@ def _squash(s: str) -> str:
 # The closing offer a small model puts on almost every answer ("What would you like to discuss while you're here?", "How can I assist you today?", "Is there
 # anything else I can help with?"): the persona forbids it and a 3B model ignores that. Dropped when something real precedes it.
 _OFFER = re.compile(
-    r"^(?:so[,\s]+|well[,\s]+|anyway[,\s]+)?(?:what\s+(?:would|do)\s+you\s+(?:like|want)\s+to\s+(?:discuss|talk|chat|do|know|ask|explore|see|work\s+on)|"
+    # 26 Nov also got through: "Now, how can I assist you today?", "Also, if you need help with anything else, feel free to ask.", "ASH is here to
+    # a...", "Let's make this an exciting journey together!" -- a lead word, an "if you need ..." before the offer, ASH in the third person.
+    r"^(?:(?:so|well|anyway|now|also|and|but|again|of\s+course|please|otherwise)[,\s]+)?"
+    r"(?:if\s+you\s+(?:need|have|want|would\s+like|ever)\b[^.!?]*?\b(?:feel\s+free|let\s+me\s+know|just\s+ask|don'?t\s+hesitate|i'?m\s+(?:here|happy|always))|"
+    r"(?:ash|a\.s\.h\.?)\s+is\s+(?:always\s+)?here\s+(?:to|for|if)|i\s+am\s+(?:always\s+)?here\s+(?:to|for|if)|"
+    r"let'?s\s+make\s+(?:this|it)\s+(?:an?\s+)?(?:exciting|great|fun|amazing|wonderful|productive)|(?:i'?m\s+|i\s+am\s+)?(?:always\s+)?(?:happy|glad)\s+to\s+help|"
+    r"don'?t\s+hesitate\s+to|what\s+(?:would|do)\s+you\s+(?:like|want)\s+to\s+(?:discuss|talk|chat|do|know|ask|explore|see|work\s+on)|"
     r"how\s+(?:can|may|could)\s+i\s+(?:be\s+of\s+)?(?:assist|help|be\s+of\s+service)|is\s+there\s+anything\s+(?:else|more|specific)|"
     r"anything\s+else\s+(?:i\s+can|you(?:'d|\s+would)?\s+(?:like|need|want))|let\s+me\s+know\s+(?:if|how|what|whether)|feel\s+free\s+to\s+(?:ask|let|reach|tell)|"
     r"i'?m\s+here\s+(?:to\s+(?:help|assist|chat|listen)|if\s+you|whenever)|what\s+else\s+(?:can|would|do)\s+(?:i|you)|would\s+you\s+like\s+(?:me\s+)?to\s+(?:discuss|talk|chat|help)|"
     r"do\s+you\s+(?:want|need)\s+(?:any\s+)?(?:help|assistance)|is\s+there\s+something\s+(?:else|specific|i\s+can)|hope\s+(?:that|this)\s+helps)\b[^.!?]*[.!?]*\s*$", re.I)
+
+
+# "Hey there, Immortal. Sounds like ..." -- a greeting opening an answer to someone who did not greet (26 Nov, "I'm having trouble with my Live Buds").
+_GREETING_LEAD = re.compile(r"^\s*(?:(?:hey|hi|hello|greetings|howdy)(?:\s+there)?|good\s+(?:morning|afternoon|evening))(?:[,\s]+[A-Z][\w.'-]*){0,2}\s*[!.,]+\s+(?=\S)",
+                            re.I)
+_GREETED = re.compile(r"^\W*(?:(?:hey|hi|hello|yo|howdy|greetings|good\s+(?:morning|afternoon|evening))\b|(?:hey\s+)?ash\W*$)", re.I)
+
+
+def strip_greeting(text: str, user_text: str = "") -> str:
+    """`text` without a greeting at its start, unless the person greeted first (never when that would leave nothing)."""
+    t = text or ""
+    if _GREETED.match(user_text or ""):
+        return t
+    m = _GREETING_LEAD.match(t)
+    if not m or not t[m.end():].strip():
+        return t
+    rest = t[m.end():]
+    return rest[:1].upper() + rest[1:]
 
 
 def strip_offers(text: str) -> str:

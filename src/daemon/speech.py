@@ -100,10 +100,38 @@ def words(text: str) -> int:
     return len((text or "").split())
 
 
+_ITEM = re.compile(r"^\s*(?:[-*\u2022]|\d+[.)])\s+(?P<item>\S.*)$")
+
+
+def fold_list(text: str, n: int = 3) -> str:
+    """"Some of these include:" followed by a list -> "Some of these include CBC, CEA and CA-125." -- cut for speech, an answer used to stop at the
+    colon (26 Nov, the cancer markers). Only the first list after a line ending in a colon; the rest of the text is left alone."""
+    lines = (text or "").split("\n")
+    for i, line in enumerate(lines):
+        if not line.rstrip().endswith(":"):
+            continue
+        heads, j = [], i + 1
+        while j < len(lines) and (not lines[j].strip() or _ITEM.match(lines[j])):
+            m = _ITEM.match(lines[j])
+            if m:
+                h = re.split(r"\s*(?::|\s[-\u2013\u2014]\s|\()", m.group("item").replace("**", "").replace("__", ""), maxsplit=1)[0].strip(" *_.")
+                if h:
+                    heads.append(" ".join(h.split()[:6]))
+            j += 1
+        if len(heads) < 2:
+            return text
+        shown = heads[:n]
+        joined = (", ".join(shown[:-1]) + " and " + shown[-1]) if len(shown) > 1 else shown[0]
+        folded = f"{line.rstrip()} {joined}" + (", among others." if len(heads) > n else ".")
+        return "\n".join(lines[:i] + [folded] + lines[j:])
+    return text
+
+
 def shorten(text: str, max_words: int = 25, min_words: int = 8) -> str:
     """The first sentence -- or two, if the first is very short -- cut at
     `max_words`. Lists and code blocks after the opening are dropped."""
     t = re.sub(r"```.*?```", " ", text or "", flags=re.S)
+    t = fold_list(t)
     t = t.split("\n\n", 1)[0] if words(t.split("\n\n", 1)[0]) >= min_words else t
     t = re.sub(r"\s*\n\s*[-*•]\s+", "; ", t)       # a bullet list reads as one sentence
     t = re.sub(r":\s*;\s*", ": ", t)

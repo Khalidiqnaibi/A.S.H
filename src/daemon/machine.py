@@ -120,6 +120,51 @@ def specs() -> Dict[str, Any]:
             "ram": int(psutil.virtual_memory().total), "gpus": _gpu_names()}
 
 
+def spoken_cpu(name: str) -> str:
+    """'Intel(R) Core(TM) i5-10500H CPU @ 2.50GHz' -> 'Intel Core i5-10500H' (26 Nov it was read out as written)."""
+    s = re.sub(r"\((?:R|TM|C)\)|[\u00ae\u2122]", "", name or "")
+    s = re.sub(r"\s*@\s*[\d.]+\s*[GM]Hz", "", s, flags=re.I)
+    s = re.sub(r"\b(?:CPU|Processor|with\s+Radeon\s+Graphics|\d+-Core)\b", "", s, flags=re.I)
+    return " ".join(s.split())
+
+
+def _article(name: str) -> str:
+    """'an RTX 3060', 'a GTX 1650', 'an Intel Core i5', 'a Radeon RX 6600': by how the first letter or word is said."""
+    first = (name or "").split()[0] if (name or "").split() else ""
+    if first.isupper() and len(first) > 1:
+        return "an " if first[0] in "AEFHILMNORSX" else "a "
+    return "an " if first[:1].lower() in "aeiou" else "a "
+
+
+def spoken_gpus(names: List[str]) -> str:
+    """['Intel(R) UHD Graphics', 'NVIDIA GeForce GTX 1650 with Max-Q Design'] -> 'a GTX 1650 (and Intel graphics built in)'."""
+    clean = []
+    for g in names:
+        s = re.sub(r"\((?:R|TM)\)|[\u00ae\u2122]", "", g)
+        s = re.sub(r"\s+with\s+Max-Q\s+Design|\s+Laptop\s+GPU|\bGeForce\s+|\bNVIDIA\s+|\bAMD\s+(?=Radeon)", " ", s, flags=re.I)
+        clean.append(" ".join(s.split()))
+    built_in = [c for c in clean if re.match(r"^(?:Intel|AMD\s+Radeon\(?TM\)?\s+Graphics|Radeon\s+Graphics)", c, re.I) or re.search(r"\bUHD|Iris|Vega\b", c)]
+    real = [c for c in clean if c not in built_in]
+    if real and built_in:
+        return " and ".join(_article(r) + r for r in real) + " (and " + ("Intel" if "intel" in built_in[0].lower() else "built-in") + " graphics)"
+    return " and ".join(_article(c) + c for c in clean)
+
+
+_ONSETS = frozenset("bl br cl cr dr fl fr gl gr pl pr sc sk sl sm sn sp st sw tr tw wr th sh ch ph wh kn gn qu sq".split())
+
+
+def spoken_name(what: str) -> str:
+    """'gta 6' -> 'GTA 6': a short lower-case word that cannot be read as an English word -- no vowel, or two consonants no English word starts
+    with ('gt', 'nb', 'cp') -- is an acronym. 'elden ring' stays as it is."""
+    def acr(w: str) -> bool:
+        if not (2 <= len(w) <= 4 and w.isalpha() and w.islower()):
+            return False
+        if not re.search(r"[aeiouy]", w):
+            return True
+        return len(w) >= 3 and w[0] not in "aeiouy" and w[1] not in "aeiouy" and w[:2] not in _ONSETS
+    return " ".join(w.upper() if acr(w) else w for w in (what or "").split())
+
+
 class Machine:
     def __init__(self, procs: Callable[[], List[Tuple[str, int, int]]] = processes, mem: Callable[[], Tuple[float, int, int]] = memory_now,
                  spec: Callable[[], Dict[str, Any]] = specs, own_pid: Optional[int] = None):
@@ -153,17 +198,19 @@ class Machine:
         s = self._spec = self._spec or self.spec()
         bits = []
         if s.get("cpu"):
-            bits.append(("an " if s["cpu"][:1].lower() in "aeiou" else "a ") + s["cpu"] + (f" ({s['threads']} threads)" if s.get("threads") else ""))
+            cpu = spoken_cpu(s["cpu"])
+            bits.append(_article(cpu) + cpu + (f" ({s['threads']} threads)" if s.get("threads") else ""))
         if s.get("ram"):
             bits.append(f"{_gb(s['ram'])} of memory")
         gpus = [g for g in (s.get("gpus") or []) if not re.search(r"\b(?:basic\s+display|remote|virtual|parsec|meta)\b", g, re.I)]
         if gpus:
-            bits.append(" and ".join(gpus))
+            bits.append(spoken_gpus(gpus))
         if not bits:
             return "I couldn't read this computer's hardware."
         return "This computer has " + (", ".join(bits[:-1]) + " and " + bits[-1] if len(bits) > 1 else bits[0]) + "."
 
     def can_run(self, what: str) -> str:
+        what = spoken_name(what)
         return (self.specs() + f" I can't check what {what} needs myself -- say “look up {what} system requirements” and I'll open the search, "
                 "then you can compare.")
 

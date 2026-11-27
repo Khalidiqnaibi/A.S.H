@@ -41,10 +41,10 @@ def main():
           and "I'm using 0.9 GB myself, and the language model holds 3.2 GB." in s and "unload the model" in s, s)
     s = m.specs()
     check("specs: processor, threads, memory, the real graphics card (not the basic display adapter)",
-          s == "This computer has an AMD Ryzen 7 5800H with Radeon Graphics (16 threads), 16 GB of memory and NVIDIA GeForce RTX 3060 Laptop GPU.", s)
+          s == "This computer has an AMD Ryzen 7 5800H (16 threads), 16 GB of memory and an RTX 3060.", s)
     s = m.can_run("gta 6")
-    check("can it run X: the specs, and plainly that the requirements are not checked here", s.startswith("This computer has") and "can't check what gta 6 needs" in s
-          and "look up gta 6 system requirements" in s, s)
+    check("can it run X: the specs, and plainly that the requirements are not checked here", s.startswith("This computer has") and "can't check what GTA 6 needs" in s
+          and "look up GTA 6 system requirements" in s, s)
     check("nothing readable: said so", machine.Machine(procs=lambda: [], mem=lambda: (0.0, 0, 0), spec=lambda: {}).specs() == "I couldn't read this computer's hardware.")
 
     print("\n=== M3. In the runtime ===")
@@ -53,7 +53,7 @@ def main():
     used, said = rt.say("what's using my memory")
     check("answered by rule, no model", not used and said and said[-1].startswith("Memory is at 92%"), f"{used} {said}")
     used, said = rt.say("can my pc run gta 6")
-    check("'can my pc run gta 6' by rule (it waited 300 s twice)", not used and said and "can't check what gta 6 needs" in said[-1], f"{used} {said}")
+    check("'can my pc run gta 6' by rule (it waited 300 s twice)", not used and said and "can't check what GTA 6 needs" in said[-1], f"{used} {said}")
     unloaded = []
     rt._safe_unload = lambda: unloaded.append(1)
     rt._model_unloaded = False

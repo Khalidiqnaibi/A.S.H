@@ -81,7 +81,7 @@ def p2_phrases():
     s = shorten("Use ```ls -la``` to list every file in this folder, hidden ones included.")
     check("inline code dropped", "ls -la" not in s and s.startswith("Use"), s)
     s = shorten("Here's how to do it, in three steps:\n- open the settings\n- pick Network\n- turn it off")
-    check("a list reads as one sentence", "steps: open the settings; pick Network" in s and "\n" not in s, s)
+    check("a list reads as one sentence", "steps: open the settings, pick Network and turn it off." in s and "\n" not in s, s)
     s = shorten("Run this command to see it in full detail right now:\n\n```\nls -la\n```\n\nThen look at the sizes.")
     check("code blocks dropped", "ls -la" not in s and s.startswith("Run this command"), s)
     check("short text kept as it is", shorten("Sure.") == "Sure.")

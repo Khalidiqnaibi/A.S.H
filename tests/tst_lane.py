@@ -79,6 +79,12 @@ class Mic:
         self.state = State.DISABLED
 
 
+
+
+def _dropped(o):
+    """What a 'never mind' says: 'Okay -- dropped it.', or a plain 'Okay.' a few seconds into the answer (26 Nov: seven of them)."""
+    return "dropped it" in o or o == "Okay."
+
 def rig(with_speaker=False):
     from src.daemon import AmbientConfig, AmbientRuntime, AttentionGate, Journal, PrivacyPolicy
     from src.senses.base import Modality, PeripheryRegistry, SensorEvent
@@ -252,7 +258,7 @@ def l9_never_mind():
           and "sea" in w["text"] and w["replies"] == ["Never mind"], str(w))
     rt.submit(rt.ev("never mind"))
     rt._lane_step()
-    check("it was heard at once", rt._cancelled and any("dropped it" in o for o in rt.out), str(rt.out))
+    check("it was heard at once", rt._cancelled and any(_dropped(o) for o in rt.out), str(rt.out))
     rt.ash_.go.set()
     th.join(10)
     check("the answer, when it arrived, was not said", "A long answer." not in rt.out, str(rt.out))
@@ -331,12 +337,12 @@ def l10_real_cancel():
     th, ok = busy(rt)
     rt.submit(rt.ev("never mind"))
     rt._lane_step()
-    n = len([o for o in rt.out if "dropped it" in o])
+    n = len([o for o in rt.out if _dropped(o)])
     rt.submit(rt.ev("never mind"))
     rt._lane_step()
     rt.submit(rt.ev("forget it"))
     rt._lane_step()
-    check("said three times, 'dropped it' is said once", n == 1 and len([o for o in rt.out if "dropped it" in o]) == 1, str(rt.out))
+    check("said three times, 'dropped it' is said once", n == 1 and len([o for o in rt.out if _dropped(o)]) == 1, str(rt.out))
     check("the button does the same without being said", rt.cancel_thinking() is True)
     rt.ash_.go.set()
     th.join(10)
@@ -344,14 +350,14 @@ def l10_real_cancel():
     check("the button with nothing to cancel does nothing", rt2.cancel_thinking() is False and not rt2.out)
     rt3 = rig()
     th3, ok3 = busy(rt3)
-    check("the button cancels at once", rt3.cancel_thinking() is True and rt3._cancelled and any("dropped it" in o for o in rt3.out), str(rt3.out))
+    check("the button cancels at once", rt3.cancel_thinking() is True and rt3._cancelled and any(_dropped(o) for o in rt3.out), str(rt3.out))
     rt3.ash_.go.set()
     th3.join(10)
     check("and its answer is not said", "A long answer." not in rt3.out)
     rt4 = rig()
     th4, ok4 = busy(rt4)
     check("the console's button drops it without saying anything aloud (in a lecture)",
-          rt4.cancel_thinking(speak=False) is True and rt4._cancelled and not any("dropped it" in o for o in rt4.out), str(rt4.out))
+          rt4.cancel_thinking(speak=False) is True and rt4._cancelled and not any(_dropped(o) for o in rt4.out), str(rt4.out))
     rt4.ash_.go.set()
     th4.join(10)
     check("...and its answer is not said either", "A long answer." not in rt4.out)
