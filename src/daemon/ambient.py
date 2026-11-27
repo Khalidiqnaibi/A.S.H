@@ -341,6 +341,8 @@ class AmbientConfig:
     fun: bool = False
     fun_path: Optional[str] = None
     jokes_path: Optional[str] = None      # which jokes were told (jokebook.py)
+    moments_path: Optional[str] = None    # when each free-moment activity last ran (the mood check: once a day, across restarts)
+    notices_path: Optional[str] = None    # runtime notices kept across restarts: when memory was last said, a restart that was asked for
     # Kids mode: grown-up things refused, the model told it's a child, a word filter, a time limit (kids.py).
     kids: bool = False
     kids_cfg: Optional[Dict[str, Any]] = None
@@ -609,7 +611,7 @@ class AmbientRuntime:
             self.moments = default_moments(
                 mc, wonderer=self.wonder, clock=lambda: self.clock(),
                 jokes=bool(mc.get("jokes", True)), mood_check=bool(mc.get("mood_check", True)),
-                sentiment=getattr(self.brain, "sentiment_fn", None), joke_book=self.jokebook)
+                sentiment=getattr(self.brain, "sentiment_fn", None), joke_book=self.jokebook, path=self.cfg.moments_path)
             self.moments.register(ProviderActivity(
                 "system_assessment", self._system_note, cooldown_s=6 * 3600.0, weight=0.9))
         # Follow-ups: events the user mentioned, asked about once they are over.
@@ -1586,7 +1588,48 @@ class AmbientRuntime:
         except Exception:
             logger.debug("about-you block not built", exc_info=True)
 
+    STARTUP_QUIET_S = 180.0
+
+    def _just_started(self) -> bool:
+        """The first three minutes after a start: nothing volunteered (answers, reminders and watches are not volunteered)."""
+        st = getattr(self, "started_at", None)
+        return bool(st) and 0.0 <= time.time() - st < AmbientRuntime.STARTUP_QUIET_S
+
+    def _notices(self, **set_) -> Dict[str, Any]:
+        """state/notices.json: read it, or set keys in it. Nothing kept when there is no path."""
+        p = getattr(self.cfg, "notices_path", None)
+        if not p:
+            return {}
+        from src.memory.atomic import load_json, write_json
+        try:
+            d = dict(load_json(p, {}) or {})
+        except Exception:
+            d = {}
+        if set_:
+            d.update(set_)
+            try:
+                write_json(p, d)
+            except Exception:
+                logger.debug("could not write %s", p, exc_info=True)
+        return d
+
+    def _back_from_restart(self) -> None:
+        """'Restarting. Back in a minute.' -- and when it is: 'I'm back.' (26 Nov the first thing after each restart was a mood question.)"""
+        d = self._notices()
+        at = d.get("restart_at")
+        if at is None:
+            return
+        self._notices(restart_at=None)
+        try:
+            if 0.0 <= time.time() - float(at) <= 600.0 and not self.gate.muted and not self.privacy.paused:
+                self._speech_say("I'm back.", "control")
+        except Exception:
+            logger.debug("could not say I'm back", exc_info=True)
+
     def _social_step(self, now: float, idle_s: Optional[float] = None):
+        if not getattr(self, "_restart_checked", False):
+            self._restart_checked = True
+            self._back_from_restart()
         self._timed_restore(now)
         self._refresh_about_you(now)
         self._model_notice()
@@ -3830,6 +3873,10 @@ class AmbientRuntime:
                 w.mem_percent = float(psutil.virtual_memory().percent)
         except Exception:
             pass
+        if self.governor is not None:
+            # One memory notice, not two: with the governor running, _memory_notice says it (20 minutes high, once per three hours, kept across
+            # restarts). 26 Nov "Memory is 95% full" came at 20:41 and again at 20:52 after a restart, beside the governor's own.
+            w.mem_percent = None
         if self.notes is not None:
             w.birthdays = birthdays_from(self.notes.items)
         return w
@@ -4902,6 +4949,11 @@ class AmbientRuntime:
             logger.exception("Attention gate failed; defaulting to observe")
             decision = None
 
+        if (decision is not None and decision.disposition == Disposition.RESPOND and (ev.meta or {}).get("offer")
+                and not getattr(ev, "addressed", False) and self._just_started() and float(getattr(ev, "urgency", 0.0) or 0.0) < 0.8):
+            # 26 Nov: 55 s after a restart "How are you holding up today?", 34 s after another "Still curious: ...", 90 s after a third "Memory is
+            # 93% full". The first minutes after a start belong to the person -- who restarted it to try something -- not to volunteering.
+            decision = None
         if (ev.meta or {}).get("offer") == "moment" and (
                 decision is None or decision.disposition != Disposition.RESPOND):
             self._moment_inflight = None         # not let through: nothing was said
@@ -5895,11 +5947,15 @@ class AmbientRuntime:
         if since is None:
             self._mem_high_since = now
             return
-        if now - since < AmbientRuntime.MEMORY_HIGH_FOR_S or now - getattr(self, "_mem_told_at", -1e18) < AmbientRuntime.MEMORY_NOTICE_EVERY_S:
+        told = getattr(self, "_mem_told_at", None)
+        if told is None:
+            told = self._mem_told_at = float(self._notices().get("memory_told_at") or -1e18)
+        if now - since < AmbientRuntime.MEMORY_HIGH_FOR_S or now - told < AmbientRuntime.MEMORY_NOTICE_EVERY_S:
             return
         if self.gate.muted or self.privacy.paused or self.gate._in_quiet_hours(now):
             return
         self._mem_told_at = now
+        self._notices(memory_told_at=now)
         top = ""
         try:
             from . import machine
@@ -6057,6 +6113,8 @@ class AmbientRuntime:
                     return self._control_say(ev, "I can't switch myself off from here -- use the console's stop, or "
                                                  "Ctrl-C where I'm running.")
                 self._control_say(ev, "Restarting. Back in a minute." if restart else "Shutting down. Bye.")
+                if restart:
+                    self._notices(restart_at=time.time())          # so the next start can say "I'm back."
                 with self._cancel_lock:                  # an answer still being worked out is not said after "Bye."
                     if self._thinking:
                         self._cancelled = True

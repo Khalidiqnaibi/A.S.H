@@ -108,19 +108,42 @@ class FreeMomentsConfig:
 class FreeMoments:
     def __init__(self, cfg: Optional[FreeMomentsConfig] = None,
                  clock: Callable[[], float] = time.time,
-                 sentiment: Optional[SentimentFn] = None):
+                 sentiment: Optional[SentimentFn] = None, path: Optional[str] = None):
         self.cfg = cfg or FreeMomentsConfig()
         self.clock = clock
         self.sentiment = sentiment         # the brain's sentiment model; None: moods are not read
         self.activities: Dict[str, Activity] = {}
         self._fits: List[FitFn] = []
-        self._last_by: Dict[str, float] = {}
+        # When each activity last ran, kept on disk: 26 Nov "How are you holding up today?" came at 14:45 and again 55 s after a restart at
+        # 20:43 -- the eight-hour cooldown lived only in memory.
+        self.path = path
+        self._last_by: Dict[str, float] = self._load_last()
         self._spoken: Deque[float] = deque(maxlen=32)
         self._awaiting: Optional[Tuple[str, float]] = None
         self._mood: Optional[Tuple[float, float]] = None    # (value, when)
         from .backoff import Backoff
         self.backoff = Backoff(clock=lambda: self.clock())  # activities waved off lately sit out
         self.stats = {"picked": 0, "spoken": 0, "replies": 0}
+
+    def _load_last(self) -> Dict[str, float]:
+        if not self.path:
+            return {}
+        try:
+            from src.memory.atomic import load_json
+            d = load_json(self.path, {}) or {}
+            return {str(k): float(v) for k, v in (d.get("last_by") or {}).items()}
+        except Exception:
+            logger.debug("could not read %s", self.path, exc_info=True)
+            return {}
+
+    def _save_last(self):
+        if not self.path:
+            return
+        try:
+            from src.memory.atomic import write_json
+            write_json(self.path, {"last_by": self._last_by})
+        except Exception:
+            logger.debug("could not write %s", self.path, exc_info=True)
 
     # -- setup ----------------------------------------------------------
     def register(self, act: Activity) -> Activity:
@@ -236,6 +259,7 @@ class FreeMoments:
     def mark_spoken(self, name: str, now: Optional[float] = None):
         now = self.clock() if now is None else now
         self._last_by[name] = now
+        self._save_last()
         self._spoken.append(now)
         self._awaiting = (name, now)
         self.stats["spoken"] += 1
@@ -480,6 +504,9 @@ class MoodCheck(Activity):
     def propose(self, env, now):
         if self.moments.mood(now) is not None:
             return None                 # already has a recent reading
+        last = self.moments._last_by.get(self.name)
+        if last is not None and time.strftime("%Y-%m-%d", time.localtime(last)) == time.strftime("%Y-%m-%d", time.localtime(now)):
+            return None                 # asked today already, answered or not ("...today?" is once a day)
         return Candidate(self.name, "How are you holding up today?", 0.4)
 
     _FEELING = re.compile(
@@ -508,8 +535,8 @@ class MoodCheck(Activity):
 def default_moments(cfg: Optional[Dict[str, Any]] = None, wonderer=None,
                     clock: Callable[[], float] = time.time,
                     jokes: bool = True, mood_check: bool = True,
-                    sentiment: Optional[SentimentFn] = None, joke_book=None) -> FreeMoments:
-    fm = FreeMoments(FreeMomentsConfig.from_dict(cfg), clock, sentiment=sentiment)
+                    sentiment: Optional[SentimentFn] = None, joke_book=None, path: Optional[str] = None) -> FreeMoments:
+    fm = FreeMoments(FreeMomentsConfig.from_dict(cfg), clock, sentiment=sentiment, path=path)
     if wonderer is not None:
         fm.register(GapClosure(wonderer))
     if jokes:
