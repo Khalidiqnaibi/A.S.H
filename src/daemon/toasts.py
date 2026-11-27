@@ -50,6 +50,9 @@ def app_name(primary_id: str) -> str:
     return tail[:20] if len(tail) >= 3 else ""
 
 
+_GENERIC = re.compile(r"^(?:you\s+(?:may\s+)?have\s+(?:\d+\s+)?new\b|new\s+(?:message|notification|email|mail)s?\b|\d+\s+new\b|notification\b|you\s+got\b)", re.I)
+
+
 def first_line(payload: Any) -> str:
     """The first <text> of a toast's XML: who or what it is from. Nothing after it."""
     if isinstance(payload, bytes):
@@ -59,6 +62,8 @@ def first_line(payload: Any) -> str:
         return ""
     t = html.unescape(re.sub(r"<[^>]+>", "", m.group(1))).strip()
     t = re.sub(r"\s+", " ", t)
+    if _GENERIC.match(t):
+        return ""                                   # "You may have new messages" is not a name: no sender is better than a wrong one
     return t[:40]
 
 

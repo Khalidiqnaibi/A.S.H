@@ -8214,7 +8214,7 @@ class AmbientRuntime:
             if quick:
                 try:
                     if getattr(self, "face", None) is not None and hasattr(self.face, "_play"):
-                        self.face._play("nod", force=True)
+                        self.face._play("acknowledge", force=True)               # (the face has no "nod" animation: its small yes is "acknowledge")
                 except Exception:
                     logger.debug("no nod", exc_info=True)
             self._speech_say("Okay." if quick else "Okay -- dropped it.", "cancel")
