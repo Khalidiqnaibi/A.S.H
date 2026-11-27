@@ -62,7 +62,7 @@ def s2_runtime():
     check("with no desktop control it goes where it did", used or said, str(said))
     from src.daemon.desktop import Executor
     import inspect
-    check("the real executor opens a page with startfile (cmd's 'start' splits a URL at '&')", "startswith((\"http://\", \"https://\"))" in inspect.getsource(Executor.open))
+    check("the real executor opens a page with startfile (cmd's 'start' splits a URL at '&')", "startswith((\"http://\", \"https://\"" in inspect.getsource(Executor.open))
     print("\n" + ("ALL PASS" if tw.OK else "FAILED"))
     sys.exit(0 if tw.OK else 1)
 

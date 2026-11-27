@@ -182,7 +182,7 @@ ROUTE = [
     ("I need a break", None), ("it's break time at school", None), ("I can't focus today", None),
     ("it's so quiet in here", None), ("I forgot my keys", None), ("I'll never forget that day", None),
     ("pirates of the caribbean was great", None), ("I'm browsing for shoes", None), ("this browser is slow", None),
-    ("can you help me", None), ("can you hear me", None), ("are you there", None), ("what are you doing", None),
+    ("can you help me", None), ("can you hear me", "summons"), ("are you there", "summons"), ("what are you doing", None),
     ("how long should I boil an egg", None), ("what's a timer in python", None), ("how do I open a pdf in word", None),
     ("I'm so stressed today", None), ("you are working really fast", None), ("close the deal tomorrow", None),
     ("turn left at the corner", None), ("play it cool", None), ("I'll tell you when I'm done", None),

@@ -22,7 +22,7 @@ _Z = r"(?:[,\s]+(?:ash|please|ok(?:ay)?))*\s*[?.!]*\s*$"
 LEVELS = {"quiet": (2, 1), "normal": (6, 3), "chatty": (9, 5)}            # (remarks an hour, offers an hour)
 JOKES = {"none": None, "fewer": 12 * 3600.0, "normal": 6 * 3600.0, "more": 3 * 3600.0}
 
-_CHAT = [("quiet", re.compile(_A + r"(?:be\s+)?(?:less\s+chatty|quieter|not\s+so\s+chatty)|(?:don'?t|stop)\s+(?:bring(?:ing)?\s+(?:things|stuff)\s+up|"
+_CHAT = [("quiet", re.compile(_A + r"(?:be\s+)?(?:less\s+chatty|not\s+so\s+chatty|quieter\s+(?:with\s+the\s+(?:remarks|chat)|in\s+general))|(?:don'?t|stop)\s+(?:bring(?:ing)?\s+(?:things|stuff)\s+up|"
                               r"chatting)\s+so\s+(?:much|often)|(?:make\s+)?fewer\s+remarks|volunteer\s+less|speak\s+up\s+less|chattiness\s+(?:to\s+)?(?:low|quiet)" + _Z, re.I)),
          ("chatty", re.compile(_A + r"(?:be\s+)?(?:more\s+chatty|chattier|more\s+talkative)|chat\s+(?:with\s+me\s+)?more|bring\s+(?:things|stuff)\s+up\s+more|"
                                r"chattiness\s+(?:to\s+)?(?:high|up)" + _Z, re.I)),
