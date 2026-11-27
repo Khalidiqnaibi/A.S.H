@@ -1140,6 +1140,11 @@ class AmbientRuntime:
             logger.debug("vocabulary from apps failed", exc_info=True)
         groups.append([c["name"] for c in self.timetable.classes[:4]] if self.timetable is not None else [])
         try:
+            bt = getattr(self, "_bt", None)
+            groups.append([re.sub(r"\s*\([0-9A-F]{4}\)$", "", n) for n in bt.names()][:3] if bt is not None else [])   # "K-Live" was the Galaxy Buds Live
+        except Exception:
+            logger.debug("vocabulary from Bluetooth failed", exc_info=True)
+        try:
             groups.append(list(self.misheard.words()))        # what they said they meant, when it was misheard
         except Exception:
             logger.debug("vocabulary from corrections failed", exc_info=True)
@@ -2041,6 +2046,60 @@ class AmbientRuntime:
                "tripped on.")
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "statement"})())
         return True
+
+    def _devices(self):
+        """The machine helpers (devicehelp.py), made on first use; a test puts fakes in their place."""
+        if getattr(self, "_bt", None) is None:
+            from . import devicehelp
+            self._bt = devicehelp.Bluetooth(clock=lambda: self.clock())
+            self._net = devicehelp.Network()
+            self._awake = devicehelp.Awake(clock=time.time)
+            self._volume = devicehelp.Volume()
+        return self._bt, self._net, self._awake, self._volume
+
+    def _devicehelp_request(self, ev, now: float) -> bool:
+        """Bluetooth, the internet, keeping the PC awake, the exact volume, a self-check -- by rule, from what the machine reports. Reading is for
+        the person's own lines; changing anything (the volume, sleep, opening settings) only for a line meant for ASH, never a guest's."""
+        if not self._user_source(ev):
+            return False
+        from . import devicehelp
+        text = str(getattr(ev, "text", "") or "").strip()
+        meta = getattr(ev, "meta", None) or {}
+        guest = bool(meta.get("guest"))
+        acts = self._meant_for_ash(ev) and not guest
+        bt, net, awake, vol = self._devices()
+
+        def say(line: str, outcome: str = "desktop") -> bool:
+            if line.startswith("open:"):
+                uri = line[5:]
+                d = self.desktop
+                ok = bool(d is not None and d.ex.open(uri))
+                line = ("Opening Bluetooth settings." if "bluetooth" in uri else "Opening the sound settings.") if ok else \
+                    "I couldn't open the settings from here."
+            self._wonder_say(ev, type("R", (), {"say": line, "outcome": outcome})())
+            return True
+
+        if acts and bt.pending is not None:
+            r = bt.reply(text, now)
+            if r is not None:
+                return say(r) if r else say("Okay.", "moment")
+        if devicehelp.is_diagnostic(text):
+            return say(devicehelp.diagnose(self), "answer")
+        p = bt.parse(text)
+        if p is not None:
+            kind, dev = p
+            if kind in ("settings", "sound") and not acts:
+                return False
+            return say(bt.answer(kind, dev, now))
+        if net.parse(text):
+            return say(net.check(), "answer")
+        a = awake.parse(text)
+        if a is not None and acts:
+            return say(awake.answer(a[0], a[1], time.time()))
+        v = vol.parse(text)
+        if v is not None and (acts or v[0] == "get"):
+            return say(vol.answer(v[0], v[1]))
+        return False
 
     def _summons_request(self, ev, now: float) -> bool:
         if not self._user_source(ev):
@@ -5090,6 +5149,8 @@ class AmbientRuntime:
         if self._voice_command(ev, now):
             return True
         if not loose and self._summons_request(ev, now):
+            return True
+        if self._devicehelp_request(ev, now):
             return True
 
         # "Find the contract I was editing last week" (and its "open it?"): before "open it" is read as the last thing named.
