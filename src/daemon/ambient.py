@@ -2354,6 +2354,102 @@ class AmbientRuntime:
                 return say(sk.plan_line(name, args))
         return False
 
+    # ---- selfcare.py: names, memory search, the plan, reflection, coaching -----------------------------------------------------------------------------
+    def _journal_days(self, n: int):
+        """[(day, rows)] for the last n days, newest first (the journal is flushed first)."""
+        out = []
+        try:
+            self.journal.flush()
+            for i in range(n):
+                d = time.strftime("%Y-%m-%d", time.localtime(time.time() - i * 86400))
+                out.append((d, self.journal.read_day(d)))
+        except Exception:
+            logger.debug("journal read failed", exc_info=True)
+        return out
+
+    def _selfcare_request(self, ev, now: float) -> bool:
+        if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
+            return False
+        text = str(getattr(ev, "text", "") or "").strip()
+        if not text or len(text) > 120 or not self._meant_for_ash(ev):
+            return False
+        from . import selfcare as sc
+
+        def say(line: str, outcome: str = "answer") -> bool:
+            self._wonder_say(ev, type("R", (), {"say": line, "outcome": outcome})())
+            return True
+        mg = sc.parse_merge(text)
+        if mg is not None:
+            user = str(getattr(self.ash, "user", "") or "")
+            known = {user.lower(), *[str(a).lower() for a in (getattr(self.ash, "user_aliases", None) or [])]}
+            if mg[0].lower() in known or mg[1].lower() in known:
+                old, new = mg[0], mg[1]
+                n, backup = sc.merge_names(getattr(self.ash, "entity_memory", None), old, new,
+                                           os.path.join(os.path.dirname(os.path.abspath(getattr(self.cfg, "life_dir", None) or ".")), "backups"), time.time())
+                try:
+                    if hasattr(self.ash, "user_aliases"):
+                        self.ash.user_aliases.add(old)
+                    from src.ui import settings as st
+                    st.change(self, getattr(self, "config_path", None), "identity.user_name", new)
+                except Exception:
+                    logger.debug("name change failed", exc_info=True)
+                return say(f"Done -- I call you {new} now, {old} is kept as an old name, and {n} entr{'y' if n == 1 else 'ies'} were renamed."
+                           + (f" A backup of my entities is at {os.path.basename(backup)}." if backup else ""), "desktop")
+        q = sc.parse_search(text)
+        if q:
+            return say(sc.memory_search(self, q))
+        if sc.asks_plan(text):
+            L = self._life()
+            events, reminders = [], []
+            try:
+                from datetime import datetime as _dt
+                if self.calendar is not None:
+                    d = _dt.fromtimestamp(time.time()).date()
+                    events = [(e.start.timestamp(), e.summary) for e in self.calendar.events_on(d) if not e.allday]
+            except Exception:
+                pass
+            try:
+                if self.reminders is not None:
+                    with self.reminders._lock:
+                        reminders = [x.text for x in self.reminders.items.values() if x.status == "set" and x.text and 0 <= x.due - time.time() <= 86400]
+            except Exception:
+                pass
+            targets = [g["text"] for g in L.goals.items if not g.get("done")]
+            y = None
+            try:
+                yd = time.strftime("%Y-%m-%d", time.localtime(time.time() - 86400))
+                with self.activity._lock:
+                    rows = sorted(((t.name, (t.by_day or {}).get(yd, 0.0)) for t in self.activity.topics.values() if t.kind == "project"), key=lambda r: -r[1])
+                y = rows[0] if rows and rows[0][1] > 0 else None
+            except Exception:
+                pass
+            return say(sc.plan(events, targets, reminders, y, time.time()))
+        if sc.asks_reflect(text):
+            from . import working
+            worked = working.top(self.activity, time.time(), 1, 2, min_s=600.0, kb=getattr(getattr(self, "wonder", None), "kb", None))
+            good = []
+            try:
+                gm = self.cheer.good_moments(time.time(), 2) if self.cheer is not None else []
+                good = [f"your {g['noun'] or g['what']} went well" for g in gm[:1]]
+            except Exception:
+                pass
+            slow = failures = 0
+            try:
+                day0 = time.mktime(time.strptime(time.strftime("%Y-%m-%d"), "%Y-%m-%d"))
+                slow = sum(1 for r in list(getattr(self.unrouted, "rows", []) or []) if float(r.get("took_s") or 0) >= 15 and float(r.get("t") or 0) >= day0)
+                from . import digest as dg
+                failures = len(dg.summary(self.cfg.repair_path, self.cfg.unrouted_path, time.time(), 24.0)["failures"])
+            except Exception:
+                pass
+            return say(sc.reflect(worked, good, None, slow, failures), "moment")
+        if sc.asks_coach(text):
+            from .social import friendly_app
+            return say(sc.coach([rows for _d, rows in self._journal_days(7)], friendly_app))
+        who = sc.parse_last(text)
+        if who:
+            return say(sc.last_mention(self._journal_days(7), who))
+        return False
+
     # ---- lifelog.py: what you saw, copied, planned and did ----------------------------------------------------------------------------------------
     def _life(self):
         L = getattr(self, "_lifelog", None)
@@ -6115,6 +6211,8 @@ class AmbientRuntime:
         if self._speed_request(ev, now):
             return True
         if self._life_request(ev, now):
+            return True
+        if self._selfcare_request(ev, now):
             return True
         if self._recall_request(ev, now):
             return True
