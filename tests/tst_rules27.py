@@ -19,7 +19,7 @@ check = tw.check
 
 def main():
     print("\n=== Y1. Patterns ===")
-    for t in ("what the latest update", "what's your latest update", "what's the latest update for", "what is the latest update on you"):
+    for t in ("what the latest update", "what's your latest update", "what's the latest update for you", "what is the latest update on you"):
         check(f"{t!r} is the update question", selfmodel.parse(t) == "whatsnew", str(selfmodel.parse(t)))
     for t in ("What happened, what while I was away?", "what happened while I was away"):
         check(f"{t!r} is the away digest", away.asks_digest(t))
