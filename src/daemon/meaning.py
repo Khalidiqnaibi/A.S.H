@@ -228,7 +228,7 @@ def classify(chooser, text: str) -> Optional[Route]:
     if not v.label or v.label == "none" or v.label not in BUILD:
         # Close between two features about the same thing: say so and let the caller ask which.
         ranked = sorted(((k, s) for k, s in v.scores.items() if k != "none"), key=lambda kv: -kv[1])
-        if len(ranked) >= 2 and ranked[0][1] >= chooser.accept and ranked[0][1] - v.scores.get("none", 0.0) >= 0.03:
+        if len(ranked) >= 2 and ranked[0][1] >= chooser.accept + 0.1 and ranked[0][1] - v.scores.get("none", 0.0) >= 0.03:
             a, b = ranked[0][0], ranked[1][0]
             if any(a in g and b in g for g in SIBLINGS) and ranked[0][1] - ranked[1][1] < chooser.margin and a in BUILD and b in BUILD:
                 pa, pb = BUILD[a](text), BUILD[b](text)
@@ -245,4 +245,6 @@ def classify(chooser, text: str) -> Optional[Route]:
         sure = False
     if v.label in EFFECT and v.score < chooser.accept + 0.08:
         sure = False
+    if not sure and v.score < chooser.accept + 0.1:
+        return None                                  # a weak match is not worth interrupting for: an ordinary line goes on as it always did
     return Route(v.label, phrase, v.score, v.margin, runner, BUILD[runner](text) if runner and runner in BUILD else None, sure)

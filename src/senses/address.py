@@ -325,6 +325,9 @@ def spoken_to_someone_else(raw: str) -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
+_NARRATION_RX = re.compile(r"^\W*(?:he|she|they|[a-z]+)\s+(?:is|was|are|were|has|had|will|would|said|says|just|got|went|comes?|coming|came)\b", re.I)
+
+
 def score(text: str, now: Optional[float] = None,
           convo: Optional[Conversation] = None) -> AddressVerdict:
     """Weigh the evidence that `text` was said to ASH."""
@@ -417,9 +420,11 @@ def score(text: str, now: Optional[float] = None,
     # A short line in an exchange that is still warm is the next part of it ("No, not like this.", "Try multiple of them.", "Click image.", "And that was
     # wrong." -- 28 Nov, twelve of these scored 0.07-0.28 and were never answered, the worst thing an assistant can do). It is only a floor at "probably":
     # nothing is stretched into a command, the loose-matching rules still decide, and the evidence against (someone else, first person only) is applied below.
+    _NARRATION = _NARRATION_RX
     continuing = (not answering and open_now >= 0.2 and len(raw.split()) <= 9 and not vocative
                   and not _OTHER_PEOPLE.search(raw) and not _OTHER_ADDRESSEE.search(raw)
-                  and not (_FIRST_PERSON_ONLY.match(raw) and not (second or question or command)))
+                  and not (_FIRST_PERSON_ONLY.match(raw) and not (second or question or command))
+                  and not (_NARRATION.match(raw) and not (second or question or command)))
     if continuing and conf < LIKELY_AT + 0.02:
         conf = LIKELY_AT + 0.02
         reasons.append("continuing the exchange")

@@ -4558,6 +4558,7 @@ class AmbientRuntime:
             # Kept as what was said: the model path wrote the turn to memory, and a rule that answers must not make it vanish.
             self.brain.memory.commit_turn(text, say, str(getattr(self.brain, "user", "") or "user"), str(getattr(self.brain, "name", "") or "ASH"),
                                           importance=0.45)
+            self._kept_turn = text.strip()
         except Exception:
             logger.debug("statement not written to memory", exc_info=True)
         self._wonder_say(ev, type("R", (), {"say": say, "outcome": "moment"})())
@@ -6605,6 +6606,31 @@ class AmbientRuntime:
     _REDO = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:ok(?:ay)?|so|and|please|now)[,\s]+)*(?:(?:do|try|run|say)\s+(?:that|it|the\s+same(?:\s+thing)?)\s+again|"
                        r"(?:one|once)\s+more(?:\s+time)?|same\s+(?:again|thing)|again(?:\s+please)?|do\s+it\s+once\s+more|(?:and\s+)?(?:another\s+)?one\s+more)(?:\s+please)?\s*[.!?]*\s*$", re.I)
 
+    _TRIVIAL = re.compile(r"^\W*(?:yes|yeah|yep|no|nope|ok(?:ay)?|k+|thanks?(?:\s+you)?|thank\s+you|sure|cancel|stop|never\s*mind|go\s+ahead|do\s+it|please)\W*$", re.I)
+
+    def _remember_handled(self, ev, rep) -> None:
+        """A request a RULE answered still went through ASH's mind: the user's line is kept in the brain's memory (as a model-answered one always was) so that 'what did I ask you
+        yesterday' and the concepts it touched are not missing the turns that never needed the model. Only the user's own line, only a real request (not 'yes' or 'ok'), once."""
+        try:
+            if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")) or self._capture is not None:
+                return
+            t = str(getattr(ev, "text", "") or "").strip()
+            if len(t.split()) < 3 or len(t) > 400 or self._TRIVIAL.match(t) or str(getattr(rep, "outcome", "")) in ("followup", "play"):
+                return
+            if getattr(self, "_kept_turn", None) == t:
+                return
+            self._kept_turn = t
+            from . import hygiene
+            if not hygiene.keep_episode(t):
+                return
+            mem = getattr(getattr(self, "brain", None), "memory", None)
+            if mem is None:
+                return
+            mem.commit_turn(t, str(getattr(rep, "say", "") or ""), str(getattr(self.brain, "user", "") or "user"), str(getattr(self.brain, "name", "") or "ASH"), importance=0.35)
+            self.stats["rule_turns_kept"] = self.stats.get("rule_turns_kept", 0) + 1
+        except Exception:
+            logger.debug("handled turn not kept", exc_info=True)
+
     def _wonder_say(self, ev, rep):
         if self._capture is not None:            # a step of a task: said once, all together
             self._capture.append(str(getattr(rep, "say", "") or ""))
@@ -6622,6 +6648,7 @@ class AmbientRuntime:
             self._last_why = {"kind": "correction"}
         else:
             self._last_why = {"kind": "answered"}
+        self._remember_handled(ev, rep)
         meta = {"addressed": True, "source": "wonder", "attention": None, "pathway": "wonder", "outcome": outcome}
         self.unrouted.answered_elsewhere()                 # a rule, a tool or memory answered: counts toward the share the model did not
         if outcome == "play" and self.cfg.game_voice:
@@ -6903,8 +6930,6 @@ class AmbientRuntime:
             return True
         if self._learn_request(ev, now):
             return True
-        if self._selfknow_request(ev, now):
-            return True
         if self._teach_request(ev, now):
             return True
 
@@ -6917,6 +6942,8 @@ class AmbientRuntime:
         # The camera, when it is on: before "who was that?" below (a present "who is this?" is the camera's), and
         # before the memory's own "forget X" / "remember X" ("forget Omar's face" is the camera's).
         if self._look_request(ev, now):
+            return True
+        if self._selfknow_request(ev, now):
             return True
         if self._about_my_code_request(ev, now):
             return True
