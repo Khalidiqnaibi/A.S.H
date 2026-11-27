@@ -2195,6 +2195,126 @@ class AmbientRuntime:
         self.submit(SensorEvent(source="flow", modality=Modality.TEXT, text=say, salience=0.6, urgency=0.3, ts=now, persistable=False,
                                 meta={"offer": "situation", "offer_strength": 0.8, "say": say, "topic": "download", "situation": "download"}))
 
+    def _pocket_request(self, ev, now: float) -> bool:
+        """BMO's side (pocket.py): coin, dice, a number, rock-paper-scissors, the 8 ball; what to play; ASH's own day; a hype that is only facts;
+        a quiz from the person's notes; the music that fits. All by rule."""
+        if not self._user_source(ev):
+            return False
+        from . import pocket
+        text = str(getattr(ev, "text", "") or "").strip()
+        guest = bool((getattr(ev, "meta", None) or {}).get("guest"))
+
+        def say(line: str, outcome: str = "play") -> bool:
+            self._wonder_say(ev, type("R", (), {"say": line, "outcome": outcome})())
+            return True
+
+        q = getattr(self, "_quiz", None)
+        if q is not None:
+            if q.done or now - getattr(self, "_quiz_at", now) > 600.0:
+                self._quiz = None
+            elif not text.endswith("?") or len(text.split()) <= 6:
+                self._quiz_at = now
+                line = q.hear(text)
+                if q.done:
+                    self._quiz = None
+                return say(line)
+        pk = getattr(self, "_pocket", None)
+        if pk is None:
+            pk = self._pocket = pocket.Pocket(clock=lambda: self.clock())
+        got = pk.hear(text)
+        if got:
+            return say(got)
+        if pocket._WHAT_PLAY.match(text):
+            games = [i["name"] for i in (getattr(self.inventory, "items", None) or []) if i.get("kind") == "game"] if self.inventory is not None else []
+            last: Dict[str, float] = {}
+            try:
+                from .activity import norm
+                with self.activity._lock:
+                    topics = list(self.activity.topics.values())
+                for g in games:
+                    gn = norm(g)
+                    seen = [t.last for t in topics if gn and (gn in norm(t.name) or norm(t.name) in gn) and len(norm(t.name)) >= 3]
+                    if seen:
+                        last[g] = max(seen)
+            except Exception:
+                pass
+            return say(pocket.what_to_play(games, last, time.time()), "answer")
+        if pocket._MY_DAY.match(text):
+            mem = getattr(self.governor, "mem", None) if self.governor is not None else None
+            n = 0
+            try:
+                n = len(self.wonder.pending()) if self.wonder is not None else 0
+            except Exception:
+                pass
+            return say(pocket.my_day(self.stats, n, getattr(self, "_last_sleep", None), bool(mem is not None and mem >= 90)), "answer")
+        if pocket._HYPE.match(text) and not guest:
+            from . import working
+            week = working.top(self.activity, time.time(), 7, 1, min_s=600.0)
+            streak = None
+            try:
+                from datetime import date, timedelta
+                with self.activity._lock:
+                    projects = [t for t in self.activity.topics.values() if t.kind == "project"]
+                best = (None, 0)
+                for t in projects:
+                    days = {k for k, v in (t.by_day or {}).items() if v >= 900}
+                    k, d = 0, date.today()
+                    while d.isoformat() in days:
+                        k, d = k + 1, d - timedelta(days=1)
+                    if k > best[1]:
+                        best = (t.name, k)
+                streak = best if best[0] else None
+            except Exception:
+                pass
+            good = None
+            try:
+                gm = self.cheer.good_moments(time.time(), 60) if self.cheer is not None else []
+                good = f"your {gm[0]['noun'] or gm[0]['what']} went well" if gm else None
+            except Exception:
+                pass
+            return say(pocket.hype(week, streak, good), "moment")
+        subj = pocket.quiz_subject(text)
+        if subj and not guest:
+            texts: List[str] = []
+            try:
+                if self.samsung is not None and self.samsung.db.available:
+                    for n in self.samsung.db.search(subj, 6):
+                        texts.append(self.samsung.db.text_of(n["uuid"]))
+            except Exception:
+                logger.debug("quiz: Samsung Notes failed", exc_info=True)
+            try:
+                from .activity import norm
+                texts += [n.said for n in (getattr(self.notes, "items", None) or []) if norm(subj) in norm(n.said)]
+                if self.wonder is not None:
+                    texts += [f"{t.get('term')} is {t.get('definition')}" for t in self.wonder.kb.terms.values()
+                              if norm(subj) in norm(str(t.get("term")) + " " + str(t.get("definition")))]
+            except Exception:
+                pass
+            cards = pocket.cards_from(texts)
+            if len(cards) < 2:
+                return say(f"I couldn't find enough in your notes on {subj} to quiz you -- I need lines like \u201cX is Y\u201d.", "answer")
+            self._quiz, self._quiz_at = pocket.Quiz(cards, subj), now
+            return say(f"{len(cards)} questions from your notes on {subj}. \u201cHint\u201d, \u201cI give up\u201d or \u201cstop\u201d any time. "
+                       + self._quiz.ask())
+        occ = pocket.music_ask(text)
+        if occ is not None and self._meant_for_ash(ev) and not guest:
+            from .taste import occasion_of
+            from .websearch import url_for
+            items = {}
+            try:
+                if self.taste is not None:
+                    items = dict((self.taste.kb.tastes.get(self.taste.user_key) or {}).get("items") or {})
+            except Exception:
+                items = {}
+            item = pocket.pick_music(items, occ, occasion_of)
+            if not item:
+                return say((f"I don't know what you play while {occ} yet -- play something while you're at it and I'll learn, or tell me "
+                            f"(\u201cI listen to lo-fi while {occ}\u201d).") if occ else
+                           "I don't know what you like yet -- tell me (\u201cI love Radiohead\u201d) or play something and I'll learn.", "answer")
+            ok = self.desktop is not None and self.desktop.ex.open(url_for("youtube", item))
+            return say(f"Putting on {item}." if ok else f"I'd put on {item}, but I couldn't open YouTube.", "desktop")
+        return False
+
     def _recall_request(self, ev, now: float) -> bool:
         """Notifications asked about, "pull up everything on X", "find that page about X from yesterday", limits -- and the yes to a download
         offer or to bringing a page back (recall.py, toasts.py)."""
@@ -2955,9 +3075,15 @@ class AmbientRuntime:
             return True
         words = text.split()
         mic = str(getattr(ev, "source", "") or "").lower() == "microphone"
-        if (mic and len(words) == 1 and re.fullmatch(r"[A-Za-z][A-Za-z'\-]{2,}[.!]?", text)
+        conf = (getattr(ev, "meta", None) or {}).get("asr_conf")
+        try:
+            doubtful = conf is not None and float(conf) < -0.35
+        except (TypeError, ValueError):
+            doubtful = False
+        if (mic and doubtful and len(words) == 1 and re.fullmatch(r"[A-Za-z][A-Za-z'\-]{2,}[.!]?", text)
                 and re.sub(r"[.!]+$", "", text).lower() not in AmbientRuntime._ONE_WORD_OK):
-            # One word heard and taken by nothing ("Luxibrize." went to the model, 26 Nov): asked again once; said again, it goes on.
+            # One word heard, the recogniser unsure of it, and taken by nothing ("Luxibrize." went to the model, 26 Nov): asked again once; said
+            # again, it goes on. A real word said alone with a sure hearing ("Later.") goes on as before.
             if getattr(self, "_told_dangling", None) == text.lower():
                 return False
             self._told_dangling = text.lower()
@@ -5312,6 +5438,8 @@ class AmbientRuntime:
             return True
         if self._recall_request(ev, now):
             return True
+        if self._pocket_request(ev, now):
+            return True
 
         # "Find the contract I was editing last week" (and its "open it?"): before "open it" is read as the last thing named.
         if self._samsung_request(ev, now):          # before the file search: 'search for projects in Samsung Notes' is not a file search
@@ -6951,6 +7079,11 @@ class AmbientRuntime:
         except Exception:
             logger.exception("Privacy sweep failed")
         logger.info("Sleep phase complete: %s", report)
+        try:
+            rep = (report.get("brain") or {}).get("replay") or {}
+            self._last_sleep = {"at": time.time(), "trained": int(rep.get("trained") or 0)}       # "what did you do while I was away?"
+        except Exception:
+            pass
         return report
 
     # ------------------------------------------------------------------

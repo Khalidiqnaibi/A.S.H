@@ -71,12 +71,29 @@ def main():
     used, said = rt.say("What are the biomarkers that tend to...", source="microphone")
     check("said the same way again: it goes on", used, f"{used} {said}")
 
-    print("\n=== C4. One word, taken by nothing ===")
-    rt = tm.rig()
-    used, said = rt.say("Luxibrize.", source="microphone")
-    check("'Luxibrize.' -> 'Sorry?', no model", not used and said == ["Sorry?"], f"{used} {said}")
-    used, said = rt.say("Luxibrize.", source="microphone")
+    print("\n=== C4. One word, the recogniser unsure of it, taken by nothing ===")
+    from src.senses.base import Modality, SensorEvent
+
+    def heard(rt, text, conf):
+        n, before = len(rt.calls), len(rt._outs)
+        rt.submit(SensorEvent(source="microphone", modality=Modality.TEXT, text=text, addressed=True, salience=0.9, urgency=0.6, meta={"asr_conf": conf}))
+        rt._tick()
+        return len(rt.calls) > n, rt._outs[before:]
+
+    def mrig():
+        rt = tm.rig()
+        rt._outs = []
+        sink = rt.response_sink
+        rt.response_sink = lambda t, m: (rt._outs.append(t), sink(t, m))
+        return rt
+    rt = mrig()
+    used, said = heard(rt, "Luxibrize.", -0.8)
+    check("'Luxibrize.' heard unsure -> 'Sorry?', no model", not used and said == ["Sorry?"], f"{used} {said}")
+    used, said = heard(rt, "Luxibrize.", -0.8)
     check("...said again, it goes on", used, f"{used} {said}")
+    rt = mrig()
+    used, said = heard(rt, "Later.", -0.1)
+    check("a real word heard surely goes on as before", "Sorry?" not in said, f"{used} {said}")
     rt = tm.rig()
     used, said = rt.say("Wink.", source="microphone")
     check("a one-word command still works", said and said[-1] != "Sorry?", f"{used} {said}")
