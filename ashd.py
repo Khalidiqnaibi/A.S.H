@@ -266,6 +266,17 @@ def main() -> int:
         if os.environ.get("ASH_PRELOAD_MODEL", "1").strip().lower() not in ("0", "false", "no", "off"):
             def _warm(llm=getattr(ash, "llm", None)):
                 t1 = time.time()
+                if (llm is not None and getattr(llm, "_mode", "") == "ollama"
+                        and (cfg.get("llm") or {}).get("autostart", True) is not False):
+                    try:
+                        from tools.LLM import ensure_ollama
+                        how = ensure_ollama(str(getattr(llm, "_ollama_url", "") or "http://127.0.0.1:11434"))
+                        if how == "started":
+                            logger.warning("Ollama was not running -- started it (ollama serve, low priority, no window).")
+                        elif how in ("absent", "failed"):
+                            logger.info("Ollama: %s", "not installed here" if how == "absent" else "could not be started")
+                    except Exception:
+                        logger.exception("Could not check or start Ollama")
                 try:
                     ok = bool(llm is not None and hasattr(llm, "warm") and llm.warm())
                 except Exception:

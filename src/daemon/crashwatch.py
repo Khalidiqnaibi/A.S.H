@@ -46,7 +46,43 @@ CODES = {
     0x124: "a hardware error (WHEA_UNCORRECTABLE_ERROR)",
     0x116: "the graphics driver stopped responding",
     0x133: "a driver taking too long (DPC_WATCHDOG_VIOLATION)",
+    # 26 Nov the briefing said "stop code 0x10E" and nothing more: the graphics driver's memory manager.
+    0x10E: "the graphics driver's video memory manager failing (VIDEO_MEMORY_MANAGEMENT_INTERNAL)",
+    0x119: "the graphics scheduler failing (VIDEO_SCHEDULER_INTERNAL_ERROR)",
+    0x113: "the graphics kernel failing (VIDEO_DXGKRNL_FATAL_ERROR)",
+    0x117: "the graphics driver timing out (VIDEO_TDR_TIMEOUT_DETECTED)",
+    0xD1: "a driver touching memory it shouldn't (DRIVER_IRQL_NOT_LESS_OR_EQUAL)",
+    0x9F: "a driver failing to sleep or wake (DRIVER_POWER_STATE_FAILURE)",
+    0xA0: "a power-management error (INTERNAL_POWER_ERROR)",
+    0x14F: "a power-management watchdog (PDC_WATCHDOG_TIMEOUT)",
+    0xEF: "a vital Windows process dying (CRITICAL_PROCESS_DIED)",
+    0x139: "a kernel safety check failing (KERNEL_SECURITY_CHECK_FAILURE)",
+    0x1E: "an unhandled kernel exception (KMODE_EXCEPTION_NOT_HANDLED)",
+    0x13A: "kernel heap corruption (KERNEL_MODE_HEAP_CORRUPTION)",
+    0xC2: "a bad memory request from a driver (BAD_POOL_CALLER)",
+    0x19: "corrupted kernel memory (BAD_POOL_HEADER)",
+    0x101: "a processor core that stopped responding (CLOCK_WATCHDOG_TIMEOUT)",
+    0x9C: "a machine-check hardware error (MACHINE_CHECK_EXCEPTION)",
+    0x154: "a storage error (UNEXPECTED_STORE_EXCEPTION)",
+    0x7A: "the disk failing to read memory back (KERNEL_DATA_INPAGE_ERROR)",
+    0x24: "the NTFS file system (NTFS_FILE_SYSTEM)",
 }
+# What each code points at, and what is worth doing when it keeps happening.
+_GROUP = {0x10E: "graphics", 0x119: "graphics", 0x113: "graphics", 0x117: "graphics", 0x116: "graphics",
+          0xA: "driver", 0xD1: "driver", 0x133: "driver", 0x139: "driver", 0x1E: "driver", 0x13A: "driver", 0xC2: "driver", 0x7E: "driver", 0x3B: "driver",
+          0x12B: "memory", 0x1A: "memory", 0x50: "memory", 0x19: "memory",
+          0x124: "hardware", 0x101: "hardware", 0x9C: "hardware",
+          0x9F: "power", 0xA0: "power", 0x14F: "power",
+          0x154: "storage", 0x7A: "storage", 0x24: "storage", 0xEF: "system"}
+_GROUP_SAID = {"graphics": "the graphics driver", "driver": "a driver", "memory": "memory errors", "hardware": "hardware errors",
+               "power": "sleep and power", "storage": "the disk", "system": "Windows itself"}
+_ADVICE = {"graphics": "worth updating -- or rolling back -- the graphics driver, since that is what keeps failing.",
+           "driver": "worth updating the drivers, the chipset, Wi-Fi and graphics ones first.",
+           "memory": "worth testing the memory (run mdsched.exe).",
+           "hardware": "worth checking the temperatures and undoing any overclock -- these come from the processor, memory or power.",
+           "power": "worth updating the chipset and graphics drivers and turning off fast startup.",
+           "storage": "worth checking the disk (chkdsk) and its health.",
+           "system": "worth running sfc /scannow."}
 _ASK = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:did|has)\s+(?:my\s+|the\s+)?(?:computer|laptop|pc|machine|system|it)\s+"
                   r"(?:crash(?:ed)?|(?:blue[\s-]?screen|bsod)(?:ed)?|restart(?:ed)?\s+(?:by\s+itself|on\s+its\s+own)|"
                   r"shut\s+down\s+(?:by\s+itself|unexpectedly))(?:\s+(?:lately|recently|again|today|last\s+night|"
@@ -312,9 +348,27 @@ class CrashWatch:
         s += "."
         if n_month >= 2:
             s += f" That's {n_month} times in the last 30 days"
-            s += ", which is a pattern: worth testing the memory (run mdsched.exe) and updating the drivers." \
-                if n_month >= 3 else "."
+            if n_month >= 3:
+                group, k = self._main_cause(now)
+                if group:
+                    s += f"; {k} of them {'were' if k != 1 else 'was'} {_GROUP_SAID[group]}, which is a pattern: {_ADVICE[group]}"
+                else:
+                    s += ", which is a pattern: worth testing the memory (run mdsched.exe) and updating the drivers."
+            else:
+                s += "."
         return s
+
+    def _main_cause(self, now: float):
+        """(group, how many) when two or more of the month's shutdowns point at the same thing, else ('', 0)."""
+        counts: Dict[str, int] = {}
+        for e in self._recent(now):
+            g = _GROUP.get(int(e.get("code") or 0))
+            if g:
+                counts[g] = counts.get(g, 0) + 1
+        if not counts:
+            return "", 0
+        g, k = max(counts.items(), key=lambda kv: kv[1])
+        return (g, k) if k >= 2 else ("", 0)
 
     def unreported(self, now: float) -> List[Dict[str, int]]:
         with self._lock:

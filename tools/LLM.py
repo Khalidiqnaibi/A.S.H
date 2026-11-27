@@ -39,6 +39,55 @@ _REASONING = re.compile(
 # steps, so `cancel_inflight()` frees the caller at once (the server may finish its answer; nobody is listening). Until
 # `resume()` every further call fails fast, so a brain that makes several calls for one question stops asking.
 
+def ensure_ollama(url: str = "http://127.0.0.1:11434", wait_s: float = 15.0, which=None, probe=None, spawn=None, sleep=None) -> str:
+    """Start Ollama when it is installed here and not answering: 26 Nov ASH came up with it off ("did not answer ... Is Ollama running?") and
+    every model question failed until the person noticed. Only for a server on this machine, never twice at once, at low priority with no
+    window. -> "running" | "started" | "absent" (not installed) | "remote" | "failed"."""
+    import shutil
+    import subprocess
+    import time as _time
+    import urllib.parse
+    import urllib.request
+    host = (urllib.parse.urlparse(url).hostname or "").lower()
+    if host not in ("127.0.0.1", "localhost", "::1"):
+        return "remote"
+    base = f"{urllib.parse.urlparse(url).scheme or 'http'}://{urllib.parse.urlparse(url).netloc}"
+
+    def _probe() -> bool:
+        try:
+            with urllib.request.urlopen(base + "/api/tags", timeout=2) as r:      # noqa: S310 -- this machine only
+                return r.status == 200
+        except Exception:
+            return False
+    probe = probe or _probe
+    sleep = sleep or _time.sleep
+    if probe():
+        return "running"
+    exe = (which or shutil.which)("ollama")
+    if not exe:
+        guess = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Ollama", "ollama.exe")
+        exe = guess if os.path.isfile(guess) else None
+    if not exe:
+        return "absent"
+
+    def _spawn(cmd):
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0)
+        subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags,
+                         close_fds=True)
+    try:
+        (spawn or _spawn)([exe, "serve"])
+    except Exception:
+        return "failed"
+    waited = 0.0
+    while waited < wait_s:
+        sleep(0.5)
+        waited += 0.5
+        if probe():
+            os.environ["ASH_OLLAMA_STARTED"] = str(_time.time())
+            return "started"
+    return "failed"
+
+
 def context_for(messages: List[dict], max_tokens: int) -> int:
     """The context window to ask Ollama for: what this call needs (the prompt, about 3 characters a token, and the answer), not a fixed 4096. A smaller
     window is less memory and a quicker start for a 3B model; it stays one size for most calls because a change of size makes Ollama reload the model.
