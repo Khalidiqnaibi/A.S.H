@@ -213,7 +213,7 @@ class BrowserTabSensor(Sensor):
                 title = ""
         cat, src = self.cls.classify(host, title)
         return {"id": tab.get("id"), "host": host, "site": site_of(host), "title": title, "category": cat,
-                "source": src, "active": bool(tab.get("active")), "audible": bool(tab.get("audible"))}
+                "source": src, "active": bool(tab.get("active")), "audible": bool(tab.get("audible")), "url": url[:400]}
 
     # -- the loop ------------------------------------------------------------------------
     def read(self) -> List[SensorEvent]:

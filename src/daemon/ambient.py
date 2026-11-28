@@ -3474,7 +3474,11 @@ class AmbientRuntime:
                 return bool(ex is not None and ex.open("https://www.google.com/search?q=" + quote_plus(q)))
 
             def read_page(self):
-                return ""                                  # no page reader on this machine: the stage says so, by name
+                bt = me.periphery.sensors.get("browser_tabs") if getattr(me, "periphery", None) is not None else None
+                try:
+                    return pipeline.front_page_text(bt.current() if bt is not None else None, getattr(me, "_page_fetch", pipeline.fetch_page))
+                except Exception:
+                    return ""
 
             def memory(self, q):
                 nt = me.notes

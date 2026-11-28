@@ -321,3 +321,37 @@ def asks_status(t: str) -> bool:
 
 def asks_stop(t: str) -> bool:
     return bool(_STOP_THAT.match((t or "").strip()))
+
+
+# ---------------------------------------------------------------------------------------------------------------------------- the page in front
+def html_to_text(html: str, limit: int = 20000) -> str:
+    """The readable text of a page: scripts, styles and tags gone, entities mended, white space squeezed."""
+    import html as _h
+    t = re.sub(r"(?is)<(script|style|noscript|svg|head)\b.*?</\1>", " ", html or "")
+    t = re.sub(r"(?is)<!--.*?-->", " ", t)
+    t = re.sub(r"(?i)</?(?:p|div|br|li|h[1-6]|tr|section|article)\b[^>]*>", "\n", t)
+    t = _h.unescape(re.sub(r"<[^>]+>", " ", t))
+    t = re.sub(r"[ \t\r\f\v]+", " ", t)
+    t = re.sub(r"\n\s*\n+", "\n", t).strip()
+    return t[:limit]
+
+
+def fetch_page(url: str, timeout: float = 6.0) -> str:
+    """The page at `url` as text; raises with no connection (the stage then says it couldn't read it)."""
+    import urllib.request
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        raw = r.read(1_500_000)
+        enc = r.headers.get_content_charset() or "utf-8"
+    return html_to_text(raw.decode(enc, "ignore"))
+
+
+def front_page_text(current: Optional[Dict[str, Any]], fetch: Callable[[str], str] = fetch_page) -> str:
+    """The text of the tab in front (the browser-tabs sensor's current tab), "" when there is none or it can't be fetched."""
+    url = (current or {}).get("url") or ""
+    if not url:
+        return ""
+    try:
+        return fetch(url) or ""
+    except Exception:
+        return ""
