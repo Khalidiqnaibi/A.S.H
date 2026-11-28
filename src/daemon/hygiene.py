@@ -265,3 +265,34 @@ def clean_live(episodic, entity) -> Dict[str, Any]:
 def say_cleaned(o: Dict[str, Any]) -> str:
     bits = [f"{o['dropped_episodes']} junk episodes dropped", f"{o['dropped_entities']} label-only entities removed", f"{o['retyped']} tools retyped", f"{o['renamed']} names fixed"]
     return "Done: " + ", ".join(bits) + ". A backup of both files is next to them."
+
+
+# ---------------------------------------------------------------------------------------------------------------------------- the way back
+_UNDO = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:can|could)\s+you\s+)?(?:please\s+)?(?:undo|revert|roll\s*back|reverse|restore)\s+(?:the\s+|that\s+|my\s+|your\s+)?(?:memory\b\s*)?(?:clean[\s-]*up|cleanup|clean(?:ing)?|tidy(?:ing)?)?(?:\s+of\s+(?:my|your)\s+memory)?(?:\s+(?:my|your)\s+memory)?\W*$", re.I)
+
+
+def asks_undo(text: str) -> bool:
+    t = (text or "").strip()
+    return bool(_UNDO.match(t)) and bool(re.search(r"memory|clean|tidy", t, re.I))
+
+
+def restore_live(episodic, entity, backups: List[str]) -> Dict[str, int]:
+    """Put the backed-up files back where they were and load them again into the stores the daemon holds. Returns the counts it ends with."""
+    for b in backups or []:
+        orig = re.sub(r"\.bak-[\w-]+$", "", b)
+        if os.path.exists(b) and orig != b:
+            shutil.copy2(b, orig)
+    n_eps = n_ents = 0
+    if entity is not None:
+        entity.store._load()
+        n_ents = len(entity.store.entities)
+    if episodic is not None:
+        with episodic.store.lock:
+            episodic.store.episodes = {}
+            episodic.store._load()
+            n_eps = len(episodic.store.episodes)
+            try:
+                episodic.index.rebuild(episodic.store.all())
+            except Exception:
+                pass
+    return {"episodes": n_eps, "entities": n_ents}

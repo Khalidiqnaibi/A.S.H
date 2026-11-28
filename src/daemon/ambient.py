@@ -3453,10 +3453,23 @@ class AmbientRuntime:
             if now - pend > 120.0 or yesno.is_no(text):
                 return say("Okay, leaving my memory as it is.")
             try:
-                return say(hygiene.say_cleaned(hygiene.clean_live(epi, ent)))
+                done = hygiene.clean_live(epi, ent)
+                self._last_clean_backups = list(done.get("backups") or [])
+                return say(hygiene.say_cleaned(done) + " Say “undo the cleanup” to put it back.")
             except Exception:
                 logger.exception("memory clean failed")
                 return say("I couldn't clean it -- the backup is next to the files.")
+        if self._meant_for_ash(ev) and hygiene.asks_undo(text):
+            bk = getattr(self, "_last_clean_backups", None)
+            if not bk:
+                return say("I haven't cleaned my memory in this run, so there's nothing of mine to undo.")
+            try:
+                r = hygiene.restore_live(epi, ent, bk)
+            except Exception:
+                logger.exception("memory restore failed")
+                return say("I couldn't put it back -- the backup files are next to the memory files.")
+            self._last_clean_backups = None
+            return say(f"Put back: {r['episodes']} episodes and {r['entities']} people and things, as they were before the cleanup.")
         k = hygiene.asks(text) if self._meant_for_ash(ev) else None
         if k is None:
             return False

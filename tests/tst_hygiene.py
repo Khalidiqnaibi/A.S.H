@@ -83,6 +83,12 @@ def main():
         def _save_all(self):
             self.saved += 1
 
+        def _load(self):
+            for line in open(self.path, encoding="utf-8"):
+                if line.strip():
+                    d = json.loads(line)
+                    self.episodes[d["episode_id"]] = type("E", (), dict(d))()
+
     class Index:
         def rebuild(self, eps):
             pass
@@ -100,6 +106,9 @@ def main():
 
         def _save(self):
             self.saved += 1
+
+        def _load(self):
+            self.entities = {k: Ent(k, v["primary_identifiers"]["name"], v["entity_type"]) for k, v in json.load(open(self.path, encoding="utf-8")).items()}
     tmp = tempfile.mkdtemp()
     ep, en, eps, ents = make(tmp)
     epi = Epi()
@@ -120,8 +129,17 @@ def main():
     used, said = rt.say("yes")
     check("on a yes it cleans, with a backup", not used and said and said[-1].startswith("Done: 3 junk episodes") and len(epi.store.episodes) == 2 and "e3" not in entm.store.entities
           and entm.store.entities["e2"].entity_type == "tool" and len([f for f in os.listdir(tmp) if ".bak-" in f]) == 2, f"{used} {said}")
+    check("and says how to undo it", "undo the cleanup" in said[-1], str(said))
+    used, said = rt.say("undo the cleanup")
+    check("'undo the cleanup' puts it back from the backup", not used and said and said[-1].startswith("Put back: 5 episodes") and len(epi.store.episodes) == 5 and "e3" in entm.store.entities
+          and entm.store.entities["e2"].entity_type == "person", f"{used} {said}")
+    used, said = rt.say("undo the cleanup")
+    check("a second undo has nothing to do", not used and said and "nothing of mine to undo" in said[-1], f"{used} {said}")
+    check("only memory-cleanup wording is undone", hy.asks_undo("undo the memory cleanup") and hy.asks_undo("restore my memory") and not hy.asks_undo("undo that") and not hy.asks_undo("undo"))
     rt = tm.rig()
     rt.ash.episodic_memory, rt.ash.entity_memory = epi, entm
+    rt.say("clean up my memory")
+    rt.say("yes")
     used, said = rt.say("clean up my memory")
     check("when it is clean it says so", not used and said and "looks clean" in said[-1], f"{used} {said}")
     print("\n" + ("ALL PASS" if tw.OK else "FAILED"))
