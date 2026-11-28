@@ -107,6 +107,9 @@ def d2_switch():
     check("not running: says so, opens nothing", d.hear("switch to outlook").startswith("outlook isn't open")
           and d.ex_.opened == [])
     check("an unknown name is left to the brain", d.hear("switch to the other tab") is None)
+    d.hear("switch to word")
+    d.hear("switch to word")
+    check("the apps asked for most are known, most first (the recogniser leans towards them)", d.top_apps(2)[0] == "word" and "chrome" in d.top_apps(3), str(d.top_apps(3)))
 
 
 def d3_close():

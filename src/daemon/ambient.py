@@ -1158,7 +1158,10 @@ class AmbientRuntime:
             logger.debug("vocabulary from entities failed", exc_info=True)
         groups.append(ents)
         try:
-            groups.append([n.title() for n in list(self.desktop.apps)[:60] if len(n) > 3][:5] if self.desktop is not None else [])
+            # the apps you actually ask for come first ("Discord" was heard as "Indiscone", "Opera" as "Obra"); then the first of the list
+            top = [n.title() for n in self.desktop.top_apps(4)] if self.desktop is not None else []
+            rest = [n.title() for n in list(self.desktop.apps)[:60] if len(n) > 3 and n.title() not in top] if self.desktop is not None else []
+            groups.append((top + rest)[:5])
         except Exception:
             logger.debug("vocabulary from apps failed", exc_info=True)
         groups.append([c["name"] for c in self.timetable.classes[:4]] if self.timetable is not None else [])

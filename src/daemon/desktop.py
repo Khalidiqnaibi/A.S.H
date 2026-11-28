@@ -224,6 +224,7 @@ class Desktop:
         self._pending: Optional[Tuple[str, str, float]] = None   # (name, process, asked at)
         self.on_act: Optional[Callable[[str, Callable[[], None]], None]] = None   # told of each open/close with the way back (the runtime's "undo that")
         self.stats = {"opened": 0, "closed": 0, "switched": 0, "routines": 0, "failed": 0, "unseen": 0}
+        self.used: Dict[str, int] = {}                      # app name -> how many times it was asked for (the recogniser leans towards the ones you use)
         self.apps: Dict[str, Tuple[str, str]] = dict(APPS)
         for name, v in self.cfg.apps.items():
             if isinstance(v, (list, tuple)) and len(v) == 2:
@@ -260,11 +261,16 @@ class Desktop:
                 found.add(key)
         return sorted(found)
 
+    def top_apps(self, n: int = 5) -> List[str]:
+        """The apps asked for most, most first."""
+        return [k for k, _ in sorted(self.used.items(), key=lambda kv: -kv[1])[:n]]
+
     def _app(self, name: str) -> Optional[Tuple[str, str, str]]:
         n = _norm(name)
         if n not in self.apps:
             n = self._fuzzy_app(n) or n
         if n in self.apps:
+            self.used[n] = self.used.get(n, 0) + 1
             t, p = self.apps[n]
             return name.strip(" .!?"), t, p
         return None
