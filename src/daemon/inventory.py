@@ -37,6 +37,7 @@ _WHAT2 = re.compile(_LEAD + r"(?:list|show\s+me|tell\s+me)\s+(?:all\s+)?(?:my\s+
 _HAVE = re.compile(_LEAD + r"(?:do\s+i\s+have|have\s+i\s+got|is)\s+(?P<n>[\w][\w '\-.:&]{1,40}?)\s+(?:installed|on\s+(?:this|my)\s+(?:computer|pc|laptop|machine))(?:\s+installed)?" + _END, re.I)
 _HAVE2 = re.compile(_LEAD + r"do\s+i\s+have\s+(?P<n>[\w][\w '\-.:&]{1,40}?)" + _END, re.I)
 _OPEN = re.compile(_LEAD + r"(?:open|launch|start|run|play)\s+(?:the\s+game\s+|the\s+app\s+)?(?P<n>[\w][\w '\-.:&]{1,40}?)" + _END, re.I)
+_SWITCH = re.compile(_LEAD + r"(?:switch|go|jump|change)\s+(?:back\s+)?to\s+(?:the\s+)?(?P<n>[\w][\w '\-.:&]{1,40}?)(?:\s+(?:app|window|desktop))?" + _END, re.I)
 _RESCAN = re.compile(_LEAD + r"(?:re-?scan|refresh|update)\s+(?:my\s+|the\s+)?(?:installed\s+)?(?:apps|games|programs|applications|app\s+list)" + _END, re.I)
 _NOISE = re.compile(r"\b(?:uninstall|readme|help|documentation|manual|license|release notes|website|web site|visit|support)\b", re.I)
 
@@ -107,9 +108,32 @@ def _scan_epic() -> List[Dict[str, str]]:
     return out
 
 
+def _scan_store_apps() -> List[Dict[str, str]]:
+    """Apps installed from the Microsoft Store (Claude, WhatsApp, ...): the Start menu's own list. They have no .lnk file in the Start Menu folders --
+    28 Nov: 'switch to claude' went to the model for 68 s although Claude is installed (as 'Claude'), because nothing listed it."""
+    import subprocess
+    import sys
+    if not sys.platform.startswith("win"):
+        return []
+    try:
+        out = subprocess.run(["powershell", "-NoProfile", "-Command", "Get-StartApps | ForEach-Object { $_.Name + '|' + $_.AppID }"],
+                             capture_output=True, text=True, timeout=25).stdout
+    except Exception:
+        return []
+    rows = []
+    for ln in out.splitlines():
+        if "|" not in ln:
+            continue
+        name, appid = ln.split("|", 1)
+        name, appid = name.strip(), appid.strip()
+        if name and appid and "!" in appid and not _NOISE.search(name):
+            rows.append({"name": name, "kind": "app", "open": "shell:AppsFolder\\" + appid})
+    return rows
+
+
 def scan_all() -> List[Dict[str, str]]:
     seen, rows = set(), []
-    for fn in (_scan_steam, _scan_epic, _scan_start_menu):            # a game found by its launcher wins over its Start menu shortcut
+    for fn in (_scan_steam, _scan_epic, _scan_store_apps, _scan_start_menu):            # a game found by its launcher wins over its Start menu shortcut
         try:
             for r in fn():
                 k = _norm(r["name"])
@@ -178,7 +202,8 @@ class Inventory:
                 best, got = r, it
         return got if best >= cutoff else None
 
-    def hear(self, text: str, known_app: Callable[[str], bool] = lambda n: False, now: Optional[float] = None) -> Optional[str]:
+    def hear(self, text: str, known_app: Callable[[str], bool] = lambda n: False, now: Optional[float] = None,
+             switch: Optional[Callable[[Dict[str, str]], Optional[bool]]] = None) -> Optional[str]:
         """What to say back for an installed-apps question or an open request for something only the inventory knows; None if it is not one."""
         t = (text or "").strip()
         if not t or len(t) > 100:
@@ -206,6 +231,19 @@ class Inventory:
             self.refresh(now=now)
             hit = self.find(name)
             return f"Yes -- {hit['name']} is installed." if hit else f"I can't find {name} installed."
+        m = _SWITCH.match(t)
+        if m and switch is not None:
+            name = m.group("n").strip()
+            if known_app(name) or re.match(r"^(?:the|a|an|my|it|that|this|some|something|up|me|files?|notes?|memory|tab|window|next|previous|back|desktop)\b", name, re.I) or len(name.split()) > 4:
+                return None
+            self.refresh(now=now)
+            hit = self.find(name, cutoff=0.8)
+            if hit is None:
+                return None
+            got = switch(hit)
+            if got is None:
+                return f"{hit['name']} isn't open. Say “open {hit['name']}” and I will."
+            return f"Switching to {hit['name']}." if got else f"{hit['name']} is open but Windows wouldn't bring it forward -- try alt-tab."
         m = _OPEN.match(t)
         if m:
             name = m.group("n").strip()

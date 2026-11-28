@@ -70,6 +70,31 @@ def i2_open():
     check("not 'open my notes'", inv.hear("open my notes") is None)
 
 
+def i2b_switch():
+    print("\n=== I2b. Switching to an installed app by its name (28 Nov: 'switch to claude', 68 s on the model) ===")
+    inv = mk()
+    inv.items = inv.items + [{"name": "Claude", "kind": "app", "open": "shell:AppsFolder\\Claude_x!Claude"}]
+    inv.at = inv.t[0]
+    seen = []
+    check("brought forward when its window is there", inv.hear("switch to claude", switch=lambda hit: seen.append(hit["name"]) or True) == "Switching to Claude." and seen == ["Claude"])
+    check("'switch to Claude desktop' and a misheard 'calude' find the same app", inv.hear("switch to calude", switch=lambda hit: True) == "Switching to Claude.")
+    check("not open: says so and how to open it", inv.hear("switch to claude", switch=lambda hit: None) == "Claude isn't open. Say “open Claude” and I will.")
+    check("open but Windows won't bring it: said, not claimed", "wouldn't bring it forward" in inv.hear("switch to claude", switch=lambda hit: False))
+    check("an app the desktop rules know is theirs", inv.hear("switch to claude", known_app=lambda n: True, switch=lambda hit: True) is None)
+    check("not an installed thing: left alone", inv.hear("switch to the other tab", switch=lambda hit: True) is None and inv.hear("switch to zxqv", switch=lambda hit: True) is None)
+    import tst_desktop as td
+    h = td.rt_rig()
+    rt = h.rt
+    inv2 = mk()
+    inv2.clock = rt.clock
+    inv2.items = inv2.items + [{"name": "Claude", "kind": "app", "open": "shell:x"}]
+    inv2.at = rt.clock()
+    rt.inventory = inv2
+    h.ex.windows = lambda: [("Claude", "claude.exe")]
+    h.say("switch to claude")
+    check("on the runtime: the window is found by its title and brought forward, no model", h.ex.focused[-1:] == ["claude.exe"] and h.said()[-1] == "Switching to Claude.", f"{h.ex.focused} {h.said()}")
+
+
 def i3_runtime():
     print("\n=== I3. On the runtime ===")
     import tst_effects as te
@@ -85,6 +110,7 @@ def i3_runtime():
 if __name__ == "__main__":
     i1_questions()
     i2_open()
+    i2b_switch()
     i3_runtime()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

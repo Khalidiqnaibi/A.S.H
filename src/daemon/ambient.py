@@ -4281,7 +4281,18 @@ class AmbientRuntime:
         try:
             from src.senses.mic import MicrophoneSensor
             text = MicrophoneSensor.strip_address(str(getattr(ev, "text", "") or "")) or str(getattr(ev, "text", "") or "")
-            say = inv.hear(text, known, now)
+            def switch(hit):
+                """True: brought forward; False: open but would not come; None: not open (its window is looked for by name and by program)."""
+                ex = getattr(d, "ex", None)
+                if ex is None or not hasattr(ex, "windows"):
+                    return None
+                want = re.sub(r"[^a-z0-9 ]", "", hit["name"].lower()).split()
+                for title, proc in ex.windows():
+                    stem = proc.rsplit(".", 1)[0]
+                    if any(w in re.sub(r"[^a-z0-9 ]", "", title.lower()).split() or w == stem for w in want if len(w) >= 4):
+                        return bool(ex.focus(proc))
+                return None
+            say = inv.hear(text, known, now, switch=switch)
         except Exception:
             logger.exception("Installed-apps lookup failed")
             return False

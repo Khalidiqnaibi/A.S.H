@@ -103,6 +103,36 @@ class Executor:
             logger.exception("Could not open %s", target)
         return False
 
+    def windows(self) -> List[Tuple[str, str]]:
+        """(title, process name) of the visible, titled top-level windows."""
+        if not sys.platform.startswith("win"):
+            return []
+        try:
+            import ctypes
+            import ctypes.wintypes as wt
+            import psutil
+            user32 = ctypes.windll.user32
+            out: List[Tuple[str, str]] = []
+
+            @ctypes.WINFUNCTYPE(ctypes.c_bool, wt.HWND, wt.LPARAM)
+            def cb(hwnd, _l):
+                n = user32.GetWindowTextLengthW(hwnd)
+                if n and user32.IsWindowVisible(hwnd) and not (user32.GetWindowLongW(hwnd, -20) & 0x80):
+                    buf = ctypes.create_unicode_buffer(n + 1)
+                    user32.GetWindowTextW(hwnd, buf, n + 1)
+                    pid = wt.DWORD()
+                    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+                    try:
+                        out.append((buf.value, psutil.Process(pid.value).name().lower()))
+                    except Exception:
+                        pass
+                return True
+            user32.EnumWindows(cb, 0)
+            return out
+        except Exception:
+            logger.exception("Listing windows failed")
+            return []
+
     @staticmethod
     def _bring_front(user32, ctypes, hwnd) -> bool:
         """Windows only lets the foreground program take the foreground: a key press from us and a brief share of the front window's input queue make it
