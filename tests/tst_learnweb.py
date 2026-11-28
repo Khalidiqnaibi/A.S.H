@@ -36,7 +36,7 @@ def main():
     check("your own history comes first, the web fills the rest", out["from_history"] == ["photoshop"] and out["from_web"] == ["make a thumbnail"] and not out["queued"], str(out))
     check("each concept is saved with where it came from", st.items["photoshop"]["source"] == "your own history" and st.items["make a thumbnail"]["source"] == "google")
     check("and a skill that goes to the same search", sorted(t["phrase"] for t in taught) == ["make a thumbnail", "photoshop"] and taught[0]["steps"][0]["do"] == "search")
-    check("what it says ends by asking", lw.say(out).endswith("Is that right?") and "from Google: make a thumbnail" in lw.say(out), lw.say(out))
+    check("what it says ends by asking", lw.say(out).endswith("Is that right?") and "from the web: make a thumbnail" in lw.say(out), lw.say(out))
     check("it survives a restart", lw.Store(os.path.join(d, "learned.json")).items.keys() == st.items.keys())
     print("\n=== L3. Offline: queued, done later ===")
     def down(c):
@@ -51,6 +51,41 @@ def main():
     check("forget removes it", lw.forget(st2, ["rigging"]) == 1 and "rigging" not in st2.items)
     check("snippets are read from a results page", lw.snippet_from_html('<a class="result__snippet" href="x">Use <b>layers</b> &amp; text</a>') == "Use layers & text")
     check("the method is in steps", len(lw.METHOD) == 5 and lw.asks_method("how do you learn from google") and lw.asks_status("what are you learning"))
+
+    print("\n=== L3b. Online but the search came back empty is not 'offline' (28 Nov) ===")
+    calls = []
+
+    def fake_get(url, timeout):
+        calls.append(url)
+        if "duckduckgo" in url:
+            return 202, "<html>anomaly</html>"
+        if "bing.com" in url:
+            return 200, '<li class="b_algo"><h2>t</h2><p class="b_lineclamp2">May 13, 2015 &#0183; Break a big task into steps you can finish in one sitting.</p></li>'
+        return 200, "{}"
+    real_get, real_online = lw._get, lw.is_online
+    lw._get = fake_get
+    try:
+        got = lw.web_fetch("chunk tasks")
+        check("DuckDuckGo's bot check falls through to Bing, and the date is dropped", got == "Break a big task into steps you can finish in one sitting." and len(calls) == 2, f"{got!r} {calls}")
+
+        def only_wiki(url, timeout):
+            if "wikipedia" in url:
+                return 200, '{"query":{"search":[{"title":"Chunking","snippet":"a <span class=\\"searchmatch\\">task</span> method"}]}}'
+            return 200, ""
+        lw._get = only_wiki
+        check("and then to Wikipedia", lw.web_fetch("chunking") == "Chunking: a task method", lw.web_fetch("chunking"))
+        lw._get = lambda url, timeout: (200, "")
+        out = lw.learn("chunk tasks", lw.Store(None), lw.web_fetch, lambda c: [])
+        check("the web answered and had nothing: said so, NOT queued as offline", out["empty"] == ["chunk tasks"] and not out["queued"] and "reached the web" in lw.say(out), str(out))
+
+        def dead(url, timeout):
+            raise lw.NoConnection("no route")
+        lw._get = dead
+        out = lw.learn("chunk tasks", lw.Store(None), lw.web_fetch, lambda c: [])
+        check("no network at all: queued, and said so", out["queued"] == ["chunk tasks"] and not out["empty"] and "no connection" in lw.say(out).lower(), str(out))
+    finally:
+        lw._get, lw.is_online = real_get, real_online
+    check("Bing snippets are read", lw.snippet_from_bing('<li class="b_algo"><p class="b_lineclamp3">Plain words about a thing that is long enough to count.</p></li>').startswith("Plain words"))
 
     print("\n=== L4. In the runtime ===")
     import tst_modellast as tm

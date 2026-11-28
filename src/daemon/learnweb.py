@@ -110,19 +110,87 @@ def snippet_from_html(html: str, n: int = 2) -> str:
     return " ".join(out)
 
 
-def web_fetch(q: str, timeout: float = 6.0) -> str:
-    """The real network: one search, snippets only. Raises when there is no connection (the caller queues)."""
-    import urllib.parse
+class NoConnection(Exception):
+    """The network itself is not there (as against a search that came back empty or was refused)."""
+
+
+_UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36", "Accept-Language": "en"}
+
+
+def _plain(t: str) -> str:
+    import html as _h
+    t = re.sub(r"<[^>]+>", "", t or "")
+    return re.sub(r"\s+", " ", _h.unescape(t)).strip()
+
+
+def snippet_from_bing(page: str, n: int = 2) -> str:
+    """The first n result snippets of a Bing results page, as plain text (the leading 'May 13, 2015 ·' date is dropped)."""
+    out = []
+    for li in re.findall(r'<li class="b_algo".*?</li>', page or "", re.S):
+        m = re.search(r'<p class="b_lineclamp\d*[^"]*"[^>]*>(.*?)</p>', li, re.S)
+        t = re.sub(r"^[A-Z][a-z]{2} \d{1,2}, \d{4}\W+", "", _plain(m.group(1))) if m else ""
+        if len(t) > 30:
+            out.append(t)
+        if len(out) >= n:
+            break
+    return " ".join(out)
+
+
+def snippet_from_wikipedia(js: str, n: int = 2) -> str:
+    out = []
+    try:
+        for r in (json.loads(js).get("query", {}).get("search") or [])[:n]:
+            out.append(_plain(str(r.get("title", "")) + ": " + str(r.get("snippet", ""))))
+    except ValueError:
+        return ""
+    return " ".join(out)
+
+
+def _get(url: str, timeout: float) -> Tuple[int, str]:
+    import socket
+    import urllib.error
     import urllib.request
-    req = urllib.request.Request("https://html.duckduckgo.com/html/?q=" + urllib.parse.quote_plus(q + " how to"), headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return snippet_from_html(r.read().decode("utf-8", "ignore"))
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers=_UA), timeout=timeout) as r:
+            return r.status, r.read().decode("utf-8", "ignore")
+    except urllib.error.HTTPError as e:                      # reached the server; it said no
+        return e.code, ""
+    except (urllib.error.URLError, socket.timeout, ConnectionError, OSError) as e:
+        raise NoConnection(str(e))
+
+
+def is_online(timeout: float = 2.0) -> bool:
+    """Is there a network at all? (a TCP connect to a public resolver -- nothing is sent)."""
+    import socket
+    for host, port in (("1.1.1.1", 443), ("8.8.8.8", 53)):
+        try:
+            socket.create_connection((host, port), timeout).close()
+            return True
+        except OSError:
+            continue
+    return False
+
+
+def web_fetch(q: str, timeout: float = 6.0) -> str:
+    """One search, snippets only, from the first of three places that gives any: DuckDuckGo, Bing, Wikipedia. Raises NoConnection only when the network is
+    not there. 28 Nov: DuckDuckGo answered 202 'anomaly' (a bot check) to every search, no snippets came back, and ASH said 'no connection' while online."""
+    import urllib.parse
+    qq = urllib.parse.quote_plus(q + " how to")
+    status, page = _get("https://html.duckduckgo.com/html/?q=" + qq, timeout)
+    got = snippet_from_html(page) if status == 200 else ""
+    if not got:
+        status, page = _get("https://www.bing.com/search?setlang=en-US&cc=US&mkt=en-US&ensearch=1&q=" + qq, timeout)
+        got = snippet_from_bing(page) if status == 200 else ""
+    if not got:
+        status, page = _get("https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&srlimit=2&srsearch=" + urllib.parse.quote_plus(q), timeout)
+        got = snippet_from_wikipedia(page) if status == 200 else ""
+    return got
 
 
 def learn(problem: str, store: Store, fetch: Optional[Callable[[str], str]], history: Callable[[str], List[str]], teach: Optional[Callable[[Dict[str, Any]], Any]] = None) -> Dict[str, Any]:
     """Run the method. Returns {"concepts": [...], "from_history": [...], "from_web": [...], "queued": [...], "saved": [...]} -- what was done with each."""
     cs = concepts(problem)
-    out: Dict[str, Any] = {"concepts": cs, "from_history": [], "from_web": [], "queued": [], "saved": []}
+    out: Dict[str, Any] = {"concepts": cs, "from_history": [], "from_web": [], "queued": [], "saved": [], "empty": []}
     for c in cs:
         mine = history(c) or []
         if mine:
@@ -131,19 +199,24 @@ def learn(problem: str, store: Store, fetch: Optional[Callable[[str], str]], his
             out["saved"].append(c)
             continue
         got = ""
+        offline = fetch is None
         if fetch is not None:
             try:
                 got = (fetch(c) or "").strip()
+            except NoConnection:
+                offline = True
             except Exception:
-                got = ""
+                offline = not is_online() if fetch is web_fetch else True
         if got:
             _save(store, c, got[:300], "google", teach)
             out["from_web"].append(c)
             out["saved"].append(c)
-        else:
+        elif offline:
             if c not in store.queue:
                 store.queue.append(c)
             out["queued"].append(c)
+        else:
+            out["empty"].append(c)             # the network answered and the search had nothing usable: not 'offline', and not worth queueing
     store.save()
     return out
 
@@ -165,8 +238,10 @@ def drain(store: Store, fetch: Callable[[str], str], teach=None) -> List[str]:
     for c in list(store.queue):
         try:
             got = (fetch(c) or "").strip()
-        except Exception:
+        except NoConnection:
             break
+        except Exception:
+            continue
         if got:
             _save(store, c, got[:300], "google", teach)
             done.append(c)
@@ -192,9 +267,11 @@ def say(out: Dict[str, Any]) -> str:
     if out["from_history"]:
         bits.append("from what you've done yourself: " + ", ".join(out["from_history"]))
     if out["from_web"]:
-        bits.append("from Google: " + ", ".join(out["from_web"]))
+        bits.append("from the web: " + ", ".join(out["from_web"]))
     if out["queued"]:
         bits.append("no connection for " + ", ".join(out["queued"]) + " -- queued for when I'm online")
+    if out.get("empty"):
+        bits.append("I reached the web but the search had nothing usable for " + ", ".join(out["empty"]))
     head = "I broke it into " + ", ".join(out["concepts"]) + ". "
     if not out["saved"]:
         return head + bits[0][0].upper() + bits[0][1:] + "."
