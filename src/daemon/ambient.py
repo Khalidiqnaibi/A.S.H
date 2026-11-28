@@ -3524,6 +3524,25 @@ class AmbientRuntime:
             return say(runs.status())
         if pipeline.asks_stop(text) and runs.active():
             return say(runs.stop())
+        named = self._named_pipes()
+        if pipeline.asks_list(text):
+            return say(("Saved pipes: " + ", ".join(named.items) + ".") if named.items else "No saved pipes yet -- run one, then say “call that <name>”.")
+        nm = pipeline.parse_save(text)
+        if nm is not None:
+            last = getattr(self, "_last_pipe_text", None)
+            if not last:
+                return False                                  # nothing was run: "remember that as ..." is somebody else's
+            if getattr(self, "desktop", None) is not None and self.desktop._routine(nm) is not None:
+                return say(f"{nm} is already one of your app routines -- pick another name.")
+            k = named.add(nm, last)
+            return say(f"Saved. Say “run {k}” and I'll do it again.") if k else False
+        k = pipeline.parse_forget(text, named)
+        if k is not None:
+            named.drop(k)
+            return say(f"Forgot {k}.")
+        k = pipeline.parse_run(text, named)
+        if k is not None:
+            text = named.items[k]
         p = pipeline.parse(text)
         if p is None:
             return False
@@ -3536,8 +3555,17 @@ class AmbientRuntime:
             return say("So: " + pipeline.plan_line(p["parallel"], p["background"]) + ". Go ahead?")
         return self._pipeline_go(ev, text, p["parallel"], p["background"], say)
 
+    def _named_pipes(self):
+        n = getattr(self, "_named", None)
+        if n is None:
+            from . import pipeline
+            base = getattr(self.cfg, "life_dir", None)
+            n = self._named = pipeline.Named(os.path.join(base, "pipes.json") if base else None)
+        return n
+
     def _pipeline_go(self, ev, text, par, background, say) -> bool:
         from . import pipeline
+        self._last_pipe_text = text
         ctx = self._pipeline_ctx()
         runs = self._pipes
         made = [runs.new(text, g) for g in par]

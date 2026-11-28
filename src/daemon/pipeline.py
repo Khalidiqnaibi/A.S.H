@@ -355,3 +355,83 @@ def front_page_text(current: Optional[Dict[str, Any]], fetch: Callable[[str], st
         return fetch(url) or ""
     except Exception:
         return ""
+
+
+# ---------------------------------------------------------------------------------------------------------------------------- named pipes
+_NAME_LEAD = r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:ok(?:ay)?|so|and|please)[,\s]+)*"
+_SAVE = re.compile(_NAME_LEAD + r"(?:(?:call|name)\s+(?:that|this|it)(?:\s+(?:pipe(?:line)?|routine|chain))?\s+(?:as\s+)?|(?:save|remember|keep)\s+(?:that|this|it)(?:\s+pipe(?:line)?|\s+routine)?\s+as\s+)(?P<n>.{2,60}?)\W*$", re.I)
+_RUN = re.compile(_NAME_LEAD + r"(?:(?:please\s+)?(?:run|do|start|kick\s+off|go\s+through)\s+)(?P<n>.{2,60}?)\W*$", re.I)
+_FORGET = re.compile(_NAME_LEAD + r"(?:forget|delete|remove|drop)\s+(?P<n>.{2,60}?)(?:\s+(?:pipe(?:line)?|routine))?\W*$", re.I)
+_LIST = re.compile(_NAME_LEAD + r"(?:what|which)\s+(?:pipes|pipelines|chains)\s+(?:have\s+you\s+(?:got|saved)|do\s+you\s+(?:know|have))|list\s+(?:my|your|the)\s+(?:saved\s+)?(?:pipes|pipelines|chains)\W*$", re.I)
+
+
+def _norm_name(n: str) -> str:
+    n = re.sub(r"[^\w\s']", " ", (n or "").lower())
+    n = re.sub(r"\b(?:my|the|a|an|that|pipe|pipeline|routine|chain)\b", " ", n)
+    return re.sub(r"\s+", " ", n).strip()
+
+
+class Named:
+    """Pipes the user has named, kept as the words they were said in (so a saved pipe is re-read, and re-checked, each time it runs)."""
+
+    def __init__(self, path: Optional[str] = None):
+        self.path, self.items = path, {}
+        if path:
+            try:
+                import json
+                import os
+                if os.path.exists(path):
+                    self.items = dict(json.load(open(path, encoding="utf-8")))
+            except Exception:
+                self.items = {}
+
+    def save(self) -> None:
+        if not self.path:
+            return
+        try:
+            import json
+            import os
+            os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+            json.dump(self.items, open(self.path + ".tmp", "w", encoding="utf-8"), indent=1, ensure_ascii=False)
+            os.replace(self.path + ".tmp", self.path)
+        except Exception:
+            pass
+
+    def add(self, name: str, text: str) -> str:
+        k = _norm_name(name)
+        if not k:
+            return ""
+        self.items[k] = text
+        self.save()
+        return k
+
+    def find(self, name: str) -> Optional[str]:
+        return _norm_name(name) if _norm_name(name) in self.items else None
+
+    def drop(self, name: str) -> bool:
+        k = self.find(name)
+        if k is None:
+            return False
+        del self.items[k]
+        self.save()
+        return True
+
+
+def parse_save(text: str) -> Optional[str]:
+    m = _SAVE.match((text or "").strip())
+    return m.group("n").strip() if m else None
+
+
+def parse_run(text: str, named: "Named") -> Optional[str]:
+    """The saved pipe's name, only when the line names one that exists (so 'run chrome' stays an app)."""
+    m = _RUN.match((text or "").strip())
+    return named.find(m.group("n")) if m else None
+
+
+def parse_forget(text: str, named: "Named") -> Optional[str]:
+    m = _FORGET.match((text or "").strip())
+    return named.find(m.group("n")) if m else None
+
+
+def asks_list(text: str) -> bool:
+    return bool(_LIST.match((text or "").strip()))
