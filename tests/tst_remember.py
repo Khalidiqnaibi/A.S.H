@@ -440,8 +440,6 @@ def r18_habits():
         check("and in what the model is told about the person", "see how something works" in selfmodel.block(rt) and "follow them" in selfmodel.block(rt))
         rt.say("what rules have I taught you")
         check("listed", "see how something works" in rt.out[-1] and rt.out[-1].startswith("You taught me:"), rt.out[-1])
-        rt.say("remember that the project report is due on Thursday morning")
-        check("a plain 'remember that ...' is kept as a note, not 'I don't know'", rt.out[-1].startswith("Noted: the project report is due on Thursday morning"), rt.out[-1])
         rt.say("forget that rule")
         check("forgotten", rem.habits(rt.wonder.kb) == [] and "forgot the rule" in rt.out[-1], rt.out[-1])
         rt.say("undo that")

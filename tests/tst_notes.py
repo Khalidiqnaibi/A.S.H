@@ -302,6 +302,20 @@ def n14_mom_mother_and_a_bad_file():
           n.about_user("what do you know about Khaled?", ["Immortal", "Khalid"]) == n.everything())
 
 
+def n15_pages():
+    print("\n=== N15. 'What do you remember' is four short notes, and 'what else' is the next ===")
+    n = Notes(None, clock=lambda: T)
+    for i, b in enumerate(["you parked on level 3", "lieth is a friend", "a YouTube video is a type of video that is on YouTube that can teach you a lot of things and you watch them every single day to learn", "your dad's clinic is near the hospital", "samsung note is your favorite app", "your sister is Linda"]):
+        n.keep_note(b, T + i)
+    first = n.recall("what do you remember")
+    check("four notes, the newest first, and how many are left", first.count(";") == 3 and "2 more" in first and "what else" in first, first)
+    check("a long note is cut short", "..." in first or len(first) < 330, first)
+    nxt = n.recall("what else?")
+    check("'what else' gives the rest", nxt.startswith("Also: ") and "parked" in nxt and "lieth" in nxt, nxt)
+    check("then it says that was everything", n.recall("what else") == "That's everything I've kept.")
+    check("'what else' with no list just shown is left alone", n.recall("what else") is None)
+
+
 if __name__ == "__main__":
     for fn in (n1_what_is_a_note, n2_turned_round, n3_finding, n4_never_the_wrong_note, n5_told_and_all, n6_disk_and_forget,
                n7_runtime, n8_not_overheard_guest_stranger, n9_people_and_spelling, n10_about_me_is_what_you_remember, n11_who_is_name, n12_alias_learning, n13_same_person_and_spelling, n14_mom_mother_and_a_bad_file):

@@ -60,6 +60,21 @@ _ABOUT_ASH = re.compile(r"(?:your|yourself|ash|a\.s\.h)(?![a-z])", re.I)
 _TOLD = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:what\s+(?:did|have)\s+i\s+(?:tell|told)\s+you|"
                    r"what\s+do\s+you\s+(?:remember|know)|what\s+have\s+you\s+(?:got|noted))\s+(?:about\s+|on\s+)(?P<s>.+?)\s*\??\s*$",
                    re.I)
+_ELSE = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:what|anything|something)\s+else(?:\s+(?:do\s+you\s+(?:remember|have)|have\s+i\s+told\s+you))?\s*[?.!]*\s*$", re.I)
+
+
+PAGE = 4
+
+
+def _short(text: str, n: int = 110) -> str:
+    t = " ".join(str(text or "").split())
+    if len(t) <= n:
+        return t
+    cut = t[:n]
+    sp = cut.rfind(" ")
+    return (cut[:sp] if sp > n // 2 else cut).rstrip(" ,;") + "..."
+
+
 _ALL = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:what\s+(?:do\s+you\s+(?:remember|rem(?:e(?:m(?:b(?:er?)?)?)?)?(?=[ ?.!]*$))|have\s+i\s+(?:asked\s+you\s+to\s+remember|told\s+you\s+to\s+remember))|"
                   r"what\s+(?:notes|have\s+you\s+noted)|(?:list|read)\s+(?:my|your|the)\s+notes)\s*[?.!]*\s*$", re.I)
 
@@ -142,6 +157,7 @@ class Notes:
         self.items: List[Note] = []
         self._next = 1
         self.stats = {"kept": 0, "found": 0, "not_found": 0, "forgotten": 0}
+        self._more: Optional[Tuple[float, List[Note], int]] = None      # what "what do you remember" has shown so far, for "what else"
         self._load()
 
     # -- storage ------------------------------------------------------------------------------
@@ -255,8 +271,28 @@ class Notes:
         """What was asked to be remembered: the newest few, as said back."""
         if not self.items:
             return "You haven't asked me to remember anything yet."
-        last = sorted(self.items, key=lambda n: -n.at)[:5]
-        return "You told me: " + "; ".join(n.back for n in last) + "."
+        # 28 Nov: "What do you remember?" read out five notes, one of them a hundred words -- a blob. Four, each cut short, and "what else" for the rest.
+        allitems = sorted(self.items, key=lambda n: -n.at)
+        self._more = (self.clock(), allitems, 0)
+        return self._page()
+
+    def _page(self) -> str:
+        at, items, i = self._more
+        chunk = items[i:i + PAGE]
+        self._more = (at, items, i + PAGE)
+        text = "; ".join(_short(n.back) for n in chunk)
+        left = len(items) - (i + PAGE)
+        return ("You told me: " if i == 0 else "Also: ") + text + "." + (f" {left} more -- say “what else”." if left > 0 else "")
+
+    def else_(self, now: Optional[float] = None) -> Optional[str]:
+        """"What else?" right after the list: the next few notes; None when the list was not just shown."""
+        now = self.clock() if now is None else now
+        if self._more is None or now - self._more[0] > 180.0:
+            return None
+        if self._more[2] >= len(self._more[1]):
+            self._more = None
+            return "That's everything I've kept."
+        return self._page()
 
     def about_name(self, name: str) -> Optional[str]:
         """What was kept about somebody (every word of the name in the note), newest first -- or None."""
@@ -311,6 +347,10 @@ class Notes:
         """The answer to a question about what was noted, or None to leave the question to the brain."""
         now = self.clock() if now is None else now
         t = (text or "").strip()
+        if _ELSE.match(t):
+            more = self.else_(now)
+            if more is not None:
+                return more
         if _ALL.match(t):
             return self.everything()
         told = _TOLD.match(t)

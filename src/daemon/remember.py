@@ -179,12 +179,6 @@ def teach(kb, text: str) -> Optional[Tuple[str, Any]]:
         snap = snapshot(kb)
         kb.store_fact(HABIT + trig, mean, limit=160)
         return f"Got it -- when you say “{trig}”, I'll take it as {mean}.", restorer(kb, snap, getattr(kb, "entities", None))
-    m = _THAT.match(t)
-    if m and len(m.group("s").split()) >= 4 and not re.match(r"^(?:to|me\s+to)\b", m.group("s"), re.I):
-        sent = m.group("s").strip(" .")
-        snap = snapshot(kb)
-        kb.store_fact("note: " + sent[:50], sent, limit=160)
-        return f"Noted: {sent[:120]}.", restorer(kb, snap, getattr(kb, "entities", None))
     return None
 
 
