@@ -42,6 +42,24 @@ def r1b_shorten():
     check("empty is 'I don't know'", repair.shorten("") == repair.NOTHING)
 
 
+def r2b_slow_cancel():
+    print("\n=== R2b. A cancel of a slow answer is not anger ===")
+    t = [0.0]
+    r = repair.Repair(clock=lambda: t[0])
+    for _ in range(8):
+        r.hear("Nevermind.", slow_s=20.0)
+        t[0] += 10
+    check("eight 'nevermind's during slow answers do not start repair mode", not r.active() and r.stats["slow_cancels"] == 8, str(r.stats))
+    r2 = repair.Repair(clock=lambda: t[0])
+    r2.hear("Nevermind.", slow_s=1.0)
+    r2.hear("Nevermind.", slow_s=2.0)
+    r2.hear("Nevermind.", slow_s=2.0)
+    check("quick 'nevermind's (nothing slow) still count", r2.active())
+    r3 = repair.Repair(clock=lambda: t[0])
+    r3.hear("You are really frustrating me.", slow_s=30.0)
+    check("an actual complaint during a slow answer still counts", r3.active())
+
+
 def r2_threshold():
     print("\n=== R2. Enough of them, in time ===")
     t = [0.0]
@@ -135,6 +153,7 @@ if __name__ == "__main__":
     r1_signals()
     r1b_shorten()
     r2_threshold()
+    r2b_slow_cancel()
     r3_log()
     r4_runtime()
     r5_prompt()

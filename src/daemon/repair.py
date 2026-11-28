@@ -24,6 +24,8 @@ from typing import Callable, Deque, Dict, List, Optional, Tuple
 
 THRESHOLD = 3.0
 WINDOW_S = 300.0                 # signals count for this long
+SLOW_S = 8.0                     # a "never mind" this long into an answer is about the wait
+SLOW_WEIGHT = 0.2
 HOLD_S = 600.0                   # repair mode lasts this long after the last signal
 
 APOLOGY = "Sorry -- that's been a mess. I'll keep it short, and if I don't know something I'll say so instead of guessing."
@@ -43,6 +45,7 @@ _SIGNALS: List[Tuple[re.Pattern, float]] = [(re.compile(p, re.I), w) for p, w in
     (r"\b(?:i\s+(?:just\s+)?(?:said|asked)|i\s+told\s+you)\b[^.?!]{0,40}\b(?:already|before|again|that)\b", 1.5),
     (r"\bwhy\s+(?:are|is)\s+(?:you|this)\s+so\s+(?:slow|dumb|bad)\b", 2.0),
 )]
+_CANCEL = re.compile(r"^\s*(?:ash[,\s]+)?(?:never\s*mind|forget\s+it|drop\s+it|cancel(?:\s+that)?|stop)\s*[.!?]*\s*$", re.I)
 _ENDS = re.compile(r"^\s*(?:ash[,\s]+)?(?:thanks?(?:\s+you)?|thank\s+you|that'?s\s+(?:better|good|right|great|perfect)|perfect|nice\s+one|good\s+(?:job|one)|great|cool|"
                    r"awesome|ok(?:ay)?\s+(?:thanks|cool|good)|i'?m\s+(?:ok|fine|good|not\s+(?:frustrated|angry|upset)))\b", re.I)
 _WORKED = re.compile(r"^\s*(?:ash[,\s]+)?(?:thanks?|thank\s+you|that'?s\s+(?:better|good|right|great|perfect)|perfect|nice\s+one|good\s+(?:job|one))\b", re.I)
@@ -71,8 +74,10 @@ class Repair:
             best, why = 1.0, "the same thing again"
         return best, why
 
-    def hear(self, text: str, now: Optional[float] = None) -> Optional[str]:
-        """Take in one user line. Returns the apology the first time repair mode starts, else None."""
+    def hear(self, text: str, now: Optional[float] = None, slow_s: float = 0.0) -> Optional[str]:
+        """Take in one user line. Returns the apology the first time repair mode starts, else None.
+        `slow_s`: how long the answer being cancelled had been running. 28 Nov: "Nevermind" said 20 s into a slow answer was counted as anger a dozen times,
+        ASH apologised and cut every later answer -- a cancel of a slow answer is "too slow", not "frustrated"."""
         now = self.clock() if now is None else now
         t = (text or "").strip()
         if not t:
@@ -85,6 +90,9 @@ class Repair:
             self.stats["ended"] += 1
             return None
         w, why = self.score(t, last)
+        if w > 0.0 and slow_s >= SLOW_S and _CANCEL.match(t):
+            w, why = SLOW_WEIGHT, "a cancel of a slow answer"
+            self.stats["slow_cancels"] = self.stats.get("slow_cancels", 0) + 1
         if w <= 0.0:
             return None
         self.stats["signals"] += 1

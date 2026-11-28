@@ -1586,7 +1586,9 @@ class AmbientRuntime:
         if not text:
             return
         try:
-            apology = r.hear(text, now)
+            started = float(getattr(self, "_think_started", 0.0) or 0.0)
+            slow = (time.time() - started) if (started and self._thinking) else 0.0     # how long the answer being cancelled had been running
+            apology = r.hear(text, now, slow_s=slow)
             self.brain.repair_note = r.note(now)
             self._repair_face(r.active(now))
             if apology:
