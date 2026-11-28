@@ -29,6 +29,13 @@ def main():
     check("with the camera on it stands", sk.ungrounded("I can see you look tired today.", dict(F, camera=True)) is None)
     check("'I heard you' with the microphone muted is replaced", sk.ungrounded("I heard you say that.", dict(F, muted=True)) is not None)
     check("an ordinary sentence is left alone", sk.ungrounded("The match starts at eight and I see why you like it.", F) is None)
+    check("'I've opened Chrome' with nothing run is replaced", "nothing ran" in (sk.ungrounded("Sure, I've opened Chrome for you.", F) or ""), str(sk.ungrounded("Sure, I've opened Chrome for you.", F)))
+    check("'I muted the mic' is replaced, and 'I opened up about it' is not", sk.ungrounded("I muted the mic.", F) is not None and sk.ungrounded("The shop opened late and I was annoyed.", F) is None)
+    heard = {"episodes": 5}
+    has = lambda words: "parrot" in words
+    check("'I remember you said ...' with nothing like it in memory is replaced", "don't actually have that" in (sk.ungrounded("I remember you said your parrot was called Kiwi.", dict(F, **heard), lambda w: False) or ""))
+    check("and stands when memory has it", sk.ungrounded("I remember you said your parrot was called Kiwi.", dict(F, **heard), has) is None)
+    check("with an empty memory it is replaced with no lookup at all", sk.ungrounded("I remember when we talked about parrots.", dict(F, episodes=0)) is not None)
     print("\n=== S4. A changed model ===")
     check("said when it changed", sk.model_change("mistral", "qwen3.5:4b") == "I'm thinking with qwen3.5:4b now; last time it was mistral.")
     check("not when it didn't, or the first time", sk.model_change("mistral", "mistral") == "" and sk.model_change("", "mistral") == "")

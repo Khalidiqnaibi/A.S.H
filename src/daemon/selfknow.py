@@ -102,12 +102,27 @@ _SEE_CLAIM = re.compile(r"\bI\s+(?:can\s+see|see|am\s+seeing|'m\s+seeing|can\s+t
 _HEAR_CLAIM = re.compile(r"\bI\s+(?:can\s+hear|heard|am\s+hearing|'m\s+hearing)\s+(?:you|your\s+voice|that|the\s+music|someone)\b", re.I)
 
 
-def ungrounded(reply: str, f: Dict[str, Any]) -> Optional[str]:
+_OPEN_CLAIM = re.compile(r"\bI(?:'ve|\s+have)?\s+(?:just\s+|already\s+|now\s+)?(?:opened|launched|started|closed|switched\s+to|minimi[sz]ed|maximi[sz]ed|muted|unmuted|turned\s+(?:on|off)|set\s+the\s+volume)\b", re.I)
+_REMEMBER_CLAIM = re.compile(r"\bI\s+(?:do\s+)?(?:remember|recall)\s+(?:that\s+|when\s+|how\s+|you\s+|your\s+)?(?P<what>[^.?!]{6,160})", re.I)
+_STOP = {"that", "this", "with", "have", "were", "when", "what", "your", "about", "from", "they", "them", "then", "there", "told", "said", "just", "like", "also", "very", "really"}
+
+
+def _content_words(t: str):
+    return [w for w in re.findall(r"[a-z0-9]{4,}", (t or "").lower()) if w not in _STOP]
+
+
+def ungrounded(reply: str, f: Dict[str, Any], recall=None) -> Optional[str]:
+    """`recall(words)` says whether memory holds anything about those words; with it, "I remember you said X" is checked against what is kept."""
     r = reply or ""
     if _SEE_CLAIM.search(r) and not f.get("camera"):
         return "I can't see you right now -- " + answer("see", f)[len("Right now "):] if not f.get("paused") else "I can't see anything -- privacy is on."
     if _HEAR_CLAIM.search(r) and (f.get("muted") or f.get("paused")):
         return "I can't hear anything right now -- the microphone is off."
+    if _OPEN_CLAIM.search(r):
+        return "I haven't done that -- nothing ran. Say it as a command (“open chrome”, “mute the mic”) and I will."
+    m = _REMEMBER_CLAIM.search(r)
+    if m and not re.search(r"\b(?:earlier|just\s+(?:now|said)|a\s+(?:moment|minute)\s+ago|this\s+(?:chat|conversation)|you\s+just)\b", r, re.I) and (f.get("episodes", 1) == 0 or (recall is not None and _content_words(m.group("what")) and not recall(_content_words(m.group("what"))))):
+        return "I don't actually have that in my memory -- I'd be guessing. Tell me again and I'll keep it."
     return None
 
 

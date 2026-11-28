@@ -3309,9 +3309,25 @@ class AmbientRuntime:
     def _ungrounded_self_claim(self, text: str):
         from . import selfknow
         try:
-            return selfknow.ungrounded(text, selfknow.facts(self))
+            return selfknow.ungrounded(text, selfknow.facts(self), self._memory_has)
         except Exception:
             return None
+
+    def _memory_has(self, words) -> bool:
+        """Does anything kept (episodes, notes) mention at least half of these words? Used to check "I remember you said ..." against the record."""
+        need = max(1, (len(words) + 1) // 2)
+        texts = []
+        store = getattr(getattr(getattr(self, "ash", None), "episodic_memory", None), "store", None)
+        try:
+            texts += [str(getattr(e, "summary", "") or "") for e in (store.all() if store is not None else [])]
+        except Exception:
+            pass
+        texts += [str(getattr(n, "said", "") or "") for n in (getattr(getattr(self, "notes", None), "items", None) or [])]
+        for t in texts:
+            low = t.lower()
+            if sum(1 for w in words if w in low) >= need:
+                return True
+        return False
 
     def _selfknow_request(self, ev, now: float) -> bool:
         """'What model are you running?', 'what can you see right now?', 'can you hear me?' -- from the live state (selfknow.py), never the model's guess."""
