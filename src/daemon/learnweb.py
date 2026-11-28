@@ -193,4 +193,7 @@ def say(out: Dict[str, Any]) -> str:
         bits.append("from Google: " + ", ".join(out["from_web"]))
     if out["queued"]:
         bits.append("no connection for " + ", ".join(out["queued"]) + " -- queued for when I'm online")
-    return "I broke it into " + ", ".join(out["concepts"]) + ". Learned " + "; ".join(bits) + (". Is that right?" if out["saved"] else ".")
+    head = "I broke it into " + ", ".join(out["concepts"]) + ". "
+    if not out["saved"]:
+        return head + bits[0][0].upper() + bits[0][1:] + "."
+    return head + "Learned " + "; ".join(bits) + ". Is that right?"

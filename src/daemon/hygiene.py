@@ -192,8 +192,13 @@ def clean(episodes_path: str, entities_path: str, apply: bool = False) -> Dict[s
 _ASK = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:can|could)\s+you\s+)?(?:please\s+)?(?P<v>check|audit|clean(?:\s*up)?|tidy(?:\s+up)?|fix)\s+(?:up\s+)?(?:your|my)?\s*(?:own\s+)?(?:memory|memories)(?:\s+for\s+(?:junk|mistakes|errors))?\W*$", re.I)
 
 
+_IS_CLEAN = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:is\s+(?:your|my)\s+memory\s+(?:clean|ok(?:ay)?|tidy|messy|in\s+good\s+shape)|is\s+there\s+(?:any\s+)?(?:junk|rubbish|garbage|mess|mistakes?|errors?)\s+in\s+(?:your|my)\s+memory|how\s+(?:clean|tidy)\s+is\s+(?:your|my)\s+memory)\W*$", re.I)
+
+
 def asks(text: str) -> Optional[str]:
     """'check' for the read-only report, 'clean' for the one that changes things (asked about first)."""
+    if _IS_CLEAN.match((text or "").strip()):
+        return "check"
     m = _ASK.match((text or "").strip())
     if not m:
         return None

@@ -53,11 +53,12 @@ def _t(alts: str):
 
 
 _TOPICS = [
-    ("model", _t(r"(?:what|which)\s+(?:model|llm|brain|ai)\s+(?:are\s+you\s+(?:running|using|on|thinking\s+with)|do\s+you\s+(?:use|run\s+on)|is\s+(?:this|that|answering))|"
+    ("model", _t(r"(?:what|which)\s+(?:model|llm|brain|ai)\s+(?:are\s+you\s+(?:running|using|on|thinking\s+with)|do\s+you\s+(?:use|run\s+on)|is\s+(?:this|that|answering(?:\s+me)?))|"
+                r"(?:tell\s+me\s+)?(?:what|which)\s+(?:model|llm)\s+you\s+(?:run|use)(?:\s+on)?|"
                 r"what\s+are\s+you\s+(?:running|thinking)\s+(?:on|with)")),
-    ("see", _t(r"(?:what|who)\s+can\s+you\s+(?:see|look\s+at)(?:\s+(?:right\s+)?now)?|can\s+you\s+see\s+(?:me|my\s+screen|anything|right\s+now)|are\s+you\s+(?:watching|looking\s+at)\s+(?:me|my\s+screen)")),
-    ("hear", _t(r"can\s+you\s+(?:hear|listen\s+to)\s+(?:me|us|anything)(?:\s+(?:right\s+)?now)?|are\s+you\s+listening(?:\s+(?:right\s+)?now)?")),
-    ("state", _t(r"(?:what|how)\s+(?:are\s+you|is\s+your\s+setup)\s+(?:set\s+up|configured)|what\s+(?:do\s+you\s+have|is)\s+(?:switched\s+on|turned\s+on)")),
+    ("see", _t(r"(?:what|who)\s+(?:can|are\s+you\s+able\s+to)\s+(?:you\s+)?(?:see|look\s+at)(?:\s+(?:right\s+)?now)?|can\s+you\s+see\s+(?:me|my\s+screen|anything|right\s+now)|are\s+you\s+(?:watching|looking\s+at)\s+(?:me|my\s+screen)")),
+    ("hear", _t(r"can\s+you\s+(?:hear|listen\s+to)\s+(?:me|us|anything)(?:\s+(?:right\s+)?now)?|are\s+you\s+listening(?:\s+to\s+(?:me|us))?(?:\s+(?:right\s+)?now)?|is\s+(?:your|the)\s+(?:mic|microphone)\s+(?:on|working|live)")),
+    ("state", _t(r"(?:what|how)\s+(?:are\s+you|is\s+your\s+setup)\s+(?:set\s+up|configured)|what(?:'?s|\s+is|\s+do\s+you\s+have)\s+(?:switched\s+on|turned\s+on|on)(?:\s+right\s+now)?")),
 ]
 
 
