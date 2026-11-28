@@ -76,6 +76,13 @@ def _norm(s: str) -> str:
     return re.sub(r"\s+", " ", (s or "").lower().strip(" .!?"))
 
 
+def pick_window(cands) -> Optional[int]:
+    """The window to bring forward among a program's visible, titled windows: the main one -- not a tool window or an owned pop-up, the biggest.
+    28 Nov: 'Switch to Opera' took the first titled window of opera.exe (a helper), and Windows refused it."""
+    real = [c for c in cands if not c.get("tool") and not c.get("owned")] or list(cands)
+    return max(real, key=lambda c: c.get("area", 0))["hwnd"] if real else None
+
+
 class Executor:
     """Does it on Windows. Every method returns True if it worked."""
 
@@ -95,6 +102,29 @@ class Executor:
         except Exception:
             logger.exception("Could not open %s", target)
         return False
+
+    @staticmethod
+    def _bring_front(user32, ctypes, hwnd) -> bool:
+        """Windows only lets the foreground program take the foreground: a key press from us and a brief share of the front window's input queue make it
+        allow this. Checked afterwards, so 'Switching to X' is only said when X is really in front."""
+        try:
+            fg = user32.GetForegroundWindow()
+            cur = ctypes.windll.kernel32.GetCurrentThreadId()
+            fg_tid = user32.GetWindowThreadProcessId(fg, None) if fg else 0
+            user32.keybd_event(0x12, 0, 0, 0)               # Alt down/up releases the foreground lock
+            user32.keybd_event(0x12, 0, 2, 0)
+            attached = bool(fg_tid and fg_tid != cur and user32.AttachThreadInput(cur, fg_tid, True))
+            try:
+                user32.BringWindowToTop(hwnd)
+                user32.SetForegroundWindow(hwnd)
+            finally:
+                if attached:
+                    user32.AttachThreadInput(cur, fg_tid, False)
+            time.sleep(0.15)
+            return user32.GetForegroundWindow() == hwnd
+        except Exception:
+            logger.exception("Bringing a window forward failed")
+            return False
 
     def running(self, process: str) -> bool:
         try:
@@ -134,21 +164,24 @@ class Executor:
             if not pids:
                 return False
             user32 = ctypes.windll.user32
-            found = []
+            cands = []
 
             @ctypes.WINFUNCTYPE(ctypes.c_bool, wt.HWND, wt.LPARAM)
             def cb(hwnd, _l):
                 pid = wt.DWORD()
                 user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
                 if pid.value in pids and user32.IsWindowVisible(hwnd) and user32.GetWindowTextLengthW(hwnd):
-                    found.append(hwnd)
-                    return False
+                    r = wt.RECT()
+                    user32.GetWindowRect(hwnd, ctypes.byref(r))
+                    cands.append({"hwnd": hwnd, "area": max(0, r.right - r.left) * max(0, r.bottom - r.top),
+                                  "tool": bool(user32.GetWindowLongW(hwnd, -20) & 0x80), "owned": bool(user32.GetWindow(hwnd, 4))})
                 return True
             user32.EnumWindows(cb, 0)
-            if not found:
+            hwnd = pick_window(cands)
+            if hwnd is None:
                 return False
-            user32.ShowWindow(found[0], 9)            # SW_RESTORE
-            return bool(user32.SetForegroundWindow(found[0]))
+            user32.ShowWindow(hwnd, 9)            # SW_RESTORE
+            return self._bring_front(user32, ctypes, hwnd)
         except Exception:
             logger.exception("Could not switch to %s", process)
             return False

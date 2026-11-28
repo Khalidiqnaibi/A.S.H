@@ -259,8 +259,18 @@ def d7_verify():
     check("with checking off it is as it was", d.hear("open Outlook") == "Opening Outlook.")
 
 
+def d8_pick_window():
+    print("\n=== D8. Which of a program's windows is brought forward ===")
+    from src.daemon.desktop import pick_window
+    cands = [{"hwnd": 1, "area": 400, "tool": True, "owned": False}, {"hwnd": 2, "area": 90000, "tool": False, "owned": True},
+             {"hwnd": 3, "area": 50000, "tool": False, "owned": False}, {"hwnd": 4, "area": 20000, "tool": False, "owned": False}]
+    check("the biggest main window -- not a tool window or an owned pop-up (28 Nov: 'Switch to Opera' took a helper and failed)", pick_window(cands) == 3)
+    check("only helpers: better than nothing", pick_window([{"hwnd": 9, "area": 10, "tool": True, "owned": False}]) == 9)
+    check("none: none", pick_window([]) is None)
+
+
 if __name__ == "__main__":
-    for fn in (d0_variety, d1_open, d2_switch, d3_close, d4_routines, d5_runtime, d6_executor, d7_verify):
+    for fn in (d0_variety, d1_open, d2_switch, d3_close, d4_routines, d5_runtime, d6_executor, d7_verify, d8_pick_window):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)
