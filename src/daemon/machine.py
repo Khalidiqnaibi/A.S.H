@@ -36,7 +36,11 @@ _SPECS = re.compile(_LEAD + r"(?:what(?:'s|\s+is|\s+are)\s+(?:my|the|this)\s+(?:
                     r"what\s+(?:gpu|graphics\s+card|cpu|processor)\s+(?:do\s+i\s+have|is\s+(?:this|in\s+(?:my|this)\s+(?:computer|pc|laptop)))|"
                     r"how\s+much\s+(?:ram|memory)\s+(?:do\s+i\s+have|does\s+(?:my|this)\s+(?:computer|pc|laptop)\s+have)|"
                     r"what(?:'s|\s+is)\s+my\s+(?:gpu|graphics\s+card|cpu|processor))\s*[?.!]*\s*$", re.I)
-_RUN = re.compile(_LEAD + r"(?:can|could|will|would)\s+(?:my|this)\s+(?:pc|computer|laptop|machine|rig)\s+(?:run|handle|play)\s+(?P<what>.{2,60}?)\s*[?.!]*\s*$", re.I)
+_DEV = r"(?:pc|computer|laptop|machine|rig|device|system|setup|potato)"
+# "Can this little stupid old device run GTA 6?" (28 Nov) -- adjectives between "this" and the device; "can I run X", "will X run on this pc"
+_RUN = re.compile(_LEAD + r"(?:(?:can|could|will|would)\s+(?:my|this|the)\s+(?:[\w,' -]{0,40}?\s+)?" + _DEV + r"\s+(?:even\s+)?(?:run|handle|play)\s+(?P<what>.{2,60}?)"
+                  r"|(?:can|could)\s+i\s+(?:even\s+)?(?:run|play)\s+(?P<what2>.{2,60}?)\s+on\s+(?:my|this|the)\s+(?:[\w,' -]{0,40}?\s+)?" + _DEV +
+                  r"|will\s+(?P<what3>.{2,60}?)\s+(?:even\s+)?run\s+on\s+(?:my|this|the)\s+(?:[\w,' -]{0,40}?\s+)?" + _DEV + r")\s*[?.!]*\s*$", re.I)
 
 
 def parse(text: str) -> Optional[Tuple[str, str]]:
@@ -50,7 +54,7 @@ def parse(text: str) -> Optional[Tuple[str, str]]:
         return ("specs", "")
     m = _RUN.match(t)
     if m:
-        return ("run", m.group("what").strip(" .?!"))
+        return ("run", (m.group("what") or m.group("what2") or m.group("what3")).strip(" .?!"))
     return None
 
 
@@ -167,8 +171,14 @@ def spoken_name(what: str) -> str:
 
 class Machine:
     def __init__(self, procs: Callable[[], List[Tuple[str, int, int]]] = processes, mem: Callable[[], Tuple[float, int, int]] = memory_now,
-                 spec: Callable[[], Dict[str, Any]] = specs, own_pid: Optional[int] = None):
+                 spec: Callable[[], Dict[str, Any]] = specs, own_pid: Optional[int] = None,
+                 online: Optional[Callable[[], bool]] = None, req: Optional[Callable[[str], Any]] = None):
         self.procs, self.mem, self.spec = procs, mem, spec
+        self.online = online                    # is there a network (learnweb.is_online when not given)
+        if req is None:
+            from . import canrun
+            req = canrun.lookup
+        self.req = req                          # game name -> {"name", "minimum", "recommended"} or None
         self.own_pid = os.getpid() if own_pid is None else own_pid
         self._spec: Optional[Dict[str, Any]] = None
 
@@ -210,9 +220,21 @@ class Machine:
         return "This computer has " + (", ".join(bits[:-1]) + " and " + bits[-1] if len(bits) > 1 else bits[0]) + "."
 
     def can_run(self, what: str) -> str:
+        """Online: what the game asks for (the Steam page) against this computer. Offline: the specs, and that it can't look it up -- never a guess."""
         what = spoken_name(what)
-        return (self.specs() + f" I can't check what {what} needs myself -- say “look up {what} system requirements” and I'll open the search, "
-                "then you can compare.")
+        online = self.online
+        if online is None:
+            from .learnweb import is_online as online
+        if not online():
+            return (self.specs() + f" I'm offline right now, so I can't look up what {what} needs -- ask me again when I'm online.")
+        try:
+            game = self.req(what)
+        except Exception:
+            return self.specs() + f" I couldn't reach the store to check what {what} needs."
+        if game is None:
+            return (self.specs() + f" Steam doesn't list {what} with requirements (it may not be out on PC, or it's sold elsewhere), so I can't check it.")
+        from . import canrun
+        return canrun.judge(game, self._spec or self.spec())
 
     def answer(self, kind: str, what: str = "") -> str:
         if kind == "memory":
