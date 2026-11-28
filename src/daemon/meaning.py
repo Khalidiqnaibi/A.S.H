@@ -188,6 +188,8 @@ NONE: List[str] = [
     "what is a black hole", "the weather in my city is nice", "how do I learn python quickly", "write me a poem about the sea", "I like jazz music a lot",
     "do you think AI will replace programmers", "what does ephemeral mean", "she said she would call me back", "the meeting went really well",
     "I need to buy milk and eggs", "my sister lives in Amman", "this keyboard is so loud", "it was a long day at work", "the sound in that film was amazing",
+    # 28 Nov: "How to teach you new concepts" was read as 'what have I taught you' and answered "I haven't been taught anyone or anything yet".
+    "how can I teach you new concepts", "how to teach you things from videos", "how do I teach you something new", "how can you learn from youtube videos",
 ]
 BUILD: Dict[str, Callable[[str], Optional[str]]] = {
     "memory": _fixed("what's using my memory"), "slow": _fixed("why is my computer slow"), "volume": _volume, "internet": _fixed("is the internet down"),

@@ -82,6 +82,9 @@ def main():
     check("at least 75% of held-out natural wordings (the regexes alone: 23%)", right / total >= 0.75, str(wrong))
     fp = [t for t in ORDINARY if (meaning.classify(ch, t) is not None and meaning.classify(ch, t).sure)]
     check("ordinary sentences are not read as commands", not fp, str(fp))
+    for q in ("How to teach you new concepts.", "how can I teach you concepts from youtube videos"):
+        r = meaning.classify(ch, q)
+        check(f"'how to teach you' is not 'what have I taught you': {q!r}", r is None or not r.sure, str(r))
     r = meaning.classify(ch, "set my sound level to thirty")
     check("the canonical phrase carries the slot", r is not None and r.phrase == "volume to 30", str(r))
 
