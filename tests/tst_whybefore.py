@@ -44,8 +44,23 @@ def b2_runtime():
     check("nothing before: said plainly", "haven't said anything before" in e.out[-1], e.out[-1])
 
 
+def b3_mismatch():
+    print("\n=== B3. 'Why are you saying something and writing something else?' ===")
+    check("asked", explain.asks_mismatch("Why are you saying something and writing something else?"))
+    check("not other whys", not explain.asks_mismatch("why did you say that") and not explain.asks_mismatch("what time is it"))
+    h = te.rig()
+    rt = getattr(h, "rt", h)
+    n = len(rt.ash.calls)
+    h.say("Why are you saying something and writing something else?", source="console")
+    check("answered from the real cause, not the camera, no model", "brief mode" in h.out[-1] and "camera" not in h.out[-1] and len(rt.ash.calls) == n, h.out[-1])
+    rt.speech.brief = True
+    h.say("Why are you saying something and writing something else?", source="console")
+    check("brief mode on: says so and how to turn it off", "full answers" in h.out[-1], h.out[-1])
+
+
 if __name__ == "__main__":
     b1_parse()
     b2_runtime()
+    b3_mismatch()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

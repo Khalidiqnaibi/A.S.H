@@ -8474,6 +8474,14 @@ class AmbientRuntime:
         from . import explain as explain_mod
         did_it, slow = explain_mod.asks_did_it(text), explain_mod.asks_slow(text)
         before = explain_mod.asks_before(text)
+        if self._user_source(ev) and explain_mod.asks_mismatch(text):
+            sp = getattr(self, "speech", None)
+            say = explain_mod.mismatch_reply(bool(getattr(sp, "brief", False)), int((getattr(sp, "stats", {}) or {}).get("brief_spoken", 0)))
+            self.response_sink(say, {"addressed": True, "source": "explain", "attention": None, "pathway": "explain"})
+            address.conversation.note_ash_spoke(self.clock(), asked=False)
+            self.gate.note_user_turn()
+            self._log_failure("spoken and written differ", text, say)
+            return True
         if not self._user_source(ev) or not (before or asked_why(text) or asks_source(text) or did_it or slow):
             return False
         try:

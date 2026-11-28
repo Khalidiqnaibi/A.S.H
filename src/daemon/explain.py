@@ -45,6 +45,28 @@ def asks_before(text: str) -> bool:
     return bool(t) and bool(_BEFORE.match(t))
 
 
+# "Why are you saying something and writing something else?" (28 Nov) -- the spoken line and the one on the screen differ when brief mode says the short
+# version, and always in what is left out of speech (links, code, symbols). Answered from that, not from the camera.
+_MISMATCH = re.compile(
+    r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:so|but|and|wait|ok(?:ay)?)[,\s]+)*(?:why\s+(?:are|do|did)\s+you\s+(?:saying|say|said|reading|read)\s+(?:something|one\s+thing|a\s+different\s+thing|different\s+things?)\s+(?:and|but|while|than)\s+(?:writing|write|wrote|showing|show|typing|type|displaying)\s+(?:something\s+else|another\s+thing|a\s+different\s+thing|something\s+different)"
+    r"|(?:why\s+)?(?:is|are)\s+(?:what\s+you\s+(?:say|said)|your\s+(?:voice|speech))\s+(?:different\s+(?:from|than|to)|not\s+(?:the\s+same\s+as|what\s+(?:is|'s)))\s+(?:what\s+you\s+(?:write|wrote|show)|(?:the\s+)?(?:text|screen|writing))"
+    r"|(?:the\s+)?(?:text|screen|writing)\s+(?:is\s+)?(?:different|doesn'?t\s+match)\s+(?:from\s+|than\s+|to\s+|with\s+)?(?:what\s+you\s+(?:say|said)|(?:the\s+)?(?:voice|speech)))\s*\??\s*$", re.I)
+
+
+def asks_mismatch(text: str) -> bool:
+    t = (text or "").strip()
+    return bool(t) and len(t) <= 110 and bool(_MISMATCH.match(t))
+
+
+def mismatch_reply(brief: bool, shortened: int = 0) -> str:
+    s = ("Two things make my voice differ from the screen. When I'm in brief mode I say the short version of a long answer and the screen keeps the whole one"
+         + (f" -- I've done that {shortened} time{'s' if shortened != 1 else ''} today" if brief and shortened else "")
+         + ". And I leave links, code and symbols out when I speak. ")
+    s += ("Brief mode is on now: say “full answers” and I'll read it all." if brief else
+          "Brief mode is off right now, so any difference is only the links, code and symbols -- if the words differ, that's a bug, and I've kept the line.")
+    return s
+
+
 _DID_IT = re.compile(
     r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:so|and|but|wait|ok(?:ay)?)[,\s]+)?(?:did\s+you\s+(?:actually\s+|really\s+|just\s+)?"
     r"(?:do|make|finish|manage|get)\s+(?:it|that|this)|did\s+(?:it|that|this)\s+(?:work|happen|go\s+through)|is\s+(?:it|that)\s+done|"
