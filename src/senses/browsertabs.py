@@ -135,6 +135,8 @@ class BrowserTabSensor(Sensor):
         super().__init__(interval=interval, enabled=enabled)
 
     # -- what it is looking at ---------------------------------------------------
+    front_url = ""
+
     @property
     def now_site(self) -> str:
         c = self._cur
@@ -213,7 +215,7 @@ class BrowserTabSensor(Sensor):
                 title = ""
         cat, src = self.cls.classify(host, title)
         return {"id": tab.get("id"), "host": host, "site": site_of(host), "title": title, "category": cat,
-                "source": src, "active": bool(tab.get("active")), "audible": bool(tab.get("audible")), "url": url[:400]}
+                "source": src, "active": bool(tab.get("active")), "audible": bool(tab.get("audible"))}
 
     # -- the loop ------------------------------------------------------------------------
     def read(self) -> List[SensorEvent]:
@@ -251,6 +253,7 @@ class BrowserTabSensor(Sensor):
             if active_raw.get("id") is not None:
                 self._last_active[active_raw["id"]] = now            # which tabs get used: ids and times, never pages
         self._last_active = {i: t for i, t in self._last_active.items() if i in self._born}
+        self.front_url = str(active_raw.get("url") or "")[:400] if (cand is not None and active_raw is not None) else ""   # in memory only, never stored: for "read the page"
         self._background(now, [] if self._idle_over() else clean, cand)
         out: List[SensorEvent] = []
         if cand is None:
