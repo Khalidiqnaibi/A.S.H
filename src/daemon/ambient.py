@@ -3577,6 +3577,25 @@ class AmbientRuntime:
             def copy(self, text):
                 cb = me.clipboard
                 return bool(cb is not None and cb.copy(text))
+
+            def act(self, text):
+                """One command for the computer, through the same rules as when it is said alone (desktop, control, media) -- without the plan's automatic
+                'yes': a command that asks first (Delete, close a window) stops the pipe with its question."""
+                from src.senses.base import Modality, SensorEvent
+                sub = SensorEvent(source="console", modality=Modality.TEXT, text=text, addressed=True, salience=0.9, urgency=0.6)
+                me._capture = []
+                try:
+                    for name in ("_media_request", "_control_request", "_desktop_request"):
+                        if getattr(me, name)(sub, me.clock()):
+                            break
+                    said = " ".join(x for x in (me._capture or []) if x)
+                finally:
+                    me._capture = None
+                waiting = (getattr(getattr(me, "control", None), "waiting", False)
+                           or getattr(getattr(me, "desktop", None), "_pending", None) is not None)
+                if waiting:
+                    raise pipeline.Pause(said)
+                return said
         return Real()
 
     def _pipeline_request(self, ev, now: float) -> bool:

@@ -137,10 +137,30 @@ def c4_runtime():
     check("it shows in the status", rt.status()["control"]["done"] >= 2)
 
 
+def c5_compound():
+    print("\n=== C5. Two commands in one sentence run as a pipe ===")
+    import tst_desktop as td
+    from src.daemon import pipeline as pl
+    check("'switch to Opera and make it full screen' is a pipe of two actions", [st.name for st in pl.parse("Switch to Opera and make it full screen.")["parallel"][0]] == ["act", "act"])
+    check("a single command is not a pipe", pl.parse("switch to opera") is None and pl.parse("make it full screen") is None)
+    check("'open Discord and type in it' is not two commands (the 'in it' is not text to type)", pl.parse("open Discord and type in it") is None)
+    h = td.rt_rig()
+    rt = h.rt
+    h.ex.procs.add("opera.exe")
+    rt.control = control.Control(control.ControlConfig(), Ex(), clock=lambda: rt.clock())
+    ex = rt.control.ex
+    rt._pipeline_ctx_pause = None
+    h.say("Switch to Opera and make it full screen")
+    check("both were done, in order, and said in one line", h.ex.focused[-1:] == ["opera.exe"] and ex.log[-1:] == [("keys", ("f11",))] and "Switching to Opera" in h.said()[-1] and "Full screen" in h.said()[-1], f"{h.ex.focused} {ex.log} {h.said()[-2:]}")
+    h.say("press delete and scroll down")
+    check("a command that asks first stops the pipe with its question (nothing after it runs)", "Press delete?" in h.said()[-1] and not any(x[0] == "scroll" for x in ex.log[-2:]), f"{h.said()[-1]} {ex.log[-2:]}")
+
+
 if __name__ == "__main__":
     c1_parse()
     c2_do()
     c3_limits()
     c4_runtime()
+    c5_compound()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

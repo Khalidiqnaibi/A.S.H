@@ -62,6 +62,34 @@ _BACKGROUND = re.compile(r"\s*(?:,\s*)?(?:in\s+the\s+background|in\s+background|
 _LEAD = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:ok(?:ay)?|so|and|please|um+)[,\s]+)*(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?", re.I)
 
 
+def is_action(clause: str) -> bool:
+    """A clause that is one of ASH's own commands for the computer -- switch to / open / close an app, a key, a click, scrolling, full screen, a shortcut, the media keys.
+    28 Nov: "Switch to Opera and make it full screen" went to the model (42 s): two commands are a pipe of two action stages."""
+    c = _LEAD.sub("", (clause or "").strip())
+    if not c or len(c) > 90:
+        return False
+    try:
+        from . import control
+        a = control.parse(c)
+        if a is not None and a.kind not in ("devices", "refuse") and not (a.kind == "type" and re.match(r"^(?:in|into|on)\b", str(a.arg), re.I)):
+            return True
+    except Exception:
+        pass
+    try:
+        from . import desktop
+        if desktop._OPEN.match(c) or desktop._SWITCH.match(c) or desktop._CLOSE.match(c):
+            return True
+    except Exception:
+        pass
+    try:
+        from . import media
+        if any(rx.match(c) for rx, _k, _s in media._MUSIC):
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def match_stage(clause: str) -> Optional[Stage]:
     c = (clause or "").strip()
     for name, takes, gives, effect, rx in _RX:
@@ -73,13 +101,16 @@ def match_stage(clause: str) -> Optional[Stage]:
             if name == "find_files" and re.fullmatch(r"(?:it|that|this|them|something|anything|me)", arg, re.I):
                 continue
             return Stage(name, takes, gives, effect, arg, _say(name, arg))
+    if is_action(c):
+        arg = _LEAD.sub("", c).strip(" .,!?")
+        return Stage("act", NONE, NONE, False, arg, arg)
     return None
 
 
 def _say(name: str, arg: str) -> str:
     return {"find_files": f"find {arg}", "search_web": f"search for {arg}", "memory": f"search my memory for {arg}", "read_file": "read it", "read_page": "read the page",
             "summarize": "summarize it", "about": f"pick out what it says about {arg}", "note": "keep it as a note", "remember_as": f"remember it as {arg}", "copy": "copy it",
-            "say": "tell you"}.get(name, name)
+            "say": "tell you", "act": arg}.get(name, name)
 
 
 def parse(text: str) -> Optional[Dict[str, Any]]:
@@ -98,7 +129,7 @@ def parse(text: str) -> Optional[Dict[str, Any]]:
             st = match_stage(p)
             if st is not None:
                 stages.append(st)
-            elif stages and stages[-1].arg:
+            elif stages and stages[-1].arg and stages[-1].name != "act":
                 # a fragment that is not a stage: part of the previous argument ("pygame and sprites" split at "and")
                 stages[-1].arg = (stages[-1].arg + " " + p).strip()
                 stages[-1].say = _say(stages[-1].name, stages[-1].arg)
@@ -185,6 +216,11 @@ class Ctx:
     def note(self, text: str) -> bool: ...
     def remember(self, name: str, text: str) -> bool: ...
     def copy(self, text: str) -> bool: ...
+    def act(self, text: str) -> str: ...            # one command for the computer, by the same rules as when said alone; may raise Pause (it asked first)
+
+
+class Pause(Exception):
+    """An action stage asked a question first (Delete, close a window): the pipe stops there and says it."""
 
 
 @dataclass
@@ -205,6 +241,7 @@ def run_stages(ctx: Ctx, run: Run, pause: Callable[[float], None] = time.sleep) 
     val: Any = None
     kind = NONE
     last_say = ""
+    acts: List[str] = []
     for i, st in enumerate(run.stages):
         if run.cancel.is_set():
             run.state = "cancelled"
@@ -264,10 +301,22 @@ def run_stages(ctx: Ctx, run: Run, pause: Callable[[float], None] = time.sleep) 
                 kind, last_say = NONE, "Copied."
             elif n == "say":
                 last_say = str(val)[:320]
+            elif n == "act":
+                said = ctx.act(st.arg)
+                if not said:
+                    return _fail(run, i, st, "nothing answered it")
+                acts.append(said)
+                if i + 1 < len(run.stages):
+                    pause(0.5)                                 # the window has to arrive before the next command is aimed at it
+        except Pause as q:
+            run.state = "failed"
+            return " ".join(acts + [str(q)])
         except Exception as e:                                # a stage that raises ends the pipe, named
             return _fail(run, i, st, f"{type(e).__name__}")
     run.state = "done"
     run.value = val
+    if acts and not last_say and not (isinstance(val, str) and val):
+        return " ".join(acts)
     if last_say:
         return last_say if len(run.stages) == 1 or run.stages[-1].name == "say" else (last_say + (" " + str(val)[:200] if isinstance(val, str) and run.stages[-1].name in ("note", "remember_as", "copy") and False else ""))
     return (str(val)[:320] if isinstance(val, str) and val else "Done.")

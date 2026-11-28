@@ -180,6 +180,22 @@ def main():
     check("listed", not used and said and "pet check" in said[-1], f"{used} {said}")
     used, said = rt.say("forget the pet check pipe")
     check("forgotten", not used and said and said[-1] == "Forgot pet check." and not rt._named_pipes().items, f"{used} {said}")
+    print("\n=== P10. Commands for the computer are action stages ===")
+    done = []
+
+    class Acts(Fake):
+        def act(self, text):
+            done.append(text)
+            if "delete" in text:
+                raise pl.Pause("Press delete? Say yes.")
+            return "Did " + text + "."
+    out, r = run("Switch to Opera and make it full screen", Acts())
+    check("each command runs, in order, and what each said comes back in one line", done == ["Switch to Opera", "make it full screen"] and out == "Did Switch to Opera. Did make it full screen.", f"{done} {out}")
+    done.clear()
+    out, r = run("press space then press delete then scroll down", Acts())
+    check("a command that asks first stops the pipe there with its question", done == ["press space", "press delete"] and out.endswith("Press delete? Say yes.") and r.state == "failed", f"{done} {out}")
+    check("an action can be mixed with the other stages' words without being read as one",
+          pl.parse("close word, set a 25 minute timer") is None)
     print("\n" + ("ALL PASS" if tw.OK else "FAILED"))
     sys.exit(0 if tw.OK else 1)
 
