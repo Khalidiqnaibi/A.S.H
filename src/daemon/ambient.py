@@ -2757,6 +2757,46 @@ class AmbientRuntime:
             logger.debug("journal read failed", exc_info=True)
         return out
 
+    def _old_name_request(self, ev, now: float) -> bool:
+        """"Who is Immortal?" when Immortal is the old name on most of the memory: the merge is offered (selfcare.merge_offer), before the notes or a
+        lookup answer it with whatever loosely matches."""
+        if not self._user_source(ev) or self._is_guest(ev) or not self._meant_for_ash(ev):
+            return False
+        text = str(getattr(ev, "text", "") or "").strip()
+        if not text or len(text) > 60:
+            return False
+        try:
+            from . import selfcare as sc
+            eps = list(getattr(getattr(getattr(self.ash, "episodic_memory", None), "store", None), "episodes", {}).values())
+            offer = sc.merge_offer(text, eps, str(getattr(self.ash, "user", "") or ""), getattr(self.ash, "user_aliases", None) or ())
+        except Exception:
+            return False
+        if not offer:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": offer, "outcome": "desktop"})())
+        self._last_why = {"kind": "memory"}
+        return True
+
+    def _old_name_request(self, ev, now: float) -> bool:
+        """"Who is Immortal?" when Immortal is the old name on most of the memory: the merge is offered (selfcare.merge_offer), before the notes or a
+        lookup answer it with whatever loosely matches."""
+        if not self._user_source(ev) or self._is_guest(ev) or not self._meant_for_ash(ev):
+            return False
+        text = str(getattr(ev, "text", "") or "").strip()
+        if not text or len(text) > 60:
+            return False
+        try:
+            from . import selfcare as sc
+            eps = list(getattr(getattr(getattr(self.ash, "episodic_memory", None), "store", None), "episodes", {}).values())
+            offer = sc.merge_offer(text, eps, str(getattr(self.ash, "user", "") or ""), getattr(self.ash, "user_aliases", None) or ())
+        except Exception:
+            return False
+        if not offer:
+            return False
+        self._wonder_say(ev, type("R", (), {"say": offer, "outcome": "desktop"})())
+        self._last_why = {"kind": "memory"}
+        return True
+
     def _selfcare_request(self, ev, now: float) -> bool:
         if not self._user_source(ev) or bool((getattr(ev, "meta", None) or {}).get("guest")):
             return False
@@ -2768,6 +2808,13 @@ class AmbientRuntime:
         def say(line: str, outcome: str = "answer") -> bool:
             self._wonder_say(ev, type("R", (), {"say": line, "outcome": outcome})())
             return True
+        try:
+            eps = list(getattr(getattr(getattr(self.ash, "episodic_memory", None), "store", None), "episodes", {}).values())
+            offer = sc.merge_offer(text, eps, str(getattr(self.ash, "user", "") or ""), getattr(self.ash, "user_aliases", None) or ())
+        except Exception:
+            offer = None
+        if offer:
+            return say(offer)
         mg = sc.parse_merge(text)
         if mg is not None:
             user = str(getattr(self.ash, "user", "") or "")
@@ -7073,6 +7120,10 @@ class AmbientRuntime:
         if not loose and self._remember_request(ev, now):
             return True
         if not loose and self._learn_alias(ev, now):
+            return True
+        if not loose and self._old_name_request(ev, now):
+            return True
+        if not loose and self._old_name_request(ev, now):
             return True
         if not loose and self._about_me_request(ev, now):
             return True

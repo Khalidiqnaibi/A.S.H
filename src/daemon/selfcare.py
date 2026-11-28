@@ -34,6 +34,37 @@ def _norm(s: str) -> str:
 _MERGE = re.compile(_A + r"(?:merge|combine|fold)\s+(?P<old>[A-Za-z][\w' -]{1,25}?)\s+(?:into|with|and)\s+(?P<new>[A-Za-z][\w' -]{1,25}?)(?:\s+(?:as\s+)?(?:my\s+name|me|one\s+person))?" + _Z, re.I)
 
 
+_WHO_LABEL = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:who(?:'s|\s+is|\s+was)|tell\s+me\s+about|what\s+do\s+you\s+know\s+about)\s+(?P<n>[A-Za-z][\w'-]{2,24})\W*$", re.I)
+
+
+def old_label(episodes, user: str, aliases=()) -> str:
+    """The name most of the remembered moments are headed with ("Immortal: ...") when it is not the name ASH uses for the person now -- the old name."""
+    from collections import Counter
+    c = Counter()
+    for e in episodes:
+        m = re.match(r"^([A-Z][A-Za-z'-]{2,24}):\s", str(getattr(e, "summary", "") or ""))
+        if m:
+            c[m.group(1)] += 1
+    known = {str(user).lower(), *[str(a).lower() for a in aliases], "ash", "a.s.h", "user", "you"}
+    for name, n in c.most_common(3):
+        if name.lower() not in known and n >= 5:
+            return name
+    return ""
+
+
+def merge_offer(text: str, episodes, user: str, aliases=()) -> Optional[str]:
+    """"Who is Immortal?" when "Immortal" is the old name on most of the memory: say so and how to join the two, instead of answering from whatever
+    loosely matches (28 Nov: a blob of unrelated notes)."""
+    m = _WHO_LABEL.match(text or "")
+    if not m or not user:
+        return None
+    lab = old_label(episodes, user, aliases)
+    if lab and m.group("n").lower() == lab.lower():
+        return (f"“{lab}” is the name most of my older notes use for you. Say “merge {lab} into {user}” and I'll join them -- "
+                "I keep a backup and the old name as an alias.")
+    return None
+
+
 def parse_merge(text: str) -> Optional[Tuple[str, str]]:
     m = _MERGE.match((text or "").strip())
     if not m:

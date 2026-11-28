@@ -82,6 +82,21 @@ def main():
     s = sc.last_mention(rows, "Omar")
     check("from what you said, not from window titles", s.startswith("You last mentioned Omar on") and "call Omar about the exam" in s, s)
     check("never: said so", sc.last_mention(rows, "Zed").startswith("I don't have you mentioning Zed"))
+    from types import SimpleNamespace as NS
+    eps = [NS(summary="Immortal: explain recursion simply")] * 8 + [NS(summary="Khalid: hello there")] * 2 + [NS(summary="ASH: ok fine")] * 9
+    check("the old name is the label most moments carry when it is not the current name", sc.old_label(eps, "Khalid") == "Immortal")
+    check("no old name when the label is the current one or an alias", sc.old_label(eps, "Immortal") == "" and sc.old_label(eps, "Khalid", ["Immortal"]) == "")
+    offer = sc.merge_offer("Who is Immortal?", eps, "Khalid")
+    check("'who is Immortal' offers the merge instead of a blob (28 Nov)", offer is not None and "merge Immortal into Khalid" in offer, str(offer))
+    check("not for other names", sc.merge_offer("who is Omar", eps, "Khalid") is None and sc.merge_offer("who is Immortal", eps, "Immortal") is None)
+    import tst_effects as te
+    h = te.rig(wonder=True)
+    rt = getattr(h, "rt", h)
+    rt.ash.episodic_memory = NS(store=NS(episodes={i: NS(summary=f"Immortal: question number {i}") for i in range(8)}))
+    rt.ash.user = "Khalid"
+    n = len(rt.ash.calls)
+    h.say("Who is Immortal?", source="console")
+    check("on the runtime: offered before any notes answer, no model", "merge Immortal into Khalid" in h.out[-1] and len(rt.ash.calls) == n, h.out[-1])
     print("\n" + ("ALL PASS" if tw.OK else "FAILED"))
     sys.exit(0 if tw.OK else 1)
 
