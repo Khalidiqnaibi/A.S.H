@@ -178,7 +178,7 @@ def rt_rig():
         response_sink=lambda t, m: out.append((t, m)))
     rt.clock = lambda: clock[0]
     ex = FakeEx()
-    rt.desktop.ex = ex
+    rt.desktop.ex, rt.desktop.verify_s = ex, 0.0          # the fake never starts anything: no waiting for it
 
     class H:
         pass
@@ -240,8 +240,27 @@ def d6_executor():
     check("asking about a program that is not there is safe", ok)
 
 
+def d7_verify():
+    print("\n=== D7. An open is checked: it only counts when the app shows up ===")
+    d = drig()
+    d.verify_s, naps = 1.0, []
+    d.sleep = lambda s: naps.append(s)
+    check("an app that is already running is said to be opening, with no wait", d.hear("open Chrome") == "Opening Chrome." and not naps, str(naps))
+    d = drig()
+    d.verify_s, naps = 1.0, []
+    d.sleep = lambda s: (naps.append(s), d.ex_.procs.add("outlook.exe"))
+    check("an app that appears while it waits is said to be opening", d.hear("open Outlook") == "Opening Outlook." and naps, str(naps))
+    d = drig()
+    d.verify_s, naps = 1.0, []
+    d.sleep = lambda s: naps.append(s)
+    r = d.hear("open Outlook")
+    check("an app that never appears is not claimed", r == "I asked Windows to open Outlook, but I don't see it running yet." and d.stats["unseen"] == 1 and len(naps) == 4, f"{r} {naps}")
+    d = drig()
+    check("with checking off it is as it was", d.hear("open Outlook") == "Opening Outlook.")
+
+
 if __name__ == "__main__":
-    for fn in (d0_variety, d1_open, d2_switch, d3_close, d4_routines, d5_runtime, d6_executor):
+    for fn in (d0_variety, d1_open, d2_switch, d3_close, d4_routines, d5_runtime, d6_executor, d7_verify):
         fn()
     print("\n" + ("ALL PASS" if tw.OK else "FAILURES"))
     sys.exit(0 if tw.OK else 1)

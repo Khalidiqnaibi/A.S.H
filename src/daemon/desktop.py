@@ -169,6 +169,8 @@ class DesktopConfig:
                 c.apps = dict(v)
             elif k in ("enabled", "confirm_close"):
                 setattr(c, k, bool(v))
+            elif k == "verify_s":
+                continue
             elif k == "confirm_window_s":
                 try:
                     c.confirm_window_s = float(v)
@@ -179,15 +181,16 @@ class DesktopConfig:
 
 class Desktop:
     def __init__(self, cfg: Optional[DesktopConfig] = None, executor: Optional[Executor] = None,
-                 knowledge=None, clock: Callable[[], float] = time.time):
+                 knowledge=None, clock: Callable[[], float] = time.time, verify_s: float = 0.0, sleep: Callable[[float], None] = time.sleep):
         self.cfg = cfg or DesktopConfig()
+        self.verify_s, self.sleep = verify_s, sleep           # after an open, wait this long for the app to be running before saying it opened (0: don't check)
         self.ex = executor or Executor()
         self.kb = knowledge                       # wondering's Knowledge, for routines
         self.clock = clock
         self.fresh = Fresh()                      # the same acknowledgement twice in a row changes its opening word
         self._pending: Optional[Tuple[str, str, float]] = None   # (name, process, asked at)
         self.on_act: Optional[Callable[[str, Callable[[], None]], None]] = None   # told of each open/close with the way back (the runtime's "undo that")
-        self.stats = {"opened": 0, "closed": 0, "switched": 0, "routines": 0, "failed": 0}
+        self.stats = {"opened": 0, "closed": 0, "switched": 0, "routines": 0, "failed": 0, "unseen": 0}
         self.apps: Dict[str, Tuple[str, str]] = dict(APPS)
         for name, v in self.cfg.apps.items():
             if isinstance(v, (list, tuple)) and len(v) == 2:
@@ -316,6 +319,9 @@ class Desktop:
                 proc = (app[2] or "").split("|")[0]
                 if proc:                                        # the way back is a polite close, which asks to save if there is anything to save
                     self._acted(f"opening {app[0]}", lambda p=proc: self.ex.close(p))
+                if proc and self.verify_s > 0 and not self._seen(app[2]):
+                    self.stats["unseen"] += 1
+                    return f"I asked Windows to open {app[0]}, but I don't see it running yet."
             return (self.fresh.apply(f"Opening {app[0]}.", self.clock()) if ok else f"I couldn't open {app[0]}.")
         m = _SWITCH.match(t)
         if m:
@@ -358,6 +364,17 @@ class Desktop:
             if p and self.ex.running(p):
                 return p
         return None
+
+    def _seen(self, procs: str) -> bool:
+        """The app's process shows up within verify_s (an open that returns True only means it was asked)."""
+        waited = 0.0
+        while True:
+            if self._running(procs):
+                return True
+            if waited >= self.verify_s:
+                return False
+            self.sleep(0.25)
+            waited += 0.25
 
     def _open_one(self, name: str) -> bool:
         app = self._app(name)

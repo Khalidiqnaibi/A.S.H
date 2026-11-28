@@ -921,7 +921,7 @@ class AmbientRuntime:
         if self.cfg.desktop:
             self.desktop = Desktop(DesktopConfig.from_dict(self.cfg.desktop_cfg),
                                    knowledge=(self.wonder.kb if self.wonder else None),
-                                   clock=lambda: self.clock())
+                                   clock=lambda: self.clock(), verify_s=float((self.cfg.desktop_cfg or {}).get("verify_s", 2.0)))
         self.stats["wonders_asked"] = 0
         self.stats["corrections"] = 0
         self._last_turn: Optional[Dict[str, Any]] = None     # what ASH last answered, and as what
