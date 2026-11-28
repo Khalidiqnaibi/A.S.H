@@ -127,6 +127,13 @@ def s4_prompt():
     s2.narrate("A.S.H", "hello", {}, {"core": "", "episodic": "", "entity": ""}, "", Drives(), "", about=blk)
     check("it is in the prompt when given", seen and "[ABOUT YOU]" in seen[0] and "qwen2.5:3b" in seen[0], str(seen)[:200])
     seen.clear()
+    big = "A fact about something. " * 400
+    s2.narrate("A.S.H", "hello", {"x": big}, {"core": big, "episodic": big, "entity": big}, big, Drives(), "", context=big)
+    check("a long prompt is capped block by block (28 Nov: 20-36 s answers on an idle CPU)", seen and len(seen[0]) < 6500, str(len(seen[0])))
+    check("and the size is recorded for 'why was that slow'", s2.last_narration.get("prompt_chars", 0) > 0 and s2.last_narration["prompt_chars"] < 10000, str(s2.last_narration))
+    from src.brain.system2 import _cap
+    check("the newest end of a conversation is the part kept", _cap("old. " * 400 + "NEWEST LINE here.", 300, tail=True).endswith("NEWEST LINE here."))
+    seen.clear()
     s2.narrate("A.S.H", "hello", {}, {"core": "", "episodic": "", "entity": ""}, "", Drives(), "")
     check("and not when it is not", seen and "[ABOUT YOU]" not in seen[0])
 

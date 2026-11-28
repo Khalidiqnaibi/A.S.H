@@ -201,6 +201,24 @@ def persona(name: str, user: str = "", mood: str = "") -> str:
     return "\n\n".join(blocks)
 
 
+CAP_WORKING, CAP_MEMORY, CAP_FACTS, CAP_CONTEXT = 1200, 900, 1000, 600     # characters per prompt block
+
+
+def _cap(text: str, n: int, tail: bool = False) -> str:
+    """`text` cut to about `n` characters, on a line or sentence end where one is near (for a conversation the newest end is kept)."""
+    t = str(text or "")
+    if len(t) <= n:
+        return t
+    if tail:
+        cut = t[-n:]
+        m = re.search(r"[\n.!?]\s", cut)
+        return cut[m.end():] if m and m.end() < n // 3 else cut
+    cut = t[:n]
+    ends = [cut.rfind(x) for x in ("\n", ". ", "? ", "! ")]
+    best = max(ends)
+    return cut[:best + 1] if best > 2 * n // 3 else cut
+
+
 class System2Deliberator:
     def __init__(self, llm, registry, candidate_fn=None, shapes: Optional[Dict[str, Any]] = None,
                  allow_llm_proposals: bool = True, rollout_horizon: int = 3):
@@ -483,26 +501,29 @@ class System2Deliberator:
                 return text
         system_content = persona(name, user, modulation_block)
 
+        # 28 Nov: plain answers took 20-36 s with the CPU idle -- a long prompt on a 3B model, not a busy machine. Each block has a ceiling now.
         parts = [f"{query_label}: {query}\n"]
         if working and working.strip() and working.strip() != "empty":
-            parts.append(f"Recent conversation:\n{working}\n")
+            parts.append(f"Recent conversation:\n{_cap(working, CAP_WORKING, tail=True)}\n")
         for key in ("core", "episodic", "entity"):
             if memory.get(key):
-                parts.append(f"{MEMORY_FRAMES[key]}\n{memory[key]}\n")
+                parts.append(f"{MEMORY_FRAMES[key]}\n{_cap(memory[key], CAP_MEMORY)}\n")
         if about:
             parts.append(about + "\n")        # true things about ASH itself (selfmodel.block): so the model does not deny what it can do
         if facts:
-            parts.append("Facts you can use:\n" + json.dumps(facts, indent=2, default=str) + "\n")
+            parts.append("Facts you can use:\n" + _cap(json.dumps(facts, indent=2, default=str), CAP_FACTS) + "\n")
         parts.append(drives.as_prompt_block() + "\n")
         if context:
             parts.append("What the user has been doing recently (background only -- "
-                         f"mention it only if it is relevant):\n{context}\n")
+                         f"mention it only if it is relevant):\n{_cap(context, CAP_CONTEXT)}\n")
         if trace_note:
             parts.append(f"[COGNITIVE NOTE] {trace_note}\n")
         if use_gist:
             parts.append(gist_prompt(gist) + "\n")
 
         human = "\n".join(parts)
+        self.last_narration["prompt_chars"] = len(human) + len(system_content)
+        logger.info("Prompt: %d characters (about %d tokens)", len(human) + len(system_content), (len(human) + len(system_content)) // 4)
         if not use_gist:
             self.last_narration["calls"] = 1
             return self._call_llm(human, system=system_content)
