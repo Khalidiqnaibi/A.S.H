@@ -125,11 +125,76 @@ def parse(text: str, user: str = "") -> Optional[Dict[str, str]]:
     return None
 
 
+# What the person teaches about how to read them: "remember that when I tell you to see how something works, I'm probably talking about watching a
+# YouTube video about it". 28 Nov: said four times; the answer was "I don't know." (30 s) every time, and nothing was kept.
+_HABIT = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:please\s+)?remember\s*(?:that)?\s*[:,]?\s+)?when\s+i\s+(?:say|tell\s+you(?:\s+to)?|ask\s+(?:you\s+)?(?:to)?|use\s+the\s+words?)\s+"
+                    r"(?P<t>.{3,80}?)\s*,?\s+(?:i\s+(?:probably\s+|usually\s+|always\s+)?mean|i'?m\s+(?:probably\s+|usually\s+)?(?:talking|asking|referring)\s+(?:about|to)|"
+                    r"it\s+(?:probably\s+|usually\s+)?means|that\s+means|i\s+want(?:\s+you\s+to)?)\s+(?P<m>.{3,140}?)\s*[.!]*\s*$", re.I)
+_HABIT_LIST = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:what\s+(?:rules|habits|things)\s+(?:have\s+i\s+(?:taught|given|told)\s+you|do\s+you\s+(?:follow|keep))(?:\s+about\s+(?:how\s+(?:you\s+)?(?:understand|read|hear)\s+me|me))?"
+                         r"|what\s+have\s+i\s+taught\s+you\s+about\s+(?:how\s+(?:you\s+)?(?:understand|read|hear)\s+me|my\s+(?:words|wording|phrases))|list\s+(?:my|the)\s+rules\s+i\s+(?:taught|gave)\s+you)\s*[?.!]*\s*$", re.I)
+_HABIT_FORGET = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:forget|drop|remove|delete)\s+(?:that\s+|the\s+|my\s+)?(?:last\s+)?rule(?:\s+(?:about|for)\s+(?P<t>.{3,60}?))?\s*[.!]*\s*$", re.I)
+_THAT = re.compile(r"^\s*(?:(?:hey\s+)?ash[,\s]+)?(?:please\s+)?remember\s*(?:that\s*[:,]?|[:,])\s*(?P<s>[^?]{12,200}?)\s*$", re.I)
+HABIT = "habit: "
+
+
+def habits(kb) -> List[Tuple[str, str]]:
+    """(when you say, you mean), oldest first."""
+    with kb._lock:
+        return [(k[len(HABIT):], v) for k, v in kb.facts.items() if k.startswith(HABIT)]
+
+
+def habit_block(kb, limit: int = 5) -> str:
+    h = habits(kb) if kb is not None else []
+    return chr(10).join(f"- When the person says \"{t}\", they mean: {m}" for t, m in h[-limit:])
+
+
+def teach(kb, text: str) -> Optional[Tuple[str, Any]]:
+    """A rule about how to read the person ("when I say X I mean Y"), a list of them, forgetting one, or a plain "remember that ..." sentence:
+    (what to say, an undo), or None if the line is none of those."""
+    if kb is None or not hasattr(kb, "drop_fact"):
+        return None
+    t = (text or "").strip()
+    if len(t) > 260:
+        return None
+    from .forget import restorer, snapshot
+    if _HABIT_LIST.match(t):
+        h = habits(kb)
+        if not h:
+            return "You haven't taught me any rules about how to read you yet. Say “when I say X, I mean Y”.", None
+        return "You taught me: " + "; ".join(f"when you say “{a}” you mean {b}" for a, b in h[-5:]) + ".", None
+    m = _HABIT_FORGET.match(t)
+    if m:
+        h = habits(kb)
+        if m.group("t"):
+            want = norm(m.group("t"))
+            h = [x for x in h if want in norm(x[0])]
+        if not h:
+            return "I don't have a rule like that.", None
+        snap = snapshot(kb)
+        kb.drop_fact(HABIT + h[-1][0])
+        return f"Okay -- forgot the rule about “{h[-1][0]}”.", restorer(kb, snap, getattr(kb, "entities", None))
+    m = _HABIT.match(t)
+    if m:
+        trig, mean = m.group("t").strip(" ,.'\""), m.group("m").strip(" ,.'\"")
+        snap = snapshot(kb)
+        kb.store_fact(HABIT + trig, mean, limit=160)
+        return f"Got it -- when you say “{trig}”, I'll take it as {mean}.", restorer(kb, snap, getattr(kb, "entities", None))
+    m = _THAT.match(t)
+    if m and len(m.group("s").split()) >= 4 and not re.match(r"^(?:to|me\s+to)\b", m.group("s"), re.I):
+        sent = m.group("s").strip(" .")
+        snap = snapshot(kb)
+        kb.store_fact("note: " + sent[:50], sent, limit=160)
+        return f"Noted: {sent[:120]}.", restorer(kb, snap, getattr(kb, "entities", None))
+    return None
+
+
 def remember(kb, text: str, user: str = "") -> Optional[Tuple[str, Any]]:
     """Store what `text` says. Returns (the sentence to say, an undo function),
     or None if the sentence is not one of the shapes above."""
     p = parse(text, user)
-    if p is None or kb is None:
+    if p is None:
+        return teach(kb, text)
+    if kb is None:
         return None
     from .forget import restorer, snapshot
     name, role, of = p["name"], p["role"], p["of"]

@@ -427,6 +427,29 @@ def r17_provenance():
         te.stop_all(rt)
 
 
+def r18_habits():
+    print("\n=== R18. Rules about how to read the person ===")
+    rt = rig()
+    try:
+        n = len(rt.ash.calls)
+        rt.say("Remember that when I tell you to see how something works, I'm probably talking about watching our YouTube video about it.")
+        check("kept, and said back", rt.out[-1] == "Got it -- when you say “see how something works”, I'll take it as watching our YouTube video about it.", rt.out[-1])
+        check("the model was not asked", len(rt.ash.calls) == n, str(rt.ash.calls[n:]))
+        from src.daemon import remember as rem, selfmodel
+        check("it is on the record", rem.habits(rt.wonder.kb) == [("see how something works", "watching our YouTube video about it")], str(rem.habits(rt.wonder.kb)))
+        check("and in what the model is told about the person", "see how something works" in selfmodel.block(rt) and "follow them" in selfmodel.block(rt))
+        rt.say("what rules have I taught you")
+        check("listed", "see how something works" in rt.out[-1] and rt.out[-1].startswith("You taught me:"), rt.out[-1])
+        rt.say("remember that the project report is due on Thursday morning")
+        check("a plain 'remember that ...' is kept as a note, not 'I don't know'", rt.out[-1].startswith("Noted: the project report is due on Thursday morning"), rt.out[-1])
+        rt.say("forget that rule")
+        check("forgotten", rem.habits(rt.wonder.kb) == [] and "forgot the rule" in rt.out[-1], rt.out[-1])
+        rt.say("undo that")
+        check("and undone", len(rem.habits(rt.wonder.kb)) == 1, str(rem.habits(rt.wonder.kb)))
+    finally:
+        te.stop_all(rt)
+
+
 if __name__ == "__main__":
     r1_parse()
     r2_r3_stored()
@@ -444,5 +467,6 @@ if __name__ == "__main__":
     r15_ask_about()
     r16_correct()
     r17_provenance()
+    r18_habits()
     print("\nALL PASS" if tw.OK else "\nSOME FAILED")
     sys.exit(0 if tw.OK else 1)

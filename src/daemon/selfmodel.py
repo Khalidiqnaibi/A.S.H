@@ -305,4 +305,11 @@ def block(rt) -> str:
              "that does timers, reminders, media keys, notes, the screen and files."]
     if caps:
         parts.append(caps)
+    try:
+        from . import remember as _rem
+        hb = _rem.habit_block(getattr(getattr(rt, "wonder", None), "kb", None))
+        if hb:
+            parts.append("How this person wants to be read (they taught you these; follow them):" + chr(10) + hb)
+    except Exception:
+        pass
     return "[ABOUT YOU]\n" + "\n".join(parts)

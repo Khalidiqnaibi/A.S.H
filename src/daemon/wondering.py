@@ -749,10 +749,17 @@ class Knowledge:
             self.save()
         self._mirror("term", term, {"definition": _clean(definition, 200)})
 
-    def store_fact(self, key: str, value: str) -> None:
+    def store_fact(self, key: str, value: str, limit: int = 80) -> None:
         with self._lock:
-            self.facts[key] = _clean(value, 80)
+            self.facts[key] = _clean(value, limit)
             self.save()
+
+    def drop_fact(self, key: str) -> bool:
+        with self._lock:
+            had = self.facts.pop(key, None) is not None
+            if had:
+                self.save()
+        return had
 
     def store_procedure(self, name: str, steps: List[str]) -> None:
         """A routine the user agreed to keep: a name and its steps (apps)."""

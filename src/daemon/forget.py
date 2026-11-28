@@ -51,6 +51,8 @@ def wants_forget(text: str) -> Optional[str]:
     s = m.group("s").strip(" .")
     if not s or s.lower() in _NOT_SUBJECTS or s.lower().endswith(" voice") or len(s.split()) > 5:
         return None
+    if re.match(r"^(?:that\s+|the\s+|my\s+)?(?:last\s+)?rule\b", s, re.I) or re.search(r"\brule\s+about\b", s, re.I):
+        return None                          # "forget that rule" is about a rule the person taught (remember.py), not a subject to wipe
     return s
 
 
