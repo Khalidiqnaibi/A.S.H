@@ -82,6 +82,7 @@ from .media import Media, MediaConfig
 from .control import Control, ControlConfig
 from .inventory import Inventory
 from . import digest as digest_mod
+from . import net as net_mod
 from .remarks import RemarkLog
 from .speech import SpeechControl, wants_brief, wants_cancel, wants_short, wants_stop
 from .tasks import Tasks
@@ -337,6 +338,7 @@ class AmbientConfig:
     feelings: bool = False
     feelings_path: Optional[str] = None
     repair: bool = True                          # frustration changes the behaviour (repair.py)
+    network_path: Optional[str] = None           # state/network.jsonl: every request that left this computer (net.py)
     inventory_path: Optional[str] = None         # state/apps.json: the installed apps and games, read once a day (inventory.py)
     repair_path: Optional[str] = None            # where the lines that led to it are kept (state/failures.jsonl)
     # BMO-style play: jokes, made-up songs, inside jokes remembered from what made you laugh (fun.py).
@@ -688,6 +690,8 @@ class AmbientRuntime:
         if self.cfg.media:
             self.media = Media(MediaConfig.from_dict(self.cfg.media_cfg),
                                episodic=getattr(self.ash, "episodic_memory", None), clock=lambda: self.clock())
+        if self.cfg.network_path:
+            net_mod.configure(log_path=self.cfg.network_path)
         self.inventory: Optional[Inventory] = Inventory(path=self.cfg.inventory_path) if self.cfg.inventory_path else None
         # The keyboard, the mouse and the screen by voice (control.py): on with the media keys unless daemon.json control.enabled is false.
         self.control: Optional[Control] = None
@@ -4302,6 +4306,16 @@ class AmbientRuntime:
         self._last_why = {"kind": "asked", "query": str(getattr(ev, "text", ""))[:80]}
         return True
 
+    def _sent_request(self, ev, now: float) -> bool:
+        """"What did you send out today?": from the record of every request that left this computer (net.py)."""
+        if not self._user_source(ev) or self._is_guest(ev) or not self._meant_for_ash(ev):
+            return False
+        if not net_mod.asks_sent(str(getattr(ev, "text", "") or "")):
+            return False
+        self._wonder_say(ev, type("R", (), {"say": net_mod.sent_say(net_mod.recent(self.cfg.network_path, now=time.time())), "outcome": "desktop"})())
+        self._last_why = {"kind": "asked", "query": "what left this computer"}
+        return True
+
     def _digest_request(self, ev, now: float) -> bool:
         """"What went wrong today?": the failures and model-bound lines of the last day, counted from the files ASH keeps (digest.py)."""
         if not self._user_source(ev) or self._is_guest(ev) or not self._meant_for_ash(ev):
@@ -7118,6 +7132,8 @@ class AmbientRuntime:
         if not loose and self._away_request(ev, now):
             return True
         if not loose and self._digest_request(ev, now):
+            return True
+        if not loose and self._sent_request(ev, now):
             return True
         if not loose and self._read_aloud_request(ev, now):
             return True

@@ -91,9 +91,11 @@ def pick_game(name: str, items: List[Dict[str, Any]]) -> Optional[Dict[str, Any]
 
 
 def _get_json(url: str, timeout: float = 8.0) -> Any:
-    req = urllib.request.Request(url, headers={"User-Agent": "ASH-local-assistant/1.0"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:          # noqa: S310 -- fixed https host
-        return json.loads(r.read(2_000_000).decode("utf-8", "ignore"))
+    from . import net
+    r = net.fetch(url, "game requirements", timeout)
+    if not r.ok:
+        raise OSError(r.words("the requirements") or r.status)
+    return r.json()
 
 
 def lookup(name: str, get: Callable[[str], Any] = _get_json) -> Optional[Dict[str, Any]]:

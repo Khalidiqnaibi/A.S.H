@@ -147,28 +147,17 @@ def snippet_from_wikipedia(js: str, n: int = 2) -> str:
 
 
 def _get(url: str, timeout: float) -> Tuple[int, str]:
-    import socket
-    import urllib.error
-    import urllib.request
-    try:
-        with urllib.request.urlopen(urllib.request.Request(url, headers=_UA), timeout=timeout) as r:
-            return r.status, r.read().decode("utf-8", "ignore")
-    except urllib.error.HTTPError as e:                      # reached the server; it said no
-        return e.code, ""
-    except (urllib.error.URLError, socket.timeout, ConnectionError, OSError) as e:
-        raise NoConnection(str(e))
+    """(status code, body) through net.fetch -- NoConnection only when the network is really down; a refusal (a 4xx, a bot check) is a code and no body."""
+    from . import net
+    r = net.fetch(url, "learning how something is done", timeout, headers={k: v for k, v in _UA.items() if k != "User-Agent"} | {"User-Agent": _UA["User-Agent"]})
+    if r.status == "down":
+        raise NoConnection(r.host)
+    return (r.code or 200) if r.status in ("ok", "empty") else (r.code or 403), r.text
 
 
 def is_online(timeout: float = 2.0) -> bool:
-    """Is there a network at all? (a TCP connect to a public resolver -- nothing is sent)."""
-    import socket
-    for host, port in (("1.1.1.1", 443), ("8.8.8.8", 53)):
-        try:
-            socket.create_connection((host, port), timeout).close()
-            return True
-        except OSError:
-            continue
-    return False
+    from . import net
+    return net.online()
 
 
 def web_fetch(q: str, timeout: float = 6.0) -> str:

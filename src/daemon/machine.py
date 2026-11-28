@@ -224,13 +224,13 @@ class Machine:
         what = spoken_name(what)
         online = self.online
         if online is None:
-            from .learnweb import is_online as online
+            from .net import online
         if not online():
             return (self.specs() + f" I'm offline right now, so I can't look up what {what} needs -- ask me again when I'm online.")
         try:
             game = self.req(what)
-        except Exception:
-            return self.specs() + f" I couldn't reach the store to check what {what} needs."
+        except Exception as e:
+            return self.specs() + f" I couldn't check what {what} needs -- {e}."
         if game is None:
             return (self.specs() + f" Steam doesn't list {what} with requirements (it may not be out on PC, or it's sold elsewhere), so I can't check it.")
         from . import canrun

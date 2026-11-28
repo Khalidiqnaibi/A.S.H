@@ -85,7 +85,7 @@ def main():
 
     def boom(n):
         raise OSError("down")
-    check("online but the store can't be reached: said", "couldn't reach the store" in rig(online=True, req=boom, spec=weak).can_run("x"))
+    check("online but the store can't be reached: said", "couldn't check what x needs -- down" in rig(online=True, req=boom, spec=weak).can_run("x"))
     unk = {"name": "X", "minimum": {"ram_gb": 4.0, "gpu": ["Some Future Card 9000"], "gfx_text": "Some Future Card 9000"}, "recommended": None}
     check("a card the table doesn't know is said, not guessed", "can't rank" in rig(online=True, req=lambda n: unk, spec=weak).can_run("x"))
     check("the GPU table ranks roughly", canrun.gpu_score("GeForce GTX 1060 6GB") > canrun.gpu_score("GeForce GTX 1630") and canrun.gpu_score("RTX 3060 Laptop GPU") > canrun.gpu_score("GTX 1060") and canrun.gpu_score("no such card") is None)
