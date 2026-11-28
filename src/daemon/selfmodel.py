@@ -49,6 +49,7 @@ _RULES = [
                  r"|what(?:'s|\s+is|\s+was)?\s+(?:the\s+|your\s+)?(?:latest|newest|last|most\s+recent)\s+update(?:\s+(?:for|on|to)\s+(?:you|ash|yourself))?"),
     ("self", r"what\s+do\s+you\s+know\s+about\s+yourself|describe\s+yourself|what\s+do\s+you\s+know\s+about\s+(?:you|ash)"
              r"|what\s+(?:all\s+)?do\s+you\s+know\s+(?:of|about)\s+(?:yourself|your\s+own\s+(?:self|system))"),   # ("who are you" / "tell me about yourself": honest.py)
+    ("concepttree", r"(?:show|list|give)\s+me\s+(?:all\s+)?(?:of\s+)?(?:your|the)\s+concepts?(?:\s+(?:tree|graph|map|list|network))?|(?:what|which)\s+concepts?\s+do\s+you\s+(?:have|know)|list\s+(?:your|the)\s+concepts?|show\s+(?:me\s+)?(?:your|the)\s+concept\s+(?:tree|graph|map|list|network)"),
     ("size", r"how\s+(?:much|many\s+things)\s+do\s+you\s+(?:remember|know)|how\s+big\s+is\s+your\s+memory|how\s+much\s+(?:is\s+)?(?:in\s+)?your\s+memory"
              r"|what\s+(?:have\s+you\s+)?learn(?:ed|t)\s+(?:today|lately|recently|so\s+far)|what\s+did\s+you\s+learn\s+(?:today|lately|recently)"),
 ]
@@ -67,8 +68,11 @@ _HOW = {
                "for moments that share your question's concepts, then answer from those. Anything you ask me to keep goes in your notes."),
     "sleep": (r"(?:sleep|sleeping|nap|napping|dream\w*)", "When it's quiet I take a short nap, and at night a longer one. I replay recent moments, strengthen links between "
               "ideas that keep coming up together, let weak ones fade, and check cause-and-effect links I'd guessed. Nothing is sent anywhere."),
-    "concepts": (r"(?:concepts?|ideas?)", "A concept is an idea that keeps coming up -- a word or topic, like NoSQL or a person's name. Concepts are linked "
+    "concepts": (r"(?:concepts?(?:\s+memory)?|ideas?)", "A concept is an idea that keeps coming up -- a word or topic, like NoSQL or a person's name. Concepts are linked "
                  "when they show up together, and the links grow with use and fade without it. They are how I find related memories when the words differ."),
+    "teach": (r"(?:learn|teach)(?:ing)?\s+(?:you\s+)?(?:new\s+)?(?:concepts?|things|stuff|something(?:\s+new)?)", "You can teach me three ways. Say \"from Google, learn how to <something>\" and I break it into concepts, check your own notes first, "
+              "search how each is used and ask if it's right. Say \"remember that <something>\" or \"remember Omar is my cousin\" and I keep it. Or just talk: ideas that keep "
+              "coming up together become concepts by themselves, and fade if they stop."),
     "repair": (r"repair\s+mode", "When you sound frustrated -- \"bruh\", \"never mind\", \"that's wrong\" a few times in a few minutes -- I apologise once, stop "
                "the thinking fillers, answer in a sentence, and say \"I don't know\" instead of guessing. A thanks, or ten quiet minutes, ends it. "
                "The lines that led to it are kept in a failures file."),
@@ -99,7 +103,11 @@ _HOWQ = re.compile(_A + r"(?:how\s+(?:do|does|can)\s+(?:you|ash|your)\s+(?:use|w
                    r"|why\s+do\s+you\s+(?:use|have|need)\s+(?:your\s+)?(?P<b>[a-z ]{3,30}?)"
                    r"|what\s+(?:happens|do\s+you\s+do)\s+when\s+you\s+(?P<c>sleep|nap|dream)"
                    r"|what(?:'s|\s+is)\s+(?:a\s+|an\s+|the\s+)?(?P<d>concepts?|repair\s+mode|sleep|napping)(?:\s+in\s+your\s+(?:memory|brain))?"
-                   r"|do\s+you\s+(?P<e>sleep|dream|nap)|how\s+(?:is|are)\s+my\s+(?P<f>privacy|data|information)\s+(?:handled|kept|protected))" + _Z, re.I)
+                   r"|do\s+you\s+(?P<e>sleep|dream|nap)|how\s+(?:is|are)\s+my\s+(?P<f>privacy|data|information)\s+(?:handled|kept|protected)"
+                   # 28 Nov: "How to use your concepts", "how can you learn concepts", "how to teach you new concepts", "what can your concept memory do"
+                   r"|how\s+(?:can\s+you|do\s+you|to)\s+(?P<g>learn\s+(?:new\s+)?concepts?|use\s+(?:your\s+)?concepts?|teach\s+you\s+(?:new\s+)?(?:concepts?|things|stuff))"
+                   r"|how\s+(?:can|do|could)\s+i\s+(?P<h>teach\s+you\s+(?:new\s+)?(?:concepts?|things|stuff))"
+                   r"|what\s+can\s+(?:your|the)\s+(?P<i>concept\s+memory|concepts?)\s+do)" + _Z, re.I)
 
 
 def _how_topic(t: str) -> Optional[str]:
@@ -112,6 +120,9 @@ def _how_topic(t: str) -> Optional[str]:
     if not m:
         return None
     what = " ".join(x for x in m.groupdict().values() if x).strip().lower()
+    if re.match(r"^(?:learn|teach)", what):
+        return "how:teach"
+    what = re.sub(r"^use\s+(?:your\s+)?", "", what)
     for key, (pat, _) in _HOW.items():
         if re.fullmatch(pat, what, re.I) or (key == "repair" and "repair" in what):
             return "how:" + key
@@ -232,6 +243,17 @@ def say(kind: str, rt) -> str:
     f = facts(rt)
     if kind.startswith("how:"):
         return _HOW[kind[4:]][1]
+    if kind == "concepttree":
+        net = getattr(getattr(getattr(rt, "brain", None), "concepts", None), "net", None)
+        cs = list(getattr(net, "concepts", {}).values()) if net is not None else []
+        if not cs:
+            return "I don't have any concepts yet."
+        cs.sort(key=lambda c: -int(getattr(c, "activations", 0)))
+        top = []
+        for c in cs[:6]:
+            near = [net.describe(d) for d, _ in net.neighbours(c.id, 2) if d in net.concepts]
+            top.append(net.describe(c.id) + (f" (linked to {' and '.join(near)})" if near else ""))
+        return f"I hold {len(cs)} concepts. The ones that come up most: " + "; ".join(top) + ". The Mind page draws the whole graph."
     if kind == "model":
         if not f["model"]:
             return "I have no language model loaded right now -- the rules answer what they can."

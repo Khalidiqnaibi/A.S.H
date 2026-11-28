@@ -45,6 +45,25 @@ def s1_parse():
                     "how are my privacy handled": None}.items():
         if k:
             check(f"{said!r} -> {k}", selfmodel.parse(said) == k, str(selfmodel.parse(said)))
+    for said, k in {"How to use your concepts, Ash.": "how:concepts", "How can you learn concepts, Ash?": "how:teach", "How to teach you new concepts.": "how:teach",
+                    "What can your concept memory do?": "how:concepts", "Show me your concepts tree.": "concepttree",
+                    "what concepts do you have": "concepttree", "list your concepts": "concepttree", "how does your concept memory work": "how:concepts"}.items():
+        check(f"{said!r} -> {k}", selfmodel.parse(said) == k, str(selfmodel.parse(said)))
+    class _C:
+        def __init__(s, i, a):
+            s.id, s.activations = i, a
+
+    class _Net:
+        concepts = {1: _C(1, 9), 2: _C(2, 5)}
+
+        def describe(s, i):
+            return {1: "NoSQL", 2: "documents"}[i]
+
+        def neighbours(s, i, n):
+            return [(2 if i == 1 else 1, 0.5)]
+    said = selfmodel.say("concepttree", NS(brain=NS(concepts=NS(net=_Net()))))
+    check("the concept tree is read from the real graph: count, the busiest, and what they link to", said.startswith("I hold 2 concepts. The ones that come up most: NoSQL (linked to documents)"), said)
+    check("how to teach it says the real ways", "from Google, learn how to" in selfmodel.say("how:teach", NS()))
     for t in ["how do you open chrome", "how do you spell necessary", "what is a hash map", "how do i use my memory better"]:
         check(f"not a how-do-you-work question: {t!r}", selfmodel.parse(t) is None, str(selfmodel.parse(t)))
     for t in ["What's the temperature today?", "what is a hash map", "what's the news", "who is Linda", "what do you know about me", "what can you do",
