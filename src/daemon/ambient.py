@@ -7196,7 +7196,7 @@ class AmbientRuntime:
                         self.stats["meaning_" + route.label] = self.stats.get("meaning_" + route.label, 0) + 1
                         return True
                 else:
-                    self._dym = (route.phrase, now)
+                    self._dym = (route.phrase, now, text, route.label)      # what was said and the feature it nearly was: a yes or a no teaches the wording
                     self.stats["loose_asked"] = self.stats.get("loose_asked", 0) + 1
                     q = f"Did you mean “{route.phrase}”" + (f" or “{route.runner_phrase}”?" if route.runner_phrase and route.runner_up else "?")
                     self._wonder_say(ev, type("R", (), {"say": q, "outcome": "desktop"})())
@@ -7259,22 +7259,37 @@ class AmbientRuntime:
         pending = getattr(self, "_dym", None)
         if pending is None or not self._user_source(ev):
             return False
-        phrase, at = pending
+        phrase, at = pending[0], pending[1]
+        said_before, label = (pending[2], pending[3]) if len(pending) >= 4 else ("", "")
         self._dym = None
         if now - at > self.DYM_SECONDS:
             return False
         from .commands import Commands, clean
         said = clean(str(getattr(ev, "text", "") or ""))
         if Commands.YES.match(said):
+            self._teach_meaning(said_before, label)
             if self._rules(self._as_said(ev, phrase, "confirmed"), now):
                 self.stats["loose_confirmed"] = self.stats.get("loose_confirmed", 0) + 1
                 return True
             self._wonder_say(ev, type("R", (), {"say": "I couldn't do that one after all.", "outcome": "desktop"})())
             return True
         if Commands.NO.match(said):
+            self._teach_meaning(said_before, "none")
             self._wonder_say(ev, type("R", (), {"say": "Okay, never mind.", "outcome": "desktop"})())
             return True
         return False
+
+    def _teach_meaning(self, text: str, label: str) -> None:
+        """A yes to "Did you mean ...?" means that wording IS that feature; a no means it is not any feature. Kept by the meaning chooser, so next time it is sure
+        (or leaves it alone) without asking -- the wording coverage grows from use, with no pattern to edit."""
+        if not text or not label:
+            return
+        try:
+            ch = self._choosers.get("meaning") if hasattr(self, "_choosers") else None
+            if ch is not None and ch.learn(text, label):
+                self.stats["meaning_learned"] = self.stats.get("meaning_learned", 0) + 1
+        except Exception:
+            logger.debug("teaching the meaning failed", exc_info=True)
 
     def _user_source(self, ev) -> bool:
         s = str(getattr(ev, "source", "") or "").lower()
