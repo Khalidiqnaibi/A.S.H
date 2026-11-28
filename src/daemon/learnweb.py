@@ -31,7 +31,9 @@ METHOD = ["break the problem into concepts", "check what you have done yourself 
           "save each concept, and a skill that goes to the same search", "ask you if it's right -- a no forgets it"]
 
 _LEAD = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:(?:please|ok(?:ay)?|so|and)[,\s]+)*(?:(?:can|could)\s+you\s+)?(?:please\s+)?"
-                   r"(?:(?:go\s+(?:and\s+)?)?learn(?:\s+(?:about|how\s+to|to))?|teach\s+yourself(?:\s+(?:about|how\s+to|to))?|figure\s+out\s+how\s+to|find\s+out\s+how\s+to|"
+                   # 28 Nov: "From Google, learn how to open Discord" (said three times) went to the model: only "learn how to X from google" was read.
+                   r"(?:(?:from|on|using|through|with)\s+(?:google|the\s+(?:web|internet)|online)[,\s]+)?"
+                   r"(?:(?:go\s+(?:and\s+)?)?learn(?:\s+from\s+(?:google|the\s+(?:web|internet)|online))?(?:\s+(?:about|how\s+to|to))?|teach\s+yourself(?:\s+(?:about|how\s+to|to))?|figure\s+out\s+how\s+to|find\s+out\s+how\s+to|"
                    r"google\s+how\s+to|research\s+how\s+to)\s+(?P<p>.{3,160}?)(?:\s+(?:from|on|using|through|with)\s+(?:google|the\s+(?:web|internet)|online)|\s+by\s+(?:googling|searching)(?:\s+it)?)?\W*$", re.I)
 _SPLIT = re.compile(r"\s*(?:,|;|\band\s+then\b|\bthen\b|\band\b|\bwith\b|\busing\b|\bin\b|\bon\b|\bfor\b)\s+", re.I)
 _STATUS = re.compile(r"^\W*(?:(?:hey\s+)?ash[,\s]+)?(?:what\s+(?:have\s+you|did\s+you)\s+learn(?:ed|t)?(?:\s+from\s+(?:google|the\s+web|online))?|what\s+are\s+you\s+learning|what'?s\s+(?:in\s+)?(?:your|the)\s+learning\s+queue)\W*$", re.I)

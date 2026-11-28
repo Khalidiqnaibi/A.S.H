@@ -127,6 +127,11 @@ def _checks(runtime: Any = None) -> List[Callable[[str], bool]]:
     except Exception:
         logger.debug("looking grammar unavailable", exc_info=True)
     try:
+        from . import learnweb
+        add(lambda t: learnweb.parse(t) is not None or learnweb.asks_method(t) or learnweb.asks_status(t))   # 28 Nov: 'From Google, learn how to ...' scored 0.09 and was never heard as a command
+    except Exception:
+        logger.debug("learnweb grammar unavailable", exc_info=True)
+    try:
         from . import voiceid
         add(lambda t: voiceid.is_request(t))
     except Exception:

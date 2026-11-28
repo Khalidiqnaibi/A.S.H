@@ -19,6 +19,9 @@ def main():
     print("\n=== L1. Reading the ask, breaking the problem ===")
     check("'learn how to ...' is read", lw.parse("Learn how to make a thumbnail in photoshop from google") == "make a thumbnail in photoshop", str(lw.parse("Learn how to make a thumbnail in photoshop from google")))
     check("other ways of asking", lw.parse("go and learn about rigging in blender") == "rigging in blender" and lw.parse("teach yourself how to solder") == "solder")
+    check("'From Google, learn how to ...' (28 Nov, said three times, went to the model)", lw.parse("From Google, learn how to open Discord and type in it.") == "open Discord and type in it"
+          and lw.parse("From Google, learn how to open a YouTube video.") == "open a YouTube video", str(lw.parse("From Google, learn how to open a YouTube video.")))
+    check("'learn from Google how to ...'", lw.parse("Ash, Learn from Google how to chunk tasks to smaller tasks.") == "chunk tasks to smaller tasks")
     check("a plain sentence is not an ask", lw.parse("I learned something today") is None and lw.parse("what time is it") is None)
     check("concepts: the task and the tool", lw.concepts("make a thumbnail in photoshop") == ["make a thumbnail", "photoshop"], str(lw.concepts("make a thumbnail in photoshop")))
     check("a list is split, capped at five", lw.concepts("python, flask, docker, redis, celery and nginx and git") == ["python", "flask", "docker", "redis", "celery"])

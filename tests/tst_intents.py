@@ -135,7 +135,8 @@ def a_addressing():
            "turn on the living room lights", "switch off the kitchen light", "quiet for an hour", "go to sleep",
            "focus for 45 minutes", "let's play a game", "remind me in an hour to check the oven", "make it louder",
            "lower the volume a bit", "undo that", "learn my voice", "work mode", "wind down", "break time",
-           "set a timer for 5 minutes", "open chrome", "close word", "play a game with me", "forget what I said about Omar"]
+           "set a timer for 5 minutes", "open chrome", "close word", "play a game with me", "forget what I said about Omar",
+           "From Google, learn how to open Discord and type in it.", "learn how to make a thumbnail in Photoshop"]
     bad = [(t, round(address.score(fix_name(t)).confidence, 2)) for t in yes if address.score(fix_name(t)).confidence < address.LIKELY_AT]
     check("commands a handler understands are 'probably for ASH' without the name", not bad, str(bad))
     sure = [t for t in yes if address.score(fix_name(t)).confidence >= address.ADDRESSED_AT and not re.match(r"^(?:open|close|set|remind|turn|switch)", t)]
