@@ -212,6 +212,9 @@ def e5_no_model_said_right():
     check("a tool whose result the model worded says so", "language model then put the tool's result into words" in explain.explain(worded), explain.explain(worded))
     chat = {"kind": "answer", "query": "hello", "intent": None, "tool": None, "pathway": "slow", "narration": "llm", "model_calls": 1}
     check("plain conversation is still the model's", "language model" in explain.explain(chat) and "conversation" in explain.explain(chat))
+    miss = {"kind": "answer", "query": "Show me your concepts tree", "intent": None, "tool": None, "pathway": "slow", "narration": "llm", "model_calls": 1}
+    check("a real request nothing took: says there was no rule or tool and the model guessed (not 'I took it as conversation')",
+          "no rule or tool" in explain.explain(miss) and "a guess" in explain.explain(miss) and "conversation" not in explain.explain(miss), explain.explain(miss))
     old = {"kind": "answer", "query": "x", "intent": "get_time", "tool": "get_time", "pathway": "slow"}
     check("an old record without the fields is explained as before", "thinking it through" in explain.explain(old), explain.explain(old))
     check("a self-model answer is explained as that", "live state" in explain.explain({"kind": "self"}) and "live state" in explain.source_reply({"kind": "self"}))

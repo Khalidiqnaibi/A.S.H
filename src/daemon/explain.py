@@ -209,6 +209,11 @@ def explain(why: Optional[Dict[str, Any]]) -> str:
         if intent and intent != "conversation":
             s = f"You asked \"{q}\", and I read it as {intent.replace('_', ' ')}"
             s += f", so I used the {tool.replace('_', ' ')} tool." if tool else "."
+        elif not tool and len(q.split()) >= 4 and str(why.get("pathway", "")) in ("slow", "escalated"):
+            # 28 Nov: asked "why did you say that" about a mis-routed request it said "I took it as conversation" -- true, and no help. Say what is true:
+            # no rule or tool took it, the model guessed, and the line is kept so a rule can be written.
+            return (f"You said \"{q}\". I had no rule or tool for that, so the language model answered -- a guess, not something I checked. "
+                    "I keep lines like that in my list of things to write a rule for.")
         else:
             s = f"You said \"{q}\", and I took it as conversation, so I just replied."
         if tool and no_model:
