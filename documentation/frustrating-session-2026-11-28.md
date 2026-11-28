@@ -1,5 +1,7 @@
 # The 28 Nov morning (09:35-10:06) -- why it was frustrating, and what to fix
 
+**Status: fixes 1-12 are implemented, each with its own test and commit. Fix 11 caps the prompt blocks and logs the prompt size; the real before/after seconds still need one measured run on the live model. The 'still thinking' cue and the concept-graph editing in the feature list are not done.**
+
 Evidence: `state/journal/2026-11-28.jsonl` (about 75 lines you said), `logs/ashd.log` 14300-14870, `state/failures.jsonl`, `state/unrouted.jsonl`
 (23 lines reached the model, 10 took 15 s or more, the slowest 36 s). Model: qwen2.5:3b. CPU stayed at 18-20%, so it was not a flood.
 
